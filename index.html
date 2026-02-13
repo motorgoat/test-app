@@ -460,12 +460,164 @@
       font-family: inherit;
       cursor: pointer;
     }
+
+    /* Sync button in header */
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sync-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .sync-btn:active { transform: scale(0.9); }
+    .sync-btn svg { width: 22px; height: 22px; }
+    .sync-btn.synced { color: var(--success); }
+    .sync-btn.error { color: var(--danger); }
+
+    .sync-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .sync-btn.synced .sync-dot { background: var(--success); }
+    .sync-btn.error .sync-dot { background: var(--danger); }
+
+    /* Sync Modal */
+    .sync-modal {
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      padding: 28px 24px calc(24px + var(--safe-bottom));
+      width: 100%;
+      max-width: 480px;
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-overlay.open .sync-modal {
+      transform: translateY(0);
+    }
+
+    .sync-code-display {
+      background: var(--bg);
+      border: 2px solid var(--accent);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      margin: 16px 0;
+    }
+
+    .sync-code-display .code {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      color: var(--accent-light);
+      font-family: 'Courier New', monospace;
+    }
+
+    .sync-code-display .code-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .sync-status {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      margin: 8px 0;
+    }
+
+    .sync-status.ok { color: var(--success); }
+    .sync-status.err { color: var(--danger); }
+
+    .sync-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(136, 136, 160, 0.15);
+    }
+
+    .sync-section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid rgba(136, 136, 160, 0.2);
+      border-radius: 14px;
+      background: transparent;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.98);
+      opacity: 0.8;
+    }
+
+    .setup-steps {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 12px 0;
+    }
+
+    .setup-steps li {
+      margin-bottom: 8px;
+      list-style: none;
+      padding-left: 24px;
+      position: relative;
+    }
+
+    .setup-steps li::before {
+      content: attr(data-step);
+      position: absolute;
+      left: 0;
+      color: var(--accent-light);
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h1>TaskLoop</h1>
+    <div class="header-row">
+      <h1>TaskLoop</h1>
+      <button class="sync-btn" id="syncBtn" aria-label="Cloud Sync">
+        <span class="sync-dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115.36-6.36L21 8"/>
+          <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15.36 6.36L3 16"/>
+        </svg>
+      </button>
+    </div>
     <div class="header-sub" id="headerSub">Deine wiederkehrenden Aufgaben</div>
   </div>
 
@@ -509,6 +661,63 @@
         </div>
         <button type="submit" class="btn-primary" id="submitBtn">Task hinzufuegen</button>
       </form>
+    </div>
+  </div>
+
+  <!-- Sync Modal -->
+  <div class="modal-overlay" id="syncOverlay">
+    <div class="sync-modal">
+      <div class="modal-handle"></div>
+      <h2>Cloud Sync</h2>
+
+      <div id="syncSetupView">
+        <p style="font-size:14px;color:var(--text-muted);line-height:1.5;margin-bottom:16px;">
+          Damit deine Tasks in der Cloud gespeichert werden und nie verloren gehen, brauchst du ein kostenloses Firebase-Projekt.
+        </p>
+        <div class="form-group">
+          <label for="firebaseUrl">Firebase Database URL</label>
+          <input class="form-input" type="url" id="firebaseUrl" placeholder="https://dein-projekt.firebaseio.com">
+        </div>
+        <button class="btn-primary" id="syncSetupBtn">Verbinden</button>
+
+        <div class="sync-section">
+          <h3>So erstellst du ein Firebase-Projekt:</h3>
+          <ol class="setup-steps">
+            <li data-step="1.">Gehe zu console.firebase.google.com</li>
+            <li data-step="2.">Klicke "Projekt erstellen" und gib einen Namen ein</li>
+            <li data-step="3.">Google Analytics kannst du deaktivieren</li>
+            <li data-step="4.">Gehe links zu "Realtime Database" und klicke "Datenbank erstellen"</li>
+            <li data-step="5.">Waehle "Im Testmodus starten"</li>
+            <li data-step="6.">Kopiere die URL oben (z.B. https://mein-projekt-default-rtdb.firebaseio.com)</li>
+            <li data-step="7.">Fuege sie hier oben ein</li>
+          </ol>
+        </div>
+      </div>
+
+      <div id="syncConnectedView" style="display:none;">
+        <div class="sync-code-display">
+          <div class="code-label">Dein Sync-Code</div>
+          <div class="code" id="syncCodeDisplay">------</div>
+        </div>
+        <div class="sync-status" id="syncStatus">Verbunden</div>
+
+        <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin:16px 0;">
+          Gib diesen Code auf einem anderen Geraet ein, um deine Tasks zu synchronisieren.
+        </p>
+
+        <div class="sync-section">
+          <h3>Anderes Geraet verbinden</h3>
+          <div class="form-group">
+            <input class="form-input" type="text" id="joinCodeInput" placeholder="Sync-Code eingeben" maxlength="8" style="text-transform:uppercase;letter-spacing:2px;text-align:center;">
+          </div>
+          <button class="btn-secondary" id="joinCodeBtn">Mit Code verbinden</button>
+        </div>
+
+        <div class="sync-section">
+          <button class="btn-secondary" id="syncNowBtn">Jetzt synchronisieren</button>
+          <button class="btn-secondary" id="syncDisconnectBtn" style="color:var(--danger);border-color:rgba(255,107,107,0.3);margin-top:8px;">Verbindung trennen</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -826,6 +1035,181 @@
       closeModal();
     });
 
+    // ---- Cloud Sync ----
+    const SYNC_KEY = 'taskloop_sync';
+    const syncBtn = document.getElementById('syncBtn');
+    const syncOverlay = document.getElementById('syncOverlay');
+    const syncSetupView = document.getElementById('syncSetupView');
+    const syncConnectedView = document.getElementById('syncConnectedView');
+
+    function loadSyncConfig() {
+      try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || null; }
+      catch { return null; }
+    }
+
+    function saveSyncConfig(config) {
+      localStorage.setItem(SYNC_KEY, JSON.stringify(config));
+    }
+
+    function generateSyncCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    function updateSyncUI() {
+      const config = loadSyncConfig();
+      if (config && config.url) {
+        syncBtn.classList.add('synced');
+        syncBtn.classList.remove('error');
+        syncSetupView.style.display = 'none';
+        syncConnectedView.style.display = 'block';
+        document.getElementById('syncCodeDisplay').textContent = config.code;
+      } else {
+        syncBtn.classList.remove('synced', 'error');
+        syncSetupView.style.display = 'block';
+        syncConnectedView.style.display = 'none';
+      }
+    }
+
+    async function cloudSave(tasks) {
+      const config = loadSyncConfig();
+      if (!config || !config.url) return;
+      try {
+        const url = `${config.url.replace(/\/$/, '')}/taskloop/${config.code}.json`;
+        await fetch(url, {
+          method: 'PUT',
+          body: JSON.stringify({ tasks, updatedAt: Date.now() }),
+        });
+        syncBtn.classList.add('synced');
+        syncBtn.classList.remove('error');
+      } catch (e) {
+        syncBtn.classList.add('error');
+        syncBtn.classList.remove('synced');
+      }
+    }
+
+    async function cloudLoad(code) {
+      const config = loadSyncConfig();
+      if (!config || !config.url) return null;
+      try {
+        const useCode = code || config.code;
+        const url = `${config.url.replace(/\/$/, '')}/taskloop/${useCode}.json`;
+        const res = await fetch(url);
+        const data = await res.json();
+        return data;
+      } catch (e) {
+        syncBtn.classList.add('error');
+        syncBtn.classList.remove('synced');
+        return null;
+      }
+    }
+
+    // Override saveTasks to also sync to cloud
+    const _origSaveTasks = saveTasks;
+    saveTasks = function(tasks) {
+      _origSaveTasks(tasks);
+      cloudSave(tasks);
+    };
+
+    // Sync button opens modal
+    syncBtn.addEventListener('click', () => {
+      updateSyncUI();
+      syncOverlay.classList.add('open');
+    });
+
+    syncOverlay.addEventListener('click', (e) => {
+      if (e.target === syncOverlay) syncOverlay.classList.remove('open');
+    });
+
+    // Setup: connect Firebase
+    document.getElementById('syncSetupBtn').addEventListener('click', () => {
+      const url = document.getElementById('firebaseUrl').value.trim();
+      if (!url) return;
+      const config = { url, code: generateSyncCode() };
+      saveSyncConfig(config);
+      // Save current tasks to cloud
+      cloudSave(loadTasks());
+      updateSyncUI();
+      document.getElementById('syncStatus').textContent = 'Verbunden!';
+      document.getElementById('syncStatus').className = 'sync-status ok';
+    });
+
+    // Join with existing code
+    document.getElementById('joinCodeBtn').addEventListener('click', async () => {
+      const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+      if (code.length < 4) return;
+      const config = loadSyncConfig();
+      if (!config || !config.url) {
+        alert('Bitte zuerst Firebase URL eingeben.');
+        return;
+      }
+      config.code = code;
+      saveSyncConfig(config);
+      // Load tasks from cloud
+      const data = await cloudLoad(code);
+      if (data && data.tasks) {
+        _origSaveTasks(data.tasks);
+        render();
+        document.getElementById('syncStatus').textContent = `${data.tasks.length} Tasks geladen!`;
+        document.getElementById('syncStatus').className = 'sync-status ok';
+      } else {
+        document.getElementById('syncStatus').textContent = 'Keine Daten gefunden fuer diesen Code.';
+        document.getElementById('syncStatus').className = 'sync-status err';
+      }
+      updateSyncUI();
+    });
+
+    // Manual sync
+    document.getElementById('syncNowBtn').addEventListener('click', async () => {
+      const status = document.getElementById('syncStatus');
+      status.textContent = 'Synchronisiere...';
+      status.className = 'sync-status';
+      const data = await cloudLoad();
+      if (data && data.tasks) {
+        const localTasks = loadTasks();
+        // Merge: use whichever is more recent
+        const localTime = Math.max(...localTasks.map(t => t.lastCompleted || t.createdAt || 0), 0);
+        const cloudTime = data.updatedAt || 0;
+        if (cloudTime > localTime && data.tasks.length > 0) {
+          _origSaveTasks(data.tasks);
+          render();
+          status.textContent = 'Tasks aus der Cloud geladen!';
+        } else {
+          await cloudSave(localTasks);
+          status.textContent = 'Lokale Tasks in Cloud gespeichert!';
+        }
+        status.className = 'sync-status ok';
+      } else {
+        await cloudSave(loadTasks());
+        status.textContent = 'Tasks hochgeladen!';
+        status.className = 'sync-status ok';
+      }
+    });
+
+    // Disconnect
+    document.getElementById('syncDisconnectBtn').addEventListener('click', () => {
+      if (!confirm('Cloud-Sync trennen? Lokale Tasks bleiben erhalten.')) return;
+      localStorage.removeItem(SYNC_KEY);
+      updateSyncUI();
+      syncBtn.classList.remove('synced', 'error');
+    });
+
+    // Auto-sync on startup
+    async function initSync() {
+      const config = loadSyncConfig();
+      if (!config || !config.url) return;
+      const data = await cloudLoad();
+      if (data && data.tasks && data.tasks.length > 0) {
+        const localTasks = loadTasks();
+        if (localTasks.length === 0 || (data.updatedAt && data.updatedAt > Math.max(...localTasks.map(t => t.lastCompleted || t.createdAt || 0), 0))) {
+          _origSaveTasks(data.tasks);
+          render();
+        }
+      }
+    }
+
     // ---- Notifications ----
     const notifBanner = document.getElementById('notifBanner');
     const notifBtn = document.getElementById('notifBtn');
@@ -903,6 +1287,7 @@
     render();
     checkNotifPermission();
     scheduleNotifications();
+    initSync();
 
     // Register service worker
     if ('serviceWorker' in navigator) {
