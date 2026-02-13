@@ -924,16 +924,17 @@
       if (!task) return;
 
       if (isDue(task)) {
-        // Mark completed now
+        // Mark completed → schedule notification for next due time
         task.lastCompleted = Date.now();
+        saveTasks(tasks);
+        render();
+        scheduleTaskNotification(task);
       } else {
-        // Manually uncheck — reset so it's due again
+        // Manually uncheck — due again now
         task.lastCompleted = null;
+        saveTasks(tasks);
+        render();
       }
-
-      saveTasks(tasks);
-      render();
-      scheduleNotifications();
     }
 
     function deleteTask(id) {
@@ -957,11 +958,8 @@
       tasks.push(newTask);
       saveTasks(tasks);
       render();
-      scheduleNotifications();
-      // New tasks are immediately due — notify right away
-      if (Notification.permission === 'granted') {
-        showSWNotification('TaskLoop', `${name} ist jetzt faellig!`, 'taskloop-' + newTask.id);
-      }
+      // New task: lastCompleted=null → due now → notify immediately
+      scheduleTaskNotification(newTask);
     }
 
     function updateTask(id, name, intervalVal, intervalUnit, reminderTime) {
@@ -974,7 +972,7 @@
       task.reminderTime = reminderTime;
       saveTasks(tasks);
       render();
-      scheduleNotifications();
+      scheduleTaskNotification(task);
     }
 
     // ---- Modal ----
@@ -1220,6 +1218,7 @@
     const notifBanner = document.getElementById('notifBanner');
     const notifBtn = document.getElementById('notifBtn');
     let swRegistration = null;
+    let notifTimeouts = [];
 
     function checkNotifPermission() {
       if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
@@ -1229,7 +1228,7 @@
         notifBanner.classList.remove('hidden');
         document.querySelector('.notif-banner-text').textContent =
           'Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.';
-        notifBtn.textContent = 'Einstellungen';
+        notifBtn.textContent = 'Blockiert';
         notifBtn.disabled = true;
       }
     }
@@ -1238,104 +1237,86 @@
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         notifBanner.classList.add('hidden');
-        syncTasksToSW();
-        scheduleNotifications();
+        scheduleAllNotifications();
       } else if (perm === 'denied') {
         document.querySelector('.notif-banner-text').textContent =
           'Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.';
-        notifBtn.textContent = 'Einstellungen';
+        notifBtn.textContent = 'Blockiert';
         notifBtn.disabled = true;
       }
     });
 
-    // Send tasks to Service Worker so it can check in background
-    function syncTasksToSW() {
-      if (!swRegistration || !swRegistration.active) return;
-      swRegistration.active.postMessage({
-        type: 'SYNC_TASKS',
-        tasks: loadTasks(),
-      });
-    }
-
-    // Show notification via Service Worker (works in background)
-    function showSWNotification(title, body, tag) {
-      if (!swRegistration) return;
-      swRegistration.active.postMessage({
-        type: 'SHOW_NOTIFICATION',
-        title,
-        body,
-        tag,
-      });
-    }
-
-    // Check for due tasks and notify via SW
-    function checkAndNotify() {
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      if (!swRegistration) return;
-      const tasks = loadTasks();
-      const dueTasks = tasks.filter(t => isDue(t));
-      if (dueTasks.length > 0) {
-        const names = dueTasks.slice(0, 3).map(t => t.name).join(', ');
-        const more = dueTasks.length > 3 ? ` und ${dueTasks.length - 3} weitere` : '';
-        showSWNotification('TaskLoop', `Faellig: ${names}${more}`, 'taskloop-due');
+    // Show a notification — tries SW first, falls back to Notification API
+    function notify(title, body, tag) {
+      if (Notification.permission !== 'granted') return;
+      if (swRegistration && swRegistration.active) {
+        swRegistration.active.postMessage({
+          type: 'SHOW_NOTIFICATION', title, body, tag,
+        });
+      } else {
+        new Notification(title, { body, icon: 'icon-192.png', tag });
       }
     }
 
-    // Schedule notifications based on reminder times
-    let notifTimeouts = [];
-    // Track which tasks we already notified about (to avoid repeats)
-    const notifiedTasks = new Set();
+    // Schedule a notification for a specific task at its next due time
+    function scheduleTaskNotification(task) {
+      if (Notification.permission !== 'granted') return;
+      const nextDue = getNextDue(task);
+      const now = Date.now();
+      const delay = nextDue - now;
 
-    function scheduleNotifications() {
+      if (delay <= 0) {
+        // Already due — notify now
+        notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+        return;
+      }
+
+      // Schedule for the exact due time
+      const timeout = setTimeout(() => {
+        notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+        render();
+      }, delay);
+      notifTimeouts.push(timeout);
+    }
+
+    // Schedule notifications for all tasks (used on init/visibility change)
+    function scheduleAllNotifications() {
       notifTimeouts.forEach(t => clearTimeout(t));
       notifTimeouts = [];
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-      syncTasksToSW();
+      if (Notification.permission !== 'granted') return;
 
       const tasks = loadTasks();
-      const now = Date.now();
       tasks.forEach(task => {
         const nextDue = getNextDue(task);
-
-        if (nextDue > now && nextDue - now < 24 * 60 * 60 * 1000) {
-          // Task becomes due within 24h — schedule a notification
-          const delay = nextDue - now;
+        const now = Date.now();
+        const delay = nextDue - now;
+        // Only schedule future notifications (not already-due ones on page load)
+        if (delay > 0) {
           const timeout = setTimeout(() => {
-            showSWNotification(
-              'TaskLoop',
-              `${task.name} ist jetzt faellig!`,
-              'taskloop-' + task.id
-            );
-            notifiedTasks.add(task.id);
+            notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
             render();
           }, delay);
           notifTimeouts.push(timeout);
-          // Clear from notified set since it's not due yet
-          notifiedTasks.delete(task.id);
         }
       });
 
-      // Tell the SW to also check (for background scenarios)
+      // Sync tasks to SW for background checks
       if (swRegistration && swRegistration.active) {
-        swRegistration.active.postMessage({ type: 'CHECK_DUE' });
+        swRegistration.active.postMessage({
+          type: 'SYNC_TASKS', tasks: loadTasks(),
+        });
       }
     }
 
     // ---- Periodic check ----
-    // Re-render every minute and re-schedule
-    setInterval(() => {
-      render();
-      scheduleNotifications();
-      checkAndNotify();
-    }, 60000);
+    // Re-render every minute to update due states
+    setInterval(() => render(), 60000);
 
     // Re-check when page becomes visible again
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         render();
-        scheduleNotifications();
-        checkAndNotify();
+        scheduleAllNotifications();
       }
     });
 
@@ -1344,23 +1325,11 @@
     checkNotifPermission();
     initSync();
 
-    // Register service worker and set up notifications
+    // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').then(async (reg) => {
         swRegistration = reg;
-        syncTasksToSW();
-        scheduleNotifications();
-
-        // Register periodic background sync (where supported)
-        if ('periodicSync' in reg) {
-          try {
-            await reg.periodicSync.register('taskloop-check', {
-              minInterval: 15 * 60 * 1000, // 15 minutes
-            });
-          } catch (e) {
-            // Periodic sync not available, fallback is the setInterval above
-          }
-        }
+        scheduleAllNotifications();
       }).catch(() => {});
     }
   </script>
