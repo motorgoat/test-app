@@ -1213,11 +1213,18 @@
     // ---- Notifications ----
     const notifBanner = document.getElementById('notifBanner');
     const notifBtn = document.getElementById('notifBtn');
+    let swRegistration = null;
 
     function checkNotifPermission() {
       if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
       if (Notification.permission === 'default') {
         notifBanner.classList.remove('hidden');
+      } else if (Notification.permission === 'denied') {
+        notifBanner.classList.remove('hidden');
+        document.querySelector('.notif-banner-text').textContent =
+          'Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.';
+        notifBtn.textContent = 'Einstellungen';
+        notifBtn.disabled = true;
       }
     }
 
@@ -1225,73 +1232,122 @@
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         notifBanner.classList.add('hidden');
+        syncTasksToSW();
+        scheduleNotifications();
+      } else if (perm === 'denied') {
+        document.querySelector('.notif-banner-text').textContent =
+          'Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.';
+        notifBtn.textContent = 'Einstellungen';
+        notifBtn.disabled = true;
       }
     });
 
-    // Check for due tasks and notify
+    // Send tasks to Service Worker so it can check in background
+    function syncTasksToSW() {
+      if (!swRegistration || !swRegistration.active) return;
+      swRegistration.active.postMessage({
+        type: 'SYNC_TASKS',
+        tasks: loadTasks(),
+      });
+    }
+
+    // Show notification via Service Worker (works in background)
+    function showSWNotification(title, body, tag) {
+      if (!swRegistration) return;
+      swRegistration.active.postMessage({
+        type: 'SHOW_NOTIFICATION',
+        title,
+        body,
+        tag,
+      });
+    }
+
+    // Check for due tasks and notify via SW
     function checkAndNotify() {
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      if (!swRegistration) return;
       const tasks = loadTasks();
       const dueTasks = tasks.filter(t => isDue(t));
       if (dueTasks.length > 0) {
         const names = dueTasks.slice(0, 3).map(t => t.name).join(', ');
         const more = dueTasks.length > 3 ? ` und ${dueTasks.length - 3} weitere` : '';
-        new Notification('TaskLoop', {
-          body: `Faellig: ${names}${more}`,
-          icon: 'icon-192.png',
-          tag: 'taskloop-due',
-          renotify: true,
-        });
+        showSWNotification('TaskLoop', `Faellig: ${names}${more}`, 'taskloop-due');
       }
     }
 
     // Schedule notifications based on reminder times
     let notifTimeouts = [];
     function scheduleNotifications() {
-      // Clear existing timeouts
       notifTimeouts.forEach(t => clearTimeout(t));
       notifTimeouts = [];
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+      syncTasksToSW();
 
       const tasks = loadTasks();
       const now = Date.now();
       tasks.forEach(task => {
         const nextDue = getNextDue(task);
         if (nextDue > now && nextDue - now < 24 * 60 * 60 * 1000) {
-          // Due within 24h — schedule a notification
           const timeout = setTimeout(() => {
-            new Notification('TaskLoop', {
-              body: `${task.name} ist jetzt faellig!`,
-              icon: 'icon-192.png',
-              tag: 'taskloop-' + task.id,
-              renotify: true,
-            });
+            showSWNotification(
+              'TaskLoop',
+              `${task.name} ist jetzt faellig!`,
+              'taskloop-' + task.id
+            );
             render();
           }, nextDue - now);
           notifTimeouts.push(timeout);
         }
       });
+
+      // Tell the SW to also check (for background scenarios)
+      if (swRegistration && swRegistration.active) {
+        swRegistration.active.postMessage({ type: 'CHECK_DUE' });
+      }
     }
 
     // ---- Periodic check ----
-    // Re-render every minute to update due states
     setInterval(() => {
       render();
       scheduleNotifications();
     }, 60000);
 
-    // Check notifications every 30 minutes
-    setInterval(checkAndNotify, 30 * 60 * 1000);
+    // Check notifications every 15 minutes
+    setInterval(checkAndNotify, 15 * 60 * 1000);
+
+    // Re-check when page becomes visible again
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        render();
+        scheduleNotifications();
+        checkAndNotify();
+      }
+    });
 
     // ---- Init ----
     render();
     checkNotifPermission();
-    scheduleNotifications();
     initSync();
 
-    // Register service worker
+    // Register service worker and set up notifications
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then(async (reg) => {
+        swRegistration = reg;
+        syncTasksToSW();
+        scheduleNotifications();
+
+        // Register periodic background sync (where supported)
+        if ('periodicSync' in reg) {
+          try {
+            await reg.periodicSync.register('taskloop-check', {
+              minInterval: 15 * 60 * 1000, // 15 minutes
+            });
+          } catch (e) {
+            // Periodic sync not available, fallback is the setInterval above
+          }
+        }
+      }).catch(() => {});
     }
   </script>
 </body>
