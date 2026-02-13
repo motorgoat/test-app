@@ -503,6 +503,10 @@
             </select>
           </div>
         </div>
+        <div class="form-group">
+          <label for="reminderTime">Erinnerung um</label>
+          <input class="form-input" type="time" id="reminderTime" value="09:00">
+        </div>
         <button type="submit" class="btn-primary" id="submitBtn">Task hinzufuegen</button>
       </form>
     </div>
@@ -549,7 +553,21 @@
 
     function getNextDue(task) {
       if (!task.lastCompleted) return 0; // immediately due
-      return task.lastCompleted + intervalToMs(task.intervalVal, task.intervalUnit);
+      const base = new Date(task.lastCompleted);
+      // Add interval to get the next due date
+      const next = new Date(base);
+      switch (task.intervalUnit) {
+        case 'days': next.setDate(next.getDate() + task.intervalVal); break;
+        case 'weeks': next.setDate(next.getDate() + task.intervalVal * 7); break;
+        case 'months': next.setMonth(next.getMonth() + task.intervalVal); break;
+        default: next.setDate(next.getDate() + task.intervalVal);
+      }
+      // Set the reminder time if specified
+      if (task.reminderTime) {
+        const [h, m] = task.reminderTime.split(':').map(Number);
+        next.setHours(h, m, 0, 0);
+      }
+      return next.getTime();
     }
 
     function isDue(task) {
@@ -651,6 +669,12 @@
               </svg>
               Alle ${intervalLabel(task.intervalVal, task.intervalUnit)}
             </span>
+            ${task.reminderTime ? `<span class="task-interval">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              ${task.reminderTime} Uhr
+            </span>` : ''}
             ${due && dueInfo ? `<span class="task-due-info ${dueInfo.cls}">${dueInfo.text}</span>` : ''}
             ${!due && completedInfo ? `<span class="task-due-info ${completedInfo.cls}">${completedInfo.text}</span>` : ''}
           </div>
@@ -709,29 +733,33 @@
       render();
     }
 
-    function addTask(name, intervalVal, intervalUnit) {
+    function addTask(name, intervalVal, intervalUnit, reminderTime) {
       const tasks = loadTasks();
       tasks.push({
         id: generateId(),
         name,
         intervalVal: parseInt(intervalVal),
         intervalUnit,
+        reminderTime,
         lastCompleted: null,
         createdAt: Date.now(),
       });
       saveTasks(tasks);
       render();
+      scheduleNotifications();
     }
 
-    function updateTask(id, name, intervalVal, intervalUnit) {
+    function updateTask(id, name, intervalVal, intervalUnit, reminderTime) {
       const tasks = loadTasks();
       const task = tasks.find(t => t.id === id);
       if (!task) return;
       task.name = name;
       task.intervalVal = parseInt(intervalVal);
       task.intervalUnit = intervalUnit;
+      task.reminderTime = reminderTime;
       saveTasks(tasks);
       render();
+      scheduleNotifications();
     }
 
     // ---- Modal ----
@@ -741,6 +769,7 @@
     const taskNameInput = document.getElementById('taskName');
     const intervalValInput = document.getElementById('intervalVal');
     const intervalUnitSelect = document.getElementById('intervalUnit');
+    const reminderTimeInput = document.getElementById('reminderTime');
     const modalTitle = document.getElementById('modalTitle');
     const submitBtn = document.getElementById('submitBtn');
 
@@ -748,6 +777,7 @@
       editIdInput.value = '';
       taskForm.reset();
       intervalValInput.value = '1';
+      reminderTimeInput.value = '09:00';
       modalTitle.textContent = 'Neuer Task';
       submitBtn.textContent = 'Task hinzufuegen';
       openModal();
@@ -760,6 +790,7 @@
       taskNameInput.value = task.name;
       intervalValInput.value = task.intervalVal;
       intervalUnitSelect.value = task.intervalUnit;
+      reminderTimeInput.value = task.reminderTime || '09:00';
       modalTitle.textContent = 'Task bearbeiten';
       submitBtn.textContent = 'Speichern';
       openModal();
@@ -785,10 +816,11 @@
       const val = parseInt(intervalValInput.value) || 1;
       const unit = intervalUnitSelect.value;
 
+      const time = reminderTimeInput.value || '09:00';
       if (editIdInput.value) {
-        updateTask(editIdInput.value, name, val, unit);
+        updateTask(editIdInput.value, name, val, unit, time);
       } else {
-        addTask(name, val, unit);
+        addTask(name, val, unit, time);
       }
 
       closeModal();
@@ -829,10 +861,39 @@
       }
     }
 
+    // Schedule notifications based on reminder times
+    let notifTimeouts = [];
+    function scheduleNotifications() {
+      // Clear existing timeouts
+      notifTimeouts.forEach(t => clearTimeout(t));
+      notifTimeouts = [];
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+      const tasks = loadTasks();
+      const now = Date.now();
+      tasks.forEach(task => {
+        const nextDue = getNextDue(task);
+        if (nextDue > now && nextDue - now < 24 * 60 * 60 * 1000) {
+          // Due within 24h — schedule a notification
+          const timeout = setTimeout(() => {
+            new Notification('TaskLoop', {
+              body: `${task.name} ist jetzt faellig!`,
+              icon: 'icon-192.png',
+              tag: 'taskloop-' + task.id,
+              renotify: true,
+            });
+            render();
+          }, nextDue - now);
+          notifTimeouts.push(timeout);
+        }
+      });
+    }
+
     // ---- Periodic check ----
     // Re-render every minute to update due states
     setInterval(() => {
       render();
+      scheduleNotifications();
     }, 60000);
 
     // Check notifications every 30 minutes
@@ -841,6 +902,7 @@
     // ---- Init ----
     render();
     checkNotifPermission();
+    scheduleNotifications();
 
     // Register service worker
     if ('serviceWorker' in navigator) {
