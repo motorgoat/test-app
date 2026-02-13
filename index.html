@@ -933,6 +933,7 @@
 
       saveTasks(tasks);
       render();
+      scheduleNotifications();
     }
 
     function deleteTask(id) {
@@ -944,7 +945,7 @@
 
     function addTask(name, intervalVal, intervalUnit, reminderTime) {
       const tasks = loadTasks();
-      tasks.push({
+      const newTask = {
         id: generateId(),
         name,
         intervalVal: parseInt(intervalVal),
@@ -952,10 +953,15 @@
         reminderTime,
         lastCompleted: null,
         createdAt: Date.now(),
-      });
+      };
+      tasks.push(newTask);
       saveTasks(tasks);
       render();
       scheduleNotifications();
+      // New tasks are immediately due — notify right away
+      if (Notification.permission === 'granted') {
+        showSWNotification('TaskLoop', `${name} ist jetzt faellig!`, 'taskloop-' + newTask.id);
+      }
     }
 
     function updateTask(id, name, intervalVal, intervalUnit, reminderTime) {
@@ -1277,6 +1283,9 @@
 
     // Schedule notifications based on reminder times
     let notifTimeouts = [];
+    // Track which tasks we already notified about (to avoid repeats)
+    const notifiedTasks = new Set();
+
     function scheduleNotifications() {
       notifTimeouts.forEach(t => clearTimeout(t));
       notifTimeouts = [];
@@ -1288,16 +1297,22 @@
       const now = Date.now();
       tasks.forEach(task => {
         const nextDue = getNextDue(task);
+
         if (nextDue > now && nextDue - now < 24 * 60 * 60 * 1000) {
+          // Task becomes due within 24h — schedule a notification
+          const delay = nextDue - now;
           const timeout = setTimeout(() => {
             showSWNotification(
               'TaskLoop',
               `${task.name} ist jetzt faellig!`,
               'taskloop-' + task.id
             );
+            notifiedTasks.add(task.id);
             render();
-          }, nextDue - now);
+          }, delay);
           notifTimeouts.push(timeout);
+          // Clear from notified set since it's not due yet
+          notifiedTasks.delete(task.id);
         }
       });
 
@@ -1308,13 +1323,12 @@
     }
 
     // ---- Periodic check ----
+    // Re-render every minute and re-schedule
     setInterval(() => {
       render();
       scheduleNotifications();
+      checkAndNotify();
     }, 60000);
-
-    // Check notifications every 15 minutes
-    setInterval(checkAndNotify, 15 * 60 * 1000);
 
     // Re-check when page becomes visible again
     document.addEventListener('visibilitychange', () => {
