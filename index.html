@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <title>TaskLoop</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f1a;
+      --surface: #1a1a2e;
+      --surface-hover: #222240;
+      --accent: #6c63ff;
+      --accent-light: #8b83ff;
+      --accent-glow: rgba(108, 99, 255, 0.25);
+      --text: #e8e8f0;
+      --text-muted: #8888a0;
+      --done: #2d2d44;
+      --done-text: #5a5a78;
+      --danger: #ff6b6b;
+      --success: #51cf66;
+      --radius: 16px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Header */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(135deg, var(--surface), #16213e);
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid rgba(108, 99, 255, 0.15);
+      backdrop-filter: blur(20px);
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-light), #e066ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+
+    .header-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Task List */
+    .task-list {
+      padding: 12px 16px;
+      padding-bottom: calc(100px + var(--safe-bottom));
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      padding: 16px 4px 8px;
+    }
+
+    .section-label.due-label { color: var(--accent-light); }
+    .section-label.done-label { color: var(--done-text); }
+
+    /* Task Card */
+    .task-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      border: 1px solid transparent;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .task-card.due {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .task-card.overdue {
+      border-color: var(--danger);
+      box-shadow: 0 0 20px rgba(255, 107, 107, 0.2);
+    }
+
+    .task-card.completed {
+      background: var(--done);
+      opacity: 0.6;
+    }
+
+    .task-card.completed .task-name {
+      text-decoration: line-through;
+      color: var(--done-text);
+    }
+
+    .task-card.completed .task-interval {
+      color: var(--done-text);
+    }
+
+    /* Checkbox */
+    .task-check {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--text-muted);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 1px;
+    }
+
+    .task-check:active {
+      transform: scale(0.9);
+    }
+
+    .task-card.due .task-check,
+    .task-card.overdue .task-check {
+      border-color: var(--accent);
+    }
+
+    .task-card.completed .task-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .task-check svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .task-card.completed .task-check svg {
+      opacity: 1;
+    }
+
+    /* Task Info */
+    .task-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .task-name {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .task-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .task-interval {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .task-interval svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .task-due-info {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 8px;
+    }
+
+    .task-due-info.now {
+      background: rgba(108, 99, 255, 0.2);
+      color: var(--accent-light);
+    }
+
+    .task-due-info.overdue {
+      background: rgba(255, 107, 107, 0.15);
+      color: var(--danger);
+    }
+
+    .task-due-info.upcoming {
+      background: rgba(81, 207, 102, 0.12);
+      color: var(--success);
+    }
+
+    /* Task Actions */
+    .task-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .task-btn {
+      width: 34px;
+      height: 34px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .task-btn:hover { background: var(--surface-hover); }
+    .task-btn:active { transform: scale(0.9); }
+    .task-btn.delete:hover { color: var(--danger); }
+
+    .task-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* FAB */
+    .fab {
+      position: fixed;
+      bottom: calc(24px + var(--safe-bottom));
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      border: none;
+      color: white;
+      font-size: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transition: all 0.2s;
+      z-index: 90;
+    }
+
+    .fab:active {
+      transform: scale(0.92);
+    }
+
+    .fab svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 200;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal {
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      padding: 28px 24px calc(24px + var(--safe-bottom));
+      width: 100%;
+      max-width: 480px;
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .modal-overlay.open .modal {
+      transform: translateY(0);
+    }
+
+    .modal-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--text-muted);
+      border-radius: 4px;
+      margin: 0 auto 20px;
+      opacity: 0.4;
+    }
+
+    .modal h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid rgba(136, 136, 160, 0.2);
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+    }
+
+    .interval-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .interval-row .form-input {
+      width: 80px;
+      text-align: center;
+    }
+
+    .interval-row select.form-input {
+      flex: 1;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238888a0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    .interval-label {
+      font-size: 14px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+      opacity: 0.9;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .empty-state p {
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    /* Notification permission banner */
+    .notif-banner {
+      background: linear-gradient(135deg, rgba(108, 99, 255, 0.15), rgba(139, 92, 246, 0.1));
+      border: 1px solid rgba(108, 99, 255, 0.3);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin: 12px 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: opacity 0.3s;
+    }
+
+    .notif-banner.hidden { display: none; }
+
+    .notif-banner-text {
+      flex: 1;
+      font-size: 13px;
+      color: var(--accent-light);
+    }
+
+    .notif-banner-btn {
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>TaskLoop</h1>
+    <div class="header-sub" id="headerSub">Deine wiederkehrenden Aufgaben</div>
+  </div>
+
+  <div class="notif-banner hidden" id="notifBanner">
+    <div class="notif-banner-text">Benachrichtigungen aktivieren, um an Tasks erinnert zu werden</div>
+    <button class="notif-banner-btn" id="notifBtn">Aktivieren</button>
+  </div>
+
+  <div class="task-list" id="taskList"></div>
+
+  <button class="fab" id="fabAdd" aria-label="Neuer Task">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <div class="modal-handle"></div>
+      <h2 id="modalTitle">Neuer Task</h2>
+      <form id="taskForm">
+        <input type="hidden" id="editId">
+        <div class="form-group">
+          <label for="taskName">Aufgabe</label>
+          <input class="form-input" type="text" id="taskName" placeholder="z.B. Wohnung saugen" required autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Wiederholung</label>
+          <div class="interval-row">
+            <span class="interval-label">Alle</span>
+            <input class="form-input" type="number" id="intervalVal" min="1" max="365" value="1" required>
+            <select class="form-input" id="intervalUnit">
+              <option value="days">Tage</option>
+              <option value="weeks">Wochen</option>
+              <option value="months">Monate</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" id="submitBtn">Task hinzufuegen</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // ---- Data Layer ----
+    const STORAGE_KEY = 'taskloop_tasks';
+
+    function loadTasks() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch { return []; }
+    }
+
+    function saveTasks(tasks) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    // ---- Interval helpers ----
+    function intervalToMs(val, unit) {
+      const day = 86400000;
+      switch (unit) {
+        case 'days': return val * day;
+        case 'weeks': return val * 7 * day;
+        case 'months': return val * 30 * day;
+        default: return val * day;
+      }
+    }
+
+    function intervalLabel(val, unit) {
+      const labels = {
+        days: ['Tag', 'Tage'],
+        weeks: ['Woche', 'Wochen'],
+        months: ['Monat', 'Monate'],
+      };
+      const l = labels[unit] || ['Tag', 'Tage'];
+      return `${val} ${val === 1 ? l[0] : l[1]}`;
+    }
+
+    function getNextDue(task) {
+      if (!task.lastCompleted) return 0; // immediately due
+      return task.lastCompleted + intervalToMs(task.intervalVal, task.intervalUnit);
+    }
+
+    function isDue(task) {
+      return Date.now() >= getNextDue(task);
+    }
+
+    function dueInLabel(task) {
+      if (!task.lastCompleted) return { text: 'Jetzt faellig', cls: 'now' };
+      const diff = getNextDue(task) - Date.now();
+      if (diff <= 0) {
+        const overdueDays = Math.floor(-diff / 86400000);
+        if (overdueDays === 0) return { text: 'Heute faellig', cls: 'now' };
+        return { text: `${overdueDays}d ueberfaellig`, cls: 'overdue' };
+      }
+      const days = Math.ceil(diff / 86400000);
+      if (days === 1) return { text: 'Morgen', cls: 'upcoming' };
+      if (days <= 7) return { text: `In ${days} Tagen`, cls: 'upcoming' };
+      return { text: `In ${days} Tagen`, cls: 'upcoming' };
+    }
+
+    // ---- Rendering ----
+    const taskList = document.getElementById('taskList');
+
+    function render() {
+      const tasks = loadTasks();
+      taskList.innerHTML = '';
+
+      if (tasks.length === 0) {
+        taskList.innerHTML = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <p>Noch keine Tasks.<br>Tippe auf <strong>+</strong> um einen hinzuzufuegen.</p>
+          </div>`;
+        updateHeaderSub(0);
+        return;
+      }
+
+      // Split into due and not-due
+      const dueTasks = [];
+      const doneTasks = [];
+
+      tasks.forEach(t => {
+        if (isDue(t)) dueTasks.push(t);
+        else doneTasks.push(t);
+      });
+
+      // Sort due tasks: overdue first (oldest), then most recently due
+      dueTasks.sort((a, b) => getNextDue(a) - getNextDue(b));
+      // Sort done tasks: soonest next-due first
+      doneTasks.sort((a, b) => getNextDue(a) - getNextDue(b));
+
+      updateHeaderSub(dueTasks.length);
+
+      if (dueTasks.length > 0) {
+        taskList.insertAdjacentHTML('beforeend', `<div class="section-label due-label">Faellig (${dueTasks.length})</div>`);
+        dueTasks.forEach(t => taskList.appendChild(createTaskCard(t, true)));
+      }
+
+      if (doneTasks.length > 0) {
+        taskList.insertAdjacentHTML('beforeend', `<div class="section-label done-label">Erledigt — kommt wieder</div>`);
+        doneTasks.forEach(t => taskList.appendChild(createTaskCard(t, false)));
+      }
+    }
+
+    function updateHeaderSub(dueCount) {
+      const el = document.getElementById('headerSub');
+      if (dueCount === 0) {
+        el.textContent = 'Alles erledigt!';
+      } else if (dueCount === 1) {
+        el.textContent = '1 Task wartet auf dich';
+      } else {
+        el.textContent = `${dueCount} Tasks warten auf dich`;
+      }
+    }
+
+    function createTaskCard(task, due) {
+      const div = document.createElement('div');
+      div.className = 'task-card' + (due ? (dueInLabel(task).cls === 'overdue' ? ' overdue due' : ' due') : ' completed');
+
+      const dueInfo = due ? dueInLabel(task) : null;
+      const completedInfo = !due ? dueInLabel(task) : null;
+
+      div.innerHTML = `
+        <div class="task-check" data-id="${task.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="task-info">
+          <div class="task-name">${escapeHtml(task.name)}</div>
+          <div class="task-meta">
+            <span class="task-interval">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              Alle ${intervalLabel(task.intervalVal, task.intervalUnit)}
+            </span>
+            ${due && dueInfo ? `<span class="task-due-info ${dueInfo.cls}">${dueInfo.text}</span>` : ''}
+            ${!due && completedInfo ? `<span class="task-due-info ${completedInfo.cls}">${completedInfo.text}</span>` : ''}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="task-btn edit" data-id="${task.id}" aria-label="Bearbeiten">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button class="task-btn delete" data-id="${task.id}" aria-label="Loeschen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+          </button>
+        </div>
+      `;
+
+      // Check/uncheck handler
+      div.querySelector('.task-check').addEventListener('click', () => toggleTask(task.id));
+      div.querySelector('.edit').addEventListener('click', () => openEditModal(task.id));
+      div.querySelector('.delete').addEventListener('click', () => deleteTask(task.id));
+
+      return div;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // ---- Actions ----
+    function toggleTask(id) {
+      const tasks = loadTasks();
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      if (isDue(task)) {
+        // Mark completed now
+        task.lastCompleted = Date.now();
+      } else {
+        // Manually uncheck — reset so it's due again
+        task.lastCompleted = null;
+      }
+
+      saveTasks(tasks);
+      render();
+    }
+
+    function deleteTask(id) {
+      if (!confirm('Task wirklich loeschen?')) return;
+      const tasks = loadTasks().filter(t => t.id !== id);
+      saveTasks(tasks);
+      render();
+    }
+
+    function addTask(name, intervalVal, intervalUnit) {
+      const tasks = loadTasks();
+      tasks.push({
+        id: generateId(),
+        name,
+        intervalVal: parseInt(intervalVal),
+        intervalUnit,
+        lastCompleted: null,
+        createdAt: Date.now(),
+      });
+      saveTasks(tasks);
+      render();
+    }
+
+    function updateTask(id, name, intervalVal, intervalUnit) {
+      const tasks = loadTasks();
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      task.name = name;
+      task.intervalVal = parseInt(intervalVal);
+      task.intervalUnit = intervalUnit;
+      saveTasks(tasks);
+      render();
+    }
+
+    // ---- Modal ----
+    const modalOverlay = document.getElementById('modalOverlay');
+    const taskForm = document.getElementById('taskForm');
+    const editIdInput = document.getElementById('editId');
+    const taskNameInput = document.getElementById('taskName');
+    const intervalValInput = document.getElementById('intervalVal');
+    const intervalUnitSelect = document.getElementById('intervalUnit');
+    const modalTitle = document.getElementById('modalTitle');
+    const submitBtn = document.getElementById('submitBtn');
+
+    document.getElementById('fabAdd').addEventListener('click', () => {
+      editIdInput.value = '';
+      taskForm.reset();
+      intervalValInput.value = '1';
+      modalTitle.textContent = 'Neuer Task';
+      submitBtn.textContent = 'Task hinzufuegen';
+      openModal();
+    });
+
+    function openEditModal(id) {
+      const task = loadTasks().find(t => t.id === id);
+      if (!task) return;
+      editIdInput.value = task.id;
+      taskNameInput.value = task.name;
+      intervalValInput.value = task.intervalVal;
+      intervalUnitSelect.value = task.intervalUnit;
+      modalTitle.textContent = 'Task bearbeiten';
+      submitBtn.textContent = 'Speichern';
+      openModal();
+    }
+
+    function openModal() {
+      modalOverlay.classList.add('open');
+      setTimeout(() => taskNameInput.focus(), 350);
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('open');
+    }
+
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+
+    taskForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = taskNameInput.value.trim();
+      if (!name) return;
+      const val = parseInt(intervalValInput.value) || 1;
+      const unit = intervalUnitSelect.value;
+
+      if (editIdInput.value) {
+        updateTask(editIdInput.value, name, val, unit);
+      } else {
+        addTask(name, val, unit);
+      }
+
+      closeModal();
+    });
+
+    // ---- Notifications ----
+    const notifBanner = document.getElementById('notifBanner');
+    const notifBtn = document.getElementById('notifBtn');
+
+    function checkNotifPermission() {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+      if (Notification.permission === 'default') {
+        notifBanner.classList.remove('hidden');
+      }
+    }
+
+    notifBtn.addEventListener('click', async () => {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        notifBanner.classList.add('hidden');
+      }
+    });
+
+    // Check for due tasks and notify
+    function checkAndNotify() {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const tasks = loadTasks();
+      const dueTasks = tasks.filter(t => isDue(t));
+      if (dueTasks.length > 0) {
+        const names = dueTasks.slice(0, 3).map(t => t.name).join(', ');
+        const more = dueTasks.length > 3 ? ` und ${dueTasks.length - 3} weitere` : '';
+        new Notification('TaskLoop', {
+          body: `Faellig: ${names}${more}`,
+          icon: 'icon-192.png',
+          tag: 'taskloop-due',
+          renotify: true,
+        });
+      }
+    }
+
+    // ---- Periodic check ----
+    // Re-render every minute to update due states
+    setInterval(() => {
+      render();
+    }, 60000);
+
+    // Check notifications every 30 minutes
+    setInterval(checkAndNotify, 30 * 60 * 1000);
+
+    // ---- Init ----
+    render();
+    checkNotifPermission();
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
