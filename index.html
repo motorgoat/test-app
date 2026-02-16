@@ -1346,6 +1346,8 @@
     const notifBtn = document.getElementById('notifBtn');
     let swRegistration = null;
     let notifTimeouts = [];
+    // Track which tasks we already notified for (key: taskId-lastCompleted)
+    const notifiedSet = new Set();
 
     function checkNotifPermission() {
       if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
@@ -1385,28 +1387,53 @@
       }
     }
 
+    // Mark a task as notified for its current cycle
+    function notifyKey(task) {
+      return task.id + '-' + (task.lastCompleted || 'new');
+    }
+
     // Schedule a notification for a specific task at its next due time
     function scheduleTaskNotification(task) {
       if (Notification.permission !== 'granted') return;
       const nextDue = getNextDue(task);
       const now = Date.now();
       const delay = nextDue - now;
+      const key = notifyKey(task);
 
       if (delay <= 0) {
-        // Already due — notify now
-        notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+        // Already due — notify now (if not already notified for this cycle)
+        if (!notifiedSet.has(key)) {
+          notifiedSet.add(key);
+          notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+        }
         return;
       }
 
       // Schedule for the exact due time
       const timeout = setTimeout(() => {
-        notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+        if (!notifiedSet.has(key)) {
+          notifiedSet.add(key);
+          notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+        }
         render();
       }, delay);
       notifTimeouts.push(timeout);
     }
 
-    // Schedule notifications for all tasks (used on init/visibility change)
+    // Check all tasks and notify for any that are due (runs every 30s)
+    function checkAndNotify() {
+      if (Notification.permission !== 'granted') return;
+      const tasks = loadTasks();
+      tasks.forEach(task => {
+        if (!isDue(task)) return;
+        const key = notifyKey(task);
+        if (notifiedSet.has(key)) return;
+        notifiedSet.add(key);
+        notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+      });
+    }
+
+    // Schedule notifications for all tasks + set up periodic check
     function scheduleAllNotifications() {
       notifTimeouts.forEach(t => clearTimeout(t));
       notifTimeouts = [];
@@ -1417,10 +1444,21 @@
         const nextDue = getNextDue(task);
         const now = Date.now();
         const delay = nextDue - now;
-        // Only schedule future notifications (not already-due ones on page load)
-        if (delay > 0) {
-          const timeout = setTimeout(() => {
+        const key = notifyKey(task);
+
+        if (delay <= 0) {
+          // Task is already due — notify if not already done
+          if (!notifiedSet.has(key)) {
+            notifiedSet.add(key);
             notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+          }
+        } else {
+          // Schedule for the exact due time
+          const timeout = setTimeout(() => {
+            if (!notifiedSet.has(key)) {
+              notifiedSet.add(key);
+              notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+            }
             render();
           }, delay);
           notifTimeouts.push(timeout);
@@ -1436,8 +1474,11 @@
     }
 
     // ---- Periodic check ----
-    // Re-render every minute to update due states
-    setInterval(() => render(), 60000);
+    // Check every 30 seconds for due tasks + re-render every minute
+    setInterval(() => {
+      checkAndNotify();
+      render();
+    }, 30000);
 
     // Re-check when page becomes visible again
     document.addEventListener('visibilitychange', () => {
