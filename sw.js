@@ -1,4 +1,4 @@
-const CACHE_NAME = 'taskloop-v5';
+const CACHE_NAME = 'taskloop-v6';
 const ASSETS = [
   '/',
   '/index.html',
