@@ -1,4 +1,4 @@
-const CACHE_NAME = 'taskloop-v4';
+const CACHE_NAME = 'taskloop-v5';
 const ASSETS = [
   '/',
   '/index.html',
@@ -72,12 +72,13 @@ function getNextDue(task) {
   const base = new Date(task.lastCompleted);
   const next = new Date(base);
   switch (task.intervalUnit) {
+    case 'hours': next.setHours(next.getHours() + task.intervalVal); break;
     case 'days': next.setDate(next.getDate() + task.intervalVal); break;
     case 'weeks': next.setDate(next.getDate() + task.intervalVal * 7); break;
     case 'months': next.setMonth(next.getMonth() + task.intervalVal); break;
     default: next.setDate(next.getDate() + task.intervalVal);
   }
-  if (task.reminderTime) {
+  if (task.reminderTime && task.intervalUnit !== 'hours') {
     const [h, m] = task.reminderTime.split(':').map(Number);
     next.setHours(h, m, 0, 0);
   }
@@ -120,6 +121,33 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       return self.clients.openWindow('/');
+    })
+  );
+});
+
+// Handle FCM push notifications (background)
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { notification: { title: 'TaskLoop', body: event.data ? event.data.text() : 'Du hast faellige Tasks!' } };
+  }
+
+  const notif = data.notification || {};
+  event.waitUntil(
+    self.registration.showNotification(notif.title || 'TaskLoop', {
+      body: notif.body || 'Du hast faellige Tasks!',
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      tag: 'taskloop-push',
+      renotify: true,
+      vibrate: [200, 100, 200],
+      requireInteraction: true,
+      actions: [
+        { action: 'open', title: 'Oeffnen' },
+        { action: 'dismiss', title: 'Spaeter' },
+      ],
     })
   );
 });

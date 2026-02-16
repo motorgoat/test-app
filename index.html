@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
   <title>TaskLoop</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -308,6 +310,8 @@
       padding: 28px 24px calc(24px + var(--safe-bottom));
       width: 100%;
       max-width: 480px;
+      max-height: 90dvh;
+      overflow-y: auto;
       transform: translateY(100%);
       transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
     }
@@ -649,7 +653,8 @@
             <span class="interval-label">Alle</span>
             <input class="form-input" type="number" id="intervalVal" min="1" max="365" value="1" required>
             <select class="form-input" id="intervalUnit">
-              <option value="days">Tage</option>
+              <option value="hours">Stunden</option>
+              <option value="days" selected>Tage</option>
               <option value="weeks">Wochen</option>
               <option value="months">Monate</option>
             </select>
@@ -672,24 +677,26 @@
 
       <div id="syncSetupView">
         <p style="font-size:14px;color:var(--text-muted);line-height:1.5;margin-bottom:16px;">
-          Damit deine Tasks in der Cloud gespeichert werden und nie verloren gehen, brauchst du ein kostenloses Firebase-Projekt.
+          Firebase einrichten fuer Cloud-Sync und Push-Benachrichtigungen (auch bei geschlossener App).
         </p>
         <div class="form-group">
-          <label for="firebaseUrl">Firebase Database URL</label>
-          <input class="form-input" type="url" id="firebaseUrl" placeholder="https://dein-projekt.firebaseio.com">
+          <label for="firebaseConfig">Firebase Config (JSON)</label>
+          <textarea class="form-input" id="firebaseConfig" rows="5" style="font-family:'Courier New',monospace;font-size:13px;" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"...","projectId":"...","messagingSenderId":"...","appId":"..."}'></textarea>
+        </div>
+        <div class="form-group">
+          <label for="vapidKey">VAPID Key (fuer Push-Benachrichtigungen)</label>
+          <input class="form-input" type="text" id="vapidKey" placeholder="BKxxx... (aus Cloud Messaging Einstellungen)">
         </div>
         <button class="btn-primary" id="syncSetupBtn">Verbinden</button>
 
         <div class="sync-section">
-          <h3>So erstellst du ein Firebase-Projekt:</h3>
+          <h3>Setup-Anleitung:</h3>
           <ol class="setup-steps">
-            <li data-step="1.">Gehe zu console.firebase.google.com</li>
-            <li data-step="2.">Klicke "Projekt erstellen" und gib einen Namen ein</li>
-            <li data-step="3.">Google Analytics kannst du deaktivieren</li>
-            <li data-step="4.">Gehe links zu "Realtime Database" und klicke "Datenbank erstellen"</li>
-            <li data-step="5.">Waehle "Im Testmodus starten"</li>
-            <li data-step="6.">Kopiere die URL oben (z.B. https://mein-projekt-default-rtdb.firebaseio.com)</li>
-            <li data-step="7.">Fuege sie hier oben ein</li>
+            <li data-step="1.">Gehe zu console.firebase.google.com → Projekt erstellen</li>
+            <li data-step="2.">Zahnrad → Projekteinstellungen → Web-App hinzufuegen → Config-JSON kopieren</li>
+            <li data-step="3.">Links "Realtime Database" → Datenbank erstellen → Testmodus</li>
+            <li data-step="4.">Projekteinstellungen → Cloud Messaging → Web-Push-Zertifikat generieren → Schluessel kopieren</li>
+            <li data-step="5.">Beide Werte hier einfuegen und "Verbinden" klicken</li>
           </ol>
         </div>
       </div>
@@ -700,6 +707,11 @@
           <div class="code" id="syncCodeDisplay">------</div>
         </div>
         <div class="sync-status" id="syncStatus">Verbunden</div>
+
+        <div class="sync-section" id="pushSection">
+          <h3>Push-Benachrichtigungen</h3>
+          <div class="sync-status" id="pushStatus">Nicht eingerichtet</div>
+        </div>
 
         <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin:16px 0;">
           Gib diesen Code auf einem anderen Geraet ein, um deine Tasks zu synchronisieren.
@@ -743,6 +755,7 @@
     function intervalToMs(val, unit) {
       const day = 86400000;
       switch (unit) {
+        case 'hours': return val * 3600000;
         case 'days': return val * day;
         case 'weeks': return val * 7 * day;
         case 'months': return val * 30 * day;
@@ -752,6 +765,7 @@
 
     function intervalLabel(val, unit) {
       const labels = {
+        hours: ['Stunde', 'Stunden'],
         days: ['Tag', 'Tage'],
         weeks: ['Woche', 'Wochen'],
         months: ['Monat', 'Monate'],
@@ -763,16 +777,16 @@
     function getNextDue(task) {
       if (!task.lastCompleted) return 0; // immediately due
       const base = new Date(task.lastCompleted);
-      // Add interval to get the next due date
       const next = new Date(base);
       switch (task.intervalUnit) {
+        case 'hours': next.setHours(next.getHours() + task.intervalVal); break;
         case 'days': next.setDate(next.getDate() + task.intervalVal); break;
         case 'weeks': next.setDate(next.getDate() + task.intervalVal * 7); break;
         case 'months': next.setMonth(next.getMonth() + task.intervalVal); break;
         default: next.setDate(next.getDate() + task.intervalVal);
       }
-      // Set the reminder time if specified
-      if (task.reminderTime) {
+      // Set the reminder time if specified (only for day+ intervals)
+      if (task.reminderTime && task.intervalUnit !== 'hours') {
         const [h, m] = task.reminderTime.split(':').map(Number);
         next.setHours(h, m, 0, 0);
       }
@@ -787,13 +801,21 @@
       if (!task.lastCompleted) return { text: 'Jetzt faellig', cls: 'now' };
       const diff = getNextDue(task) - Date.now();
       if (diff <= 0) {
-        const overdueDays = Math.floor(-diff / 86400000);
-        if (overdueDays === 0) return { text: 'Heute faellig', cls: 'now' };
-        return { text: `${overdueDays}d ueberfaellig`, cls: 'overdue' };
+        const overHours = Math.floor(-diff / 3600000);
+        if (overHours < 1) return { text: 'Jetzt faellig', cls: 'now' };
+        if (overHours < 24) return { text: `${overHours}h ueberfaellig`, cls: 'overdue' };
+        const overDays = Math.floor(overHours / 24);
+        return { text: `${overDays}d ueberfaellig`, cls: 'overdue' };
+      }
+      const mins = Math.ceil(diff / 60000);
+      if (mins < 60) return { text: `In ${mins} Min`, cls: 'upcoming' };
+      const hours = Math.ceil(diff / 3600000);
+      if (hours < 24) {
+        const nextDate = new Date(getNextDue(task));
+        return { text: `Heute ${nextDate.getHours()}:${String(nextDate.getMinutes()).padStart(2,'0')}`, cls: 'upcoming' };
       }
       const days = Math.ceil(diff / 86400000);
       if (days === 1) return { text: 'Morgen', cls: 'upcoming' };
-      if (days <= 7) return { text: `In ${days} Tagen`, cls: 'upcoming' };
       return { text: `In ${days} Tagen`, cls: 'upcoming' };
     }
 
@@ -1039,12 +1061,13 @@
       closeModal();
     });
 
-    // ---- Cloud Sync ----
+    // ---- Cloud Sync & Push ----
     const SYNC_KEY = 'taskloop_sync';
     const syncBtn = document.getElementById('syncBtn');
     const syncOverlay = document.getElementById('syncOverlay');
     const syncSetupView = document.getElementById('syncSetupView');
     const syncConnectedView = document.getElementById('syncConnectedView');
+    let fcmMessaging = null;
 
     function loadSyncConfig() {
       try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || null; }
@@ -1062,14 +1085,35 @@
       return code;
     }
 
+    // Get the database URL from config (supports old url-only and new full config format)
+    function getDbUrl() {
+      const config = loadSyncConfig();
+      if (!config) return null;
+      if (config.firebaseConfig && config.firebaseConfig.databaseURL) return config.firebaseConfig.databaseURL;
+      return config.url || null;
+    }
+
     function updateSyncUI() {
       const config = loadSyncConfig();
-      if (config && config.url) {
+      const dbUrl = getDbUrl();
+      if (config && dbUrl) {
         syncBtn.classList.add('synced');
         syncBtn.classList.remove('error');
         syncSetupView.style.display = 'none';
         syncConnectedView.style.display = 'block';
         document.getElementById('syncCodeDisplay').textContent = config.code;
+        // Update push status
+        const pushEl = document.getElementById('pushStatus');
+        if (config.fcmToken) {
+          pushEl.textContent = 'Aktiv — du bekommst Push auch bei geschlossener App';
+          pushEl.className = 'sync-status ok';
+        } else if (config.vapidKey) {
+          pushEl.textContent = 'VAPID Key vorhanden, Token wird geholt...';
+          pushEl.className = 'sync-status';
+        } else {
+          pushEl.textContent = 'Nicht eingerichtet (VAPID Key fehlt)';
+          pushEl.className = 'sync-status err';
+        }
       } else {
         syncBtn.classList.remove('synced', 'error');
         syncSetupView.style.display = 'block';
@@ -1078,12 +1122,13 @@
     }
 
     async function cloudSave(tasks) {
+      const dbUrl = getDbUrl();
       const config = loadSyncConfig();
-      if (!config || !config.url) return;
+      if (!dbUrl || !config) return;
       try {
-        const url = `${config.url.replace(/\/$/, '')}/taskloop/${config.code}.json`;
+        const url = `${dbUrl.replace(/\/$/, '')}/taskloop/${config.code}.json`;
         await fetch(url, {
-          method: 'PUT',
+          method: 'PATCH',
           body: JSON.stringify({ tasks, updatedAt: Date.now() }),
         });
         syncBtn.classList.add('synced');
@@ -1095,18 +1140,71 @@
     }
 
     async function cloudLoad(code) {
+      const dbUrl = getDbUrl();
       const config = loadSyncConfig();
-      if (!config || !config.url) return null;
+      if (!dbUrl || !config) return null;
       try {
         const useCode = code || config.code;
-        const url = `${config.url.replace(/\/$/, '')}/taskloop/${useCode}.json`;
+        const url = `${dbUrl.replace(/\/$/, '')}/taskloop/${useCode}.json`;
         const res = await fetch(url);
-        const data = await res.json();
-        return data;
+        return await res.json();
       } catch (e) {
         syncBtn.classList.add('error');
         syncBtn.classList.remove('synced');
         return null;
+      }
+    }
+
+    // Store FCM token in Firebase DB so Cloud Function can send pushes
+    async function storeFCMToken(token) {
+      const dbUrl = getDbUrl();
+      const config = loadSyncConfig();
+      if (!dbUrl || !config) return;
+      const tokenKey = btoa(token).slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
+      const url = `${dbUrl.replace(/\/$/, '')}/taskloop/${config.code}/fcmTokens/${tokenKey}.json`;
+      await fetch(url, { method: 'PUT', body: JSON.stringify(token) }).catch(() => {});
+    }
+
+    // Initialize Firebase Cloud Messaging for push notifications
+    async function initFCM() {
+      const config = loadSyncConfig();
+      if (!config || !config.firebaseConfig || !config.vapidKey) return;
+      if (!swRegistration) return;
+
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(config.firebaseConfig);
+        }
+        fcmMessaging = firebase.messaging();
+
+        // Handle foreground push messages
+        fcmMessaging.onMessage((payload) => {
+          const notif = payload.notification || {};
+          notify(notif.title || 'TaskLoop', notif.body || 'Du hast faellige Tasks!', 'taskloop-push');
+        });
+
+        if (Notification.permission === 'granted') {
+          const token = await fcmMessaging.getToken({
+            vapidKey: config.vapidKey,
+            serviceWorkerRegistration: swRegistration,
+          });
+          if (token) {
+            config.fcmToken = token;
+            saveSyncConfig(config);
+            await storeFCMToken(token);
+            updatePushStatus('Aktiv — du bekommst Push auch bei geschlossener App', true);
+          }
+        }
+      } catch (e) {
+        updatePushStatus('Fehler: ' + e.message, false);
+      }
+    }
+
+    function updatePushStatus(text, ok) {
+      const el = document.getElementById('pushStatus');
+      if (el) {
+        el.textContent = text;
+        el.className = 'sync-status' + (ok ? ' ok' : ' err');
       }
     }
 
@@ -1127,14 +1225,45 @@
       if (e.target === syncOverlay) syncOverlay.classList.remove('open');
     });
 
-    // Setup: connect Firebase
-    document.getElementById('syncSetupBtn').addEventListener('click', () => {
-      const url = document.getElementById('firebaseUrl').value.trim();
-      if (!url) return;
-      const config = { url, code: generateSyncCode() };
+    // Setup: connect Firebase with full config
+    document.getElementById('syncSetupBtn').addEventListener('click', async () => {
+      const configText = document.getElementById('firebaseConfig').value.trim();
+      const vapidKey = document.getElementById('vapidKey').value.trim();
+
+      // Parse Firebase config JSON
+      let firebaseConfig;
+      try {
+        let jsonStr = configText.replace(/^(const|let|var)\s+\w+\s*=\s*/, '').replace(/;$/, '');
+        firebaseConfig = JSON.parse(jsonStr);
+      } catch (e) {
+        alert('Firebase Config konnte nicht gelesen werden. Bitte gueltige JSON einfuegen.');
+        return;
+      }
+
+      if (!firebaseConfig.databaseURL) {
+        alert('databaseURL fehlt in der Firebase Config. Bitte stelle sicher, dass Realtime Database aktiviert ist.');
+        return;
+      }
+
+      const config = {
+        firebaseConfig,
+        vapidKey: vapidKey || null,
+        code: generateSyncCode(),
+      };
       saveSyncConfig(config);
+
       // Save current tasks to cloud
-      cloudSave(loadTasks());
+      await cloudSave(loadTasks());
+
+      // Initialize FCM if VAPID key provided
+      if (vapidKey && Notification.permission !== 'granted') {
+        await Notification.requestPermission();
+      }
+      if (vapidKey && Notification.permission === 'granted') {
+        notifBanner.classList.add('hidden');
+        await initFCM();
+      }
+
       updateSyncUI();
       document.getElementById('syncStatus').textContent = 'Verbunden!';
       document.getElementById('syncStatus').className = 'sync-status ok';
@@ -1145,13 +1274,12 @@
       const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
       if (code.length < 4) return;
       const config = loadSyncConfig();
-      if (!config || !config.url) {
-        alert('Bitte zuerst Firebase URL eingeben.');
+      if (!getDbUrl()) {
+        alert('Bitte zuerst Firebase einrichten.');
         return;
       }
       config.code = code;
       saveSyncConfig(config);
-      // Load tasks from cloud
       const data = await cloudLoad(code);
       if (data && data.tasks) {
         _origSaveTasks(data.tasks);
@@ -1173,7 +1301,6 @@
       const data = await cloudLoad();
       if (data && data.tasks) {
         const localTasks = loadTasks();
-        // Merge: use whichever is more recent
         const localTime = Math.max(...localTasks.map(t => t.lastCompleted || t.createdAt || 0), 0);
         const cloudTime = data.updatedAt || 0;
         if (cloudTime > localTime && data.tasks.length > 0) {
@@ -1202,8 +1329,8 @@
 
     // Auto-sync on startup
     async function initSync() {
-      const config = loadSyncConfig();
-      if (!config || !config.url) return;
+      const dbUrl = getDbUrl();
+      if (!dbUrl) return;
       const data = await cloudLoad();
       if (data && data.tasks && data.tasks.length > 0) {
         const localTasks = loadTasks();
@@ -1325,11 +1452,13 @@
     checkNotifPermission();
     initSync();
 
-    // Register service worker
+    // Register service worker and init FCM
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').then(async (reg) => {
         swRegistration = reg;
         scheduleAllNotifications();
+        // Initialize FCM for background push notifications
+        await initFCM();
       }).catch(() => {});
     }
   </script>
