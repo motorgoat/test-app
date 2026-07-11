@@ -129,7 +129,7 @@
 const CONFIG = {
   // Allgemein
   gravity: 9.81,              // m/s²
-  timestep: 1 / 60,           // fixe Physikrate
+  timestep: 1 / 240,          // fixe Physikrate (240 Hz → butterweich auch auf 120-Hz-Displays)
 
   // Schanze (K90 / HS100)
   kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
@@ -147,12 +147,14 @@ const CONFIG = {
   inrunFriction: 0.025,       // Gleitreibungskoeffizient Ski/Spur
   inrunDrag: 0.0011,          // Luftwiderstand in der Hocke (a = k·v²)
 
-  // Absprung
+  // Absprung (jederzeit möglich – der Springer streckt sich sofort)
   takeoffImpulse: 3.2,        // Absprung-Impuls senkrecht zum Tisch (m/s) bei Qualität 1
   takeoffSpeedBonus: 0.06,    // Qualität skaliert Geschwindigkeit: v·(1-bonus+bonus·q)
   perfectWindow: 0.040,       // ± Sekunden um die Tischkante = perfekt (~80 ms Fenster)
-  earlyFalloff: 0.50,         // zu früh: Qualität fällt über diese Zeitspanne auf 0
+  earlyFalloff: 0.55,         // zu früh: Qualität fällt über diese Zeitspanne auf 0
   lateWindow: 0.18,           // so lange nach der Kante zählt ein Tap noch (stark reduziert)
+  standDragFactor: 4.5,       // Luftwiderstands-Malus, wenn man zu früh springt und steht
+  jumpAnimTime: 0.22,         // Dauer der Streck-Animation beim Absprung (s)
 
   // Flug
   liftCoefficient: 0.0042,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
@@ -339,7 +341,7 @@ const Tutorial = {
     { id: 'takeoff',
       when: () => Game.state === 'INRUN' && (Hill.inrunLength - Game.skier.s) / Math.max(Game.skier.v, 0.1) < 1.15,
       pause: true,
-      text: 'Gleich kommt die Tischkante (rote Linie)! Tippe GENAU an der Kante ab – zu früh oder zu spät kostet Weite.' },
+      text: 'Gleich kommt die Tischkante (rote Linie)! Du kannst jederzeit springen – aber nur GENAU an der Kante holt die volle Weite.' },
     { id: 'flight',
       when: () => Game.state === 'FLIGHT' && Game.flight.time > 0.45,
       pause: true,
@@ -399,7 +401,9 @@ const Game = {
   time: 0,
   outrunTimer: 0,
 
-  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, pose: 'crouch', spin: 0 },
+  // poseA→poseB werden über poseT weich überblendet; crash übersteuert alles
+  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, spin: 0,
+           poseA: 'crouch', poseB: 'crouch', poseT: 1, poseDur: 0.2, crash: false, standing: false },
 
   wind: 0, gustPhase: 0,
   takeoff: { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null },
@@ -411,6 +415,18 @@ const Game = {
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
   particles: [],
+  fx: [],            // Effekte (z. B. Absprung-Ring)
+
+  // weiche Pose-Überblendung
+  setPose(name, dur = 0.18) {
+    const S = this.skier;
+    if (S.poseB === name) return;
+    S.poseA = S.poseB; S.poseB = name; S.poseT = 0; S.poseDur = dur;
+  },
+
+  ring(color) {
+    this.fx.push({ x: this.skier.x, y: this.skier.y, t0: this.time, color });
+  },
 
   showMsg(text, color, dur = 1.4) {
     this.message = { text, color, until: this.time + dur, start: this.time };
@@ -422,7 +438,9 @@ const Game = {
     this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
     this.gustPhase = Math.random() * 100;
     const start = Hill.inrunAt(0);
-    Object.assign(this.skier, { s: 0, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle, pose: 'crouch', spin: 0 });
+    Object.assign(this.skier, { s: 0, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle,
+                                spin: 0, poseA: 'crouch', poseB: 'crouch', poseT: 1, crash: false, standing: false });
+    this.fx.length = 0;
     this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
     this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 };
     this.landingTap = { time: -99, windowOpen: false, tta: 99 };
@@ -454,16 +472,19 @@ const Game = {
     // ---------- ANLAUF ----------
     else if (this.state === 'INRUN') {
       const th = Hill.inrunAt(S.s).angle * D2R;
+      // wer zu früh gesprungen ist, fährt stehend weiter → deutlich mehr Luftwiderstand
+      const dragK = CONFIG.inrunDrag * (S.standing ? CONFIG.standDragFactor : 1);
       const a = CONFIG.gravity * Math.sin(th)
               - CONFIG.inrunFriction * CONFIG.gravity * Math.cos(th)
-              - CONFIG.inrunDrag * S.v * S.v;
+              - dragK * S.v * S.v;
       S.v += a * dt;
       S.s += S.v * dt;
 
-      // Schneestaub hinter dem Springer
-      if (S.v > 8 && Math.random() < 0.5) this.dust();
+      // Schneestaub hinter dem Springer (Rate pro Sekunde, framerate-unabhängig)
+      if (S.v > 8 && Math.random() < dt * 30) this.dust();
 
-      // Absprung-Tap: Qualität nach Restzeit bis zur Tischkante
+      // Absprung-Tap: JEDERZEIT möglich – Springer streckt sich sofort sichtbar.
+      // Qualität nach Restzeit bis zur Tischkante.
       if (inp.tap && !this.takeoff.tapped) {
         this.takeoff.tapped = true;
         const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
@@ -471,6 +492,9 @@ const Game = {
         this.takeoff.quality = tte <= CONFIG.perfectWindow
           ? 1
           : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
+        this.setPose('flight', CONFIG.jumpAnimTime);
+        S.standing = true;
+        this.spray(6);
       }
 
       if (S.s >= Hill.inrunLength) this.startFlight();
@@ -491,9 +515,13 @@ const Game = {
           T.tapped = true; T.done = true;
           T.quality = Math.max(0.05, 1 - (T.lateTimer + CONFIG.perfectWindow) / (CONFIG.lateWindow + CONFIG.perfectWindow));
           this.applyTakeoffImpulse(T.quality, true);
+          this.setPose('flight', CONFIG.jumpAnimTime);
+          this.ring('#ffb74d');
           this.rateTakeoff(T.quality, 'spät');
         } else if (T.lateTimer > CONFIG.lateWindow) {
           T.done = true;
+          // kein Absprung: Springer bleibt sichtbar in der Hocke und sackt nur langsam auf
+          this.setPose('flight', 0.7);
           this.rateTakeoff(0, 'keiner');
         }
       }
@@ -547,15 +575,18 @@ const Game = {
       S.y = g2.y;
       if (this.result.crashed) {
         S.body += S.spin * dt;
-        S.spin *= 0.97;
-        if (S.v > 2) this.spray(2);
+        S.spin *= Math.pow(0.97, dt * 60);
+        if (S.v > 2 && Math.random() < dt * 45) this.spray(1);
       } else {
         S.body = -g2.angle;
-        if (S.v > 6) this.dust();
+        if (S.v > 6 && Math.random() < dt * 40) this.dust();
       }
       this.outrunTimer += dt;
       if ((S.v < 1.5 || this.outrunTimer > 3.5) && this.outrunTimer > 1.6) this.showResult();
     }
+
+    // Pose-Überblendung fortschreiben
+    if (S.poseT < 1) S.poseT = Math.min(1, S.poseT + dt / S.poseDur);
 
     // Partikel
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -563,6 +594,9 @@ const Game = {
       p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 6 * dt; p.life -= dt;
       if (p.life <= 0) this.particles.splice(i, 1);
     }
+    // abgelaufene Effekte entfernen
+    for (let i = this.fx.length - 1; i >= 0; i--)
+      if (this.time - this.fx[i].t0 > 0.6) this.fx.splice(i, 1);
   },
 
   startFlight() {
@@ -572,14 +606,17 @@ const Game = {
     const v = S.v * (1 - CONFIG.takeoffSpeedBonus + CONFIG.takeoffSpeedBonus * q);
     S.x = 0; S.y = 0;
     S.vx = v * Math.cos(ta); S.vy = v * Math.sin(ta);
-    S.body = -CONFIG.tableAngle + 4;
-    S.pose = 'flight';
+    S.body = -CONFIG.tableAngle;   // kontinuierlich zur Tischneigung – kein Winkel-Sprung
     this.state = 'FLIGHT';
     if (T.tapped) {
       T.done = true;
       this.applyTakeoffImpulse(q, false);
+      // sichtbarer Absprung: Effektring + Schneeburst an der Kante
+      this.ring(q >= 0.93 ? '#5cffa8' : q >= 0.7 ? '#b9f6ca' : '#ffb74d');
+      this.spray(10);
       this.rateTakeoff(q, T.tapTTE <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
     }
+    // ohne Tap: Springer bleibt in der Hocke – der fehlende Absprung ist sichtbar
   },
 
   applyTakeoffImpulse(q, late) {
@@ -631,7 +668,8 @@ const Game = {
     const vTang = S.vx * Math.cos(th) - S.vy * Math.sin(th);
     S.v = Math.max(3, vTang);
     S.y = g.y;
-    S.pose = crashed ? 'crash' : (dtTap <= CONFIG.telemarkWindow ? 'telemark' : 'landed');
+    S.crash = crashed;
+    if (!crashed) this.setPose(dtTap <= CONFIG.telemarkWindow ? 'telemark' : 'landed', 0.15);
     if (crashed) { S.spin = -540; this.showMsg('STURZ!', '#ff5252', 1.8); }
     else this.showMsg(landing, dtTap <= CONFIG.telemarkWindow ? '#5cffa8' : '#fff', 1.4);
     this.spray(crashed ? 40 : 18);
@@ -717,9 +755,9 @@ function updateCamera(dt) {
     vw = CONFIG.camOutrunView; tx = S.x + 5; ty = S.y + 2;
   }
   const targetPpm = Math.min(W / vw, H / (vw * 0.82));
-  cam.ppm = damp(cam.ppm, targetPpm, 2.5, dt);
-  cam.x = damp(cam.x, tx, 4, dt);
-  cam.y = damp(cam.y, ty, 4, dt);
+  cam.ppm = damp(cam.ppm, targetPpm, 3, dt);
+  cam.x = damp(cam.x, tx, 5.5, dt);
+  cam.y = damp(cam.y, ty, 5.5, dt);
 }
 
 // --- Hintergrund: Himmel, Sonne, Wolken, Parallax-Bergketten mit Wald ---
@@ -875,7 +913,36 @@ function drawHill() {
   ctx.beginPath(); ctx.moveTo(edge.x, edge.y - cam.ppm * 0.25); ctx.lineTo(edge.x, edge.y + cam.ppm * 1.1); ctx.stroke();
 }
 
-// --- Springer: stilisierte Figur mit VORLAGE über den Ski ---
+// --- Springer: Posen als Keypoints, weich ineinander überblendet ---
+// legF/legB: Bindung→Knie→Hüfte · torso: Hüfte→Schulter · arm1/arm2 · head · skiV: V-Stil 0..1
+const POSES = {
+  crouch: {
+    legF: [0.05, 0, -0.12, -0.32, -0.28, -0.5], legB: [0.05, 0, -0.12, -0.32, -0.28, -0.5],
+    torso: [-0.28, -0.5, 0.5, -0.62],
+    arm1: [0.34, -0.58, 0.62, -0.3], arm2: [0.32, -0.56, 0.58, -0.32],
+    head: [0.68, -0.72], skiV: 0,
+  },
+  flight: {
+    legF: [0.05, 0, -0.05, -0.3, -0.42, -0.5], legB: [0.05, 0, -0.05, -0.3, -0.42, -0.5],
+    torso: [-0.42, -0.5, 0.52, -0.78],
+    arm1: [0.38, -0.72, -0.3, -0.5], arm2: [0.36, -0.68, -0.28, -0.46],
+    head: [0.72, -0.85], skiV: 1,
+  },
+  telemark: {
+    legF: [0.42, 0, 0.46, -0.36, 0.08, -0.58], legB: [-0.5, 0, -0.32, -0.26, 0.08, -0.58],
+    torso: [0.08, -0.58, 0.14, -1.08],
+    arm1: [0.12, -1.0, 0.58, -0.82], arm2: [0.12, -1.0, -0.4, -0.86],
+    head: [0.17, -1.27], skiV: 0,
+  },
+  landed: {
+    legF: [0.08, 0, 0.0, -0.35, 0.02, -0.6], legB: [0.08, 0, 0.0, -0.35, 0.02, -0.6],
+    torso: [0.02, -0.6, 0.16, -1.05],
+    arm1: [0.14, -1.0, 0.5, -0.72], arm2: [0.14, -1.0, -0.2, -0.75],
+    head: [0.22, -1.25], skiV: 0,
+  },
+};
+const mixArr = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
+
 function drawSkier() {
   const S = Game.skier;
   const p = worldToScreen(S.x, S.y);
@@ -903,25 +970,19 @@ function drawSkier() {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
   const SUIT = '#ff4757', SUIT_D = '#d63447', LEGS = '#22354a', SKI = '#ffd23f', SKI_D = '#e0a800';
-  const limb = (x1, y1, x2, y2, color, w) => {
-    ctx.strokeStyle = color; ctx.lineWidth = w;
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-  };
   const path = (pts, color, w) => {
     ctx.strokeStyle = color; ctx.lineWidth = w;
-    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
     ctx.stroke();
   };
   const head = (hx, hy) => {
     ctx.fillStyle = '#f8fafc';
     ctx.beginPath(); ctx.arc(hx, hy, 0.18, 0, 7); ctx.fill();
     ctx.strokeStyle = '#22354a'; ctx.lineWidth = 0.045; ctx.stroke();
-    // Visier
     ctx.strokeStyle = '#35d0ff'; ctx.lineWidth = 0.06;
     ctx.beginPath(); ctx.arc(hx, hy, 0.13, -0.5, 0.6); ctx.stroke();
   };
-  // Ski mit aufgebogener Spitze
   const ski = (yOff, tipUp, color) => {
     ctx.strokeStyle = color; ctx.lineWidth = 0.15;
     ctx.beginPath();
@@ -931,51 +992,49 @@ function drawSkier() {
     ctx.stroke();
   };
 
-  if (S.pose === 'flight') {
-    // V-Stil: hinterer Ski flacher, vorderer leicht geöffnet
-    ski(0.12, 0.05, SKI_D);
-    ski(0.0, 0.25, SKI);
-    // Beine: Bindung → Knie → Hüfte (Hüfte hinten-oben)
-    path([[0.05, 0], [-0.05, -0.3], [-0.42, -0.5]], LEGS, 0.17);
-    // Torso: Hüfte → Schulter, deutlich NACH VORN über die Ski gestreckt
-    path([[-0.42, -0.5], [0.52, -0.78]], SUIT, 0.24);
-    // Arme: eng am Körper nach hinten angelegt
-    path([[0.38, -0.72], [-0.3, -0.5]], SUIT_D, 0.11);
-    head(0.72, -0.85);
-  } else if (S.pose === 'crouch') {
-    ski(0.1, 0, SKI_D);
-    ski(0.0, 0, SKI);
-    // tiefe Hocke: kompakt, Rücken flach
-    path([[0.05, 0], [-0.12, -0.32], [-0.28, -0.5]], LEGS, 0.17);
-    path([[-0.28, -0.5], [0.5, -0.62]], SUIT, 0.24);
-    path([[0.34, -0.58], [0.62, -0.3]], SUIT_D, 0.11);
-    head(0.68, -0.72);
-  } else if (S.pose === 'telemark') {
-    ski(0.1, 0, SKI_D);
-    ski(0.0, 0, SKI);
-    path([[0.42, 0], [0.46, -0.36], [0.08, -0.58]], LEGS, 0.17);   // vorderes Bein
-    path([[-0.5, 0], [-0.32, -0.26], [0.08, -0.58]], LEGS, 0.15);  // hinteres Bein gebeugt
-    path([[0.08, -0.58], [0.14, -1.08]], SUIT, 0.24);              // Torso aufrecht
-    limb(0.12, -1.0, 0.58, -0.82, SUIT_D, 0.11);                   // Arme ausbalancierend
-    limb(0.12, -1.0, -0.4, -0.86, SUIT_D, 0.11);
-    head(0.17, -1.27);
-  } else if (S.pose === 'landed') {
-    ski(0.1, 0, SKI_D);
-    ski(0.0, 0, SKI);
-    path([[0.08, 0], [-0.02, -0.5], [0.14, -1.05]], LEGS, 0.18);
-    path([[0.0, -0.55], [0.16, -1.05]], SUIT, 0.24);
-    limb(0.14, -1.0, 0.5, -0.72, SUIT_D, 0.11);
-    head(0.22, -1.25);
-  } else { // crash
+  if (S.crash) {
     const wob = Math.sin(Game.time * 30) * 0.15;
     ski(0.15, 0.3, SKI_D);
     ski(-0.05, -0.2, SKI);
-    path([[0, 0], [-0.3 + wob, -0.5], [0.4, -0.8 - wob]], LEGS, 0.17);
-    limb(0.4, -0.8, 0.9, -0.5 + wob, SUIT, 0.2);
-    limb(0.4, -0.8, -0.1, -1.1 - wob, SUIT_D, 0.11);
+    path([0, 0, -0.3 + wob, -0.5, 0.4, -0.8 - wob], LEGS, 0.17);
+    path([0.4, -0.8, 0.9, -0.5 + wob], SUIT, 0.2);
+    path([0.4, -0.8, -0.1, -1.1 - wob], SUIT_D, 0.11);
     head(0.62, -1.0);
+  } else {
+    // Ease-out für knackige Streckung beim Absprung
+    const t = 1 - Math.pow(1 - S.poseT, 3);
+    const A = POSES[S.poseA], B = POSES[S.poseB];
+    const legF = mixArr(A.legF, B.legF, t), legB = mixArr(A.legB, B.legB, t);
+    const torso = mixArr(A.torso, B.torso, t);
+    const arm1 = mixArr(A.arm1, B.arm1, t), arm2 = mixArr(A.arm2, B.arm2, t);
+    const hd = mixArr(A.head, B.head, t);
+    const skiV = lerp(A.skiV, B.skiV, t);
+    ski(0.12, skiV * 0.05, SKI_D);
+    ski(0.0, skiV * 0.25, SKI);
+    path(legB, LEGS, 0.15);
+    path(legF, LEGS, 0.17);
+    path(torso, SUIT, 0.24);
+    path(arm2, SUIT_D, 0.1);
+    path(arm1, SUIT_D, 0.11);
+    head(hd[0], hd[1]);
   }
   ctx.restore();
+}
+
+// --- Effektringe (Absprung) ---
+function drawFX() {
+  for (const f of Game.fx) {
+    const age = Game.time - f.t0;
+    if (age < 0 || age > 0.6) continue;
+    const p = worldToScreen(f.x, f.y);
+    ctx.globalAlpha = (1 - age / 0.6) * 0.9;
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 3.5 * (1 - age / 0.6) + 1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (0.5 + age * 9) * cam.ppm, 0, 7);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawParticles() {
@@ -1172,6 +1231,7 @@ function frame(now) {
   drawBackground();
   drawHill();
   drawParticles();
+  drawFX();
   drawSkier();
   ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
   drawHUD();
@@ -1211,7 +1271,7 @@ if (Game.best)
 // Springer für den Startbildschirm ans Gate setzen
 {
   const start = Hill.inrunAt(0);
-  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle, pose: 'crouch' });
+  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle });
   cam.x = start.x + 5; cam.y = start.y - 2;
   cam.ppm = Math.min(W / CONFIG.camGateView, H / (CONFIG.camGateView * 0.82));
 }
