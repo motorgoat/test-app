@@ -85,7 +85,7 @@
   <h1>ALPENFLUG</h1>
   <div class="sub">K90 · HILLSIZE 100</div>
   <button id="startBtn">Spiel starten</button>
-  <div class="hint">Tippen für Start, Absprung &amp; Landung.<br>Im Flug ziehen oder oben/unten halten. Desktop: Leertaste + ↑ ↓</div>
+  <div class="hint">Tippen für Start, Absprung &amp; Landung.<br>Im Flug nach oben/unten wischen. Desktop: Leertaste + ↑ ↓</div>
   <div class="best" id="startBest"></div>
 </div>
 
@@ -163,7 +163,8 @@ const CONFIG = {
   dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
   optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
   angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
-  angleSpeed: 40,             // Drehrate der Spielersteuerung bei Vollausschlag (Grad/s)
+  angleSpeed: 40,             // Drehrate der Tastatursteuerung (Grad/s)
+  swipeSensitivity: 70,       // Grad Winkeländerung pro voller Bildschirmhöhe Wischweg
   pitchDrift: 1.8,            // aerodynamische Aufdreh-Tendenz (Grad/s) – sanft gegenhalten
   autoAttitudeTime: 0.35,     // s nach dem Absprung: automatische Rotation in die Grundlage
   initAlphaOffset: -3,        // Grundlage = optimalAngle + Offset (leicht unter dem Optimum)
@@ -280,7 +281,7 @@ const Hill = (() => {
 // ------------------------------------------------------------------ Input
 const Input = (() => {
   const state = { tap: false, pointerDown: false };
-  let startY = 0, curY = 0, dragging = false;
+  let lastY = 0, swipeAcc = 0; // aufsummierter Wischweg (px, + = nach oben) seit letztem poll()
   const keys = {};
   const canvas = document.getElementById('game');
 
@@ -288,16 +289,15 @@ const Input = (() => {
     e.preventDefault();
     state.tap = true;
     state.pointerDown = true;
-    startY = curY = e.clientY;
-    dragging = false;
-    canvas.setPointerCapture(e.pointerId);
+    lastY = e.clientY;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   });
   canvas.addEventListener('pointermove', e => {
     if (!state.pointerDown) return;
-    curY = e.clientY;
-    if (Math.abs(curY - startY) > 16) dragging = true;
+    swipeAcc += lastY - e.clientY;
+    lastY = e.clientY;
   });
-  const up = () => { state.pointerDown = false; dragging = false; };
+  const up = () => { state.pointerDown = false; };
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
 
@@ -309,19 +309,16 @@ const Input = (() => {
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-  // Pro Physikframe: liefert Steuerwert, konsumiert den Tap.
-  // Touch: proportional zur Fingerposition relativ zur Bildmitte (Joystick-Gefühl) –
-  // Finger knapp über der Mitte = feine Korrektur, weit oben/unten = volle Drehrate.
+  // Pro Physikframe: liefert Steuerwerte, konsumiert Tap und Wischweg.
+  // Touch: nach oben/unten WISCHEN justiert den Winkel direkt (relativ zur Bewegung).
   function poll() {
     let a = 0;
-    if (state.pointerDown) {
-      a = clamp((window.innerHeight * 0.5 - curY) / (window.innerHeight * 0.28), -1, 1);
-      if (Math.abs(a) < 0.07) a = 0; // Deadzone um die Mitte
-    }
     if (keys['ArrowUp'] || keys['w']) a = 1;
     if (keys['ArrowDown'] || keys['s']) a = -1;
     const tap = state.tap; state.tap = false;
-    return { tap, angle: a };
+    const swipe = swipeAcc / window.innerHeight; // Anteil der Bildschirmhöhe
+    swipeAcc = 0;
+    return { tap, angle: a, swipe };
   }
   return { poll, state };
 })();
@@ -347,7 +344,7 @@ const Tutorial = {
     { id: 'flight',
       when: () => Game.state === 'FLIGHT' && Game.flight.time > 0.45,
       pause: true,
-      text: 'Flug: Finger über der Bildmitte halten = aufrichten, darunter = Vorlage. Je weiter von der Mitte, desto schneller. Halte die Nadel im grünen Korridor!' },
+      text: 'Flug: Wische nach oben = aufrichten, nach unten = Vorlage. Halte die Nadel im grünen Korridor!' },
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
@@ -545,8 +542,10 @@ const Game = {
         S.body += clamp(target - S.body, -100 * dt, 100 * dt);
       }
 
-      // Fluglagensteuerung + aerodynamischer Drift
-      S.body += inp.angle * CONFIG.angleSpeed * dt + CONFIG.pitchDrift * dt;
+      // Fluglagensteuerung: Wischen (direkt) + Tastatur (Rate) + aerodynamischer Drift
+      S.body += inp.swipe * CONFIG.swipeSensitivity
+              + inp.angle * CONFIG.angleSpeed * dt
+              + CONFIG.pitchDrift * dt;
       S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
 
       const alpha = S.body - velAng;                       // Anstellwinkel
