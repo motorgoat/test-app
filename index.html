@@ -140,6 +140,7 @@ const CONFIG = {
   inrunAngle: 35,             // Neigung des Anlaufhangs (Grad)
   inrunStraight: 42,          // Länge des geraden Anlaufstücks (m)
   inrunRadius: 90,            // Übergangsradius Anlauf → Tisch (m)
+  gateOffset: 3.5,            // Startposition unterhalb des Spur-Anfangs (m)
   // Aufsprungprofil: Winkelverlauf über horizontale Distanz x
   landing: { startAngle: 10, maxAngle: 36, steepen0: 8, steepen1: 50, flat0: 88, flat1: 135 },
 
@@ -162,8 +163,10 @@ const CONFIG = {
   dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
   optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
   angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
-  angleSpeed: 45,             // Drehrate der Spielersteuerung (Grad/s)
-  pitchDrift: 4,              // aerodynamische Aufdreh-Tendenz (Grad/s) – muss aktiv gehalten werden
+  angleSpeed: 40,             // Drehrate der Spielersteuerung bei Vollausschlag (Grad/s)
+  pitchDrift: 1.8,            // aerodynamische Aufdreh-Tendenz (Grad/s) – sanft gegenhalten
+  autoAttitudeTime: 0.35,     // s nach dem Absprung: automatische Rotation in die Grundlage
+  initAlphaOffset: -3,        // Grundlage = optimalAngle + Offset (leicht unter dem Optimum)
   bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
 
   // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
@@ -306,15 +309,14 @@ const Input = (() => {
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-  // Pro Physikframe: liefert Steuerwert, konsumiert den Tap
+  // Pro Physikframe: liefert Steuerwert, konsumiert den Tap.
+  // Touch: proportional zur Fingerposition relativ zur Bildmitte (Joystick-Gefühl) –
+  // Finger knapp über der Mitte = feine Korrektur, weit oben/unten = volle Drehrate.
   function poll() {
     let a = 0;
     if (state.pointerDown) {
-      if (dragging) {
-        a = clamp((startY - curY) / (window.innerHeight * 0.18), -1, 1);
-      } else {
-        a = curY < window.innerHeight / 2 ? 0.8 : -0.8;
-      }
+      a = clamp((window.innerHeight * 0.5 - curY) / (window.innerHeight * 0.28), -1, 1);
+      if (Math.abs(a) < 0.07) a = 0; // Deadzone um die Mitte
     }
     if (keys['ArrowUp'] || keys['w']) a = 1;
     if (keys['ArrowDown'] || keys['s']) a = -1;
@@ -345,7 +347,7 @@ const Tutorial = {
     { id: 'flight',
       when: () => Game.state === 'FLIGHT' && Game.flight.time > 0.45,
       pause: true,
-      text: 'Flug: Halte die Nadel rechts im grünen Korridor. Nach unten ziehen/halten = Vorlage, nach oben = aufrichten.' },
+      text: 'Flug: Finger über der Bildmitte halten = aufrichten, darunter = Vorlage. Je weiter von der Mitte, desto schneller. Halte die Nadel im grünen Korridor!' },
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
@@ -437,9 +439,9 @@ const Game = {
     this.state = 'GATE';
     this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
     this.gustPhase = Math.random() * 100;
-    const start = Hill.inrunAt(0);
-    Object.assign(this.skier, { s: 0, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle,
-                                spin: 0, poseA: 'crouch', poseB: 'crouch', poseT: 1, crash: false, standing: false });
+    const start = Hill.inrunAt(CONFIG.gateOffset);
+    Object.assign(this.skier, { s: CONFIG.gateOffset, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle,
+                                spin: 0, poseA: 'gate', poseB: 'gate', poseT: 1, crash: false, standing: false });
     this.fx.length = 0;
     this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
     this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 };
@@ -466,7 +468,11 @@ const Game = {
     if (Tutorial.paused) return;
 
     if (this.state === 'GATE') {
-      if (inp.tap) { this.state = 'INRUN'; this.showMsg('LOS!', '#9be8ff', 0.7); }
+      if (inp.tap) {
+        this.state = 'INRUN';
+        this.setPose('crouch', 0.35);
+        this.showMsg('LOS!', '#9be8ff', 0.7);
+      }
     }
 
     // ---------- ANLAUF ----------
@@ -526,15 +532,23 @@ const Game = {
         }
       }
 
-      // Fluglagensteuerung + aerodynamischer Drift
-      S.body += inp.angle * CONFIG.angleSpeed * dt + CONFIG.pitchDrift * dt;
-      S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
-
-      // Aerodynamik relativ zur Anströmung (Wind verstärkt via windAeroFactor)
+      // Anströmung (Wind verstärkt via windAeroFactor)
       const w = this.currentWind() * CONFIG.windAeroFactor;
       const rvx = S.vx - w, rvy = S.vy;
       const rv = Math.hypot(rvx, rvy);
       const velAng = Math.atan2(rvy, rvx) / D2R;
+
+      // Direkt nach dem Absprung automatisch weich in die Grundlage rotieren –
+      // der Spieler übernimmt aus einer neutralen, tragenden Position.
+      if (F.time < CONFIG.autoAttitudeTime) {
+        const target = velAng + CONFIG.optimalAngle + CONFIG.initAlphaOffset;
+        S.body += clamp(target - S.body, -100 * dt, 100 * dt);
+      }
+
+      // Fluglagensteuerung + aerodynamischer Drift
+      S.body += inp.angle * CONFIG.angleSpeed * dt + CONFIG.pitchDrift * dt;
+      S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
+
       const alpha = S.body - velAng;                       // Anstellwinkel
       const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
       const liftF = Math.exp(-dNorm * dNorm);              // Gauß-Glocke ums Optimum
@@ -761,6 +775,9 @@ function updateCamera(dt) {
 }
 
 // --- Hintergrund: Himmel, Sonne, Wolken, Parallax-Bergketten mit Wald ---
+// Fester Parallax-Pixelfaktor (px pro Weltmeter): entkoppelt den Hintergrund vom
+// Kamera-Zoom, sonst "schwimmen" die Berge bei jeder Zoomänderung.
+const PAR_PX = 7;
 function ridgeY(x, seed) {
   return Math.sin(x * 0.011 + seed) * 14 + Math.sin(x * 0.031 + seed * 2.3) * 6 + Math.sin(x * 0.005 + seed * 0.7) * 20;
 }
@@ -781,10 +798,10 @@ function drawBackground() {
   ctx.fillStyle = '#fff7d6';
   ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 7); ctx.fill();
 
-  // Wolken (leichte Parallax); c[2] = Größenfaktor relativ zur Basisgröße
+  // Wolken (leichte Parallax, fester Pixelfaktor → kein Schwimmen beim Zoomen)
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   for (const c of [[0.14, 0.16, 1.2], [0.48, 0.10, 0.8], [0.85, 0.26, 1.0]]) {
-    const cx = ((c[0] * W - cam.x * cam.ppm * 0.06) % (W + 260) + W + 260) % (W + 260) - 130;
+    const cx = ((c[0] * W - cam.x * PAR_PX * 0.06) % (W + 260) + W + 260) % (W + 260) - 130;
     const cy = c[1] * H, cw = c[2] * clamp(Math.min(W, H) / 420, 0.9, 1.5);
     ctx.beginPath();
     ctx.ellipse(cx, cy, 44 * cw, 12 * cw, 0, 0, 7);
@@ -804,21 +821,23 @@ function drawBackground() {
     ctx.beginPath();
     ctx.moveTo(0, H);
     for (let px = 0; px <= W; px += 10) {
-      const wx = px + cam.x * cam.ppm * l.par;
-      ctx.lineTo(px, H * l.base - ridgeY(wx, l.seed) - cam.y * cam.ppm * l.par * 0.3);
+      const wx = px + cam.x * PAR_PX * l.par;
+      ctx.lineTo(px, H * l.base - ridgeY(wx, l.seed) - cam.y * PAR_PX * l.par * 0.3);
     }
     ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
   }
-  // Waldband auf der vordersten Kette
+  // Waldband auf der vordersten Kette – Zacken als stetige Dreieckswelle in
+  // WELT-Koordinaten (screen-quantisierte Zacken flackern bei Kamerafahrt)
   const l = layers[2];
   ctx.fillStyle = '#37536e';
   ctx.beginPath();
   ctx.moveTo(0, H);
-  for (let px = 0; px <= W; px += 7) {
-    const wx = px + cam.x * cam.ppm * l.par;
-    const baseY = H * l.base - ridgeY(wx, l.seed) - cam.y * cam.ppm * l.par * 0.3 + 14;
-    const spike = (Math.sin(wx * 0.9) * 0.5 + 0.5) * 9 + 4;
-    ctx.lineTo(px, baseY - (px % 14 < 7 ? spike : 0));
+  for (let px = 0; px <= W; px += 4) {
+    const wx = px + cam.x * PAR_PX * l.par;
+    const baseY = H * l.base - ridgeY(wx, l.seed) - cam.y * PAR_PX * l.par * 0.3 + 14;
+    const tooth = Math.abs(((wx % 13) + 13) % 13 - 6.5) / 6.5;          // 0..1 Dreieckswelle
+    const spikeH = 5 + (Math.sin(wx * 0.23) * 0.5 + 0.5) * 9;           // Baumhöhe variiert
+    ctx.lineTo(px, baseY - tooth * spikeH);
   }
   ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
 }
@@ -926,10 +945,14 @@ function drawHill() {
   ctx.beginPath();
   for (const p of ir) { const s = worldToScreen(p.x + IR_DEPTH.x * 0.5, p.y + IR_DEPTH.y * 0.5); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  // Startbalken am Gate
-  const gp = worldToScreen(ir[0].x + 0.4, ir[0].y + 1.1);
+  // Startbalken hinter der Gate-Position
+  const gpos = Hill.inrunAt(CONFIG.gateOffset);
+  const gp = worldToScreen(gpos.x - 0.9, gpos.y + 1.0);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(2, cam.ppm * 0.16);
-  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.9, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.9, gp.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.7, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.7, gp.y); ctx.stroke();
+  ctx.strokeStyle = '#16283c'; ctx.lineWidth = Math.max(1.5, cam.ppm * 0.08);
+  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.7, gp.y); ctx.lineTo(gp.x - cam.ppm * 0.7, gp.y + cam.ppm * 1.0);
+  ctx.moveTo(gp.x + cam.ppm * 0.7, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.7, gp.y + cam.ppm * 1.0); ctx.stroke();
   // Tischkante: rote Linie quer über die Spur + Markierung nach unten
   const e2 = worldToScreen(IR_DEPTH.x, IR_DEPTH.y);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(3, cam.ppm * 0.2);
@@ -1049,6 +1072,12 @@ function drawPrediction() {
 // --- Springer: Posen als Keypoints, weich ineinander überblendet ---
 // legF/legB: Bindung→Knie→Hüfte · torso: Hüfte→Schulter · arm1/arm2 · head · skiV: V-Stil 0..1
 const POSES = {
+  gate: { // aufrecht am Startbalken, leicht lockere Knie
+    legF: [0.05, 0, 0.02, -0.32, -0.02, -0.62], legB: [0.05, 0, 0.02, -0.32, -0.02, -0.62],
+    torso: [-0.02, -0.62, 0.24, -1.0],
+    arm1: [0.2, -0.95, 0.34, -0.55], arm2: [0.18, -0.93, 0.06, -0.55],
+    head: [0.34, -1.18], skiV: 0,
+  },
   crouch: {
     legF: [0.05, 0, -0.12, -0.32, -0.28, -0.5], legB: [0.05, 0, -0.12, -0.32, -0.28, -0.5],
     torso: [-0.28, -0.5, 0.5, -0.62],
@@ -1405,8 +1434,8 @@ if (Game.best)
 
 // Springer für den Startbildschirm ans Gate setzen
 {
-  const start = Hill.inrunAt(0);
-  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle });
+  const start = Hill.inrunAt(CONFIG.gateOffset);
+  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle, poseA: 'gate', poseB: 'gate', poseT: 1 });
   cam.x = start.x + 5; cam.y = start.y - 2;
   cam.ppm = Math.min(W / CONFIG.camGateView, H / (CONFIG.camGateView * 0.82));
 }
