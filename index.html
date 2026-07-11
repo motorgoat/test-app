@@ -85,7 +85,7 @@
   <h1>ALPENFLUG</h1>
   <div class="sub">K90 · HILLSIZE 100</div>
   <button id="startBtn">Spiel starten</button>
-  <div class="hint">Tippen für Start, Absprung &amp; Landung.<br>Im Flug nach oben/unten wischen. Desktop: Leertaste + ↑ ↓</div>
+  <div class="hint">Tippen: Start · Absprung · Landeposition.<br>Im Flug nach oben/unten wischen. Desktop: Leertaste + ↑ ↓</div>
   <div class="best" id="startBest"></div>
 </div>
 
@@ -177,12 +177,11 @@ const CONFIG = {
   windAeroFactor: 2.0,        // Gameplay-Verstärkung der Windwirkung auf die Anströmung
   gustAmount: 0.25,           // Böen: ±25 % um den Basiswind
 
-  // Landung
-  telemarkWindow: 0.16,       // Tap ≤ 160 ms vor Aufsetzen = Telemark
-  okWindow: 0.32,             // Tap ≤ 320 ms = sichere Landung
-  earlyLimit: 0.75,           // Tap ≤ 750 ms = nur noch wacklig; ohne Tap = Sturz
-  landingArmTime: 1.1,        // ab dieser Restflugzeit werden Lande-Taps registriert
-  landingFlash: 0.22,         // "JETZT!"-Signal bei dieser Restflugzeit
+  // Landung (DSJ-Stil): zweiter Tap = sofort Landeposition. In der Landeposition
+  // bricht der Auftrieb ein (zu früh = Weitenverlust), ohne Landeposition = Sturz.
+  stanceLift: 0.35,           // Auftrieb-Faktor in Landeposition
+  stanceDrag: 1.9,            // Widerstands-Faktor in Landeposition
+  stanceMinTime: 0.12,        // so lange muss die Position vor dem Aufsetzen stehen → Telemark
   crashSpeed: 11.5,           // Aufprall senkrecht zum Hang > x m/s = Sturz
   outrunFriction: 0.06,       // Bremsreibung im Auslauf
   crashFriction: 0.30,        // Sturz bremst stark
@@ -438,7 +437,7 @@ const Tutorial = {
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
-      text: 'Landung! Tippe genau, wenn JETZT! aufblinkt – das gibt den Telemark. Ohne Tap stürzt du.' },
+      text: 'Landung: Tippe ein zweites Mal, dann geht der Springer SOFORT in die Landeposition. Zu früh kostet Weite – ohne Landeposition stürzt du!' },
   ],
 
   update() {
@@ -496,8 +495,8 @@ const Game = {
 
   wind: 0, gustPhase: 0,
   takeoff: { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null },
-  flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 },
-  landingTap: { time: -99, windowOpen: false, tta: 99 },
+  flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0, stance: false, stanceT: 0 },
+  landingTap: { windowOpen: false, tta: 99 },
   result: null,
   best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
 
@@ -533,8 +532,8 @@ const Game = {
                                 spin: 0, poseA: 'gate', poseB: 'gate', poseT: 1, crash: false, standing: false });
     this.fx.length = 0;
     this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
-    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 };
-    this.landingTap = { time: -99, windowOpen: false, tta: 99 };
+    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0, stance: false, stanceT: 0 };
+    this.landingTap = { windowOpen: false, tta: 99 };
     this.result = null;
     this.popup = null;
     this.particles.length = 0;
@@ -613,10 +612,13 @@ const Game = {
     else if (this.state === 'FLIGHT') {
       const F = this.flight, T = this.takeoff;
 
+      let tapFree = inp.tap; // ein Tap löst nur EINE Aktion aus
+
       // Verspäteter Absprung: Tap kurz nach der Kante zählt noch (reduziert)
       if (!T.done) {
         T.lateTimer += dt;
-        if (inp.tap && T.lateTimer <= CONFIG.lateWindow) {
+        if (tapFree && T.lateTimer <= CONFIG.lateWindow) {
+          tapFree = false;
           T.tapped = true; T.done = true;
           T.quality = Math.max(0.05, 1 - (T.lateTimer + CONFIG.perfectWindow) / (CONFIG.lateWindow + CONFIG.perfectWindow));
           this.applyTakeoffImpulse(T.quality, true);
@@ -632,8 +634,15 @@ const Game = {
         }
       }
 
+      // DSJ-Landemechanik: zweiter Tap = SOFORT in die Landeposition
+      if (tapFree && T.done && !F.stance && S.x > 0) {
+        F.stance = true;
+        F.stanceT = this.time;
+        this.setPose('telemark', 0.28);
+      }
+
       // Nach der Streckung zügig in die tiefe Flughaltung absenken
-      if (F.time > 0.18 && S.poseB === 'extend') this.setPose('flight', 0.3);
+      if (!F.stance && F.time > 0.18 && S.poseB === 'extend') this.setPose('flight', 0.3);
 
       // Anströmung (Wind verstärkt via windAeroFactor)
       const gust = this.currentWind();
@@ -642,15 +651,20 @@ const Game = {
       const rv = Math.hypot(rvx, rvy);
       const velAng = Math.atan2(rvy, rvx) / D2R;
 
-      // Anstellwinkel-Steuerung: Wischen justiert alpha direkt, Drift + Böen stören
-      S.alphaCtl += inp.swipe * CONFIG.swipeSensitivity
-                  + inp.angle * CONFIG.angleSpeed * dt
-                  + CONFIG.pitchDrift * dt
-                  + (gust - this.wind) * CONFIG.gustPitchFactor * dt;
-      S.alphaCtl = clamp(S.alphaCtl, CONFIG.alphaMin, CONFIG.alphaMax);
-
-      // Der Körper rotiert automatisch mit der steiler werdenden Flugbahn mit
-      S.body += clamp(velAng + S.alphaCtl - S.body, -CONFIG.bodyFollowRate * dt, CONFIG.bodyFollowRate * dt);
+      if (!F.stance) {
+        // Anstellwinkel-Steuerung: Wischen justiert alpha direkt, Drift + Böen stören
+        S.alphaCtl += inp.swipe * CONFIG.swipeSensitivity
+                    + inp.angle * CONFIG.angleSpeed * dt
+                    + CONFIG.pitchDrift * dt
+                    + (gust - this.wind) * CONFIG.gustPitchFactor * dt;
+        S.alphaCtl = clamp(S.alphaCtl, CONFIG.alphaMin, CONFIG.alphaMax);
+        // Der Körper rotiert automatisch mit der steiler werdenden Flugbahn mit
+        S.body += clamp(velAng + S.alphaCtl - S.body, -CONFIG.bodyFollowRate * dt, CONFIG.bodyFollowRate * dt);
+      } else {
+        // Landeposition: Körper richtet sich zum Hang aus, keine Steuerung mehr
+        const gAng = Hill.groundAt(Math.max(S.x, 0)).angle;
+        S.body += clamp(-gAng - S.body, -90 * dt, 90 * dt);
+      }
       S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
 
       const alpha = S.body - velAng;                       // Anstellwinkel
@@ -658,15 +672,19 @@ const Game = {
       const liftF = Math.exp(-dNorm * dNorm);              // Gauß-Glocke ums Optimum
       const aPos = Math.max(0, alpha) / 30;
       const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
-      const lift = CONFIG.liftCoefficient * rv * rv * liftF;
-      const drag = CONFIG.dragCoefficient * rv * rv * dragF;
+      // In der Landeposition bricht der Auftrieb ein – zu früh = Weitenverlust
+      const lift = CONFIG.liftCoefficient * rv * rv * liftF * (F.stance ? CONFIG.stanceLift : 1);
+      const drag = CONFIG.dragCoefficient * rv * rv * dragF * (F.stance ? CONFIG.stanceDrag : 1);
       const ux = rvx / rv, uy = rvy / rv;
       S.vx += (-drag * ux - lift * uy) * dt;
       S.vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
       S.x += S.vx * dt; S.y += S.vy * dt;
 
-      F.time += dt;
-      if (Math.abs(alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance) F.corridorTime += dt;
+      // Haltungsnote: nur die aktive Flugphase zählt
+      if (!F.stance) {
+        F.time += dt;
+        if (Math.abs(alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance) F.corridorTime += dt;
+      }
       F.alpha = alpha; F.lift = lift; F.drag = drag;
 
       // Flugspur aufzeichnen
@@ -681,16 +699,13 @@ const Game = {
       const overRamp = S.x < -0.05;
       const surf = overRamp ? Hill.inrunAtX(S.x) : Hill.groundAt(S.x);
 
-      // Landefenster (nur am Aufsprunghang, nicht beim Hüpfer über der Spur)
+      // Restflugzeit-Schätzung (für Tutorial und Debug; die Landung selbst ist
+      // rein DSJ-mechanisch: Landeposition per Tap, sonst Sturz)
       if (!overRamp && S.x > 5) {
         const gap = S.y - surf.y;
         const closure = -(S.vy + S.vx * Math.tan(surf.angle * D2R));
         this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
-        // Lande-Taps zählen ab landingArmTime IMMER (zu früh = schlechter, nie ignoriert)
-        const armed = this.landingTap.tta < CONFIG.landingArmTime && F.time > 0.5;
-        if (armed && !this.landingTap.windowOpen) this.showMsg('Landung bereit …', '#cfe6f8', 0.8);
-        this.landingTap.windowOpen = armed;
-        if (inp.tap && armed) this.landingTap.time = this.time;
+        this.landingTap.windowOpen = this.landingTap.tta < 1.1;
       }
 
       // Bodenkontakt
@@ -777,13 +792,14 @@ const Game = {
     const th = g.angle * D2R;
     // Aufprallgeschwindigkeit senkrecht zum Hang (Hangnormale n = (sinθ, cosθ))
     const vNormal = -(S.vx * Math.sin(th) + S.vy * Math.cos(th));
-    const dtTap = this.time - this.landingTap.time;
+    // DSJ-Regel: ohne Landeposition = Sturz; Position rechtzeitig stehen = Telemark
+    const F0 = this.flight;
+    const stanceDur = F0.stance ? this.time - F0.stanceT : -1;
     let landing, landingPts, crashed = false;
-    if (dtTap <= CONFIG.telemarkWindow)     { landing = 'Telemark!';        landingPts = CONFIG.styleLandingMax; }
-    else if (dtTap <= CONFIG.okWindow)      { landing = 'Sichere Landung';  landingPts = CONFIG.styleLandingMax * 0.6; }
-    else if (dtTap <= CONFIG.earlyLimit)    { landing = 'Wacklige Landung'; landingPts = CONFIG.styleLandingMax * 0.33; }
-    else                                    { landing = 'STURZ!';           landingPts = 0; crashed = true; }
-    if (vNormal > CONFIG.crashSpeed)        { landing = 'STURZ – zu hart!'; landingPts = 0; crashed = true; }
+    if (!F0.stance)                              { landing = 'STURZ!';         landingPts = 0; crashed = true; }
+    else if (stanceDur >= CONFIG.stanceMinTime)  { landing = 'Telemark!';      landingPts = CONFIG.styleLandingMax; }
+    else                                         { landing = 'Knappe Landung'; landingPts = CONFIG.styleLandingMax * 0.6; }
+    if (vNormal > CONFIG.crashSpeed)             { landing = 'STURZ – zu hart!'; landingPts = 0; crashed = true; }
 
     const dist = Math.round(g.s * 2) / 2;
     const distPts = Math.max(0, CONFIG.basePoints + (dist - CONFIG.kPoint) * CONFIG.meterValue);
@@ -812,8 +828,8 @@ const Game = {
       const vTang = S.vx * Math.cos(th) - S.vy * Math.sin(th);
       S.v = Math.max(3, vTang);
       S.y = g.y;
-      this.setPose(dtTap <= CONFIG.telemarkWindow ? 'telemark' : 'landed', 0.15);
-      this.showMsg(landing, dtTap <= CONFIG.telemarkWindow ? '#5cffa8' : '#fff', 1.4);
+      this.setPose(landing === 'Telemark!' ? 'telemark' : 'landed', 0.15);
+      this.showMsg(landing, landing === 'Telemark!' ? '#5cffa8' : '#fff', 1.4);
     }
     this.spray(crashed ? 40 : 18);
   },
@@ -1241,8 +1257,9 @@ function predictLanding() {
     const liftF = Math.exp(-dNorm * dNorm);
     const aPos = Math.max(0, alpha) / 30;
     const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
-    const lift = CONFIG.liftCoefficient * rv * rv * liftF;
-    const drag = CONFIG.dragCoefficient * rv * rv * dragF;
+    const st = Game.flight.stance;
+    const lift = CONFIG.liftCoefficient * rv * rv * liftF * (st ? CONFIG.stanceLift : 1);
+    const drag = CONFIG.dragCoefficient * rv * rv * dragF * (st ? CONFIG.stanceDrag : 1);
     const ux = rvx / rv, uy = rvy / rv;
     vx += (-drag * ux - lift * uy) * dt;
     vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
@@ -1587,8 +1604,8 @@ function drawHUD() {
     ctx.globalAlpha = 1;
   }
 
-  // --- Fluglagen-Korridor (rechts) ---
-  if (Game.state === 'FLIGHT') {
+  // --- Fluglagen-Korridor (rechts; in der Landeposition ausgeblendet) ---
+  if (Game.state === 'FLIGHT' && !Game.flight.stance) {
     const gw = 12 * ui, gh = Math.min(H * 0.36, 230);
     const gx = W - gw - 18, gy = (H - gh) / 2;
     const mapA = a => gy + gh * (1 - (a + 15) / 50);   // Skala: -15° … +35°
@@ -1609,23 +1626,7 @@ function drawHUD() {
     ctx.fillStyle = inCorr ? '#eafff3' : '#ffdfdf';
     roundRect(gx - 6, ny - 3, gw + 12, 6, 3);
     ctx.restore();
-    // Landefenster-Hinweis: zweistufig – "Bereit…" beim Anflug, "JETZT!" im Telemark-Fenster
-    if (Game.landingTap.windowOpen) {
-      const tta = Game.landingTap.tta;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (tta > CONFIG.landingFlash) {
-        ctx.globalAlpha = 0.7;
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `800 ${16 * ui}px system-ui`;
-        ctx.fillText('Bereit …', W / 2, H * 0.68);
-      } else {
-        ctx.globalAlpha = 0.6 + Math.sin(Game.time * 22) * 0.4;
-        ctx.fillStyle = '#ffd35c';
-        ctx.font = `900 ${30 * ui}px system-ui`;
-        ctx.fillText('JETZT!', W / 2, H * 0.68);
-      }
-      ctx.globalAlpha = 1;
-    }
+    // (keine Lande-Prompts mehr – wie in DSJ zählen Schatten und Gefühl)
   }
 
   // --- Debug (Taste D) ---
