@@ -823,8 +823,11 @@ function drawBackground() {
   ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
 }
 
+// 2.5D: Tiefenversatz der Schneeoberfläche (Weltmeter, nach hinten-oben)
+const DEPTH = { x: 1.25, y: 0.72 };
+
 function drawHill() {
-  // --- Aufsprunghang: Schnee mit kühlem Verlauf + Kantenlicht ---
+  // --- Aufsprunghang: Schneekörper (Querschnitt) ---
   const first = worldToScreen(Hill.prof[0].x, Hill.prof[0].y);
   const last = worldToScreen(Hill.prof[Hill.prof.length - 1].x, Hill.prof[Hill.prof.length - 1].y);
   ctx.beginPath();
@@ -832,40 +835,49 @@ function drawHill() {
   for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
   ctx.lineTo(last.x, H + 60); ctx.lineTo(first.x, H + 60); ctx.closePath();
   const snow = ctx.createLinearGradient(0, 0, 0, H * 1.2);
-  snow.addColorStop(0, '#ffffff');
-  snow.addColorStop(0.55, '#e9f3fb');
-  snow.addColorStop(1, '#c9ddef');
+  snow.addColorStop(0, '#e8f2fb');
+  snow.addColorStop(0.55, '#d8e8f6');
+  snow.addColorStop(1, '#bcd4ea');
   ctx.fillStyle = snow; ctx.fill();
-  // Kantenlicht + Schattenlinie
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2.5;
+
+  // --- 2.5D-Oberflächenband: helle Schneefläche zwischen Nah- und Fernkante ---
+  ctx.beginPath();
+  const p0 = Hill.prof[0];
+  ctx.moveTo(worldToScreen(p0.x, p0.y).x, worldToScreen(p0.x, p0.y).y);
+  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  for (let i = Hill.prof.length - 1; i >= 0; i -= 2) {
+    const p = Hill.prof[i];
+    const s = worldToScreen(p.x + DEPTH.x, p.y + DEPTH.y);
+    ctx.lineTo(s.x, s.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#fdfeff'; ctx.fill();
+  // Fernkante fein, Nahkante kräftig
+  ctx.strokeStyle = 'rgba(160,195,225,0.8)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const p of Hill.prof) { const s = worldToScreen(p.x + DEPTH.x, p.y + DEPTH.y); ctx.lineTo(s.x, s.y); }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(120,160,200,0.75)'; ctx.lineWidth = 1.8;
   ctx.beginPath();
   for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(120,160,200,0.45)'; ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y + 0.35); ctx.lineTo(s.x, s.y); }
-  ctx.stroke();
 
-  // Weitenmarken alle 10 m, K-/HS-Linien deutlich
+  // Weitenmarken: Linien liegen quer AUF der Schneefläche
   ctx.textBaseline = 'alphabetic';
   for (let d = 20; d <= 130; d += 10) {
     const x = Hill.xAtDistance(d);
     const g = Hill.groundAt(x);
-    const a = worldToScreen(x, g.y), th = g.angle * D2R;
+    const a = worldToScreen(x, g.y);
+    const b = worldToScreen(x + DEPTH.x, g.y + DEPTH.y);
     const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
-    const len = (isK || isHS ? 2.6 : 1.5) * cam.ppm;
-    ctx.strokeStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(90,120,150,0.55)';
-    ctx.lineWidth = isK || isHS ? 3 : 1.5;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(a.x + Math.sin(th) * len * 0.4, a.y + Math.cos(th) * len * 0.4);
-    ctx.stroke();
+    ctx.strokeStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(110,140,170,0.5)';
+    ctx.lineWidth = isK || isHS ? Math.max(2.5, cam.ppm * 0.18) : Math.max(1.2, cam.ppm * 0.08);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     if (cam.ppm > 5 || isK || isHS) {
       ctx.fillStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(70,100,130,0.8)';
       ctx.font = `${isK || isHS ? '800' : '600'} ${Math.max(10, cam.ppm * 1.05)}px system-ui`;
       ctx.textAlign = 'left';
-      ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d,
-        a.x + Math.sin(th) * len * 0.4 + 5, a.y + Math.cos(th) * len * 0.4 + 4);
+      ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, b.x + 5, b.y - 3);
     }
   }
 
@@ -895,22 +907,143 @@ function drawHill() {
   ctx.beginPath();
   for (const p of ir) { const s = worldToScreen(p.x, p.y - 1.8); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  // Anlaufspur mit Doppelrille
-  ctx.strokeStyle = '#f4f9fd'; ctx.lineWidth = Math.max(2.5, cam.ppm * 0.34);
+  // Anlaufspur als 2.5D-Band mit Mittelrille
+  const IR_DEPTH = { x: 0.6, y: 0.35 };
+  ctx.beginPath();
+  ctx.moveTo(worldToScreen(ir[0].x, ir[0].y).x, worldToScreen(ir[0].x, ir[0].y).y);
+  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  for (let i = ir.length - 1; i >= 0; i -= 2) {
+    const s = worldToScreen(ir[i].x + IR_DEPTH.x, ir[i].y + IR_DEPTH.y);
+    ctx.lineTo(s.x, s.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#f4f9fd'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,160,200,0.7)'; ctx.lineWidth = 1;
   ctx.beginPath();
   for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(120,160,200,0.7)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(150,185,215,0.7)'; ctx.lineWidth = Math.max(1, cam.ppm * 0.05);
   ctx.beginPath();
-  for (const p of ir) { const s = worldToScreen(p.x, p.y + 0.06); ctx.lineTo(s.x, s.y); }
+  for (const p of ir) { const s = worldToScreen(p.x + IR_DEPTH.x * 0.5, p.y + IR_DEPTH.y * 0.5); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
   // Startbalken am Gate
   const gp = worldToScreen(ir[0].x + 0.4, ir[0].y + 1.1);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(2, cam.ppm * 0.16);
   ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.9, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.9, gp.y); ctx.stroke();
-  // Tischkante: kräftige rote Markierung (der Absprungpunkt!)
+  // Tischkante: rote Linie quer über die Spur + Markierung nach unten
+  const e2 = worldToScreen(IR_DEPTH.x, IR_DEPTH.y);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(3, cam.ppm * 0.2);
-  ctx.beginPath(); ctx.moveTo(edge.x, edge.y - cam.ppm * 0.25); ctx.lineTo(edge.x, edge.y + cam.ppm * 1.1); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(edge.x, edge.y); ctx.lineTo(e2.x, e2.y);
+  ctx.moveTo(edge.x, edge.y); ctx.lineTo(edge.x, edge.y + cam.ppm * 1.1);
+  ctx.stroke();
+}
+
+// --- Schatten: senkrechte Projektion auf den Hang (Lande-Orientierung!) ---
+function drawShadow() {
+  const S = Game.skier;
+  if (Game.state === 'FLIGHT' && S.x >= 0) {
+    const g = Hill.groundAt(S.x);
+    const h = clamp(S.y - g.y, 0, 40);
+    const fade = clamp(1 - h / 34, 0.18, 1);
+    const p = worldToScreen(S.x + DEPTH.x * 0.45, g.y + DEPTH.y * 0.45);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(g.angle * D2R);
+    ctx.scale(cam.ppm, cam.ppm);
+    ctx.fillStyle = `rgba(35,60,95,${(0.34 * fade + 0.04).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.5 + 0.85 * fade, 0.13 + 0.1 * fade, 0, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  } else if (Game.state !== 'MENU') {
+    // Kontaktschatten unter den Skiern
+    const p = worldToScreen(S.x, S.y);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(-S.body * D2R);
+    ctx.scale(cam.ppm, cam.ppm);
+    ctx.fillStyle = 'rgba(35,60,95,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0.1, 0.18, 1.15, 0.16, 0, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// --- Landepunkt-Vorhersage: Flugbahn mit aktueller Lage vorausrechnen ---
+function predictLanding() {
+  if (Game.state !== 'FLIGHT') return null;
+  const S = Game.skier;
+  let x = S.x, y = S.y, vx = S.vx, vy = S.vy;
+  const body = S.body;
+  const w = Game.currentWind() * CONFIG.windAeroFactor;
+  const dt = 1 / 40;
+  for (let t = 0; t < 9; t += dt) {
+    const rvx = vx - w, rvy = vy;
+    const rv = Math.hypot(rvx, rvy);
+    const velAng = Math.atan2(rvy, rvx) / D2R;
+    const alpha = body - velAng;
+    const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
+    const liftF = Math.exp(-dNorm * dNorm);
+    const aPos = Math.max(0, alpha) / 30;
+    const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
+    const lift = CONFIG.liftCoefficient * rv * rv * liftF;
+    const drag = CONFIG.dragCoefficient * rv * rv * dragF;
+    const ux = rvx / rv, uy = rvy / rv;
+    vx += (-drag * ux - lift * uy) * dt;
+    vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
+    x += vx * dt; y += vy * dt;
+    const g = Hill.groundAt(x);
+    if (y <= g.y) return { x, s: g.s };
+  }
+  return null;
+}
+
+function drawPrediction() {
+  const pred = predictLanding();
+  if (!pred) return;
+  const g = Hill.groundAt(pred.x);
+  const a = worldToScreen(pred.x, g.y);
+  const b = worldToScreen(pred.x + DEPTH.x, g.y + DEPTH.y);
+  const pulse = 0.55 + Math.sin(Game.time * 7) * 0.3;
+  // Landepunkt noch außerhalb des Bildes → Pfeil am Bildrand mit Meterangabe
+  if (a.x > W - 20) {
+    const ey = clamp(a.y, H * 0.2, H * 0.9);
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = '#35d0ff';
+    ctx.beginPath();
+    ctx.moveTo(W - 10, ey);
+    ctx.lineTo(W - 30, ey - 11);
+    ctx.lineTo(W - 30, ey + 11);
+    ctx.closePath(); ctx.fill();
+    ctx.font = '800 13px system-ui';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${pred.s.toFixed(0)} m`, W - 36, ey);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  // Linie quer über die Schneefläche
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = '#35d0ff';
+  ctx.lineWidth = Math.max(2, cam.ppm * 0.14);
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  // Chevron darüber
+  const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+  const ch = Math.max(6, cam.ppm * 0.5);
+  ctx.fillStyle = '#35d0ff';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - ch * 0.6);
+  ctx.lineTo(cx - ch * 0.55, cy - ch * 1.5);
+  ctx.lineTo(cx + ch * 0.55, cy - ch * 1.5);
+  ctx.closePath(); ctx.fill();
+  // voraussichtliche Weite, solange die Landung nicht unmittelbar bevorsteht
+  if (Game.landingTap.tta > 0.6) {
+    ctx.font = `800 ${Math.max(11, cam.ppm * 0.9)}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`${pred.s.toFixed(0)} m`, cx, cy - ch * 1.9);
+  }
+  ctx.globalAlpha = 1;
 }
 
 // --- Springer: Posen als Keypoints, weich ineinander überblendet ---
@@ -1230,6 +1363,8 @@ function frame(now) {
   updateCamera(dt);
   drawBackground();
   drawHill();
+  drawShadow();
+  drawPrediction();
   drawParticles();
   drawFX();
   drawSkier();
