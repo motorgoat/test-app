@@ -149,25 +149,28 @@ const CONFIG = {
   inrunDrag: 0.0011,          // Luftwiderstand in der Hocke (a = k·v²)
 
   // Absprung (jederzeit möglich – der Springer streckt sich sofort)
-  takeoffImpulse: 3.2,        // Absprung-Impuls senkrecht zum Tisch (m/s) bei Qualität 1
-  takeoffSpeedBonus: 0.06,    // Qualität skaliert Geschwindigkeit: v·(1-bonus+bonus·q)
-  perfectWindow: 0.040,       // ± Sekunden um die Tischkante = perfekt (~80 ms Fenster)
-  earlyFalloff: 0.55,         // zu früh: Qualität fällt über diese Zeitspanne auf 0
+  takeoffImpulse: 3.2,        // Absprung-Impuls senkrecht zur Spur (m/s)
+  perfectWindow: 0.040,       // ± Sekunden vor der Tischkante = "perfekt" (Bewertungstext)
+  earlyFalloff: 0.55,         // Bewertungs-Abfall für frühe Sprünge (Weite ist ohnehin geometrisch)
   lateWindow: 0.18,           // so lange nach der Kante zählt ein Tap noch (stark reduziert)
   standDragFactor: 4.5,       // Luftwiderstands-Malus, wenn man zu früh springt und steht
-  jumpAnimTime: 0.22,         // Dauer der Streck-Animation beim Absprung (s)
+  jumpAnimTime: 0.16,         // Dauer der Streck-Animation beim Absprung (s)
 
   // Flug
   liftCoefficient: 0.0042,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
   dragCoefficient: 0.0024,    // Grundwiderstand: a = CD · v_rel² · dragFactor(α)
   dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
+  // Der Spieler steuert den ANSTELLWINKEL (alpha) direkt – der Körper folgt der
+  // Flugbahn automatisch. Drift + Böen stören alpha, Wischen korrigiert.
   optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
   angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
-  angleSpeed: 40,             // Drehrate der Tastatursteuerung (Grad/s)
+  angleSpeed: 40,             // Änderungsrate der Tastatursteuerung (Grad/s)
   swipeSensitivity: 70,       // Grad Winkeländerung pro voller Bildschirmhöhe Wischweg
-  pitchDrift: 1.8,            // aerodynamische Aufdreh-Tendenz (Grad/s) – sanft gegenhalten
-  autoAttitudeTime: 0.35,     // s nach dem Absprung: automatische Rotation in die Grundlage
-  initAlphaOffset: -3,        // Grundlage = optimalAngle + Offset (leicht unter dem Optimum)
+  pitchDrift: 3.5,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
+  gustPitchFactor: 3,         // Böen stören alpha (Grad/s pro m/s Böenabweichung)
+  initAlpha: 9,               // Anstellwinkel unmittelbar nach dem Absprung
+  alphaMin: -12, alphaMax: 32,// Begrenzung des steuerbaren Anstellwinkels
+  bodyFollowRate: 140,        // wie schnell der Körper der Bahn nachrotiert (Grad/s)
   bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
 
   // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
@@ -276,8 +279,18 @@ const Hill = (() => {
       angle: inrunAngleAt(s),
     };
   }
+  // Anlaufspur nach x abfragen (für Kollision beim Sprung ÜBER der Spur)
+  function inrunAtX(x) {
+    x = clamp(x, inrun[0].x, 0);
+    let lo = 0, hi = inrun.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (inrun[m].x <= x) lo = m; else hi = m; }
+    const a = inrun[lo], b = inrun[hi];
+    const t = (x - a.x) / ((b.x - a.x) || 1);
+    const s = lerp(a.s, b.s, t);
+    return { y: lerp(a.y, b.y, t), s, angle: inrunAngleAt(s) };
+  }
 
-  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunLength, landingAngle };
+  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunAtX, inrunLength, landingAngle };
 })();
 
 // ------------------------------------------------------------------ Input
@@ -403,7 +416,7 @@ const Game = {
   outrunTimer: 0,
 
   // poseA→poseB werden über poseT weich überblendet; crash übersteuert alles
-  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, spin: 0,
+  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, spin: 0, alphaCtl: 0,
            poseA: 'crouch', poseB: 'crouch', poseT: 1, poseDur: 0.2, crash: false, standing: false },
 
   wind: 0, gustPhase: 0,
@@ -488,21 +501,31 @@ const Game = {
       // Schneestaub hinter dem Springer (Rate pro Sekunde, framerate-unabhängig)
       if (S.v > 8 && Math.random() < dt * 30) this.dust();
 
-      // Absprung-Tap: JEDERZEIT möglich – Springer streckt sich sofort sichtbar.
-      // Qualität nach Restzeit bis zur Tischkante.
+      // Absprung: JEDERZEIT und ÜBERALL möglich (DSJ-Stil) – der Springer hebt
+      // sofort physisch ab. Nahe der Kante trägt der Sprung hinaus, weiter oben
+      // landet er wieder auf der Spur und verliert Tempo und Haltung.
       if (inp.tap && !this.takeoff.tapped) {
-        this.takeoff.tapped = true;
+        const T = this.takeoff;
+        T.tapped = T.jumped = T.done = true;
         const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
-        this.takeoff.tapTTE = tte;
-        this.takeoff.quality = tte <= CONFIG.perfectWindow
+        T.tapTTE = tte;
+        T.quality = tte <= CONFIG.perfectWindow
           ? 1
           : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
+        const p = Hill.inrunAt(S.s), th = p.angle * D2R;
+        S.x = p.x; S.y = p.y + 0.02;
+        S.vx = S.v * Math.cos(th) + CONFIG.takeoffImpulse * Math.sin(th);
+        S.vy = -S.v * Math.sin(th) + CONFIG.takeoffImpulse * Math.cos(th);
+        S.body = -p.angle;
+        S.alphaCtl = CONFIG.initAlpha;
         this.setPose('extend', CONFIG.jumpAnimTime);
-        S.standing = true;
-        this.spray(6);
+        this.state = 'FLIGHT';
+        this.ring(tte <= CONFIG.perfectWindow ? '#5cffa8' : tte <= 0.15 ? '#b9f6ca' : '#ffb74d');
+        this.spray(8);
+        this.rateTakeoff(T.quality, tte <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
       }
 
-      if (S.s >= Hill.inrunLength) this.startFlight();
+      else if (S.s >= Hill.inrunLength) this.startFlight();
       else {
         const p = Hill.inrunAt(S.s);
         S.x = p.x; S.y = p.y; S.body = -p.angle;
@@ -522,6 +545,7 @@ const Game = {
           this.applyTakeoffImpulse(T.quality, true);
           this.setPose('extend', CONFIG.jumpAnimTime);
           this.ring('#ffb74d');
+          this.spray(6);
           this.rateTakeoff(T.quality, 'spät');
         } else if (T.lateTimer > CONFIG.lateWindow) {
           T.done = true;
@@ -531,26 +555,25 @@ const Game = {
         }
       }
 
-      // Nach der Streckung in die tiefe Flughaltung absenken
-      if (F.time > 0.4 && S.poseB === 'extend') this.setPose('flight', 0.55);
+      // Nach der Streckung zügig in die tiefe Flughaltung absenken
+      if (F.time > 0.18 && S.poseB === 'extend') this.setPose('flight', 0.3);
 
       // Anströmung (Wind verstärkt via windAeroFactor)
-      const w = this.currentWind() * CONFIG.windAeroFactor;
+      const gust = this.currentWind();
+      const w = gust * CONFIG.windAeroFactor;
       const rvx = S.vx - w, rvy = S.vy;
       const rv = Math.hypot(rvx, rvy);
       const velAng = Math.atan2(rvy, rvx) / D2R;
 
-      // Direkt nach dem Absprung automatisch weich in die Grundlage rotieren –
-      // der Spieler übernimmt aus einer neutralen, tragenden Position.
-      if (F.time < CONFIG.autoAttitudeTime) {
-        const target = velAng + CONFIG.optimalAngle + CONFIG.initAlphaOffset;
-        S.body += clamp(target - S.body, -100 * dt, 100 * dt);
-      }
+      // Anstellwinkel-Steuerung: Wischen justiert alpha direkt, Drift + Böen stören
+      S.alphaCtl += inp.swipe * CONFIG.swipeSensitivity
+                  + inp.angle * CONFIG.angleSpeed * dt
+                  + CONFIG.pitchDrift * dt
+                  + (gust - this.wind) * CONFIG.gustPitchFactor * dt;
+      S.alphaCtl = clamp(S.alphaCtl, CONFIG.alphaMin, CONFIG.alphaMax);
 
-      // Fluglagensteuerung: Wischen (direkt) + Tastatur (Rate) + aerodynamischer Drift
-      S.body += inp.swipe * CONFIG.swipeSensitivity
-              + inp.angle * CONFIG.angleSpeed * dt
-              + CONFIG.pitchDrift * dt;
+      // Der Körper rotiert automatisch mit der steiler werdenden Flugbahn mit
+      S.body += clamp(velAng + S.alphaCtl - S.body, -CONFIG.bodyFollowRate * dt, CONFIG.bodyFollowRate * dt);
       S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
 
       const alpha = S.body - velAng;                       // Anstellwinkel
@@ -569,18 +592,39 @@ const Game = {
       if (Math.abs(alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance) F.corridorTime += dt;
       F.alpha = alpha; F.lift = lift; F.drag = drag;
 
-      // Landefenster: geschätzte Zeit bis zum Aufsetzen
-      const g = Hill.groundAt(S.x);
-      const gap = S.y - g.y;
-      const closure = -(S.vy + S.vx * Math.tan(g.angle * D2R));
-      this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
-      // Lande-Taps zählen ab landingArmTime IMMER (zu früh = schlechter, nie ignoriert)
-      const armed = this.landingTap.tta < CONFIG.landingArmTime && F.time > 0.5;
-      if (armed && !this.landingTap.windowOpen) this.showMsg('Landung bereit …', '#cfe6f8', 0.8);
-      this.landingTap.windowOpen = armed;
-      if (inp.tap && armed) this.landingTap.time = this.time;
+      // Fläche unter dem Springer: über der Anlaufspur (x<0) die Spur selbst
+      const overRamp = S.x < -0.05;
+      const surf = overRamp ? Hill.inrunAtX(S.x) : Hill.groundAt(S.x);
 
-      if (S.y <= g.y && F.time > 0.1) this.touchdown(g);
+      // Landefenster (nur am Aufsprunghang, nicht beim Hüpfer über der Spur)
+      if (!overRamp && S.x > 5) {
+        const gap = S.y - surf.y;
+        const closure = -(S.vy + S.vx * Math.tan(surf.angle * D2R));
+        this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
+        // Lande-Taps zählen ab landingArmTime IMMER (zu früh = schlechter, nie ignoriert)
+        const armed = this.landingTap.tta < CONFIG.landingArmTime && F.time > 0.5;
+        if (armed && !this.landingTap.windowOpen) this.showMsg('Landung bereit …', '#cfe6f8', 0.8);
+        this.landingTap.windowOpen = armed;
+        if (inp.tap && armed) this.landingTap.time = this.time;
+      }
+
+      // Bodenkontakt
+      if (S.y <= surf.y && F.time > 0.05) {
+        if (overRamp) {
+          // zu früh gesprungen: zurück auf die Spur – stehend, mit Tempoverlust
+          const th = surf.angle * D2R;
+          const vT = S.vx * Math.cos(th) - S.vy * Math.sin(th);
+          this.state = 'INRUN';
+          S.s = surf.s;
+          S.v = Math.max(2, vT * 0.96);
+          S.standing = true;
+          this.setPose('landed', 0.25);
+          this.showMsg('Zu früh gesprungen!', '#ffb74d', 1.1);
+          this.spray(8);
+        } else if (F.time > 0.1) {
+          this.touchdown(surf);
+        }
+      }
     }
 
     // ---------- AUSLAUF ----------
@@ -620,24 +664,17 @@ const Game = {
       if (this.time - this.fx[i].t0 > 0.6) this.fx.splice(i, 1);
   },
 
+  // Über die Tischkante gleiten (ohne Absprung an der Kante – der Sprung selbst
+  // passiert direkt beim Tap, egal wo). lateWindow erlaubt noch einen Luftsprung.
   startFlight() {
     const S = this.skier, T = this.takeoff;
     const ta = -CONFIG.tableAngle * D2R;
-    const q = T.tapped ? T.quality : 0;
-    const v = S.v * (1 - CONFIG.takeoffSpeedBonus + CONFIG.takeoffSpeedBonus * q);
     S.x = 0; S.y = 0;
-    S.vx = v * Math.cos(ta); S.vy = v * Math.sin(ta);
+    S.vx = S.v * Math.cos(ta); S.vy = S.v * Math.sin(ta);
     S.body = -CONFIG.tableAngle;   // kontinuierlich zur Tischneigung – kein Winkel-Sprung
+    S.alphaCtl = CONFIG.initAlpha;
     this.state = 'FLIGHT';
-    if (T.tapped) {
-      T.done = true;
-      this.applyTakeoffImpulse(q, false);
-      // sichtbarer Absprung: Effektring + Schneeburst an der Kante
-      this.ring(q >= 0.93 ? '#5cffa8' : q >= 0.7 ? '#b9f6ca' : '#ffb74d');
-      this.spray(10);
-      this.rateTakeoff(q, T.tapTTE <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
-    }
-    // ohne Tap: Springer bleibt in der Hocke – der fehlende Absprung ist sichtbar
+    // ohne Tap bleibt der Springer sichtbar in der Hocke (lateWindow läuft im Flug)
   },
 
   applyTakeoffImpulse(q, late) {
@@ -769,7 +806,8 @@ function updateCamera(dt) {
   } else if (Game.state === 'INRUN') {
     vw = CONFIG.camInrunView; tx = S.x + 10; ty = S.y - 4;
   } else if (Game.state === 'FLIGHT') {
-    const hAbove = S.y - Hill.groundAt(S.x).y;
+    const surfY = S.x < 0 ? Hill.inrunAtX(S.x).y : Hill.groundAt(S.x).y;
+    const hAbove = S.y - surfY;
     vw = clamp(hAbove * 1.4 + 19, CONFIG.camFlightMin, CONFIG.camFlightMax);
     tx = S.x + S.vx * 0.38; ty = S.y - hAbove * 0.42;
   } else {
@@ -972,11 +1010,11 @@ function drawHill() {
 // --- Schatten: senkrechte Projektion auf den Hang (Lande-Orientierung!) ---
 function drawShadow() {
   const S = Game.skier;
-  if (Game.state === 'FLIGHT' && S.x >= 0) {
-    const g = Hill.groundAt(S.x);
+  if (Game.state === 'FLIGHT') {
+    const g = S.x < 0 ? Hill.inrunAtX(S.x) : Hill.groundAt(S.x);
     const h = clamp(S.y - g.y, 0, 40);
     const fade = clamp(1 - h / 34, 0.18, 1);
-    const p = worldToScreen(S.x + DEPTH.x * 0.45, g.y + DEPTH.y * 0.45);
+    const p = worldToScreen(S.x + (S.x < 0 ? 0 : DEPTH.x * 0.45), g.y + (S.x < 0 ? 0.05 : DEPTH.y * 0.45));
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(g.angle * D2R);
@@ -1006,14 +1044,12 @@ function predictLanding() {
   if (Game.state !== 'FLIGHT') return null;
   const S = Game.skier;
   let x = S.x, y = S.y, vx = S.vx, vy = S.vy;
-  const body = S.body;
+  const alpha = S.alphaCtl; // Annahme: aktueller Anstellwinkel wird gehalten
   const w = Game.currentWind() * CONFIG.windAeroFactor;
   const dt = 1 / 40;
   for (let t = 0; t < 9; t += dt) {
     const rvx = vx - w, rvy = vy;
     const rv = Math.hypot(rvx, rvy);
-    const velAng = Math.atan2(rvy, rvx) / D2R;
-    const alpha = body - velAng;
     const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
     const liftF = Math.exp(-dNorm * dNorm);
     const aPos = Math.max(0, alpha) / 30;
@@ -1031,6 +1067,7 @@ function predictLanding() {
 }
 
 function drawPrediction() {
+  if (Game.skier.x < 0) return; // während des Hüpfers über der Spur nicht sinnvoll
   const pred = predictLanding();
   if (!pred) return;
   const g = Hill.groundAt(pred.x);
