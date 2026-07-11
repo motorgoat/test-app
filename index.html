@@ -1,1507 +1,940 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#1a1a2e">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.json">
-  <title>TaskLoop</title>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #0f0f1a;
-      --surface: #1a1a2e;
-      --surface-hover: #222240;
-      --accent: #6c63ff;
-      --accent-light: #8b83ff;
-      --accent-glow: rgba(108, 99, 255, 0.25);
-      --text: #e8e8f0;
-      --text-muted: #8888a0;
-      --done: #2d2d44;
-      --done-text: #5a5a78;
-      --danger: #ff6b6b;
-      --success: #51cf66;
-      --radius: 16px;
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100dvh;
-      overflow-x: hidden;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    /* Header */
-    .header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: linear-gradient(135deg, var(--surface), #16213e);
-      padding: 20px 20px 16px;
-      border-bottom: 1px solid rgba(108, 99, 255, 0.15);
-      backdrop-filter: blur(20px);
-    }
-
-    .header h1 {
-      font-size: 26px;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent-light), #e066ff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: -0.5px;
-    }
-
-    .header-sub {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    /* Task List */
-    .task-list {
-      padding: 12px 16px;
-      padding-bottom: calc(100px + var(--safe-bottom));
-    }
-
-    .section-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--text-muted);
-      padding: 16px 4px 8px;
-    }
-
-    .section-label.due-label { color: var(--accent-light); }
-    .section-label.done-label { color: var(--done-text); }
-
-    /* Task Card */
-    .task-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-      border: 1px solid transparent;
-      animation: slideIn 0.3s ease-out;
-    }
-
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .task-card.due {
-      border-color: var(--accent);
-      box-shadow: 0 0 20px var(--accent-glow);
-    }
-
-    .task-card.overdue {
-      border-color: var(--danger);
-      box-shadow: 0 0 20px rgba(255, 107, 107, 0.2);
-    }
-
-    .task-card.completed {
-      background: var(--done);
-      opacity: 0.6;
-    }
-
-    .task-card.completed .task-name {
-      text-decoration: line-through;
-      color: var(--done-text);
-    }
-
-    .task-card.completed .task-interval {
-      color: var(--done-text);
-    }
-
-    /* Checkbox */
-    .task-check {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: 2px solid var(--text-muted);
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      margin-top: 1px;
-    }
-
-    .task-check:active {
-      transform: scale(0.9);
-    }
-
-    .task-card.due .task-check,
-    .task-card.overdue .task-check {
-      border-color: var(--accent);
-    }
-
-    .task-card.completed .task-check {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
-
-    .task-check svg {
-      width: 16px;
-      height: 16px;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-
-    .task-card.completed .task-check svg {
-      opacity: 1;
-    }
-
-    /* Task Info */
-    .task-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .task-name {
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.3;
-      word-break: break-word;
-    }
-
-    .task-meta {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 6px;
-      flex-wrap: wrap;
-    }
-
-    .task-interval {
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .task-interval svg {
-      width: 14px;
-      height: 14px;
-    }
-
-    .task-due-info {
-      font-size: 12px;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 8px;
-    }
-
-    .task-due-info.now {
-      background: rgba(108, 99, 255, 0.2);
-      color: var(--accent-light);
-    }
-
-    .task-due-info.overdue {
-      background: rgba(255, 107, 107, 0.15);
-      color: var(--danger);
-    }
-
-    .task-due-info.upcoming {
-      background: rgba(81, 207, 102, 0.12);
-      color: var(--success);
-    }
-
-    /* Task Actions */
-    .task-actions {
-      display: flex;
-      gap: 4px;
-      flex-shrink: 0;
-    }
-
-    .task-btn {
-      width: 34px;
-      height: 34px;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .task-btn:hover { background: var(--surface-hover); }
-    .task-btn:active { transform: scale(0.9); }
-    .task-btn.delete:hover { color: var(--danger); }
-
-    .task-btn svg {
-      width: 18px;
-      height: 18px;
-    }
-
-    /* FAB */
-    .fab {
-      position: fixed;
-      bottom: calc(24px + var(--safe-bottom));
-      right: 20px;
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
-      border: none;
-      color: white;
-      font-size: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 4px 20px var(--accent-glow);
-      transition: all 0.2s;
-      z-index: 90;
-    }
-
-    .fab:active {
-      transform: scale(0.92);
-    }
-
-    .fab svg {
-      width: 28px;
-      height: 28px;
-    }
-
-    /* Modal */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 200;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.25s;
-    }
-
-    .modal-overlay.open {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    .modal {
-      background: var(--surface);
-      border-radius: 24px 24px 0 0;
-      padding: 28px 24px calc(24px + var(--safe-bottom));
-      width: 100%;
-      max-width: 480px;
-      max-height: 90dvh;
-      overflow-y: auto;
-      transform: translateY(100%);
-      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-    }
-
-    .modal-overlay.open .modal {
-      transform: translateY(0);
-    }
-
-    .modal-handle {
-      width: 40px;
-      height: 4px;
-      background: var(--text-muted);
-      border-radius: 4px;
-      margin: 0 auto 20px;
-      opacity: 0.4;
-    }
-
-    .modal h2 {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 24px;
-    }
-
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 14px 16px;
-      border: 2px solid rgba(136, 136, 160, 0.2);
-      border-radius: 12px;
-      background: var(--bg);
-      color: var(--text);
-      font-size: 16px;
-      font-family: inherit;
-      transition: border-color 0.2s;
-      outline: none;
-    }
-
-    .form-input:focus {
-      border-color: var(--accent);
-    }
-
-    .interval-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .interval-row .form-input {
-      width: 80px;
-      text-align: center;
-    }
-
-    .interval-row select.form-input {
-      flex: 1;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238888a0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 36px;
-    }
-
-    .interval-label {
-      font-size: 14px;
-      color: var(--text-muted);
-      white-space: nowrap;
-    }
-
-    .btn-primary {
-      width: 100%;
-      padding: 16px;
-      border: none;
-      border-radius: 14px;
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
-      color: white;
-      font-size: 16px;
-      font-weight: 700;
-      font-family: inherit;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-top: 8px;
-    }
-
-    .btn-primary:active {
-      transform: scale(0.98);
-      opacity: 0.9;
-    }
-
-    /* Empty State */
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-muted);
-    }
-
-    .empty-state svg {
-      width: 80px;
-      height: 80px;
-      margin-bottom: 16px;
-      opacity: 0.3;
-    }
-
-    .empty-state p {
-      font-size: 16px;
-      line-height: 1.5;
-    }
-
-    /* Notification permission banner */
-    .notif-banner {
-      background: linear-gradient(135deg, rgba(108, 99, 255, 0.15), rgba(139, 92, 246, 0.1));
-      border: 1px solid rgba(108, 99, 255, 0.3);
-      border-radius: 14px;
-      padding: 14px 16px;
-      margin: 12px 16px 0;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      cursor: pointer;
-      transition: opacity 0.3s;
-    }
-
-    .notif-banner.hidden { display: none; }
-
-    .notif-banner-text {
-      flex: 1;
-      font-size: 13px;
-      color: var(--accent-light);
-    }
-
-    .notif-banner-btn {
-      padding: 8px 14px;
-      border-radius: 10px;
-      background: var(--accent);
-      color: white;
-      border: none;
-      font-size: 12px;
-      font-weight: 700;
-      font-family: inherit;
-      cursor: pointer;
-    }
-
-    /* Sync button in header */
-    .header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .sync-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 6px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-family: inherit;
-      transition: all 0.2s;
-    }
-
-    .sync-btn:active { transform: scale(0.9); }
-    .sync-btn svg { width: 22px; height: 22px; }
-    .sync-btn.synced { color: var(--success); }
-    .sync-btn.error { color: var(--danger); }
-
-    .sync-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--text-muted);
-    }
-
-    .sync-btn.synced .sync-dot { background: var(--success); }
-    .sync-btn.error .sync-dot { background: var(--danger); }
-
-    /* Sync Modal */
-    .sync-modal {
-      background: var(--surface);
-      border-radius: 24px 24px 0 0;
-      padding: 28px 24px calc(24px + var(--safe-bottom));
-      width: 100%;
-      max-width: 480px;
-      transform: translateY(100%);
-      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-
-    .modal-overlay.open .sync-modal {
-      transform: translateY(0);
-    }
-
-    .sync-code-display {
-      background: var(--bg);
-      border: 2px solid var(--accent);
-      border-radius: 14px;
-      padding: 16px;
-      text-align: center;
-      margin: 16px 0;
-    }
-
-    .sync-code-display .code {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: 4px;
-      color: var(--accent-light);
-      font-family: 'Courier New', monospace;
-    }
-
-    .sync-code-display .code-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 6px;
-    }
-
-    .sync-status {
-      font-size: 13px;
-      color: var(--text-muted);
-      text-align: center;
-      margin: 8px 0;
-    }
-
-    .sync-status.ok { color: var(--success); }
-    .sync-status.err { color: var(--danger); }
-
-    .sync-section {
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid rgba(136, 136, 160, 0.15);
-    }
-
-    .sync-section h3 {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .btn-secondary {
-      width: 100%;
-      padding: 14px;
-      border: 2px solid rgba(136, 136, 160, 0.2);
-      border-radius: 14px;
-      background: transparent;
-      color: var(--text);
-      font-size: 14px;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-top: 8px;
-    }
-
-    .btn-secondary:active {
-      transform: scale(0.98);
-      opacity: 0.8;
-    }
-
-    .setup-steps {
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.6;
-      margin: 12px 0;
-    }
-
-    .setup-steps li {
-      margin-bottom: 8px;
-      list-style: none;
-      padding-left: 24px;
-      position: relative;
-    }
-
-    .setup-steps li::before {
-      content: attr(data-step);
-      position: absolute;
-      left: 0;
-      color: var(--accent-light);
-      font-weight: 700;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#87c5f0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Alpenflug K90 – Skisprung</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #87c5f0; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action: none;
+         -webkit-user-select: none; user-select: none; }
+  #game { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* --- HTML-Overlays (Start / Ergebnis) --- */
+  .panel {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(16, 32, 48, 0.92); color: #eef6ff; border-radius: 18px;
+    padding: 22px 26px; width: min(92vw, 400px); text-align: center;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15);
+    backdrop-filter: blur(4px);
+  }
+  .panel h1 { font-size: 26px; letter-spacing: 1px; margin-bottom: 2px; }
+  .panel h2 { font-size: 20px; margin-bottom: 10px; }
+  .panel .sub { color: #9fc3e0; font-size: 13px; margin-bottom: 14px; }
+  .panel .big { font-size: 44px; font-weight: 800; margin: 6px 0 2px; }
+  .panel .pts { font-size: 15px; color: #cfe6f8; margin-bottom: 10px; line-height: 1.55; }
+  .panel .rating { font-weight: 700; }
+  .panel button {
+    font: inherit; font-weight: 700; font-size: 17px; color: #fff;
+    background: linear-gradient(180deg, #2e9be6, #1670b8); border: none; border-radius: 12px;
+    padding: 13px 26px; margin-top: 8px; cursor: pointer; width: 100%;
+    box-shadow: 0 4px 14px rgba(20,110,180,.5);
+  }
+  .panel button:active { transform: translateY(1px); }
+  .howto { text-align: left; font-size: 13px; color: #cfe6f8; line-height: 1.6;
+           background: rgba(255,255,255,.07); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+  .howto b { color: #ffe082; }
+  .best { font-size: 13px; color: #ffe082; margin-top: 8px; }
+  .hidden { display: none !important; }
+</style>
 </head>
 <body>
+<canvas id="game"></canvas>
 
-  <div class="header">
-    <div class="header-row">
-      <h1>TaskLoop</h1>
-      <button class="sync-btn" id="syncBtn" aria-label="Cloud Sync">
-        <span class="sync-dot"></span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115.36-6.36L21 8"/>
-          <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15.36 6.36L3 16"/>
-        </svg>
-      </button>
-    </div>
-    <div class="header-sub" id="headerSub">Deine wiederkehrenden Aufgaben</div>
+<!-- Startbildschirm -->
+<div id="startPanel" class="panel">
+  <h1>⛷ ALPENFLUG</h1>
+  <div class="sub">K90 · Hillsize 100</div>
+  <div class="howto">
+    <b>1. Anlauf:</b> läuft automatisch<br>
+    <b>2. Absprung:</b> am Tischende <b>tippen</b> (Timing!)<br>
+    <b>3. Flug:</b> <b>ziehen / oben-unten halten</b> – Winkel im grünen Korridor halten (Tastatur: ↑ ↓)<br>
+    <b>4. Landung:</b> kurz vor dem Boden <b>tippen</b> = Telemark
   </div>
-
-  <div class="notif-banner hidden" id="notifBanner">
-    <div class="notif-banner-text">Benachrichtigungen aktivieren, um an Tasks erinnert zu werden</div>
-    <button class="notif-banner-btn" id="notifBtn">Aktivieren</button>
-  </div>
-
-  <div class="task-list" id="taskList"></div>
-
-  <button class="fab" id="fabAdd" aria-label="Neuer Task">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-  </button>
-
-  <!-- Modal -->
-  <div class="modal-overlay" id="modalOverlay">
-    <div class="modal" id="modal">
-      <div class="modal-handle"></div>
-      <h2 id="modalTitle">Neuer Task</h2>
-      <form id="taskForm">
-        <input type="hidden" id="editId">
-        <div class="form-group">
-          <label for="taskName">Aufgabe</label>
-          <input class="form-input" type="text" id="taskName" placeholder="z.B. Wohnung saugen" required autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label>Wiederholung</label>
-          <div class="interval-row">
-            <span class="interval-label">Alle</span>
-            <input class="form-input" type="number" id="intervalVal" min="1" max="365" value="1" required>
-            <select class="form-input" id="intervalUnit">
-              <option value="hours">Stunden</option>
-              <option value="days" selected>Tage</option>
-              <option value="weeks">Wochen</option>
-              <option value="months">Monate</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="reminderTime">Erinnerung um</label>
-          <input class="form-input" type="time" id="reminderTime" value="09:00">
-        </div>
-        <button type="submit" class="btn-primary" id="submitBtn">Task hinzufuegen</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Sync Modal -->
-  <div class="modal-overlay" id="syncOverlay">
-    <div class="sync-modal">
-      <div class="modal-handle"></div>
-      <h2>Cloud Sync</h2>
-
-      <div id="syncSetupView">
-        <p style="font-size:14px;color:var(--text-muted);line-height:1.5;margin-bottom:16px;">
-          Firebase einrichten fuer Cloud-Sync und Push-Benachrichtigungen (auch bei geschlossener App).
-        </p>
-        <div class="form-group">
-          <label for="firebaseConfig">Firebase Config (JSON)</label>
-          <textarea class="form-input" id="firebaseConfig" rows="5" style="font-family:'Courier New',monospace;font-size:13px;" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"...","projectId":"...","messagingSenderId":"...","appId":"..."}'></textarea>
-        </div>
-        <div class="form-group">
-          <label for="vapidKey">VAPID Key (fuer Push-Benachrichtigungen)</label>
-          <input class="form-input" type="text" id="vapidKey" placeholder="BKxxx... (aus Cloud Messaging Einstellungen)">
-        </div>
-        <button class="btn-primary" id="syncSetupBtn">Verbinden</button>
-
-        <div class="sync-section">
-          <h3>Setup-Anleitung:</h3>
-          <ol class="setup-steps">
-            <li data-step="1.">Gehe zu console.firebase.google.com → Projekt erstellen</li>
-            <li data-step="2.">Zahnrad → Projekteinstellungen → Web-App hinzufuegen → Config-JSON kopieren</li>
-            <li data-step="3.">Links "Realtime Database" → Datenbank erstellen → Testmodus</li>
-            <li data-step="4.">Projekteinstellungen → Cloud Messaging → Web-Push-Zertifikat generieren → Schluessel kopieren</li>
-            <li data-step="5.">Beide Werte hier einfuegen und "Verbinden" klicken</li>
-          </ol>
-        </div>
-      </div>
-
-      <div id="syncConnectedView" style="display:none;">
-        <div class="sync-code-display">
-          <div class="code-label">Dein Sync-Code</div>
-          <div class="code" id="syncCodeDisplay">------</div>
-        </div>
-        <div class="sync-status" id="syncStatus">Verbunden</div>
-
-        <div class="sync-section" id="pushSection">
-          <h3>Push-Benachrichtigungen</h3>
-          <div class="sync-status" id="pushStatus">Nicht eingerichtet</div>
-        </div>
-
-        <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin:16px 0;">
-          Gib diesen Code auf einem anderen Geraet ein, um deine Tasks zu synchronisieren.
-        </p>
-
-        <div class="sync-section">
-          <h3>Anderes Geraet verbinden</h3>
-          <div class="form-group">
-            <input class="form-input" type="text" id="joinCodeInput" placeholder="Sync-Code eingeben" maxlength="8" style="text-transform:uppercase;letter-spacing:2px;text-align:center;">
-          </div>
-          <button class="btn-secondary" id="joinCodeBtn">Mit Code verbinden</button>
-        </div>
-
-        <div class="sync-section">
-          <button class="btn-secondary" id="syncNowBtn">Jetzt synchronisieren</button>
-          <button class="btn-secondary" id="syncDisconnectBtn" style="color:var(--danger);border-color:rgba(255,107,107,0.3);margin-top:8px;">Verbindung trennen</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // ---- Data Layer ----
-    const STORAGE_KEY = 'taskloop_tasks';
-
-    function loadTasks() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      } catch { return []; }
-    }
-
-    function saveTasks(tasks) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-    }
-
-    function generateId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    }
-
-    // ---- Interval helpers ----
-    function intervalToMs(val, unit) {
-      const day = 86400000;
-      switch (unit) {
-        case 'hours': return val * 3600000;
-        case 'days': return val * day;
-        case 'weeks': return val * 7 * day;
-        case 'months': return val * 30 * day;
-        default: return val * day;
-      }
-    }
-
-    function intervalLabel(val, unit) {
-      const labels = {
-        hours: ['Stunde', 'Stunden'],
-        days: ['Tag', 'Tage'],
-        weeks: ['Woche', 'Wochen'],
-        months: ['Monat', 'Monate'],
-      };
-      const l = labels[unit] || ['Tag', 'Tage'];
-      return `${val} ${val === 1 ? l[0] : l[1]}`;
-    }
-
-    function getNextDue(task) {
-      if (!task.lastCompleted) return 0; // immediately due
-      const base = new Date(task.lastCompleted);
-      const next = new Date(base);
-      switch (task.intervalUnit) {
-        case 'hours': next.setHours(next.getHours() + task.intervalVal); break;
-        case 'days': next.setDate(next.getDate() + task.intervalVal); break;
-        case 'weeks': next.setDate(next.getDate() + task.intervalVal * 7); break;
-        case 'months': next.setMonth(next.getMonth() + task.intervalVal); break;
-        default: next.setDate(next.getDate() + task.intervalVal);
-      }
-      // Set the reminder time if specified (only for day+ intervals)
-      if (task.reminderTime && task.intervalUnit !== 'hours') {
-        const [h, m] = task.reminderTime.split(':').map(Number);
-        next.setHours(h, m, 0, 0);
-      }
-      return next.getTime();
-    }
-
-    function isDue(task) {
-      return Date.now() >= getNextDue(task);
-    }
-
-    function dueInLabel(task) {
-      if (!task.lastCompleted) return { text: 'Jetzt faellig', cls: 'now' };
-      const diff = getNextDue(task) - Date.now();
-      if (diff <= 0) {
-        const overHours = Math.floor(-diff / 3600000);
-        if (overHours < 1) return { text: 'Jetzt faellig', cls: 'now' };
-        if (overHours < 24) return { text: `${overHours}h ueberfaellig`, cls: 'overdue' };
-        const overDays = Math.floor(overHours / 24);
-        return { text: `${overDays}d ueberfaellig`, cls: 'overdue' };
-      }
-      const mins = Math.ceil(diff / 60000);
-      if (mins < 60) return { text: `In ${mins} Min`, cls: 'upcoming' };
-      const hours = Math.ceil(diff / 3600000);
-      if (hours < 24) {
-        const nextDate = new Date(getNextDue(task));
-        return { text: `Heute ${nextDate.getHours()}:${String(nextDate.getMinutes()).padStart(2,'0')}`, cls: 'upcoming' };
-      }
-      const days = Math.ceil(diff / 86400000);
-      if (days === 1) return { text: 'Morgen', cls: 'upcoming' };
-      return { text: `In ${days} Tagen`, cls: 'upcoming' };
-    }
-
-    // ---- Rendering ----
-    const taskList = document.getElementById('taskList');
-
-    function render() {
-      const tasks = loadTasks();
-      taskList.innerHTML = '';
-
-      if (tasks.length === 0) {
-        taskList.innerHTML = `
-          <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            <p>Noch keine Tasks.<br>Tippe auf <strong>+</strong> um einen hinzuzufuegen.</p>
-          </div>`;
-        updateHeaderSub(0);
-        return;
-      }
-
-      // Split into due and not-due
-      const dueTasks = [];
-      const doneTasks = [];
-
-      tasks.forEach(t => {
-        if (isDue(t)) dueTasks.push(t);
-        else doneTasks.push(t);
-      });
-
-      // Sort due tasks: overdue first (oldest), then most recently due
-      dueTasks.sort((a, b) => getNextDue(a) - getNextDue(b));
-      // Sort done tasks: soonest next-due first
-      doneTasks.sort((a, b) => getNextDue(a) - getNextDue(b));
-
-      updateHeaderSub(dueTasks.length);
-
-      if (dueTasks.length > 0) {
-        taskList.insertAdjacentHTML('beforeend', `<div class="section-label due-label">Faellig (${dueTasks.length})</div>`);
-        dueTasks.forEach(t => taskList.appendChild(createTaskCard(t, true)));
-      }
-
-      if (doneTasks.length > 0) {
-        taskList.insertAdjacentHTML('beforeend', `<div class="section-label done-label">Erledigt — kommt wieder</div>`);
-        doneTasks.forEach(t => taskList.appendChild(createTaskCard(t, false)));
-      }
-    }
-
-    function updateHeaderSub(dueCount) {
-      const el = document.getElementById('headerSub');
-      if (dueCount === 0) {
-        el.textContent = 'Alles erledigt!';
-      } else if (dueCount === 1) {
-        el.textContent = '1 Task wartet auf dich';
-      } else {
-        el.textContent = `${dueCount} Tasks warten auf dich`;
-      }
-    }
-
-    function createTaskCard(task, due) {
-      const div = document.createElement('div');
-      div.className = 'task-card' + (due ? (dueInLabel(task).cls === 'overdue' ? ' overdue due' : ' due') : ' completed');
-
-      const dueInfo = due ? dueInLabel(task) : null;
-      const completedInfo = !due ? dueInLabel(task) : null;
-
-      div.innerHTML = `
-        <div class="task-check" data-id="${task.id}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        </div>
-        <div class="task-info">
-          <div class="task-name">${escapeHtml(task.name)}</div>
-          <div class="task-meta">
-            <span class="task-interval">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-              </svg>
-              Alle ${intervalLabel(task.intervalVal, task.intervalUnit)}
-            </span>
-            ${task.reminderTime ? `<span class="task-interval">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-              ${task.reminderTime} Uhr
-            </span>` : ''}
-            ${due && dueInfo ? `<span class="task-due-info ${dueInfo.cls}">${dueInfo.text}</span>` : ''}
-            ${!due && completedInfo ? `<span class="task-due-info ${completedInfo.cls}">${completedInfo.text}</span>` : ''}
-          </div>
-        </div>
-        <div class="task-actions">
-          <button class="task-btn edit" data-id="${task.id}" aria-label="Bearbeiten">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-          </button>
-          <button class="task-btn delete" data-id="${task.id}" aria-label="Loeschen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-            </svg>
-          </button>
-        </div>
-      `;
-
-      // Check/uncheck handler
-      div.querySelector('.task-check').addEventListener('click', () => toggleTask(task.id));
-      div.querySelector('.edit').addEventListener('click', () => openEditModal(task.id));
-      div.querySelector('.delete').addEventListener('click', () => deleteTask(task.id));
-
-      return div;
-    }
-
-    function escapeHtml(s) {
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
-
-    // ---- Actions ----
-    function toggleTask(id) {
-      const tasks = loadTasks();
-      const task = tasks.find(t => t.id === id);
-      if (!task) return;
-
-      if (isDue(task)) {
-        // Mark completed → schedule notification for next due time
-        task.lastCompleted = Date.now();
-        saveTasks(tasks);
-        render();
-        scheduleTaskNotification(task);
-      } else {
-        // Manually uncheck — due again now
-        task.lastCompleted = null;
-        saveTasks(tasks);
-        render();
-      }
-    }
-
-    function deleteTask(id) {
-      if (!confirm('Task wirklich loeschen?')) return;
-      const tasks = loadTasks().filter(t => t.id !== id);
-      saveTasks(tasks);
-      render();
-    }
-
-    function addTask(name, intervalVal, intervalUnit, reminderTime) {
-      const tasks = loadTasks();
-      const newTask = {
-        id: generateId(),
-        name,
-        intervalVal: parseInt(intervalVal),
-        intervalUnit,
-        reminderTime,
-        lastCompleted: null,
-        createdAt: Date.now(),
-      };
-      tasks.push(newTask);
-      saveTasks(tasks);
-      render();
-      // New task: lastCompleted=null → due now → notify immediately
-      scheduleTaskNotification(newTask);
-    }
-
-    function updateTask(id, name, intervalVal, intervalUnit, reminderTime) {
-      const tasks = loadTasks();
-      const task = tasks.find(t => t.id === id);
-      if (!task) return;
-      task.name = name;
-      task.intervalVal = parseInt(intervalVal);
-      task.intervalUnit = intervalUnit;
-      task.reminderTime = reminderTime;
-      saveTasks(tasks);
-      render();
-      scheduleTaskNotification(task);
-    }
-
-    // ---- Modal ----
-    const modalOverlay = document.getElementById('modalOverlay');
-    const taskForm = document.getElementById('taskForm');
-    const editIdInput = document.getElementById('editId');
-    const taskNameInput = document.getElementById('taskName');
-    const intervalValInput = document.getElementById('intervalVal');
-    const intervalUnitSelect = document.getElementById('intervalUnit');
-    const reminderTimeInput = document.getElementById('reminderTime');
-    const modalTitle = document.getElementById('modalTitle');
-    const submitBtn = document.getElementById('submitBtn');
-
-    document.getElementById('fabAdd').addEventListener('click', () => {
-      editIdInput.value = '';
-      taskForm.reset();
-      intervalValInput.value = '1';
-      reminderTimeInput.value = '09:00';
-      modalTitle.textContent = 'Neuer Task';
-      submitBtn.textContent = 'Task hinzufuegen';
-      openModal();
-    });
-
-    function openEditModal(id) {
-      const task = loadTasks().find(t => t.id === id);
-      if (!task) return;
-      editIdInput.value = task.id;
-      taskNameInput.value = task.name;
-      intervalValInput.value = task.intervalVal;
-      intervalUnitSelect.value = task.intervalUnit;
-      reminderTimeInput.value = task.reminderTime || '09:00';
-      modalTitle.textContent = 'Task bearbeiten';
-      submitBtn.textContent = 'Speichern';
-      openModal();
-    }
-
-    function openModal() {
-      modalOverlay.classList.add('open');
-      setTimeout(() => taskNameInput.focus(), 350);
-    }
-
-    function closeModal() {
-      modalOverlay.classList.remove('open');
-    }
-
-    modalOverlay.addEventListener('click', (e) => {
-      if (e.target === modalOverlay) closeModal();
-    });
-
-    taskForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = taskNameInput.value.trim();
-      if (!name) return;
-      const val = parseInt(intervalValInput.value) || 1;
-      const unit = intervalUnitSelect.value;
-
-      const time = reminderTimeInput.value || '09:00';
-      if (editIdInput.value) {
-        updateTask(editIdInput.value, name, val, unit, time);
-      } else {
-        addTask(name, val, unit, time);
-      }
-
-      closeModal();
-    });
-
-    // ---- Cloud Sync & Push ----
-    const SYNC_KEY = 'taskloop_sync';
-    const syncBtn = document.getElementById('syncBtn');
-    const syncOverlay = document.getElementById('syncOverlay');
-    const syncSetupView = document.getElementById('syncSetupView');
-    const syncConnectedView = document.getElementById('syncConnectedView');
-    let fcmMessaging = null;
-
-    function loadSyncConfig() {
-      try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || null; }
-      catch { return null; }
-    }
-
-    function saveSyncConfig(config) {
-      localStorage.setItem(SYNC_KEY, JSON.stringify(config));
-    }
-
-    function generateSyncCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-      return code;
-    }
-
-    // Get the database URL from config (supports old url-only and new full config format)
-    function getDbUrl() {
-      const config = loadSyncConfig();
-      if (!config) return null;
-      if (config.firebaseConfig && config.firebaseConfig.databaseURL) return config.firebaseConfig.databaseURL;
-      return config.url || null;
-    }
-
-    function updateSyncUI() {
-      const config = loadSyncConfig();
-      const dbUrl = getDbUrl();
-      if (config && dbUrl) {
-        syncBtn.classList.add('synced');
-        syncBtn.classList.remove('error');
-        syncSetupView.style.display = 'none';
-        syncConnectedView.style.display = 'block';
-        document.getElementById('syncCodeDisplay').textContent = config.code;
-        // Update push status
-        const pushEl = document.getElementById('pushStatus');
-        if (config.fcmToken) {
-          pushEl.textContent = 'Aktiv — du bekommst Push auch bei geschlossener App';
-          pushEl.className = 'sync-status ok';
-        } else if (config.vapidKey) {
-          pushEl.textContent = 'VAPID Key vorhanden, Token wird geholt...';
-          pushEl.className = 'sync-status';
-        } else {
-          pushEl.textContent = 'Nicht eingerichtet (VAPID Key fehlt)';
-          pushEl.className = 'sync-status err';
-        }
-      } else {
-        syncBtn.classList.remove('synced', 'error');
-        syncSetupView.style.display = 'block';
-        syncConnectedView.style.display = 'none';
-      }
-    }
-
-    async function cloudSave(tasks) {
-      const dbUrl = getDbUrl();
-      const config = loadSyncConfig();
-      if (!dbUrl || !config) return;
-      try {
-        const url = `${dbUrl.replace(/\/$/, '')}/taskloop/${config.code}.json`;
-        await fetch(url, {
-          method: 'PATCH',
-          body: JSON.stringify({ tasks, updatedAt: Date.now() }),
-        });
-        syncBtn.classList.add('synced');
-        syncBtn.classList.remove('error');
-      } catch (e) {
-        syncBtn.classList.add('error');
-        syncBtn.classList.remove('synced');
-      }
-    }
-
-    async function cloudLoad(code) {
-      const dbUrl = getDbUrl();
-      const config = loadSyncConfig();
-      if (!dbUrl || !config) return null;
-      try {
-        const useCode = code || config.code;
-        const url = `${dbUrl.replace(/\/$/, '')}/taskloop/${useCode}.json`;
-        const res = await fetch(url);
-        return await res.json();
-      } catch (e) {
-        syncBtn.classList.add('error');
-        syncBtn.classList.remove('synced');
-        return null;
-      }
-    }
-
-    // Store FCM token in Firebase DB so Cloud Function can send pushes
-    async function storeFCMToken(token) {
-      const dbUrl = getDbUrl();
-      const config = loadSyncConfig();
-      if (!dbUrl || !config) return;
-      const tokenKey = btoa(token).slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-      const url = `${dbUrl.replace(/\/$/, '')}/taskloop/${config.code}/fcmTokens/${tokenKey}.json`;
-      await fetch(url, { method: 'PUT', body: JSON.stringify(token) }).catch(() => {});
-    }
-
-    // Initialize Firebase Cloud Messaging for push notifications
-    async function initFCM() {
-      const config = loadSyncConfig();
-      if (!config || !config.firebaseConfig || !config.vapidKey) return;
-      if (!swRegistration) return;
-
-      try {
-        if (!firebase.apps.length) {
-          firebase.initializeApp(config.firebaseConfig);
-        }
-        fcmMessaging = firebase.messaging();
-
-        // Handle foreground push messages
-        fcmMessaging.onMessage((payload) => {
-          const notif = payload.notification || {};
-          notify(notif.title || 'TaskLoop', notif.body || 'Du hast faellige Tasks!', 'taskloop-push');
-        });
-
-        if (Notification.permission === 'granted') {
-          const token = await fcmMessaging.getToken({
-            vapidKey: config.vapidKey,
-            serviceWorkerRegistration: swRegistration,
-          });
-          if (token) {
-            config.fcmToken = token;
-            saveSyncConfig(config);
-            await storeFCMToken(token);
-            updatePushStatus('Aktiv — du bekommst Push auch bei geschlossener App', true);
-          }
-        }
-      } catch (e) {
-        updatePushStatus('Fehler: ' + e.message, false);
-      }
-    }
-
-    function updatePushStatus(text, ok) {
-      const el = document.getElementById('pushStatus');
-      if (el) {
-        el.textContent = text;
-        el.className = 'sync-status' + (ok ? ' ok' : ' err');
-      }
-    }
-
-    // Override saveTasks to also sync to cloud
-    const _origSaveTasks = saveTasks;
-    saveTasks = function(tasks) {
-      _origSaveTasks(tasks);
-      cloudSave(tasks);
+  <button id="startBtn">Sprung starten</button>
+  <div class="best" id="startBest"></div>
+</div>
+
+<!-- Ergebnis -->
+<div id="resultPanel" class="panel hidden">
+  <h2 id="resTitle">Sprungweite</h2>
+  <div class="big" id="resDist">–</div>
+  <div class="pts" id="resPts"></div>
+  <button id="nextBtn">Nächster Sprung</button>
+  <div class="best" id="resBest"></div>
+</div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   ALPENFLUG K90 – HTML5-Canvas-Skisprung-Prototyp (Vanilla JS)
+   Struktur:
+     CONFIG  – alle Balancing-Parameter
+     Hill    – Anlaufspur + Aufsprungprofil (vorberechnete Punktlisten)
+     Input   – Pointer + Tastatur, vereinheitlicht
+     Game    – State-Machine (READY → INRUN → FLIGHT → OUTRUN → RESULT)
+     Render  – Kamera, Parallax, Schanze, Springer, HUD
+   ===================================================================== */
+
+// ------------------------------------------------------------------ CONFIG
+const CONFIG = {
+  // Allgemein
+  gravity: 9.81,              // m/s²
+  timestep: 1 / 60,           // fixe Physikrate
+
+  // Schanze (K90 / HS100)
+  kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
+  hillSize: 100,              // Hillsize in m
+  takeoffHeight: 3.0,         // Höhe der Tischkante über dem Profil-Ursprung (m)
+  tableAngle: 10.5,           // Neigung des Schanzentischs (Grad, abwärts)
+  tableLength: 6.5,           // Länge des Tischs (m)
+  inrunAngle: 35,             // Neigung des Anlaufhangs (Grad)
+  inrunStraight: 42,          // Länge des geraden Anlaufstücks (m)
+  inrunRadius: 90,            // Übergangsradius Anlauf → Tisch (m)
+  // Aufsprungprofil: Winkelverlauf über horizontale Distanz x
+  landing: { startAngle: 10, maxAngle: 36, steepen0: 8, steepen1: 50, flat0: 88, flat1: 135 },
+
+  // Anlauf
+  inrunFriction: 0.025,       // Gleitreibungskoeffizient Ski/Spur
+  inrunDrag: 0.0011,          // Luftwiderstand in der Hocke (a = k·v²)
+
+  // Absprung
+  takeoffImpulse: 3.2,        // Absprung-Impuls senkrecht zum Tisch (m/s) bei Qualität 1
+  takeoffSpeedBonus: 0.06,    // Qualität skaliert Geschwindigkeit: v·(1-bonus+bonus·q)
+  perfectWindow: 0.040,       // ± Sekunden um die Tischkante = perfekt (~80 ms Fenster)
+  earlyFalloff: 0.50,         // zu früh: Qualität fällt über diese Zeitspanne auf 0
+  lateWindow: 0.18,           // so lange nach der Kante zählt ein Tap noch (stark reduziert)
+
+  // Flug
+  liftCoefficient: 0.0042,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
+  dragCoefficient: 0.0024,    // Grundwiderstand: a = CD · v_rel² · dragFactor(α)
+  dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
+  optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
+  angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
+  angleSpeed: 45,             // Drehrate der Spielersteuerung (Grad/s)
+  pitchDrift: 4,              // aerodynamische Aufdreh-Tendenz (Grad/s) – muss aktiv gehalten werden
+  bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
+
+  // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
+  windStrength: 2.5,          // maximale Windstärke ± m/s (zufällig pro Sprung)
+  windAeroFactor: 2.0,        // Gameplay-Verstärkung der Windwirkung auf die Anströmung
+  gustAmount: 0.25,           // Böen: ±25 % um den Basiswind
+
+  // Landung
+  telemarkWindow: 0.12,       // Tap ≤ 120 ms vor Aufsetzen = Telemark
+  okWindow: 0.28,             // Tap ≤ 280 ms = sichere Landung
+  earlyLimit: 0.55,           // Taps früher als das zählen nicht (Fenster noch zu)
+  crashSpeed: 11.5,           // Aufprall senkrecht zum Hang > x m/s = Sturz
+  outrunFriction: 0.06,       // Bremsreibung im Auslauf
+  crashFriction: 0.30,        // Sturz bremst stark
+
+  // Punkte
+  meterValue: 1.8,            // Weitenpunkte pro Meter (K90-Standard)
+  basePoints: 60,             // Punkte am K-Punkt
+  styleFlightMax: 30,         // Haltungsnote Flug (Zeit im Korridor)
+  styleLandingMax: 30,        // Haltungsnote Landung
+};
+
+// ------------------------------------------------------------------ Utils
+const D2R = Math.PI / 180;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+// Framerate-unabhängige Glättung (für Kamera)
+const damp = (cur, target, rate, dt) => lerp(cur, target, 1 - Math.exp(-rate * dt));
+
+// ------------------------------------------------------------------ Hill
+// Weltkoordinaten: Tischkante = (0, 0). +x in Flugrichtung, +y nach oben.
+const Hill = (() => {
+  const L = CONFIG.landing;
+
+  // Hangneigung (Grad) des Aufsprungprofils bei horizontaler Distanz x
+  function landingAngle(x) {
+    if (x < L.steepen1)
+      return L.startAngle + (L.maxAngle - L.startAngle) * smoothstep((x - L.steepen0) / (L.steepen1 - L.steepen0));
+    if (x < L.flat0) return L.maxAngle;
+    return L.maxAngle * (1 - smoothstep((x - L.flat0) / (L.flat1 - L.flat0)));
+  }
+
+  // Profil integrieren: y(x) und Bogenlänge s(x) (= gemessene Weite)
+  const STEP = 0.5, XMAX = 320;
+  const prof = [{ x: 0, y: -CONFIG.takeoffHeight, s: 0 }];
+  for (let x = STEP; x <= XMAX; x += STEP) {
+    const th = landingAngle(x - STEP / 2) * D2R;
+    const p = prof[prof.length - 1];
+    prof.push({ x, y: p.y - Math.tan(th) * STEP, s: p.s + STEP / Math.cos(th) });
+  }
+  function groundAt(x) {
+    x = clamp(x, 0, XMAX - STEP);
+    const i = Math.floor(x / STEP), t = (x - prof[i].x) / STEP;
+    return {
+      y: lerp(prof[i].y, prof[i + 1].y, t),
+      s: lerp(prof[i].s, prof[i + 1].s, t),
+      angle: landingAngle(x),
     };
+  }
+  // x-Position für gegebene Weite s (für K-/HS-Linien)
+  function xAtDistance(s) {
+    for (let i = 1; i < prof.length; i++)
+      if (prof[i].s >= s) return lerp(prof[i - 1].x, prof[i].x, (s - prof[i - 1].s) / (prof[i].s - prof[i - 1].s));
+    return XMAX;
+  }
 
-    // Sync button opens modal
-    syncBtn.addEventListener('click', () => {
-      updateSyncUI();
-      syncOverlay.classList.add('open');
-    });
+  // Anlaufspur: vom Tisch rückwärts integriert. inrun[0] = Startpunkt oben.
+  const arcLen = (CONFIG.inrunAngle - CONFIG.tableAngle) * D2R * CONFIG.inrunRadius;
+  const inrunLength = CONFIG.inrunStraight + arcLen + CONFIG.tableLength;
+  function inrunAngleAt(sFromTop) {
+    if (sFromTop < CONFIG.inrunStraight) return CONFIG.inrunAngle;
+    if (sFromTop < CONFIG.inrunStraight + arcLen)
+      return CONFIG.inrunAngle - (sFromTop - CONFIG.inrunStraight) / arcLen * (CONFIG.inrunAngle - CONFIG.tableAngle);
+    return CONFIG.tableAngle;
+  }
+  const inrun = [];
+  {
+    let x = 0, y = 0;
+    const n = Math.ceil(inrunLength / STEP);
+    inrun[n] = { x: 0, y: 0, s: inrunLength };
+    for (let i = n - 1; i >= 0; i--) {
+      const s = i * STEP;
+      const th = inrunAngleAt(s + STEP / 2) * D2R;
+      x -= Math.cos(th) * STEP; y += Math.sin(th) * STEP;
+      inrun[i] = { x, y, s };
+    }
+  }
+  function inrunAt(s) {
+    s = clamp(s, 0, inrunLength - 0.001);
+    const i = Math.floor(s / STEP);
+    const t = (s - inrun[i].s) / (inrun[i + 1].s - inrun[i].s);
+    return {
+      x: lerp(inrun[i].x, inrun[i + 1].x, t),
+      y: lerp(inrun[i].y, inrun[i + 1].y, t),
+      angle: inrunAngleAt(s),
+    };
+  }
 
-    syncOverlay.addEventListener('click', (e) => {
-      if (e.target === syncOverlay) syncOverlay.classList.remove('open');
-    });
+  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunLength, landingAngle };
+})();
 
-    // Setup: connect Firebase with full config
-    document.getElementById('syncSetupBtn').addEventListener('click', async () => {
-      const configText = document.getElementById('firebaseConfig').value.trim();
-      const vapidKey = document.getElementById('vapidKey').value.trim();
+// ------------------------------------------------------------------ Input
+const Input = (() => {
+  const state = {
+    tap: false,          // in diesem Frame neu getippt (Pointer down / Space)
+    pointerDown: false,
+  };
+  let startY = 0, curY = 0, dragging = false;
+  const keys = {};
+  const canvas = document.getElementById('game');
 
-      // Parse Firebase config JSON
-      let firebaseConfig;
-      try {
-        let jsonStr = configText.replace(/^(const|let|var)\s+\w+\s*=\s*/, '').replace(/;$/, '');
-        firebaseConfig = JSON.parse(jsonStr);
-      } catch (e) {
-        alert('Firebase Config konnte nicht gelesen werden. Bitte gueltige JSON einfuegen.');
-        return;
-      }
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    state.tap = true;
+    state.pointerDown = true;
+    startY = curY = e.clientY;
+    dragging = false;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!state.pointerDown) return;
+    curY = e.clientY;
+    if (Math.abs(curY - startY) > 16) dragging = true;
+  });
+  const up = () => { state.pointerDown = false; dragging = false; };
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
 
-      if (!firebaseConfig.databaseURL) {
-        alert('databaseURL fehlt in der Firebase Config. Bitte stelle sicher, dass Realtime Database aktiviert ist.');
-        return;
-      }
+  window.addEventListener('keydown', e => {
+    if (e.repeat) return;
+    keys[e.key] = true;
+    if (e.key === ' ' || e.key === 'Enter') state.tap = true;
+    if (e.key === 'd' || e.key === 'D') Game.debug = !Game.debug;
+  });
+  window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-      const config = {
-        firebaseConfig,
-        vapidKey: vapidKey || null,
-        code: generateSyncCode(),
-      };
-      saveSyncConfig(config);
-
-      // Save current tasks to cloud
-      await cloudSave(loadTasks());
-
-      // Initialize FCM if VAPID key provided
-      if (vapidKey && Notification.permission !== 'granted') {
-        await Notification.requestPermission();
-      }
-      if (vapidKey && Notification.permission === 'granted') {
-        notifBanner.classList.add('hidden');
-        await initFCM();
-      }
-
-      updateSyncUI();
-      document.getElementById('syncStatus').textContent = 'Verbunden!';
-      document.getElementById('syncStatus').className = 'sync-status ok';
-    });
-
-    // Join with existing code
-    document.getElementById('joinCodeBtn').addEventListener('click', async () => {
-      const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
-      if (code.length < 4) return;
-      const config = loadSyncConfig();
-      if (!getDbUrl()) {
-        alert('Bitte zuerst Firebase einrichten.');
-        return;
-      }
-      config.code = code;
-      saveSyncConfig(config);
-      const data = await cloudLoad(code);
-      if (data && data.tasks) {
-        _origSaveTasks(data.tasks);
-        render();
-        document.getElementById('syncStatus').textContent = `${data.tasks.length} Tasks geladen!`;
-        document.getElementById('syncStatus').className = 'sync-status ok';
+  // Pro Physikframe aufrufen: liefert Steuerwert und setzt Tap zurück
+  function poll() {
+    let a = 0;
+    if (state.pointerDown) {
+      if (dragging) {
+        // Ziehen: Auslenkung vom Startpunkt = Drehrate (nach oben ziehen = aufrichten)
+        a = clamp((startY - curY) / (window.innerHeight * 0.18), -1, 1);
       } else {
-        document.getElementById('syncStatus').textContent = 'Keine Daten gefunden fuer diesen Code.';
-        document.getElementById('syncStatus').className = 'sync-status err';
+        // Halten: obere Hälfte = aufrichten, untere = Vorlage
+        a = curY < window.innerHeight / 2 ? 0.8 : -0.8;
       }
-      updateSyncUI();
-    });
+    }
+    if (keys['ArrowUp'] || keys['w']) a = 1;
+    if (keys['ArrowDown'] || keys['s']) a = -1;
+    const tap = state.tap; state.tap = false;
+    return { tap, angle: a };
+  }
+  return { poll, state };
+})();
 
-    // Manual sync
-    document.getElementById('syncNowBtn').addEventListener('click', async () => {
-      const status = document.getElementById('syncStatus');
-      status.textContent = 'Synchronisiere...';
-      status.className = 'sync-status';
-      const data = await cloudLoad();
-      if (data && data.tasks) {
-        const localTasks = loadTasks();
-        const localTime = Math.max(...localTasks.map(t => t.lastCompleted || t.createdAt || 0), 0);
-        const cloudTime = data.updatedAt || 0;
-        if (cloudTime > localTime && data.tasks.length > 0) {
-          _origSaveTasks(data.tasks);
-          render();
-          status.textContent = 'Tasks aus der Cloud geladen!';
-        } else {
-          await cloudSave(localTasks);
-          status.textContent = 'Lokale Tasks in Cloud gespeichert!';
+// ------------------------------------------------------------------ Game
+const Game = {
+  state: 'READY',   // READY | INRUN | FLIGHT | OUTRUN | RESULT
+  debug: false,
+  time: 0,
+  outrunTimer: 0,
+
+  // Springer
+  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, pose: 'crouch', spin: 0 },
+
+  // Sprungdaten
+  wind: 0, gustPhase: 0,
+  takeoff: { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null },
+  flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 },
+  landingTap: { time: -99, windowOpen: false, tta: 99 },
+  result: null,
+  best: JSON.parse(localStorage.getItem('alpenflug_best') || 'null'),
+
+  message: { text: '', color: '#fff', until: 0 },
+  particles: [],
+
+  showMsg(text, color, dur = 1.4) {
+    this.message = { text, color, until: this.time + dur };
+  },
+
+  newJump() {
+    this.state = 'INRUN';
+    this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
+    this.gustPhase = Math.random() * 100;
+    const start = Hill.inrunAt(0);
+    Object.assign(this.skier, { s: 0, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle, pose: 'crouch', spin: 0 });
+    this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
+    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 };
+    this.landingTap = { time: -99, windowOpen: false, tta: 99 };
+    this.result = null;
+    this.particles.length = 0;
+    hide(startPanel); hide(resultPanel);
+  },
+
+  // aktueller Wind inkl. Böen
+  currentWind() {
+    const gust = Math.sin(this.time * 1.3 + this.gustPhase) * Math.sin(this.time * 0.7);
+    return this.wind * (1 + CONFIG.gustAmount * gust);
+  },
+
+  // ---------------- Physik-Update (fixer Timestep) ----------------
+  update(dt) {
+    this.time += dt;
+    const inp = Input.poll();
+    const S = this.skier;
+
+    if (this.state === 'READY' && inp.tap) this.newJump();
+
+    // ---------- ANLAUF ----------
+    else if (this.state === 'INRUN') {
+      const th = Hill.inrunAt(S.s).angle * D2R;
+      const a = CONFIG.gravity * Math.sin(th)
+              - CONFIG.inrunFriction * CONFIG.gravity * Math.cos(th)
+              - CONFIG.inrunDrag * S.v * S.v;
+      S.v += a * dt;
+      S.s += S.v * dt;
+
+      // Absprung-Tap: Qualität nach Restzeit bis zur Tischkante
+      if (inp.tap && !this.takeoff.tapped) {
+        this.takeoff.tapped = true;
+        const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
+        this.takeoff.tapTTE = tte;
+        this.takeoff.quality = tte <= CONFIG.perfectWindow
+          ? 1
+          : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
+      }
+
+      if (S.s >= Hill.inrunLength) this.startFlight();
+      else {
+        const p = Hill.inrunAt(S.s);
+        S.x = p.x; S.y = p.y; S.body = -p.angle;
+      }
+    }
+
+    // ---------- FLUG ----------
+    else if (this.state === 'FLIGHT') {
+      const F = this.flight, T = this.takeoff;
+
+      // Verspäteter Absprung: Tap kurz nach der Kante zählt noch (reduziert)
+      if (!T.done) {
+        T.lateTimer += dt;
+        if (inp.tap && T.lateTimer <= CONFIG.lateWindow) {
+          T.tapped = true; T.done = true;
+          T.quality = Math.max(0.05, 1 - (T.lateTimer + CONFIG.perfectWindow) / (CONFIG.lateWindow + CONFIG.perfectWindow));
+          this.applyTakeoffImpulse(T.quality, true);
+          this.rateTakeoff(T.quality, 'spät');
+        } else if (T.lateTimer > CONFIG.lateWindow) {
+          T.done = true;
+          this.rateTakeoff(0, 'keiner');
         }
-        status.className = 'sync-status ok';
+      }
+
+      // Fluglagensteuerung + aerodynamischer Drift
+      S.body += inp.angle * CONFIG.angleSpeed * dt + CONFIG.pitchDrift * dt;
+      S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
+
+      // Aerodynamik relativ zur Anströmung (Wind verstärkt via windAeroFactor)
+      const w = this.currentWind() * CONFIG.windAeroFactor;
+      const rvx = S.vx - w, rvy = S.vy;
+      const rv = Math.hypot(rvx, rvy);
+      const velAng = Math.atan2(rvy, rvx) / D2R;
+      const alpha = S.body - velAng;                       // Anstellwinkel
+      const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
+      const liftF = Math.exp(-dNorm * dNorm);              // Gauß-Glocke ums Optimum
+      const aPos = Math.max(0, alpha) / 30;
+      const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
+      const lift = CONFIG.liftCoefficient * rv * rv * liftF;
+      const drag = CONFIG.dragCoefficient * rv * rv * dragF;
+      const ux = rvx / rv, uy = rvy / rv;
+      S.vx += (-drag * ux - lift * uy) * dt;
+      S.vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
+      S.x += S.vx * dt; S.y += S.vy * dt;
+
+      // Haltungsnote: Zeit im Korridor
+      F.time += dt;
+      if (Math.abs(alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance) F.corridorTime += dt;
+      F.alpha = alpha; F.lift = lift; F.drag = drag;
+
+      // Landefenster: geschätzte Zeit bis zum Aufsetzen
+      const g = Hill.groundAt(S.x);
+      const gap = S.y - g.y;
+      const closure = -(S.vy + S.vx * Math.tan(g.angle * D2R)); // Annäherungsrate an den Hang
+      this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
+      const open = this.landingTap.tta < CONFIG.earlyLimit && F.time > 0.5;
+      if (open && !this.landingTap.windowOpen) this.showMsg('LANDEN!', '#ffe082', 0.9);
+      this.landingTap.windowOpen = open;
+      if (inp.tap && open) this.landingTap.time = this.time;
+
+      if (S.y <= g.y && F.time > 0.1) this.touchdown(g);
+    }
+
+    // ---------- AUSLAUF ----------
+    else if (this.state === 'OUTRUN') {
+      const th = Hill.groundAt(S.x).angle * D2R;
+      const fric = this.result.crashed ? CONFIG.crashFriction : CONFIG.outrunFriction;
+      const a = CONFIG.gravity * Math.sin(th) - fric * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
+      S.v = Math.max(0, S.v + a * dt);
+      S.x += S.v * Math.cos(th) * dt;
+      const g2 = Hill.groundAt(S.x);
+      S.y = g2.y;
+      if (this.result.crashed) {
+        S.body += S.spin * dt;
+        S.spin *= 0.97;
+        if (S.v > 2) this.spray(2);
       } else {
-        await cloudSave(loadTasks());
-        status.textContent = 'Tasks hochgeladen!';
-        status.className = 'sync-status ok';
+        S.body = -g2.angle;
       }
-    });
-
-    // Disconnect
-    document.getElementById('syncDisconnectBtn').addEventListener('click', () => {
-      if (!confirm('Cloud-Sync trennen? Lokale Tasks bleiben erhalten.')) return;
-      localStorage.removeItem(SYNC_KEY);
-      updateSyncUI();
-      syncBtn.classList.remove('synced', 'error');
-    });
-
-    // Auto-sync on startup
-    async function initSync() {
-      const dbUrl = getDbUrl();
-      if (!dbUrl) return;
-      const data = await cloudLoad();
-      if (data && data.tasks && data.tasks.length > 0) {
-        const localTasks = loadTasks();
-        if (localTasks.length === 0 || (data.updatedAt && data.updatedAt > Math.max(...localTasks.map(t => t.lastCompleted || t.createdAt || 0), 0))) {
-          _origSaveTasks(data.tasks);
-          render();
-        }
-      }
+      this.outrunTimer += dt;
+      if ((S.v < 1.5 || this.outrunTimer > 3.5) && this.outrunTimer > 1.4) this.showResult();
     }
 
-    // ---- Notifications ----
-    const notifBanner = document.getElementById('notifBanner');
-    const notifBtn = document.getElementById('notifBtn');
-    let swRegistration = null;
-    let notifTimeouts = [];
-    // Track which tasks we already notified for (key: taskId-lastCompleted)
-    const notifiedSet = new Set();
+    // Partikel
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 6 * dt; p.life -= dt;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+  },
 
-    function checkNotifPermission() {
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-      if (Notification.permission === 'default') {
-        notifBanner.classList.remove('hidden');
-      } else if (Notification.permission === 'denied') {
-        notifBanner.classList.remove('hidden');
-        document.querySelector('.notif-banner-text').textContent =
-          'Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.';
-        notifBtn.textContent = 'Blockiert';
-        notifBtn.disabled = true;
-      }
+  startFlight() {
+    const S = this.skier, T = this.takeoff;
+    const ta = -CONFIG.tableAngle * D2R;
+    const q = T.tapped ? T.quality : 0;
+    // Absprungqualität wirkt auch auf die Abfahrtsgeschwindigkeit
+    const v = S.v * (1 - CONFIG.takeoffSpeedBonus + CONFIG.takeoffSpeedBonus * q);
+    S.x = 0; S.y = 0;
+    S.vx = v * Math.cos(ta); S.vy = v * Math.sin(ta);
+    S.body = -CONFIG.tableAngle + 4;
+    S.pose = 'flight';
+    this.state = 'FLIGHT';
+    if (T.tapped) {
+      T.done = true;
+      this.applyTakeoffImpulse(q, false);
+      this.rateTakeoff(q, T.tapTTE <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
+    }
+    // sonst: lateWindow läuft im FLIGHT-Update weiter
+  },
+
+  applyTakeoffImpulse(q, late) {
+    const S = this.skier, ta = CONFIG.tableAngle * D2R;
+    const imp = CONFIG.takeoffImpulse * q * (late ? 0.8 : 1);
+    S.vx += imp * Math.sin(ta) * 0.25;   // kleiner Vorwärtsanteil
+    S.vy += imp * Math.cos(ta);          // Hauptanteil senkrecht zum Tisch
+  },
+
+  rateTakeoff(q, kind) {
+    if (kind === 'keiner')      this.showMsg('Absprung verschlafen!', '#ff8a80');
+    else if (q >= 0.93)         this.showMsg('PERFEKTER ABSPRUNG!', '#69f0ae');
+    else if (q >= 0.7)          this.showMsg('Guter Absprung', '#b9f6ca');
+    else if (kind === 'spät')   this.showMsg('Zu spät!', '#ffb74d');
+    else                        this.showMsg('Zu früh!', '#ffb74d');
+  },
+
+  touchdown(g) {
+    const S = this.skier;
+    const th = g.angle * D2R;
+    // Aufprallgeschwindigkeit senkrecht zum Hang (Hangnormale n = (sinθ, cosθ))
+    const vNormal = -(S.vx * Math.sin(th) + S.vy * Math.cos(th));
+    // Telemark-Timing
+    const dtTap = this.time - this.landingTap.time;
+    let landing, landingPts, crashed = false;
+    if (dtTap <= CONFIG.telemarkWindow)     { landing = 'Telemark!';        landingPts = CONFIG.styleLandingMax; }
+    else if (dtTap <= CONFIG.okWindow)      { landing = 'Sichere Landung';  landingPts = CONFIG.styleLandingMax * 0.6; }
+    else if (dtTap <= CONFIG.earlyLimit)    { landing = 'Wacklige Landung'; landingPts = CONFIG.styleLandingMax * 0.33; }
+    else                                    { landing = 'STURZ!';           landingPts = 0; crashed = true; }
+    if (vNormal > CONFIG.crashSpeed)        { landing = 'STURZ – zu hart!'; landingPts = 0; crashed = true; }
+
+    const dist = Math.round(g.s * 2) / 2;   // auf 0,5 m gerundet
+    const distPts = Math.max(0, CONFIG.basePoints + (dist - CONFIG.kPoint) * CONFIG.meterValue);
+    const F = this.flight;
+    let flightPts = (F.time > 0 ? F.corridorTime / F.time : 0) * CONFIG.styleFlightMax;
+    if (crashed) flightPts *= 0.25;
+    const total = distPts + flightPts + landingPts;
+
+    this.result = {
+      dist, distPts, flightPts, landingPts, total, landing, crashed,
+      wind: this.wind, takeoffQ: this.takeoff.quality,
+    };
+    // Bestleistung
+    if (!this.best || total > this.best.total) {
+      this.best = { dist, total };
+      try { localStorage.setItem('alpenflug_best', JSON.stringify(this.best)); } catch (e) {}
     }
 
-    notifBtn.addEventListener('click', async () => {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        notifBanner.classList.add('hidden');
-        scheduleAllNotifications();
-      } else if (perm === 'denied') {
-        document.querySelector('.notif-banner-text').textContent =
-          'Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.';
-        notifBtn.textContent = 'Blockiert';
-        notifBtn.disabled = true;
-      }
-    });
+    // In den Auslauf übergehen
+    this.state = 'OUTRUN';
+    this.outrunTimer = 0;
+    const vTang = S.vx * Math.cos(th) - S.vy * Math.sin(th);
+    S.v = Math.max(3, vTang);
+    S.y = g.y;
+    S.pose = crashed ? 'crash' : (dtTap <= CONFIG.telemarkWindow ? 'telemark' : 'landed');
+    if (crashed) { S.spin = -540; this.showMsg('STURZ!', '#ff5252', 1.8); }
+    else this.showMsg(landing, dtTap <= CONFIG.telemarkWindow ? '#69f0ae' : '#fff', 1.4);
+    this.spray(crashed ? 40 : 18);
+  },
 
-    // Show a notification — tries SW first, falls back to Notification API
-    function notify(title, body, tag) {
-      if (Notification.permission !== 'granted') return;
-      if (swRegistration && swRegistration.active) {
-        swRegistration.active.postMessage({
-          type: 'SHOW_NOTIFICATION', title, body, tag,
-        });
-      } else {
-        new Notification(title, { body, icon: 'icon-192.png', tag });
-      }
-    }
-
-    // Mark a task as notified for its current cycle
-    function notifyKey(task) {
-      return task.id + '-' + (task.lastCompleted || 'new');
-    }
-
-    // Schedule a notification for a specific task at its next due time
-    function scheduleTaskNotification(task) {
-      if (Notification.permission !== 'granted') return;
-      const nextDue = getNextDue(task);
-      const now = Date.now();
-      const delay = nextDue - now;
-      const key = notifyKey(task);
-
-      if (delay <= 0) {
-        // Already due — notify now (if not already notified for this cycle)
-        if (!notifiedSet.has(key)) {
-          notifiedSet.add(key);
-          notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
-        }
-        return;
-      }
-
-      // Schedule for the exact due time
-      const timeout = setTimeout(() => {
-        if (!notifiedSet.has(key)) {
-          notifiedSet.add(key);
-          notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
-        }
-        render();
-      }, delay);
-      notifTimeouts.push(timeout);
-    }
-
-    // Check all tasks and notify for any that are due (runs every 30s)
-    function checkAndNotify() {
-      if (Notification.permission !== 'granted') return;
-      const tasks = loadTasks();
-      tasks.forEach(task => {
-        if (!isDue(task)) return;
-        const key = notifyKey(task);
-        if (notifiedSet.has(key)) return;
-        notifiedSet.add(key);
-        notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
+  spray(n) {
+    const S = this.skier;
+    for (let i = 0; i < n; i++)
+      this.particles.push({
+        x: S.x, y: S.y + 0.2, life: 0.4 + Math.random() * 0.5,
+        vx: -2 - Math.random() * 5, vy: 1 + Math.random() * 4,
       });
+  },
+
+  showResult() {
+    this.state = 'RESULT';
+    const r = this.result;
+    resTitle.textContent = r.crashed ? '💥 Gestürzt' : '🎿 Sprungweite';
+    resDist.textContent = r.dist.toFixed(1).replace('.', ',') + ' m';
+    resPts.innerHTML =
+      `Weite: <b>${r.distPts.toFixed(1)}</b> · Haltung Flug: <b>${r.flightPts.toFixed(1)}</b> · ` +
+      `Landung (<span class="rating">${r.landing}</span>): <b>${r.landingPts.toFixed(1)}</b><br>` +
+      `Gesamt: <b style="font-size:20px">${r.total.toFixed(1)} Punkte</b><br>` +
+      `<span style="color:#9fc3e0">Wind: ${windLabel(r.wind)}</span>`;
+    resBest.textContent = this.best
+      ? `Bestleistung: ${this.best.dist.toFixed(1).replace('.', ',')} m · ${this.best.total.toFixed(1)} Pkt.` : '';
+    show(resultPanel);
+  },
+};
+
+function windLabel(w) {
+  const abs = Math.abs(w).toFixed(1).replace('.', ',');
+  if (Math.abs(w) < 0.15) return 'windstill';
+  return w < 0 ? `${abs} m/s Gegenwind ✓` : `${abs} m/s Rückenwind ✗`;
+}
+
+// ------------------------------------------------------------------ Render
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Kamera: Weltkoordinaten (m) → Bildschirm (CSS-px)
+const cam = { x: -30, y: -10, ppm: 10 };
+function worldToScreen(wx, wy) {
+  return { x: (wx - cam.x) * cam.ppm + W * 0.5, y: H * 0.48 - (wy - cam.y) * cam.ppm };
+}
+
+function updateCamera(dt) {
+  const S = Game.skier;
+  let targetX, targetY, view;
+  if (Game.state === 'READY' || Game.state === 'INRUN') {
+    view = 42;
+    targetX = S.x + 8; targetY = S.y - 6;
+  } else if (Game.state === 'FLIGHT') {
+    const hAbove = S.y - Hill.groundAt(S.x).y;
+    view = clamp(hAbove * 2.0 + 24, 42, 95);
+    targetX = S.x + S.vx * 0.45; targetY = S.y - hAbove * 0.45;
+  } else {
+    view = 46; targetX = S.x + 6; targetY = S.y + 4;
+  }
+  const targetPpm = Math.min(H / view, W / (view * 1.15));
+  cam.ppm = damp(cam.ppm, targetPpm, 2.5, dt);
+  cam.x = damp(cam.x, targetX, 4, dt);
+  cam.y = damp(cam.y, targetY, 4, dt);
+}
+
+// --- Hintergrund: Himmel + Parallax-Bergketten ---
+function ridgeY(x, seed) { // deterministische Silhouette
+  return Math.sin(x * 0.011 + seed) * 14 + Math.sin(x * 0.031 + seed * 2.3) * 6 + Math.sin(x * 0.005 + seed * 0.7) * 20;
+}
+function drawBackground() {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#6fb4e8'); sky.addColorStop(0.6, '#a8d4f2'); sky.addColorStop(1, '#e8f4fc');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+  // Sonne
+  ctx.fillStyle = 'rgba(255,245,200,0.9)';
+  ctx.beginPath(); ctx.arc(W * 0.78, H * 0.14, Math.min(W, H) * 0.05, 0, 7); ctx.fill();
+
+  // zwei Bergketten mit Parallax
+  const layers = [
+    { par: 0.10, base: 0.42, color: '#9db8cc', seed: 3 },
+    { par: 0.22, base: 0.55, color: '#b9cfe0', seed: 8 },
+  ];
+  for (const l of layers) {
+    ctx.fillStyle = l.color;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let sx = 0; sx <= W; sx += 12) {
+      const wx = sx + cam.x * cam.ppm * l.par;
+      ctx.lineTo(sx, H * l.base - ridgeY(wx, l.seed) - cam.y * cam.ppm * l.par * 0.3);
     }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  }
+}
 
-    // Schedule notifications for all tasks + set up periodic check
-    function scheduleAllNotifications() {
-      notifTimeouts.forEach(t => clearTimeout(t));
-      notifTimeouts = [];
-      if (Notification.permission !== 'granted') return;
+function drawHill() {
+  // --- Aufsprunghang ---
+  const first = worldToScreen(Hill.prof[0].x, Hill.prof[0].y);
+  const last = worldToScreen(Hill.prof[Hill.prof.length - 1].x, Hill.prof[Hill.prof.length - 1].y);
+  ctx.beginPath();
+  ctx.moveTo(first.x, first.y);
+  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  ctx.lineTo(last.x, H + 50); ctx.lineTo(first.x, H + 50); ctx.closePath();
+  const snow = ctx.createLinearGradient(0, 0, 0, H);
+  snow.addColorStop(0, '#ffffff'); snow.addColorStop(1, '#dcebf7');
+  ctx.fillStyle = snow; ctx.fill();
+  ctx.strokeStyle = '#c4d9ea'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  ctx.stroke();
 
-      const tasks = loadTasks();
-      tasks.forEach(task => {
-        const nextDue = getNextDue(task);
-        const now = Date.now();
-        const delay = nextDue - now;
-        const key = notifyKey(task);
+  // Weitenmarkierungen alle 10 m + K- und HS-Linie
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  for (let d = 20; d <= 130; d += 10) {
+    const x = Hill.xAtDistance(d);
+    const g = Hill.groundAt(x);
+    const a = worldToScreen(x, g.y), th = g.angle * D2R;
+    const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
+    const len = (isK || isHS ? 2.4 : 1.4) * cam.ppm;
+    ctx.strokeStyle = isK ? '#e53935' : isHS ? '#1e88e5' : '#90a4ae';
+    ctx.lineWidth = isK || isHS ? 3 : 1.5;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(a.x + Math.sin(th) * len * 0.4, a.y + Math.cos(th) * len * 0.4);
+    ctx.stroke();
+    if (cam.ppm > 4.5 || isK || isHS) {
+      ctx.fillStyle = isK ? '#e53935' : isHS ? '#1e88e5' : '#78909c';
+      ctx.font = `${isK || isHS ? 'bold ' : ''}${Math.max(10, cam.ppm * 1.1)}px system-ui`;
+      ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, a.x + Math.sin(th) * len * 0.4 + 4, a.y + Math.cos(th) * len * 0.4 + 4);
+    }
+  }
 
-        if (delay <= 0) {
-          // Task is already due — notify if not already done
-          if (!notifiedSet.has(key)) {
-            notifiedSet.add(key);
-            notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
-          }
-        } else {
-          // Schedule for the exact due time
-          const timeout = setTimeout(() => {
-            if (!notifiedSet.has(key)) {
-              notifiedSet.add(key);
-              notify('TaskLoop', `${task.name} ist jetzt faellig!`, 'taskloop-' + task.id);
-            }
-            render();
-          }, delay);
-          notifTimeouts.push(timeout);
-        }
-      });
+  // --- Anlauf + Turm ---
+  const ir = Hill.inrun;
+  const top = worldToScreen(ir[0].x, ir[0].y);
+  const edge = worldToScreen(0, 0);
+  // Turmstruktur unter dem Anlauf
+  ctx.fillStyle = '#37474f';
+  ctx.beginPath();
+  ctx.moveTo(top.x, top.y);
+  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  ctx.lineTo(edge.x, edge.y + 4.5 * cam.ppm);
+  ctx.lineTo(top.x, Math.min(H + 40, top.y + 60 * cam.ppm));
+  ctx.closePath(); ctx.fill();
+  // Anlaufspur
+  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = Math.max(2, cam.ppm * 0.35);
+  ctx.beginPath();
+  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  ctx.stroke();
+  // Tischkanten-Markierung
+  ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(edge.x, edge.y - 2); ctx.lineTo(edge.x, edge.y + 0.9 * cam.ppm); ctx.stroke();
+}
 
-      // Sync tasks to SW for background checks
-      if (swRegistration && swRegistration.active) {
-        swRegistration.active.postMessage({
-          type: 'SYNC_TASKS', tasks: loadTasks(),
-        });
+// --- Springer (stilisierte Figur, Anstellwinkel sichtbar) ---
+function drawSkier() {
+  const S = Game.skier;
+  const p = worldToScreen(S.x, S.y);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(-S.body * D2R);
+  ctx.scale(cam.ppm, cam.ppm);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+  const head = (hx, hy) => {
+    ctx.fillStyle = '#fafafa';
+    ctx.beginPath(); ctx.arc(hx, hy, 0.17, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#455a64'; ctx.lineWidth = 0.05; ctx.stroke();
+    ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 0.19; // Anzugfarbe zurücksetzen
+  };
+
+  // Ski (2 Stück, leicht versetzt → V-Andeutung im Flug)
+  const skiV = S.pose === 'flight' ? 0.07 : 0;
+  ctx.strokeStyle = '#fdd835'; ctx.lineWidth = 0.16;
+  ctx.beginPath(); ctx.moveTo(-1.1, 0.02); ctx.lineTo(1.35, 0.02 - skiV * 2.2); ctx.stroke();
+  ctx.strokeStyle = '#f9a825';
+  ctx.beginPath(); ctx.moveTo(-1.15, 0.14); ctx.lineTo(1.3, 0.14 + skiV * 1.2); ctx.stroke();
+
+  ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 0.19;
+  if (S.pose === 'crouch') {
+    // Anlaufhocke
+    ctx.beginPath(); ctx.moveTo(0.05, 0); ctx.lineTo(-0.15, -0.45); ctx.lineTo(0.55, -0.75); ctx.stroke(); // Beine + Rücken
+    ctx.beginPath(); ctx.moveTo(0.55, -0.75); ctx.lineTo(0.85, -0.35); ctx.stroke();                        // Arme
+    head(0.78, -0.88);
+  } else if (S.pose === 'flight') {
+    // Gestreckte Flughaltung: Körper flach nach hinten über den Ski
+    ctx.beginPath(); ctx.moveTo(0.0, 0); ctx.lineTo(-0.25, -0.35); ctx.lineTo(-1.15, -0.62); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-1.0, -0.58); ctx.lineTo(-1.25, -0.25); ctx.stroke();                       // Arm angelegt
+    head(-1.33, -0.75);
+  } else if (S.pose === 'telemark') {
+    ctx.beginPath(); ctx.moveTo(0.35, 0); ctx.lineTo(0.15, -0.55); ctx.lineTo(0.05, -1.05); ctx.stroke();  // vorderes Bein + Torso
+    ctx.beginPath(); ctx.moveTo(-0.45, 0); ctx.lineTo(-0.25, -0.3); ctx.lineTo(0.15, -0.55); ctx.stroke(); // hinteres Bein gebeugt
+    ctx.beginPath(); ctx.moveTo(0.05, -1.0); ctx.lineTo(0.55, -0.8); ctx.stroke();                          // Arme ausgestellt
+    ctx.beginPath(); ctx.moveTo(0.05, -1.0); ctx.lineTo(-0.45, -0.85); ctx.stroke();
+    head(0.12, -1.24);
+  } else if (S.pose === 'landed') {
+    ctx.beginPath(); ctx.moveTo(0.1, 0); ctx.lineTo(-0.05, -0.6); ctx.lineTo(0.2, -1.1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.2, -1.05); ctx.lineTo(0.5, -0.7); ctx.stroke();
+    head(0.28, -1.3);
+  } else { // crash: Wackel-/Trudelfigur
+    const wob = Math.sin(Game.time * 30) * 0.15;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-0.3 + wob, -0.5); ctx.lineTo(0.4, -0.8 - wob); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.4, -0.8); ctx.lineTo(0.9, -0.5 + wob); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.4, -0.8); ctx.lineTo(-0.1, -1.1 - wob); ctx.stroke();
+    head(0.62, -1.0);
+  }
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (const p of Game.particles) {
+    const s = worldToScreen(p.x, p.y);
+    ctx.globalAlpha = clamp(p.life * 2, 0, 0.9);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1.5, cam.ppm * 0.12), 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// --- HUD ---
+function drawHUD() {
+  const S = Game.skier;
+  const uiScale = clamp(Math.min(W, H) / 420, 0.85, 1.5);
+
+  // Windfahne + Windwert (oben links)
+  const w = Game.currentWind();
+  const wx = 14 * uiScale, wy = 18 * uiScale;
+  ctx.save();
+  ctx.translate(wx + 10 * uiScale, wy + 16 * uiScale);
+  ctx.strokeStyle = '#37474f'; ctx.lineWidth = 3;                    // Mast
+  ctx.beginPath(); ctx.moveTo(0, 18 * uiScale); ctx.lineTo(0, -12 * uiScale); ctx.stroke();
+  // Fahne: Richtung = Windrichtung, Länge = Stärke
+  const flagLen = (8 + Math.abs(w) / CONFIG.windStrength * 26) * uiScale * Math.sign(w || 1);
+  const flap = Math.sin(Game.time * 6) * 3 * uiScale;
+  ctx.fillStyle = Math.abs(w) < 0.15 ? '#90a4ae' : (w < 0 ? '#43a047' : '#e53935');
+  ctx.beginPath();
+  ctx.moveTo(0, -12 * uiScale);
+  ctx.lineTo(flagLen, -8 * uiScale + flap);
+  ctx.lineTo(0, -3 * uiScale);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(16,32,48,0.65)';
+  roundRect(wx + 30 * uiScale, wy, 140 * uiScale, 26 * uiScale, 8);
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${13 * uiScale}px system-ui`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(windLabel(w), wx + 38 * uiScale, wy + 13 * uiScale);
+
+  // Bestweite (oben rechts)
+  if (Game.best) {
+    const bw = 118 * uiScale;
+    ctx.fillStyle = 'rgba(16,32,48,0.65)';
+    roundRect(W - bw - 14, wy, bw, 26 * uiScale, 8);
+    ctx.fillStyle = '#ffe082';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Best: ${Game.best.dist.toFixed(1).replace('.', ',')} m`, W - 22, wy + 13 * uiScale);
+  }
+
+  // Zentrale Meldung
+  if (Game.time < Game.message.until) {
+    ctx.globalAlpha = clamp((Game.message.until - Game.time) / 0.3, 0, 1);
+    ctx.font = `800 ${30 * uiScale}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 4;
+    ctx.strokeText(Game.message.text, W / 2, H * 0.24);
+    ctx.fillStyle = Game.message.color;
+    ctx.fillText(Game.message.text, W / 2, H * 0.24);
+    ctx.globalAlpha = 1;
+  }
+
+  // --- Absprung-Timing-Balken (Anlauf) ---
+  if (Game.state === 'INRUN') {
+    const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
+    const SHOW = 1.4; // Balken zeigt die letzten 1,4 s vor der Kante
+    if (tte < SHOW * 1.3) {
+      const bw = Math.min(W * 0.72, 430), bh = 26 * uiScale;
+      const bx = (W - bw) / 2, by = H - bh - Math.max(24, H * 0.06);
+      ctx.fillStyle = 'rgba(16,32,48,0.7)';
+      roundRect(bx - 4, by - 4, bw + 8, bh + 8, 10);
+      // Zonen: grau → gelb (gut) → grün (perfekt); Tischkante = rechtes Ende
+      const posOf = t => bx + bw * clamp(1 - t / SHOW, 0, 1);
+      ctx.fillStyle = '#546e7a'; ctx.fillRect(bx, by, bw, bh);
+      const goodX = posOf(0.16);
+      ctx.fillStyle = '#f9a825'; ctx.fillRect(goodX, by, bx + bw - goodX, bh);
+      const perfX = posOf(CONFIG.perfectWindow);
+      ctx.fillStyle = '#43a047'; ctx.fillRect(perfX, by, bx + bw - perfX, bh);
+      // Marker
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(posOf(tte) - 2.5, by - 7, 5, bh + 14);
+      if (!Game.takeoff.tapped) {
+        ctx.font = `bold ${14 * uiScale}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.fillText('TIPPEN im grünen Bereich!', W / 2, by - 14 * uiScale);
       }
     }
+  }
 
-    // ---- Periodic check ----
-    // Check every 30 seconds for due tasks + re-render every minute
-    setInterval(() => {
-      checkAndNotify();
-      render();
-    }, 30000);
-
-    // Re-check when page becomes visible again
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        render();
-        scheduleAllNotifications();
-      }
-    });
-
-    // ---- Init ----
-    render();
-    checkNotifPermission();
-    initSync();
-
-    // Register service worker and init FCM
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(async (reg) => {
-        swRegistration = reg;
-        scheduleAllNotifications();
-        // Initialize FCM for background push notifications
-        await initFCM();
-      }).catch(() => {});
+  // --- Fluglagen-Anzeige (Winkel-Korridor, rechts) ---
+  if (Game.state === 'FLIGHT') {
+    const gw = 22 * uiScale, gh = Math.min(H * 0.38, 240);
+    const gx = W - gw - 16, gy = (H - gh) / 2;
+    const mapA = a => gy + gh * (1 - (a + 15) / 50);     // Skala: -15° … +35°
+    ctx.fillStyle = 'rgba(16,32,48,0.55)';
+    roundRect(gx - 5, gy - 10, gw + 10, gh + 20, 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(gx, gy, gw, gh);
+    // grüner Korridor
+    const c0 = mapA(CONFIG.optimalAngle - CONFIG.angleTolerance);
+    const c1 = mapA(CONFIG.optimalAngle + CONFIG.angleTolerance);
+    ctx.fillStyle = 'rgba(67,160,71,0.85)';
+    ctx.fillRect(gx, c1, gw, c0 - c1);
+    // Nadel = aktueller Anstellwinkel
+    const inCorr = Math.abs(Game.flight.alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance;
+    const ny = clamp(mapA(Game.flight.alpha), gy - 6, gy + gh + 6);
+    ctx.fillStyle = inCorr ? '#69f0ae' : '#ff8a80';
+    ctx.fillRect(gx - 3, ny - 2.5, gw + 6, 5);
+    // Landefenster-Hinweis
+    if (Game.landingTap.windowOpen) {
+      ctx.globalAlpha = 0.5 + Math.sin(Game.time * 18) * 0.5;
+      ctx.fillStyle = '#ffe082';
+      ctx.font = `800 ${24 * uiScale}px system-ui`;
+      ctx.textAlign = 'center';
+      ctx.fillText('JETZT TIPPEN – TELEMARK!', W / 2, H * 0.68);
+      ctx.globalAlpha = 1;
     }
-  </script>
+  }
+
+  // --- Debug-Overlay (Taste D) ---
+  if (Game.debug) {
+    const g = Hill.groundAt(S.x);
+    const spd = Game.state === 'FLIGHT' ? Math.hypot(S.vx, S.vy) : S.v;
+    const lines = [
+      `state: ${Game.state}`,
+      `v: ${spd.toFixed(1)} m/s (${(spd * 3.6).toFixed(0)} km/h)`,
+      `pos: ${S.x.toFixed(1)} / ${S.y.toFixed(1)}   h: ${(S.y - g.y).toFixed(1)} m`,
+      `alpha: ${Game.flight.alpha.toFixed(1)}°   body: ${S.body.toFixed(1)}°`,
+      `lift: ${Game.flight.lift.toFixed(2)}   drag: ${Game.flight.drag.toFixed(2)}`,
+      `wind: ${Game.currentWind().toFixed(2)} m/s   tta: ${Game.landingTap.tta.toFixed(2)} s`,
+      `korridor: ${(Game.flight.time ? Game.flight.corridorTime / Game.flight.time * 100 : 0).toFixed(0)} %`,
+    ];
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    roundRect(10, H - 26 - lines.length * 16, 310, lines.length * 16 + 12, 6);
+    ctx.fillStyle = '#b2ff59';
+    ctx.font = '12px ui-monospace, monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    lines.forEach((l, i) => ctx.fillText(l, 18, H - 20 - (lines.length - 1 - i) * 16));
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath(); ctx.fill();
+}
+
+// ------------------------------------------------------------------ Loop
+let last = performance.now(), acc = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = (now - last) / 1000; last = now;
+  dt = Math.min(dt, 0.25);            // Tab-Wechsel/Aussetzer abfangen
+  acc += dt;
+  while (acc >= CONFIG.timestep) {    // fixer Physik-Timestep
+    Game.update(CONFIG.timestep);
+    acc -= CONFIG.timestep;
+  }
+  updateCamera(dt);
+  drawBackground();
+  drawHill();
+  drawParticles();
+  drawSkier();
+  drawHUD();
+}
+
+// ------------------------------------------------------------------ UI-Verdrahtung
+const startPanel = document.getElementById('startPanel');
+const resultPanel = document.getElementById('resultPanel');
+const resTitle = document.getElementById('resTitle');
+const resDist = document.getElementById('resDist');
+const resPts = document.getElementById('resPts');
+const resBest = document.getElementById('resBest');
+const show = el => el.classList.remove('hidden');
+const hide = el => el.classList.add('hidden');
+
+document.getElementById('startBtn').addEventListener('click', () => Game.newJump());
+document.getElementById('nextBtn').addEventListener('click', () => Game.newJump());
+window.addEventListener('keydown', e => {
+  if ((e.key === ' ' || e.key === 'Enter') && (Game.state === 'READY' || Game.state === 'RESULT')) {
+    e.preventDefault();
+    Game.newJump();
+  }
+});
+if (Game.best)
+  document.getElementById('startBest').textContent =
+    `Bestleistung: ${Game.best.dist.toFixed(1).replace('.', ',')} m · ${Game.best.total.toFixed(1)} Pkt.`;
+
+// Springer für den Startbildschirm oben an den Anlauf setzen
+{
+  const start = Hill.inrunAt(0);
+  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle, pose: 'crouch' });
+  cam.x = start.x + 8; cam.y = start.y - 6; cam.ppm = Math.min(H / 42, W / 48);
+}
+
+// Alten Service-Worker (aus früherem Projekt auf dieser Domain) entfernen,
+// damit keine gecachte Fremd-Version ausgeliefert wird.
+if ('serviceWorker' in navigator)
+  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+
+requestAnimationFrame(frame);
+</script>
 </body>
 </html>
