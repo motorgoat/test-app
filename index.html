@@ -176,9 +176,11 @@ const CONFIG = {
   gustAmount: 0.25,           // Böen: ±25 % um den Basiswind
 
   // Landung
-  telemarkWindow: 0.12,       // Tap ≤ 120 ms vor Aufsetzen = Telemark
-  okWindow: 0.28,             // Tap ≤ 280 ms = sichere Landung
-  earlyLimit: 0.55,           // Taps früher als das zählen nicht (Fenster noch zu)
+  telemarkWindow: 0.16,       // Tap ≤ 160 ms vor Aufsetzen = Telemark
+  okWindow: 0.32,             // Tap ≤ 320 ms = sichere Landung
+  earlyLimit: 0.75,           // Tap ≤ 750 ms = nur noch wacklig; ohne Tap = Sturz
+  landingArmTime: 1.1,        // ab dieser Restflugzeit werden Lande-Taps registriert
+  landingFlash: 0.22,         // "JETZT!"-Signal bei dieser Restflugzeit
   crashSpeed: 11.5,           // Aufprall senkrecht zum Hang > x m/s = Sturz
   outrunFriction: 0.06,       // Bremsreibung im Auslauf
   crashFriction: 0.30,        // Sturz bremst stark
@@ -190,10 +192,10 @@ const CONFIG = {
   styleLandingMax: 30,        // Haltungsnote Landung
 
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
-  camGateView: 21,
-  camInrunView: 34,
-  camFlightMin: 30, camFlightMax: 58,
-  camOutrunView: 30,
+  camGateView: 17,
+  camInrunView: 28,
+  camFlightMin: 24, camFlightMax: 48,
+  camOutrunView: 25,
 };
 
 // ------------------------------------------------------------------ Utils
@@ -348,7 +350,7 @@ const Tutorial = {
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
-      text: 'Landung! Tippe kurz vor dem Aufsetzen für den Telemark – zu spät bedeutet Sturz.' },
+      text: 'Landung! Tippe genau, wenn JETZT! aufblinkt – das gibt den Telemark. Ohne Tap stürzt du.' },
   ],
 
   update() {
@@ -495,7 +497,7 @@ const Game = {
         this.takeoff.quality = tte <= CONFIG.perfectWindow
           ? 1
           : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
-        this.setPose('flight', CONFIG.jumpAnimTime);
+        this.setPose('extend', CONFIG.jumpAnimTime);
         S.standing = true;
         this.spray(6);
       }
@@ -518,7 +520,7 @@ const Game = {
           T.tapped = true; T.done = true;
           T.quality = Math.max(0.05, 1 - (T.lateTimer + CONFIG.perfectWindow) / (CONFIG.lateWindow + CONFIG.perfectWindow));
           this.applyTakeoffImpulse(T.quality, true);
-          this.setPose('flight', CONFIG.jumpAnimTime);
+          this.setPose('extend', CONFIG.jumpAnimTime);
           this.ring('#ffb74d');
           this.rateTakeoff(T.quality, 'spät');
         } else if (T.lateTimer > CONFIG.lateWindow) {
@@ -528,6 +530,9 @@ const Game = {
           this.rateTakeoff(0, 'keiner');
         }
       }
+
+      // Nach der Streckung in die tiefe Flughaltung absenken
+      if (F.time > 0.4 && S.poseB === 'extend') this.setPose('flight', 0.55);
 
       // Anströmung (Wind verstärkt via windAeroFactor)
       const w = this.currentWind() * CONFIG.windAeroFactor;
@@ -569,10 +574,11 @@ const Game = {
       const gap = S.y - g.y;
       const closure = -(S.vy + S.vx * Math.tan(g.angle * D2R));
       this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
-      const open = this.landingTap.tta < CONFIG.earlyLimit && F.time > 0.5;
-      if (open && !this.landingTap.windowOpen) this.showMsg('LANDEN!', '#ffd35c', 0.9);
-      this.landingTap.windowOpen = open;
-      if (inp.tap && open) this.landingTap.time = this.time;
+      // Lande-Taps zählen ab landingArmTime IMMER (zu früh = schlechter, nie ignoriert)
+      const armed = this.landingTap.tta < CONFIG.landingArmTime && F.time > 0.5;
+      if (armed && !this.landingTap.windowOpen) this.showMsg('Landung bereit …', '#cfe6f8', 0.8);
+      this.landingTap.windowOpen = armed;
+      if (inp.tap && armed) this.landingTap.time = this.time;
 
       if (S.y <= g.y && F.time > 0.1) this.touchdown(g);
     }
@@ -593,6 +599,8 @@ const Game = {
       } else {
         S.body = -g2.angle;
         if (S.v > 6 && Math.random() < dt * 40) this.dust();
+        // nach dem Telemark aufrichten und ausfahren
+        if (this.outrunTimer > 1.1 && S.poseB === 'telemark') this.setPose('landed', 0.45);
       }
       this.outrunTimer += dt;
       if ((S.v < 1.5 || this.outrunTimer > 3.5) && this.outrunTimer > 1.6) this.showResult();
@@ -762,8 +770,8 @@ function updateCamera(dt) {
     vw = CONFIG.camInrunView; tx = S.x + 10; ty = S.y - 4;
   } else if (Game.state === 'FLIGHT') {
     const hAbove = S.y - Hill.groundAt(S.x).y;
-    vw = clamp(hAbove * 1.5 + 24, CONFIG.camFlightMin, CONFIG.camFlightMax);
-    tx = S.x + S.vx * 0.4; ty = S.y - hAbove * 0.42;
+    vw = clamp(hAbove * 1.4 + 19, CONFIG.camFlightMin, CONFIG.camFlightMax);
+    tx = S.x + S.vx * 0.38; ty = S.y - hAbove * 0.42;
   } else {
     vw = CONFIG.camOutrunView; tx = S.x + 5; ty = S.y + 2;
   }
@@ -1083,11 +1091,17 @@ const POSES = {
     arm1: [0.34, -0.58, 0.62, -0.3], arm2: [0.32, -0.56, 0.58, -0.32],
     head: [0.68, -0.72], skiV: 0,
   },
-  flight: {
-    legF: [0.05, 0, -0.05, -0.3, -0.42, -0.5], legB: [0.05, 0, -0.05, -0.3, -0.42, -0.5],
-    torso: [-0.42, -0.5, 0.52, -0.78],
-    arm1: [0.38, -0.72, -0.3, -0.5], arm2: [0.36, -0.68, -0.28, -0.46],
-    head: [0.72, -0.85], skiV: 1,
+  extend: { // explosives Abdrücken an der Kante: gestreckt nach oben-vorn
+    legF: [0.05, 0, 0.02, -0.35, -0.08, -0.68], legB: [0.05, 0, 0.02, -0.35, -0.08, -0.68],
+    torso: [-0.08, -0.68, 0.42, -0.92],
+    arm1: [0.3, -0.88, 0.56, -0.5], arm2: [0.28, -0.86, 0.5, -0.48],
+    head: [0.56, -1.05], skiV: 0.3,
+  },
+  flight: { // tiefe Flughaltung: Körper fast parallel flach über den Skiern
+    legF: [0.05, 0, -0.08, -0.17, -0.45, -0.3], legB: [0.05, 0, -0.08, -0.17, -0.45, -0.3],
+    torso: [-0.45, -0.3, 0.55, -0.48],
+    arm1: [0.4, -0.44, -0.32, -0.3], arm2: [0.38, -0.41, -0.3, -0.27],
+    head: [0.74, -0.53], skiV: 1,
   },
   telemark: {
     legF: [0.42, 0, 0.46, -0.36, 0.08, -0.58], legB: [-0.5, 0, -0.32, -0.26, 0.08, -0.58],
@@ -1331,13 +1345,21 @@ function drawHUD() {
     ctx.fillStyle = inCorr ? '#eafff3' : '#ffdfdf';
     roundRect(gx - 6, ny - 3, gw + 12, 6, 3);
     ctx.restore();
-    // Landefenster-Hinweis
+    // Landefenster-Hinweis: zweistufig – "Bereit…" beim Anflug, "JETZT!" im Telemark-Fenster
     if (Game.landingTap.windowOpen) {
-      ctx.globalAlpha = 0.55 + Math.sin(Game.time * 18) * 0.45;
-      ctx.fillStyle = '#ffd35c';
-      ctx.font = `900 ${23 * ui}px system-ui`;
+      const tta = Game.landingTap.tta;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('JETZT TIPPEN!', W / 2, H * 0.68);
+      if (tta > CONFIG.landingFlash) {
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `800 ${16 * ui}px system-ui`;
+        ctx.fillText('Bereit …', W / 2, H * 0.68);
+      } else {
+        ctx.globalAlpha = 0.6 + Math.sin(Game.time * 22) * 0.4;
+        ctx.fillStyle = '#ffd35c';
+        ctx.font = `900 ${30 * ui}px system-ui`;
+        ctx.fillText('JETZT!', W / 2, H * 0.68);
+      }
       ctx.globalAlpha = 1;
     }
   }
