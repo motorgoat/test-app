@@ -11,9 +11,7 @@
   html, body { height: 100%; overflow: hidden; background: #2b6cb8; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action: none;
          -webkit-user-select: none; user-select: none; }
-  /* Welt-Canvas: niedrig aufgelöst + pixelig hochskaliert (Retro-Look) */
-  #game { display: block; width: 100%; height: 100%; touch-action: none;
-          image-rendering: pixelated; image-rendering: crisp-edges; }
+  #game { display: block; width: 100%; height: 100%; touch-action: none; }
   /* HUD-Canvas: volle Auflösung, scharfe Texte, liegt über der Welt */
   #hud { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
@@ -144,9 +142,8 @@ const CONFIG = {
   // Allgemein
   gravity: 9.81,              // m/s²
   timestep: 1 / 240,          // fixe Physikrate (240 Hz → butterweich auch auf 120-Hz-Displays)
-  pixelSize: 3,               // Retro-Look: CSS-Pixel pro Art-Pixel (größer = klobiger)
-  pixelLevels: 7,             // Farbstufen pro Kanal (Posterisierung); 0 = aus
-  ditherAmount: 0.5,          // Breite der Dither-Übergänge zwischen Farbbändern (0..1)
+  pixelLevels: 0,             // Retro-Posterisierung (0 = aus → modernes Flat Design)
+  ditherAmount: 0.5,          // Breite der Dither-Übergänge (nur bei pixelLevels > 0)
 
   // Schanze (K90 / HS100)
   kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
@@ -211,10 +208,10 @@ const CONFIG = {
   fieldSize: 30,              // Starterfeld inkl. Spieler (für die Platzierung)
 
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
-  camGateView: 17,
-  camInrunView: 28,
-  camFlightMin: 21, camFlightMax: 42,
-  camOutrunView: 25,
+  camGateView: 15,
+  camInrunView: 25,
+  camFlightMin: 19, camFlightMax: 36,
+  camOutrunView: 22,
 };
 
 // ------------------------------------------------------------------ Utils
@@ -1077,11 +1074,9 @@ let W = 0, H = 0, DPR = 1, vignette = null;
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 3);
   W = window.innerWidth; H = window.innerHeight;
-  const P = CONFIG.pixelSize;
-  canvas.width = Math.ceil(W / P);
-  canvas.height = Math.ceil(H / P);
-  wctx.setTransform(1 / P, 0, 0, 1 / P, 0, 0);
-  wctx.imageSmoothingEnabled = false;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  wctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   hudCanvas.width = Math.round(W * DPR);
   hudCanvas.height = Math.round(H * DPR);
   hctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1108,8 +1103,8 @@ function updateCamera(dt) {
   } else if (Game.state === 'FLIGHT') {
     const surfY = S.x < 0 ? Hill.inrunAtX(S.x).y : Hill.groundAt(S.x).y;
     const hAbove = S.y - surfY;
-    vw = clamp(hAbove * 1.2 + 17, CONFIG.camFlightMin, CONFIG.camFlightMax);
-    tx = S.x + S.vx * 0.36; ty = S.y - hAbove * 0.42;
+    vw = clamp(hAbove * 1.05 + 14, CONFIG.camFlightMin, CONFIG.camFlightMax);
+    tx = S.x + S.vx * 0.34; ty = S.y - hAbove * 0.42;
   } else {
     vw = CONFIG.camOutrunView; tx = S.x + 5; ty = S.y + 2;
   }
@@ -1127,31 +1122,52 @@ function ridgeY(x, seed) {
   return Math.sin(x * 0.011 + seed) * 14 + Math.sin(x * 0.031 + seed * 2.3) * 6 + Math.sin(x * 0.005 + seed * 0.7) * 20;
 }
 function drawBackground() {
+  // Himmel: sanfter moderner Verlauf
   const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#1d5fae');
-  sky.addColorStop(0.45, '#4f97d6');
-  sky.addColorStop(1, '#cfe9fa');
+  sky.addColorStop(0, '#2a6cb8');
+  sky.addColorStop(0.5, '#5b9fda');
+  sky.addColorStop(1, '#d4ecfb');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
 
-  // Sonne mit Glow
-  const sx = W * 0.76, sy = H * 0.15, sr = Math.min(W, H) * 0.05;
-  const glow = ctx.createRadialGradient(sx, sy, sr * 0.4, sx, sy, sr * 4.5);
-  glow.addColorStop(0, 'rgba(255,244,200,0.85)');
-  glow.addColorStop(0.25, 'rgba(255,240,190,0.25)');
-  glow.addColorStop(1, 'rgba(255,240,190,0)');
-  ctx.fillStyle = glow; ctx.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
-  ctx.fillStyle = '#fff7d6';
+  // Flat-Sonne: Kern + zwei flache Halo-Ringe
+  const sx = W * 0.76, sy = H * 0.15, sr = Math.min(W, H) * 0.055;
+  ctx.fillStyle = 'rgba(255,244,200,0.10)';
+  ctx.beginPath(); ctx.arc(sx, sy, sr * 2.6, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,244,200,0.16)';
+  ctx.beginPath(); ctx.arc(sx, sy, sr * 1.7, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffe9a8';
   ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 7); ctx.fill();
 
-  // Wolken (leichte Parallax, fester Pixelfaktor → kein Schwimmen beim Zoomen)
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  for (const c of [[0.14, 0.16, 1.2], [0.48, 0.10, 0.8], [0.85, 0.26, 1.0]]) {
-    const cx = ((c[0] * W - cam.x * PAR_PX * 0.06) % (W + 260) + W + 260) % (W + 260) - 130;
-    const cy = c[1] * H, cw = c[2] * clamp(Math.min(W, H) / 420, 0.9, 1.5);
+  // Vögel: kleine animierte Schwingen-Silhouetten
+  ctx.strokeStyle = 'rgba(20,45,70,0.55)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for (const b of [[0.2, 0.20, 0], [0.28, 0.24, 2.1], [0.62, 0.12, 4.2]]) {
+    const bx = ((b[0] * W + Game.time * 9 - cam.x * PAR_PX * 0.05) % (W + 80) + W + 80) % (W + 80) - 40;
+    const by = b[1] * H + Math.sin(Game.time * 0.8 + b[2]) * 6;
+    const flap = Math.abs(Math.sin(Game.time * 5 + b[2])) * 4 + 1;
     ctx.beginPath();
-    ctx.ellipse(cx, cy, 44 * cw, 12 * cw, 0, 0, 7);
-    ctx.ellipse(cx + 26 * cw, cy - 8 * cw, 30 * cw, 11 * cw, 0, 0, 7);
-    ctx.ellipse(cx - 30 * cw, cy - 4 * cw, 26 * cw, 9 * cw, 0, 0, 7);
+    ctx.moveTo(bx - 6, by - flap * 0.5);
+    ctx.quadraticCurveTo(bx, by + flap * 0.5, bx, by);
+    ctx.quadraticCurveTo(bx, by + flap * 0.5, bx + 6, by - flap * 0.5);
+    ctx.stroke();
+  }
+
+  // Flat-Wolken: weiße Oberseite + hellblaue flache Unterseite
+  for (const c of [[0.14, 0.16, 1.3], [0.48, 0.10, 0.9], [0.85, 0.26, 1.1], [0.32, 0.32, 0.7]]) {
+    const cx = ((c[0] * W - cam.x * PAR_PX * 0.06) % (W + 300) + W + 300) % (W + 300) - 150;
+    const cy = c[1] * H, cw = c[2] * clamp(Math.min(W, H) / 400, 0.95, 1.6);
+    const r1 = 20 * cw, r2 = 15 * cw, r3 = 12 * cw;
+    // Unterseite (flacher Schattenton)
+    ctx.fillStyle = '#b9d9f2';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 5 * cw, 48 * cw, 9 * cw, 0, 0, 7);
+    ctx.fill();
+    // Oberseite aus runden Kuppen
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx - 22 * cw, cy, r3, 0, 7);
+    ctx.arc(cx - 4 * cw, cy - 8 * cw, r1, 0, 7);
+    ctx.arc(cx + 18 * cw, cy - 2 * cw, r2, 0, 7);
+    ctx.rect(cx - 30 * cw, cy - 1 * cw, 58 * cw, 7 * cw);
     ctx.fill();
   }
 
@@ -1202,11 +1218,18 @@ function drawHill() {
   ctx.moveTo(first.x, first.y);
   for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
   ctx.lineTo(last.x, H + 60); ctx.lineTo(first.x, H + 60); ctx.closePath();
-  const snow = ctx.createLinearGradient(0, 0, 0, H * 1.2);
-  snow.addColorStop(0, '#e8f2fb');
-  snow.addColorStop(0.55, '#d8e8f6');
-  snow.addColorStop(1, '#bcd4ea');
-  ctx.fillStyle = snow; ctx.fill();
+  ctx.fillStyle = '#d9e8f6'; ctx.fill();   // flacher Schneekörper
+  // flacher Schattenstreifen direkt unter der Oberflächenkante
+  ctx.beginPath();
+  ctx.moveTo(worldToScreen(Hill.prof[0].x, Hill.prof[0].y).x, worldToScreen(Hill.prof[0].x, Hill.prof[0].y).y);
+  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  for (let i = Hill.prof.length - 1; i >= 0; i -= 3) {
+    const p = Hill.prof[i];
+    const s = worldToScreen(p.x, p.y - 1.4);
+    ctx.lineTo(s.x, s.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#c3d9ee'; ctx.fill();
 
   // --- 2.5D-Oberflächenband: helle Schneefläche zwischen Nah- und Fernkante ---
   ctx.beginPath();
@@ -1349,6 +1372,72 @@ function drawTrees() {
     ctx.lineTo(p.x, p.y - h * 1.02);
     ctx.lineTo(p.x + h * 0.12, p.y - h * 0.92);
     ctx.stroke();
+  }
+}
+
+// Kampfrichterturm + Starthäuschen: flache, detailreiche Bauten
+function drawBuildings() {
+  // --- Kampfrichterturm neben dem Aufsprunghang (x ≈ 68) ---
+  {
+    const g = Hill.groundAt(68);
+    const p = worldToScreen(68 + DEPTH.x * 1.2, g.y + DEPTH.y * 1.2);
+    if (p.x > -80 && p.x < W + 80) {
+      const u = cam.ppm;
+      // Stelzen
+      ctx.strokeStyle = '#26374a'; ctx.lineWidth = Math.max(2, u * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(p.x - u * 1.0, p.y); ctx.lineTo(p.x - u * 1.0, p.y - u * 2.6);
+      ctx.moveTo(p.x + u * 1.0, p.y); ctx.lineTo(p.x + u * 1.0, p.y - u * 2.6);
+      ctx.stroke();
+      // Kanzel (zwei Etagen, flat)
+      ctx.fillStyle = '#31445c';
+      ctx.fillRect(p.x - u * 1.5, p.y - u * 5.6, u * 3, u * 3.1);
+      ctx.fillStyle = '#26374a';
+      ctx.fillRect(p.x - u * 1.5, p.y - u * 4.1, u * 3, u * 0.25);
+      // Fenster (Richterkabinen)
+      ctx.fillStyle = '#9fd8ff';
+      for (let i = 0; i < 3; i++)
+        ctx.fillRect(p.x - u * 1.2 + i * u * 1.0, p.y - u * 5.25, u * 0.75, u * 0.8);
+      ctx.fillRect(p.x - u * 1.2, p.y - u * 3.8, u * 2.65, u * 0.7);
+      // Dach + Antenne + Fahne
+      ctx.fillStyle = '#1d2c3d';
+      ctx.fillRect(p.x - u * 1.7, p.y - u * 5.95, u * 3.4, u * 0.4);
+      ctx.strokeStyle = '#1d2c3d'; ctx.lineWidth = Math.max(1.5, u * 0.08);
+      ctx.beginPath(); ctx.moveTo(p.x + u * 1.3, p.y - u * 5.95); ctx.lineTo(p.x + u * 1.3, p.y - u * 7.2); ctx.stroke();
+      const flap = Math.sin(Game.time * 5) * u * 0.12;
+      ctx.fillStyle = '#ff3d55';
+      ctx.beginPath();
+      ctx.moveTo(p.x + u * 1.3, p.y - u * 7.2);
+      ctx.lineTo(p.x + u * 2.1, p.y - u * 7.0 + flap);
+      ctx.lineTo(p.x + u * 1.3, p.y - u * 6.75);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  // --- Starthäuschen am Anlauf-Beginn ---
+  {
+    const top = Hill.inrunAt(0.5);
+    const p = worldToScreen(top.x - 0.4, top.y);
+    if (p.x > -80 && p.x < W + 80) {
+      const u = cam.ppm;
+      ctx.fillStyle = '#31445c';
+      ctx.fillRect(p.x - u * 2.4, p.y - u * 2.6, u * 2.4, u * 2.6);
+      ctx.fillStyle = '#9fd8ff';
+      ctx.fillRect(p.x - u * 1.9, p.y - u * 2.1, u * 1.1, u * 0.9);
+      // Schrägdach
+      ctx.fillStyle = '#1d2c3d';
+      ctx.beginPath();
+      ctx.moveTo(p.x - u * 2.7, p.y - u * 2.5);
+      ctx.lineTo(p.x + u * 0.3, p.y - u * 3.2);
+      ctx.lineTo(p.x + u * 0.3, p.y - u * 2.9);
+      ctx.lineTo(p.x - u * 2.7, p.y - u * 2.2);
+      ctx.closePath(); ctx.fill();
+      // Schneekante auf dem Dach
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, u * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(p.x - u * 2.7, p.y - u * 2.55);
+      ctx.lineTo(p.x + u * 0.3, p.y - u * 3.25);
+      ctx.stroke();
+    }
   }
 }
 
@@ -1735,7 +1824,7 @@ function pillRect(x, y, w, h) {
 
 function drawHUD() {
   const S = Game.skier;
-  const ui = clamp(Math.min(W, H) / 420, 0.9, 1.5);
+  const ui = clamp(Math.min(W, H) / 370, 0.95, 1.6);
   const pad = 14 * ui, ph = 30 * ui;
 
   // --- Wind-Pill (oben links): Pfeil + Wert ---
@@ -1989,6 +2078,7 @@ function frame(now) {
   drawBackground();
   drawHill();
   drawTrees();
+  drawBuildings();
   drawCrowd();
   drawFlag(Hill.xAtDistance(CONFIG.kPoint), '#ff3d55');
   drawFlag(Hill.xAtDistance(CONFIG.hillSize), '#35d0ff');
