@@ -946,6 +946,12 @@ const Game = {
                     + inp.angle * CONFIG.angleSpeed * dt
                     + CONFIG.pitchDrift * dt
                     + push * dt;
+        // STUNT: Wischen/Pfeiltasten geben zusätzlich direkten Auf-/Abtrieb –
+        // damit kann man den Sägeblättern aktiv ausweichen. Jedes Manöver
+        // kostet Tempo, sonst wäre Hochziehen ein Gratis-Weiten-Cheat.
+        const boost = inp.swipe * 0.05 + inp.angle * 10 * dt;
+        S.vy += boost;
+        S.vx -= Math.abs(boost) * 0.6;
         S.alphaCtl = clamp(S.alphaCtl, CONFIG.alphaMin, CONFIG.alphaMax);
         // Haptik: wenn der Wind an der Haltung reißt, vibriert das Handy
         if (F.time > 0.3 && Math.abs(push) > CONFIG.hapticMin) Haptics.gust(Math.abs(push));
@@ -1038,8 +1044,17 @@ const Game = {
         S.x = hip.x; S.y = hip.y;
         S.v = Ragdoll.speed();
         if (S.v > 3 && Math.random() < dt * 35) this.spray(1);
-        // Ergebnis sofort, sobald der Sturz kurz sichtbar war
-        if (this.state === 'OUTRUN' && this.outrunTimer > 1.0) this.showResult();
+        // STUNT: Die Weite zählt dort, wo die Puppe liegen bleibt –
+        // rutschen und purzeln bringt also noch Extrameter!
+        if (this.state === 'OUTRUN') {
+          this.result.dist = Math.max(this.result.dist,
+            Math.round(Hill.groundAt(clamp(S.x, 0, 460)).s * 2) / 2);
+          if ((S.v < 0.9 && this.outrunTimer > 1.2) || this.outrunTimer > 8) {
+            this.popup = { text: this.result.dist.toFixed(1).replace(".", ",") + " m",
+                           x: S.x, y: S.y + 2.5, t0: this.time, crashed: true };
+            this.showResult();
+          }
+        }
       } else {
         // erst ausfahren, dann kräftig in den Schneepflug bremsen und anhalten
         const braking = this.outrunTimer > 1.15;
@@ -1222,7 +1237,7 @@ const Game = {
     const dist = Math.round(g.s * 2) / 2;
     this.result = { dist, distPts: 0, stylePts: sorted[1] + sorted[2] + sorted[3], windPts: 0,
                     notes, total: 0, landing: 'Vom Sägeblatt erwischt!', crashed: true, wind: this.wind };
-    this.popup = { text: dist.toFixed(1).replace('.', ',') + ' m', x: S.x, y: S.y + 2.5, t0: this.time, crashed: true };
+    // kein Popup hier – die Weite zählt erst dort, wo die Ragdoll-Puppe liegen bleibt
     S.vx *= 0.35;
     S.vy = Math.max(S.vy, 2.5);
     this.state = 'OUTRUN';
