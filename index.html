@@ -222,6 +222,7 @@ const CONFIG = {
   windPitchH: 1.0,            // stetiger Horizontalwind drückt die Haltung (Grad/s pro m/s)
   windPitchV: 2.4,            // stetiger Auf-/Abwind drückt die Haltung (Grad/s pro m/s)
   windShakeMin: 3.5,          // ab diesem Störwert (Grad/s) zittert die Figur
+  jumpLockout: 3.0,           // Sekunden nach dem Abstoßen ohne Absprung (schützt vor Doppel-Tap)
   gateGreenDelay: 1.5,        // Sekunden bis die Startampel auf Grün springt
   startWindow: 10,            // Startfenster wie bei der FIS: 10 s nach Grün
   hapticMin: 5.0,             // ab diesem Störwert vibriert das Handy
@@ -261,10 +262,10 @@ const CONFIG = {
   recordPreset: 118,          // vorbesetzter Schanzenrekord – nur mit Ausnahme-Sprung zu knacken
 
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
-  camGateView: 15,
-  camInrunView: 25,
-  camFlightMin: 19, camFlightMax: 36,
-  camOutrunView: 22,
+  camGateView: 13.5,
+  camInrunView: 22,
+  camFlightMin: 17.5, camFlightMax: 36,
+  camOutrunView: 20,
 };
 
 // ------------------------------------------------------------------ Utils
@@ -739,6 +740,7 @@ const Game = {
     this.gustPhase = Math.random() * 100;
     this.wanderPhase = Math.random() * 100;
     this.gateTimer = 0;
+    this.inrunTimer = 0;
     // Windzonen entlang der Strecke: am Absprung gilt exakt der Basiswind,
     // am Hang und im Aufsprung weicht er in Stärke und Richtung ab.
     const zone = () => ({ fw: 0.72 + Math.random() * 0.62, fv: 0.72 + Math.random() * 0.62,
@@ -818,6 +820,7 @@ const Game = {
 
     // ---------- ANLAUF ----------
     else if (this.state === 'INRUN') {
+      this.inrunTimer += dt;
       const th = Hill.inrunAt(S.s).angle * D2R;
       const a = CONFIG.gravity * Math.sin(th)
               - CONFIG.inrunFriction * this.fricJit * CONFIG.gravity * Math.cos(th)
@@ -831,7 +834,9 @@ const Game = {
       // Absprung: JEDERZEIT und ÜBERALL möglich (DSJ-Stil) – der Springer hebt
       // sofort physisch ab. Nahe der Kante trägt der Sprung hinaus, weiter oben
       // landet er wieder auf der Spur und verliert Tempo und Haltung.
-      if (inp.tap && !this.takeoff.tapped) {
+      // Sprungsperre direkt nach dem Abstoßen: ungeduldige Taps (z.B. vom
+      // 'Nächster Sprung'-Button) lösen keinen sofortigen Absprung mehr aus
+      if (inp.tap && !this.takeoff.tapped && this.inrunTimer >= CONFIG.jumpLockout) {
         const T = this.takeoff;
         T.tapped = T.jumped = T.done = true;
         const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
@@ -1937,6 +1942,19 @@ function drawPrediction() {
   ctx.globalAlpha = 1;
 }
 
+// --- Ausrüstung: zentrale Optik-Konfiguration (Basis für den späteren Shop).
+// Anzug, Ski, Helm usw. sind reine Farb-/Form-Slots – ein Shop muss nur
+// dieses Objekt austauschen, das Spielermodell zieht alles hieraus.
+const OUTFIT = {
+  suit: '#ff4757', suitDark: '#d63447', trim: '#ffe3e6',   // Anzug + Zierstreifen
+  legs: '#22354a',                                          // Anzug-Beine
+  gloves: '#12212f',                                        // Handschuhe
+  helmet: '#f8fafc', helmetStripe: '#ff4757', visor: '#35d0ff',
+  ski: '#ffd23f', skiDark: '#e0a800', skiTip: '#ff4757',    // Ski + farbige Spitze
+  binding: '#12212f',
+  boots: '#1c2f42', bootClasp: '#ffd23f',                   // Schuhe + Schnallen
+};
+
 // --- Springer: Posen als Keypoints, weich ineinander überblendet ---
 // legF/legB: Bindung→Knie→Hüfte · torso: Hüfte→Schulter · arm1/arm2 · head · skiV: V-Stil 0..1
 const POSES = {
@@ -2026,11 +2044,12 @@ function drawSkier() {
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(-(S.body + jitter) * D2R);
-  ctx.scale(cam.ppm * 1.12, cam.ppm * 1.12); // Figur leicht größer
+  ctx.scale(cam.ppm * 1.24, cam.ppm * 1.24); // Figur deutlich größer (Shop-Details!)
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-  const SUIT = '#ff4757', SUIT_D = '#d63447', LEGS = '#22354a',
-        SKI = '#ffd23f', SKI_D = '#e0a800', OUT = '#12212f';
+  const O = OUTFIT;
+  const SUIT = O.suit, SUIT_D = O.suitDark, LEGS = O.legs,
+        SKI = O.ski, SKI_D = O.skiDark, OUT = '#12212f';
   // Gliedmaßen mit dunkler Kontur (Vektor-Look)
   const limb = (pts, color, w) => {
     ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
@@ -2039,33 +2058,61 @@ function drawSkier() {
     ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
   };
   const head = (hx, hy) => {
-    // Helm
-    ctx.fillStyle = '#f8fafc';
+    // Helm (etwas größer, Shop-Slot O.helmet)
+    ctx.fillStyle = O.helmet;
     ctx.strokeStyle = OUT; ctx.lineWidth = 0.05;
-    ctx.beginPath(); ctx.arc(hx, hy, 0.2, 0, 7); ctx.fill(); ctx.stroke();
-    // Visier (dunkler Keil in Blickrichtung)
-    ctx.fillStyle = '#35d0ff';
+    ctx.beginPath(); ctx.arc(hx, hy, 0.215, 0, 7); ctx.fill(); ctx.stroke();
+    // Visier (Blickrichtung)
+    ctx.fillStyle = O.visor;
     ctx.beginPath();
-    ctx.moveTo(hx + 0.03, hy - 0.11);
-    ctx.quadraticCurveTo(hx + 0.27, hy - 0.05, hx + 0.18, hy + 0.08);
+    ctx.moveTo(hx + 0.03, hy - 0.12);
+    ctx.quadraticCurveTo(hx + 0.29, hy - 0.05, hx + 0.19, hy + 0.09);
     ctx.lineTo(hx + 0.03, hy + 0.03);
     ctx.closePath(); ctx.fill();
-    // Helmstreifen
-    ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 0.05;
-    ctx.beginPath(); ctx.arc(hx, hy, 0.155, Math.PI * 0.75, Math.PI * 1.45); ctx.stroke();
+    ctx.strokeStyle = 'rgba(18,33,47,0.4)'; ctx.lineWidth = 0.025; ctx.stroke();
+    // Helmstreifen + Lüftungsschlitze
+    ctx.strokeStyle = O.helmetStripe; ctx.lineWidth = 0.055;
+    ctx.beginPath(); ctx.arc(hx, hy, 0.165, Math.PI * 0.75, Math.PI * 1.45); ctx.stroke();
+    ctx.strokeStyle = 'rgba(18,33,47,0.35)'; ctx.lineWidth = 0.022;
+    ctx.beginPath();
+    ctx.moveTo(hx - 0.13, hy - 0.10); ctx.lineTo(hx - 0.05, hy - 0.145);
+    ctx.moveTo(hx - 0.16, hy - 0.04); ctx.lineTo(hx - 0.08, hy - 0.085);
+    ctx.stroke();
   };
   const ski = (yOff, tipUp, color, xOff = 0) => { // Bindung hinter der Mitte, Fuß etwas weiter vorn
+    const ty = yOff - tipUp * 0.42;
     ctx.beginPath();
     ctx.moveTo(-0.97 + xOff, yOff);
-    ctx.lineTo(1.56 + xOff, yOff - tipUp * 0.42);
-    ctx.quadraticCurveTo(1.8 + xOff, yOff - tipUp * 0.42 - 0.02, 1.9 + xOff, yOff - tipUp * 0.42 - 0.17);
+    ctx.lineTo(1.56 + xOff, ty);
+    ctx.quadraticCurveTo(1.8 + xOff, ty - 0.02, 1.9 + xOff, ty - 0.17);
     ctx.strokeStyle = OUT; ctx.lineWidth = 0.21; ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = 0.14; ctx.stroke();
+    // farbige Skispitze (Shop-Slot O.skiTip)
+    ctx.beginPath();
+    ctx.moveTo(1.45 + xOff, ty + 0.005);
+    ctx.quadraticCurveTo(1.8 + xOff, ty - 0.02, 1.9 + xOff, ty - 0.17);
+    ctx.strokeStyle = O.skiTip; ctx.lineWidth = 0.13; ctx.stroke();
+    // feiner Belagstreifen
+    ctx.beginPath();
+    ctx.moveTo(-0.9 + xOff, yOff + 0.015);
+    ctx.lineTo(1.4 + xOff, ty + 0.015);
+    ctx.strokeStyle = 'rgba(18,33,47,0.28)'; ctx.lineWidth = 0.028; ctx.stroke();
   };
-  const boot = (bx, by) => {
-    ctx.fillStyle = OUT;
-    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - 0.1, by - 0.13, 0.26, 0.15, 0.04) : ctx.rect(bx - 0.1, by - 0.13, 0.26, 0.15);
-    ctx.fill();
+  const boot = (bx, by, dark = false) => {
+    // Bindung unter dem Schuh
+    ctx.fillStyle = O.binding;
+    ctx.fillRect(bx - 0.14, by - 0.035, 0.36, 0.05);
+    // Schuhkoerper
+    ctx.fillStyle = dark ? '#142434' : O.boots;
+    ctx.strokeStyle = OUT; ctx.lineWidth = 0.04;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - 0.11, by - 0.16, 0.3, 0.17, 0.045) : ctx.rect(bx - 0.11, by - 0.16, 0.3, 0.17);
+    ctx.fill(); ctx.stroke();
+    // Schnallen (Shop-Slot O.bootClasp)
+    ctx.strokeStyle = O.bootClasp; ctx.lineWidth = 0.028;
+    ctx.beginPath();
+    ctx.moveTo(bx - 0.04, by - 0.13); ctx.lineTo(bx + 0.1, by - 0.115);
+    ctx.moveTo(bx - 0.05, by - 0.07); ctx.lineTo(bx + 0.11, by - 0.055);
+    ctx.stroke();
   };
 
   {
@@ -2092,19 +2139,26 @@ function drawSkier() {
 
     ski(0.12, skiV * 0.07, SKI_D, -split * 0.34); // hinterer Ski zurück
     ski(0.0, skiV * 0.32, SKI, split * 0.52);     // vorderer Ski nach vorn
-    boot(legF[0] + split * 0.4 + 0.02, 0.0);       // Schuh vorn (Knöchel im Block)
+    boot(legB[0] - split * 0.3 + 0.02, 0.11, true); // hinterer Schuh (dunkler)
+    boot(legF[0] + split * 0.4 + 0.02, 0.0);        // vorderer Schuh
     limb(legB, LEGS, 0.15);
     limb(legF, LEGS, 0.17);
     limb(arm2, SUIT_D, 0.1);
+    // hinterer Handschuh
+    ctx.fillStyle = O.gloves;
+    ctx.beginPath(); ctx.arc(arm2[2], arm2[3], 0.07, 0, 7); ctx.fill();
     limb(torso, SUIT, 0.25);
-    // weißer Zierstreifen auf dem Anzug
-    ctx.globalAlpha = 0.6;
-    ctx.strokeStyle = '#ffe3e6'; ctx.lineWidth = 0.06;
+    // Zierstreifen auf dem Anzug (Shop-Slot O.trim)
+    ctx.globalAlpha = 0.65;
+    ctx.strokeStyle = O.trim; ctx.lineWidth = 0.06;
     ctx.beginPath(); ctx.moveTo(torso[0], torso[1] + 0.06); ctx.lineTo(torso[2], torso[3] + 0.06); ctx.stroke();
     ctx.globalAlpha = 1;
+    // Kragen am Anzug
+    ctx.strokeStyle = SUIT_D; ctx.lineWidth = 0.09;
+    ctx.beginPath(); ctx.moveTo(torso[2] - 0.05, torso[3] + 0.02); ctx.lineTo(torso[2] + 0.03, torso[3] - 0.02); ctx.stroke();
     limb(arm1, SUIT_D, 0.11);
-    // Handschuh
-    ctx.fillStyle = OUT;
+    // vorderer Handschuh
+    ctx.fillStyle = O.gloves;
     ctx.beginPath(); ctx.arc(arm1[2], arm1[3], 0.08, 0, 7); ctx.fill();
     head(hd[0], hd[1]);
   }
@@ -2124,13 +2178,13 @@ function drawRagdoll() {
   };
   ctx.lineCap = 'round';
   // Ski (frei fliegend)
-  line(K[0], K[1], '#ffd23f', 0.14);
-  line(K[2], K[3], '#e0a800', 0.14);
+  line(K[0], K[1], OUTFIT.ski, 0.14);
+  line(K[2], K[3], OUTFIT.skiDark, 0.14);
   // Beine, Torso, Arm
-  line(P[0], P[3], '#22354a', 0.17);
-  line(P[0], P[4], '#22354a', 0.15);
-  line(P[0], P[1], '#ff4757', 0.25);
-  line(P[1], P[5], '#d63447', 0.11);
+  line(P[0], P[3], OUTFIT.legs, 0.17);
+  line(P[0], P[4], OUTFIT.legs, 0.15);
+  line(P[0], P[1], OUTFIT.suit, 0.25);
+  line(P[1], P[5], OUTFIT.suitDark, 0.11);
   // Schuhe an den Füßen
   ctx.fillStyle = OUT;
   for (const f of [P[3], P[4]]) {
@@ -2140,10 +2194,10 @@ function drawRagdoll() {
   // Helm mit Visier
   const h = w2s(P[2]);
   const r = Math.max(3, 0.2 * cam.ppm * 1.12);
-  ctx.fillStyle = '#f8fafc';
+  ctx.fillStyle = OUTFIT.helmet;
   ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, 7); ctx.fill();
   ctx.strokeStyle = OUT; ctx.lineWidth = Math.max(1.5, 0.05 * cam.ppm); ctx.stroke();
-  ctx.fillStyle = '#35d0ff';
+  ctx.fillStyle = OUTFIT.visor;
   ctx.beginPath(); ctx.arc(h.x + r * 0.35, h.y, r * 0.45, -0.9, 0.9); ctx.fill();
 }
 
