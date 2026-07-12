@@ -199,6 +199,8 @@ const CONFIG = {
   pitchDrift: 3.0,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
   gustPitchFactor: 5.0,       // Böen stören alpha (Grad/s pro m/s Böenabweichung)
   gustPitchV: 8.0,            // vertikale Böen stören alpha zusätzlich
+  windPitchH: 1.0,            // stetiger Horizontalwind drückt die Haltung (Grad/s pro m/s)
+  windPitchV: 2.4,            // stetiger Auf-/Abwind drückt die Haltung (Grad/s pro m/s)
   windShakeMin: 3.5,          // ab diesem Störwert (Grad/s) zittert die Figur
   hapticMin: 5.0,             // ab diesem Störwert vibriert das Handy
   initAlpha: 9,               // Anstellwinkel unmittelbar nach dem Absprung
@@ -699,8 +701,13 @@ const Game = {
   // Neuer Sprung: Springer ans Gate, Wind auslosen – Start erst per Tap
   newJump() {
     this.state = 'GATE';
-    this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
-    this.windV = (Math.random() * 2 - 1) * CONFIG.windVertical;
+    // Windrichtung frei im Kreis: 0° = Rückenwind, 90° = Aufwind,
+    // 180° = Gegenwind, 270° = Abwind – und alles dazwischen.
+    // Vertikal elliptisch auf windVertical skaliert (Auf-/Abwind wirkt stärker pro m/s).
+    this.windAng = Math.random() * Math.PI * 2;
+    const wr = 0.25 + Math.random() * 0.75;
+    this.wind = Math.cos(this.windAng) * wr * CONFIG.windStrength;
+    this.windV = Math.sin(this.windAng) * wr * CONFIG.windVertical;
     this.gustPhase = Math.random() * 100;
     this.wanderPhase = Math.random() * 100;
     this.fricJit = 1 + (Math.random() * 2 - 1) * CONFIG.inrunFricJitter;
@@ -725,9 +732,11 @@ const Game = {
     const wander = Math.sin(this.time * 0.35 + this.wanderPhase) * CONFIG.windWander * CONFIG.windStrength;
     return this.wind * (1 + CONFIG.gustAmount * gust) + wander;
   },
-  // vertikaler Wind (Auf-/Abwind), leicht pulsierend
+  // vertikaler Wind (Auf-/Abwind), leicht pulsierend + eigenes Wandern –
+  // zusammen mit currentWind() dreht sich der Windvektor langsam im Kreis
   currentWindV() {
-    return (this.windV || 0) * (1 + 0.4 * Math.sin(this.time * 0.8 + this.gustPhase * 1.7));
+    const wander = Math.sin(this.time * 0.3 + this.wanderPhase * 1.3) * CONFIG.windWander * CONFIG.windVertical;
+    return (this.windV || 0) * (1 + 0.4 * Math.sin(this.time * 0.8 + this.gustPhase * 1.7)) + wander;
   },
 
   // ---------------- Physik-Update (fixer Timestep) ----------------
@@ -846,9 +855,14 @@ const Game = {
 
       if (!F.stance) {
         // Anstellwinkel-Steuerung: Wischen justiert alpha direkt, Drift + Böen stören.
-        // Der Wind schiebt die Fluglage aktiv weg – horizontal UND vertikal.
+        // Der Wind schiebt die Fluglage aktiv weg – horizontal UND vertikal:
+        // Böen (schnelle Abweichung) reißen kurz, der stetige Wind drückt dauerhaft:
+        // Gegenwind/Aufwind hebt die Spitze (alpha steigt), Rücken-/Abwind drückt sie runter.
+        const wvNow = this.currentWindV();
         const push = (gust - this.wind) * CONFIG.gustPitchFactor
-                   + (this.currentWindV() - this.windV) * CONFIG.gustPitchV;
+                   + (wvNow - this.windV) * CONFIG.gustPitchV
+                   + (-gust) * CONFIG.windPitchH
+                   + wvNow * CONFIG.windPitchV;
         F.windPush = push;
         S.alphaCtl += inp.swipe * CONFIG.swipeSensitivity
                     + inp.angle * CONFIG.angleSpeed * dt
@@ -1042,9 +1056,10 @@ const Game = {
     const sorted = [...notes].sort((a, b) => a - b);
     const stylePts = sorted[1] + sorted[2] + sorted[3];
 
-    // Windpunkte (FIS-Kompensation): Rückenwind wird gutgeschrieben,
-    // Gegenwind-Vorteil abgezogen
-    const windPts = Math.round(this.wind * CONFIG.windFactor * 10) / 10;
+    // Windpunkte (FIS-Kompensation): Rückenwind/Abwind wird gutgeschrieben,
+    // Gegenwind-/Aufwind-Vorteil abgezogen (vertikal wirkt stärker pro m/s)
+    const windEff = this.wind - this.windV * (CONFIG.windStrength / CONFIG.windVertical) * 0.8;
+    const windPts = Math.round(windEff * CONFIG.windFactor * 10) / 10;
 
     const total = Math.max(0, distPts + stylePts + windPts);
     this.result = { dist, distPts, stylePts, windPts, notes, total, landing, crashed, wind: this.wind };
@@ -1088,8 +1103,12 @@ const Game = {
   // Sturz durch Aufkommen auf der Anlaufspur (zu früher Sprung)
   crashOnRamp() {
     const S = this.skier;
-    this.result = { dist: 0, distPts: 0, flightPts: 0, landingPts: 0, total: 0,
-                    landing: 'Sturz im Anlauf', crashed: true, wind: this.wind, takeoffQ: this.takeoff.quality };
+    // gleiches Format wie bei touchdown(), sonst stolpert das Ergebnis-Board
+    const notes = [4.5, 5, 4.5, 5.5, 5].map(n => n + Math.round(Math.random() * 2) * 0.5);
+    const sorted = [...notes].sort((a, b) => a - b);
+    const stylePts = sorted[1] + sorted[2] + sorted[3];
+    this.result = { dist: 0, distPts: 0, stylePts, windPts: 0, notes, total: 0,
+                    landing: 'Sturz im Anlauf', crashed: true, wind: this.wind };
     this.popup = null;
     this.state = 'OUTRUN';
     this.outrunTimer = 0;
@@ -1127,6 +1146,7 @@ const Game = {
     this.roundTotals[this.round - 1] = r.total;
     r.rank = this.placement();
     // Streichresultate markieren (höchste + niedrigste Note)
+    if (!Array.isArray(r.notes) || r.notes.length !== 5) r.notes = [5, 5, 5, 5, 5];
     const min = Math.min(...r.notes), max = Math.max(...r.notes);
     r.dropA = r.notes.indexOf(min);
     r.dropB = r.notes.lastIndexOf(max);
@@ -1171,10 +1191,16 @@ const Game = {
   },
 };
 
-function windLabel(w) {
-  const abs = Math.abs(w).toFixed(1).replace('.', ',');
-  if (Math.abs(w) < 0.15) return 'windstill';
-  return w < 0 ? `${abs} m/s Gegenwind` : `${abs} m/s Rückenwind`;
+// Richtung des Windvektors (horizontal + vertikal) als Text, 8 Sektoren
+function windLabel(w, wv) {
+  const mag = Math.hypot(w, wv);
+  if (mag < 0.15) return 'windstill';
+  const names = ['Rückenwind', 'Rücken-/Aufwind', 'Aufwind', 'Gegen-/Aufwind',
+                 'Gegenwind', 'Gegen-/Abwind', 'Abwind', 'Rücken-/Abwind'];
+  // Winkel 0 = Rückenwind (+x), 90° = Aufwind; vertikal auf gleiche Skala normiert
+  const a = Math.atan2(wv / CONFIG.windVertical, w / CONFIG.windStrength);
+  const sec = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
+  return `${mag.toFixed(1).replace('.', ',')} m/s ${names[sec]}`;
 }
 
 // ------------------------------------------------------------------ Render
@@ -1492,14 +1518,7 @@ function drawHill() {
   ctx.beginPath();
   for (const p of ir) { const s = worldToScreen(p.x + IR_DEPTH.x * 0.5, p.y + IR_DEPTH.y * 0.5); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  // Startbalken direkt unter der Sitzposition des Springers
-  const gpos = Hill.inrunAt(CONFIG.gateOffset);
-  const gp = worldToScreen(gpos.x - 0.05, gpos.y + 0.56);
-  ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(2, cam.ppm * 0.16);
-  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.65, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.65, gp.y); ctx.stroke();
-  ctx.strokeStyle = '#16283c'; ctx.lineWidth = Math.max(1.5, cam.ppm * 0.08);
-  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.65, gp.y); ctx.lineTo(gp.x - cam.ppm * 0.65, gp.y + cam.ppm * 0.8);
-  ctx.moveTo(gp.x + cam.ppm * 0.65, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.65, gp.y + cam.ppm * 0.8); ctx.stroke();
+  drawStartBar();
   // Tischkante: rote Linie quer über die Spur + Markierung nach unten
   const e2 = worldToScreen(IR_DEPTH.x, IR_DEPTH.y);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(3, cam.ppm * 0.2);
@@ -1507,6 +1526,28 @@ function drawHill() {
   ctx.moveTo(edge.x, edge.y); ctx.lineTo(e2.x, e2.y);
   ctx.moveTo(edge.x, edge.y); ctx.lineTo(edge.x, edge.y + cam.ppm * 1.1);
   ctx.stroke();
+}
+
+// --- Startbalken: kompakter Sitzpfosten mit roter Sitzflaeche direkt
+// unter der Huefte des sitzenden Springers – klar geerdet, nichts schwebt.
+function drawStartBar() {
+  const gpos = Hill.inrunAt(CONFIG.gateOffset);
+  const th = gpos.angle * D2R;
+  const p = renToScreen(gpos.x + 0.06, gpos.y + 0.54);
+  ctx.save();
+  ctx.translate(p.x, p.y); ctx.rotate(th);
+  const bw = 0.46 * cam.ppm;
+  // Pfosten (hell genug fuer Band UND dunklen Schanzenkoerper)
+  ctx.fillStyle = '#3a5470';
+  ctx.fillRect(-bw * 0.55, 0, bw, 0.85 * cam.ppm);
+  ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045);
+  ctx.strokeRect(-bw * 0.55, 0, bw, 0.85 * cam.ppm);
+  // rote Sitzflaeche, ragt beidseitig etwas ueber
+  ctx.fillStyle = '#ff3d55';
+  const sw = bw * 1.45;
+  ctx.fillRect(-sw * 0.55, -0.12 * cam.ppm, sw, 0.14 * cam.ppm);
+  ctx.strokeRect(-sw * 0.55, -0.12 * cam.ppm, sw, 0.14 * cam.ppm);
+  ctx.restore();
 }
 
 // --- Weitenbeschriftungen (scharf auf dem HUD-Canvas) ---
@@ -2049,28 +2090,32 @@ function drawHUD() {
   const ui = clamp(Math.min(W, H) / 370, 0.95, 1.6);
   const pad = 14 * ui, ph = 30 * ui;
 
-  // --- Wind-Pill (oben links): Pfeil + Wert ---
-  const w = Game.currentWind();
-  const windW = 172 * ui;
+  // --- Wind-Pill (oben links): frei rotierender Pfeil + Wert ---
+  // Der Pfeil zeigt die Richtung der Luftbewegung im Kreis:
+  // ← Gegenwind, → Rückenwind, ↑ Aufwind, ↓ Abwind und alle Zwischenlagen.
+  const w = Game.currentWind(), wv = Game.currentWindV();
+  const wmag = Math.hypot(w, wv);
+  const windW = 186 * ui;
   pillRect(pad, pad, windW, ph);
-  const windCol = Math.abs(w) < 0.15 ? '#9fb8cc' : (w < 0 ? '#5cffa8' : '#ff7a7a');
-  // Pfeil (Richtung der Luftbewegung: → = Rückenwind, ← = Gegenwind)
+  // Farbe nach Nutzen: Gegenwind/Aufwind hilft (grün), Rücken-/Abwind schadet (rot)
+  const help = -w / CONFIG.windStrength + wv / CONFIG.windVertical;
+  const windCol = wmag < 0.15 ? '#9fb8cc' : (help > 0.12 ? '#5cffa8' : help < -0.12 ? '#ff7a7a' : '#ffd35c');
   const ax = pad + 18 * ui, ay = pad + ph / 2;
-  const dir = w >= 0 ? 1 : -1, alen = (6 + Math.abs(w) / CONFIG.windStrength * 8) * ui;
+  // Bildschirm: +x rechts (Rückenwind), +y unten → Aufwind zeigt nach oben
+  const wa = Math.atan2(-(wv / CONFIG.windVertical), w / CONFIG.windStrength);
+  const alen = (5 + Math.min(wmag / CONFIG.windStrength, 1.2) * 8) * ui;
+  ctx.save();
+  ctx.translate(ax, ay); ctx.rotate(wa);
   ctx.strokeStyle = windCol; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(ax - alen * dir, ay); ctx.lineTo(ax + alen * dir, ay);
-  ctx.moveTo(ax + (alen - 5 * ui) * dir, ay - 4 * ui); ctx.lineTo(ax + alen * dir, ay);
-  ctx.lineTo(ax + (alen - 5 * ui) * dir, ay + 4 * ui);
+  ctx.moveTo(-alen, 0); ctx.lineTo(alen, 0);
+  ctx.moveTo(alen - 5 * ui, -4 * ui); ctx.lineTo(alen, 0); ctx.lineTo(alen - 5 * ui, 4 * ui);
   ctx.stroke();
+  ctx.restore();
   ctx.fillStyle = '#fff';
   ctx.font = `700 ${13 * ui}px system-ui`;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  const wv = Game.currentWindV();
-  const vArrow = Math.abs(wv) > 0.25 ? (wv > 0 ? ' ↑' : ' ↓') : '';
-  const windTxt = (Math.abs(w) < 0.15 ? 'windstill'
-    : `${Math.abs(w).toFixed(1).replace('.', ',')} m/s ${w < 0 ? 'Gegenwind' : 'Rückenwind'}`) + vArrow;
-  ctx.fillText(windTxt, ax + 16 * ui, ay + 0.5);
+  ctx.fillText(windLabel(w, wv), ax + 16 * ui, ay + 0.5);
 
   // --- Tempo-Pill (zweite Zeile links – kollidiert nie mit der Best-Pill) ---
   if (Game.state === 'INRUN' || Game.state === 'FLIGHT' || Game.state === 'OUTRUN') {
@@ -2307,28 +2352,39 @@ function frame(now) {
     }
     Sound.wind(lvl, frq);
   }
-  // Welt-Ebene: niedrig aufgelöst, pixelig
-  ctx = wctx;
-  drawBackground();
-  drawHill();
-  drawTrees();
-  drawBuildings();
-  drawCrowd();
-  drawFlag(Hill.xAtDistance(CONFIG.kPoint), '#ff3d55');
-  drawFlag(Hill.xAtDistance(CONFIG.hillSize), '#35d0ff');
-  drawShadow();
-  drawTrail();
-  drawParticles();
-  drawFX();
-  drawSkier();
-  posterizeWorld();
-  // HUD-Ebene: volle Auflösung, scharfe Texte und Anzeigen
-  ctx = hctx;
-  ctx.clearRect(0, 0, W, H);
-  drawHillLabels();
-  drawPrediction();
-  ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
-  drawHUD();
+  // Zeichnen abgesichert: eine Exception mitten im Frame darf keine
+  // save()/clip()-Reste hinterlassen (das zerschoss früher dauerhaft das HUD)
+  try {
+    // Welt-Ebene: niedrig aufgelöst, pixelig
+    ctx = wctx;
+    drawBackground();
+    drawHill();
+    drawTrees();
+    drawBuildings();
+    drawCrowd();
+    drawFlag(Hill.xAtDistance(CONFIG.kPoint), '#ff3d55');
+    drawFlag(Hill.xAtDistance(CONFIG.hillSize), '#35d0ff');
+    drawShadow();
+    drawTrail();
+    drawParticles();
+    drawFX();
+    drawSkier();
+    posterizeWorld();
+    // HUD-Ebene: volle Auflösung, scharfe Texte und Anzeigen
+    ctx = hctx;
+    ctx.clearRect(0, 0, W, H);
+    drawHillLabels();
+    drawPrediction();
+    ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
+    drawHUD();
+  } catch (e) {
+    // Notbremse: Save-Stack beider Kontexte komplett leeren (restore über
+    // die Stacktiefe hinaus ist ein No-Op) und Basistransform wiederherstellen
+    for (let i = 0; i < 40; i++) { wctx.restore(); hctx.restore(); }
+    wctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    hctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (!frame.err) { frame.err = true; console.error('Renderfehler:', e); }
+  }
 }
 
 // ------------------------------------------------------------------ UI-Verdrahtung
