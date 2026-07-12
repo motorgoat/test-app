@@ -131,9 +131,9 @@
 <div id="startPanel" class="panel">
   <h1>ALPENFLUG <span style="color:#ffd35c">STUNT</span></h1>
   <div class="sub">STUNT-FLUG · WEICH DEN SÄGEBLÄTTERN AUS!</div>
-  <button id="startBtn">Wettkampf starten</button>
+  <button id="startBtn">SPRINGEN – so weit wie möglich!</button>
   <div class="menurow">
-    <button id="trainBtn" class="secondary">Training</button>
+    <button id="trainBtn" class="secondary" style="display:none">Training</button>
     <button id="tutBtn" class="secondary">Tutorial</button>
   </div>
   <div class="hint">Tippen: Start · Absprung · SKI ABSCHNALLEN!<br>Im Flug: Finger halten &amp; wischen – neuer Tipp = Landung.<br>Desktop: Leertaste + ↑ ↓ · M = Ton</div>
@@ -1087,7 +1087,7 @@ const Game = {
       if (this.state === 'RESULT') {
         const shown = clamp(Math.floor((this.outrunTimer - 1.0) / 0.35) + 1, 0, 5);
         if (shown > this.notesShown) { this.notesShown = shown; Sound.click(); }
-        if (!this.buttonShown && this.outrunTimer > 3.6) { this.buttonShown = true; show(nextBtn); }
+        if (!this.buttonShown && this.outrunTimer > 2.2) { this.buttonShown = true; show(nextBtn); }
       }
     }
 
@@ -1327,6 +1327,25 @@ const Game = {
     const r = this.result;
     this.roundTotals[this.round - 1] = r.total;
     r.rank = this.placement();
+    // STUNT: Es zählt NUR wie weit die Puppe kommt – Sturz ist der Normalfall
+    if (r.dist > this.record) {
+      const hadRecord = this.record > 0;
+      this.record = r.dist;
+      store.set(this.recordKey, String(r.dist));
+      r.isRecord = true;
+      if (hadRecord) {
+        this.showMsg('TAGESREKORD!', '#ffd35c', 2.2);
+        this.confetti(); this.confetti();
+        Sound.telemark(); Sound.perfect();
+      } else {
+        this.showMsg('Erste Tagesbestmarke!', '#5cffa8', 1.6);
+        this.confetti();
+      }
+    }
+    if (!this.best || r.dist > this.best.dist) {
+      this.best = { dist: r.dist, total: r.dist };
+      store.set('alpenflug_stunt_best', JSON.stringify(this.best));
+    }
     // Streichresultate markieren (höchste + niedrigste Note)
     if (!Array.isArray(r.notes) || r.notes.length !== 5) r.notes = [5, 5, 5, 5, 5];
     const min = Math.min(...r.notes), max = Math.max(...r.notes);
@@ -2659,67 +2678,24 @@ function drawHUD() {
     let y = clamp(sp.y + 60 * ui, 76 * ui, H - 190 * ui);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // 0) Weite – sofort und dauerhaft sichtbar
-    ctx.font = `900 ${30 * ui}px system-ui`;
-    ctx.strokeStyle = 'rgba(5,15,30,0.55)'; ctx.lineWidth = 5;
+    ctx.font = `900 ${38 * ui}px system-ui`;
+    ctx.strokeStyle = 'rgba(5,15,30,0.55)'; ctx.lineWidth = 6;
     const dTxt = r.dist.toFixed(1).replace('.', ',') + ' m';
     ctx.strokeText(dTxt, cx, y - 14 * ui);
-    ctx.fillStyle = r.crashed ? '#ff8a8a' : '#ffffff';
+    ctx.fillStyle = '#ffffff';
     ctx.fillText(dTxt, cx, y - 14 * ui);
     y += 22 * ui;
-    // 1) Jury-Noten nacheinander (Streichresultate werden dann abgedunkelt)
-    const cardW = 42 * ui, cardH = 27 * ui, gap = 5 * ui;
-    const row = 5 * cardW + 4 * gap;
-    const allShown = ot > 1.0 + 4 * 0.35 + 0.35;
-    for (let i = 0; i < 5; i++) {
-      const a = ot - (1.0 + i * 0.35);
-      if (a < 0) continue;
-      const pop = 1 + 0.35 * Math.max(0, 1 - a / 0.15);
-      const dropped = allShown && (i === r.dropA || i === r.dropB);
-      const x0 = cx - row / 2 + i * (cardW + gap) + cardW / 2;
-      ctx.save();
-      ctx.translate(x0, y + cardH / 2);
-      ctx.scale(pop, pop);
-      ctx.globalAlpha = dropped ? 0.35 : 1;
-      ctx.fillStyle = 'rgba(10,22,38,0.78)';
-      roundRect(-cardW / 2, -cardH / 2, cardW, cardH, 6 * ui);
-      ctx.strokeStyle = 'rgba(160,220,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = dropped ? '#8fa8bf' : '#ffffff';
-      ctx.font = `800 ${13 * ui}px system-ui`;
-      ctx.fillText(r.notes[i].toFixed(1).replace('.', ','), 0, 0.5);
-      if (dropped) {
-        ctx.strokeStyle = '#ff7a7a'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(-cardW * 0.32, 0); ctx.lineTo(cardW * 0.32, 0); ctx.stroke();
-      }
-      ctx.restore();
-    }
-    ctx.globalAlpha = 1;
-    // 2) Punkte + Platzierung
-    if (ot > 2.9) {
-      const fade = clamp((ot - 2.9) / 0.3, 0, 1);
-      ctx.globalAlpha = fade;
-      y += cardH + 26 * ui;
-      ctx.font = `900 ${24 * ui}px system-ui`;
+    // STUNT: nur die Weite zählt – plus Tagesrekord-Hinweis
+    if (ot > 1.6) {
+      ctx.globalAlpha = clamp((ot - 1.6) / 0.3, 0, 1);
+      y += 24 * ui;
+      ctx.font = `800 ${17 * ui}px system-ui`;
+      const recTxt = r.isRecord ? 'NEUER TAGESREKORD!'
+        : `Tagesrekord: ${Game.record.toFixed(1).replace('.', ',')} m`;
       ctx.strokeStyle = 'rgba(5,15,30,0.55)'; ctx.lineWidth = 4;
-      const ptsTxt = `${r.total.toFixed(1).replace('.', ',')} PUNKTE`;
-      ctx.strokeText(ptsTxt, cx, y);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(ptsTxt, cx, y);
-      y += 26 * ui;
-      if (Game.mode === 'comp') {
-        ctx.font = `800 ${16 * ui}px system-ui`;
-        const placeTxt = `${Game.round === 2 ? 'Endstand' : 'Zwischenstand'}: Platz ${r.rank} von ${CONFIG.fieldSize}`;
-        ctx.strokeText(placeTxt, cx, y);
-        ctx.fillStyle = '#ffd35c';
-        ctx.fillText(placeTxt, cx, y);
-      }
-      if (Game.round === 2 && r.sum != null) {
-        y += 22 * ui;
-        ctx.font = `700 ${13 * ui}px system-ui`;
-        const sumTxt = `Gesamt: ${r.sum.toFixed(1).replace('.', ',')} Punkte${r.record ? ' · NEUER REKORD!' : ''}`;
-        ctx.strokeText(sumTxt, cx, y);
-        ctx.fillStyle = r.record ? '#5cffa8' : '#cfe6f8';
-        ctx.fillText(sumTxt, cx, y);
-      }
+      ctx.strokeText(recTxt, cx, y);
+      ctx.fillStyle = r.isRecord ? '#5cffa8' : '#ffd35c';
+      ctx.fillText(recTxt, cx, y);
       ctx.globalAlpha = 1;
     }
   }
@@ -3022,7 +2998,7 @@ function startRun(mode) {
   Game.newJump();
   show(homeBtn);
 }
-document.getElementById('startBtn').addEventListener('click', () => startRun('comp'));
+document.getElementById('startBtn').addEventListener('click', () => startRun('train'));
 document.getElementById('trainBtn').addEventListener('click', () => startRun('train'));
 document.getElementById('tutBtn').addEventListener('click', () => {
   try { localStorage.removeItem('alpenflug_tut_v1'); } catch (e) {}
@@ -3047,7 +3023,7 @@ muteBtn.addEventListener('click', () => {
 window.addEventListener('keydown', e => {
   if ((e.key === ' ' || e.key === 'Enter') && Game.state === 'MENU') {
     e.preventDefault();
-    startRun('comp');
+    startRun('train');
   } else if ((e.key === ' ' || e.key === 'Enter') && Game.state === 'RESULT') {
     e.preventDefault();
     Game.advance();
