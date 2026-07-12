@@ -527,7 +527,7 @@ const Ragdoll = {
 // ------------------------------------------------------------------ Tutorial
 // Beim ersten Spiel: an Schlüsselmomenten pausieren, erklären, bei Tap weiter.
 const Tutorial = {
-  active: !store.get('alpenflug_tut_v1'),
+  active: false, // Tipps standardmäßig aus – Aktivierung über den Tutorial-Button im Menü
   step: 0,
   paused: false,
   card: null, // DOM-Refs werden unten verdrahtet
@@ -778,8 +778,8 @@ const Game = {
           this.rateTakeoff(T.quality, 'spät');
         } else if (T.lateTimer > CONFIG.lateWindow) {
           T.done = true;
-          // kein Absprung: Springer bleibt sichtbar in der Hocke und sackt nur langsam auf
-          this.setPose('flight', 0.7);
+          // kein Absprung: zügig trotzdem in die Flughaltung
+          this.setPose('flight', 0.45);
           this.rateTakeoff(0, 'keiner');
         }
       }
@@ -1734,11 +1734,11 @@ const POSES = {
     arm1: [0.35, -0.75, -0.32, -0.52], arm2: [0.33, -0.73, -0.3, -0.5],
     head: [0.74, -0.9], skiV: 0.3,
   },
-  flight: {
-    legF: [0.05, 0, -0.1, -0.16, -0.5, -0.26], legB: [0.05, 0, -0.1, -0.16, -0.5, -0.26],
-    torso: [-0.5, -0.26, 0.6, -0.5],
-    arm1: [0.25, -0.42, -0.6, -0.2], arm2: [0.23, -0.39, -0.58, -0.17],
-    head: [0.8, -0.56], skiV: 1,
+  flight: { // V-Stil: Beine gestreckt, Körper als gerade Linie ~16° über den Skiern
+    legF: [0.08, 0, -0.2, -0.12, -0.48, -0.24], legB: [0.08, 0, -0.2, -0.12, -0.48, -0.24],
+    torso: [-0.48, -0.24, 0.62, -0.55],
+    arm1: [0.28, -0.47, -0.55, -0.2], arm2: [0.26, -0.44, -0.53, -0.17],
+    head: [0.82, -0.62], skiV: 1,
   },
   telemark: { // Ausfallschritt: vorderer Ski deutlich vor, hinterer zurück
     legF: [0.42, 0, 0.46, -0.36, 0.08, -0.58], legB: [-0.5, 0, -0.32, -0.26, 0.08, -0.58],
@@ -1857,8 +1857,8 @@ function drawSkier() {
       skiV = clamp(skiV + dev * 0.9, -0.3, 1.8);
     }
 
-    ski(0.12, skiV * 0.05, SKI_D, -split * 0.34); // hinterer Ski zurück
-    ski(0.0, skiV * 0.25, SKI, split * 0.52);     // vorderer Ski nach vorn
+    ski(0.12, skiV * 0.07, SKI_D, -split * 0.34); // hinterer Ski zurück
+    ski(0.0, skiV * 0.32, SKI, split * 0.52);     // vorderer Ski nach vorn
     boot(legF[0], legF[1]);
     limb(legB, LEGS, 0.15);
     limb(legF, LEGS, 0.17);
