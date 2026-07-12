@@ -136,7 +136,7 @@
     <button id="trainBtn" class="secondary">Training</button>
     <button id="tutBtn" class="secondary">Tutorial</button>
   </div>
-  <div class="hint">Tippen: Start · Absprung · Landeposition.<br>Im Flug: Finger halten &amp; wischen – neuer Tipp = Landung.<br>Desktop: Leertaste + ↑ ↓ · M = Ton</div>
+  <div class="hint">Tippen: Start · Absprung · SKI ABSCHNALLEN!<br>Im Flug: Finger halten &amp; wischen – neuer Tipp = Landung.<br>Desktop: Leertaste + ↑ ↓ · M = Ton</div>
   <div class="best" id="startBest"></div>
 </div>
 
@@ -603,7 +603,7 @@ const Tutorial = {
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
       anim: 'tap', lbl: 'Tippen = Landung',
-      text: 'Landung: Jetzt loslassen und neu TIPPEN – der Springer geht sofort in die Landeposition. Zu früh kostet Weite, ohne Landeposition stürzt du!' },
+      text: 'Zweiter TIPP = Ski abschnallen und ein letzter Absprung in der Luft! Die Weite zählt dort, wo du liegen bleibst.' },
   ],
 
   update() {
@@ -708,6 +708,7 @@ const Game = {
   },
 
   obstacles: [],
+  freeSkis: [],
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
   particles: [],
@@ -744,6 +745,7 @@ const Game = {
     this.wanderPhase = Math.random() * 100;
     this.gateTimer = 0;
     this.inrunTimer = 0;
+    this.freeSkis = [];
     // Sägeblätter: auf Masten oder frei schwebend, Höhen im Flugfenster
     this.obstacles = [];
     for (let ox = 55; ox < 320; ox += 16 + Math.random() * 14) {
@@ -909,14 +911,17 @@ const Game = {
         }
       }
 
-      // DSJ-Landemechanik: kurzer TIPP (ohne Wischen) = SOFORT Landeposition.
-      // Kleine Schonfrist nach dem Absprung, damit der Griffwechsel nie landet.
-      if (inp.tapUp && T.done && !F.stance && S.x > 0 && F.time > 0.35) {
-        F.stanceTta = Math.min(this.landingTap.tta, 3); // Restflug-Schätzung merken
-        F.stance = true;
-        F.stanceT = this.time;
-        this.setPose('telemark', 0.28);
+      // STUNT: zweiter TIPP = Ski abschnallen und ein letzter Absprung in
+      // der Luft – danach segelt der Körper ohne Ski und die Weite zählt
+      // dort, wo die Puppe liegen bleibt.
+      if (inp.tapUp && T.done && !F.ejected && S.x > 0 && F.time > 0.35) {
+        F.ejected = true;
+        S.vy += 4.5; S.vx += 1.0;      // Abdruck von den Skiern
+        this.ejectSkis();
+        this.setPose('extend', 0.22);
+        this.showMsg('SKI ABGESCHNALLT!', '#ffd35c', 1.2);
         Sound.stance();
+        cam.shake = Math.max(cam.shake, 0.4);
       }
 
       // Nach der Streckung zügig in die tiefe Flughaltung absenken
@@ -970,8 +975,8 @@ const Game = {
       const aPos = Math.max(0, alpha) / 30;
       const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
       // In der Landeposition bricht der Auftrieb ein – zu früh = Weitenverlust
-      const lift = CONFIG.liftCoefficient * rv * rv * liftF * (F.stance ? CONFIG.stanceLift : 1);
-      const drag = CONFIG.dragCoefficient * rv * rv * dragF * (F.stance ? CONFIG.stanceDrag : 1);
+      const lift = CONFIG.liftCoefficient * rv * rv * liftF * (F.ejected ? 0.32 : 1);
+      const drag = CONFIG.dragCoefficient * rv * rv * dragF * (F.ejected ? 0.85 : 1);
       const ux = rvx / rv, uy = rvy / rv;
       S.vx += (-drag * ux - lift * uy) * dt;
       S.vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
@@ -1088,6 +1093,20 @@ const Game = {
 
     // Pose-Überblendung fortschreiben
     if (S.poseT < 1) S.poseT = Math.min(1, S.poseT + dt / S.poseDur);
+
+    // abgeschnallte Ski: fliegen weiter, trudeln und bleiben liegen
+    for (const k of this.freeSkis) {
+      if (k.rest) continue;
+      k.vy -= CONFIG.gravity * dt * 0.85;
+      k.vx *= (1 - 0.12 * dt);
+      k.x += k.vx * dt; k.y += k.vy * dt;
+      k.ang += k.spin * dt;
+      const kg = Hill.groundAt(Math.max(k.x, 0));
+      if (k.x > 0 && k.y <= kg.y + 0.06) {
+        k.y = kg.y + 0.06; k.rest = true;
+        k.ang = -kg.angle * D2R;
+      }
+    }
 
     // Partikel
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -1220,6 +1239,19 @@ const Game = {
       if (landing === 'Telemark!') Sound.telemark(); else Sound.landOk();
     }
     this.spray(crashed ? 40 : 18);
+  },
+
+  // Ski abschnallen: zwei freie Ski-Projektile, die liegen bleiben
+  ejectSkis() {
+    const S = this.skier;
+    for (const off of [-0.2, 0.2]) {
+      this.freeSkis.push({
+        x: S.x + off, y: S.y - 0.1,
+        vx: S.vx * 0.72 + (Math.random() - 0.5) * 1.2,
+        vy: S.vy - 1.8 + Math.random() * 1.2,
+        ang: -S.body * Math.PI / 180, spin: (Math.random() - 0.5) * 9, rest: false,
+      });
+    }
   },
 
   // aktuelle Höhe eines Hindernisses (Schweber pendeln auf und ab)
@@ -1988,6 +2020,18 @@ function drawObstacles() {
     ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045); ctx.stroke();
     ctx.restore();
   }
+  // abgeschnallte Ski
+  for (const k of Game.freeSkis || []) {
+    const p = renToScreen(k.x, k.y);
+    if (p.x < -70 || p.x > W + 70) continue;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(k.ang);
+    ctx.scale(cam.ppm, cam.ppm); ctx.lineCap = 'round';
+    ctx.strokeStyle = '#12212f'; ctx.lineWidth = 0.2;
+    ctx.beginPath(); ctx.moveTo(-1.2, 0); ctx.lineTo(1.2, 0); ctx.stroke();
+    ctx.strokeStyle = OUTFIT.ski; ctx.lineWidth = 0.13;
+    ctx.beginPath(); ctx.moveTo(-1.2, 0); ctx.lineTo(1.2, 0); ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function drawFlag(x, color) {
@@ -2338,8 +2382,10 @@ function drawSkier() {
       skiV = clamp(skiV + dev * 0.9, -0.3, 1.8);
     }
 
-    ski(0.12, skiV * 0.07, SKI_D, -split * 0.34); // hinterer Ski zurück
-    ski(0.0, skiV * 0.32, SKI, split * 0.52);     // vorderer Ski nach vorn
+    if (!Game.flight.ejected) {
+      ski(0.12, skiV * 0.07, SKI_D, -split * 0.34); // hinterer Ski zurück
+      ski(0.0, skiV * 0.32, SKI, split * 0.52);     // vorderer Ski nach vorn
+    }
     boot(legB[0] - split * 0.3 + 0.02, 0.11, true); // hinterer Schuh (dunkler)
     boot(legF[0] + split * 0.4 + 0.02, 0.0);        // vorderer Schuh
     // hinteres Bein (dunkler, wirkt weiter weg): Knöchel→Knie→Hüfte
@@ -2388,9 +2434,11 @@ function drawRagdoll() {
     ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, w * cam.ppm); ctx.stroke();
   };
   ctx.lineCap = 'round';
-  // Ski (frei fliegend)
-  line(K[0], K[1], OUTFIT.ski, 0.14);
-  line(K[2], K[3], OUTFIT.skiDark, 0.14);
+  // Ski (frei fliegend – entfallen, wenn schon abgeschnallt)
+  if (!Game.flight.ejected) {
+    line(K[0], K[1], OUTFIT.ski, 0.14);
+    line(K[2], K[3], OUTFIT.skiDark, 0.14);
+  }
   // Beine, Torso, Arm
   line(P[0], P[3], OUTFIT.legs, 0.17);
   line(P[0], P[4], OUTFIT.legs, 0.15);
