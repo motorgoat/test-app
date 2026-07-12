@@ -56,7 +56,15 @@
   .panel button:active { transform: translateY(1px); }
   .best { font-size: 13px; color: #ffd35c; margin-top: 12px; font-weight: 600; }
   .hint { font-size: 12px; color: #7ea8c9; margin-top: 10px; line-height: 1.5; }
+  .roundline { font-size: 14px; color: #9be8ff; font-weight: 700; margin: 2px 0 6px; }
   .hidden { display: none !important; }
+
+  #muteBtn {
+    position: fixed; left: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(120,200,255,.3); background: rgba(13,27,46,.72);
+    font-size: 18px; line-height: 1; color: #fff; z-index: 5;
+  }
 
   /* Tutorial-Karte (blockiert keine Taps – die gehen ans Canvas) */
   #tutCard {
@@ -85,7 +93,7 @@
   <h1>ALPENFLUG</h1>
   <div class="sub">K90 · HILLSIZE 100</div>
   <button id="startBtn">Spiel starten</button>
-  <div class="hint">Tippen: Start · Absprung · Landeposition.<br>Im Flug nach oben/unten wischen. Desktop: Leertaste + ↑ ↓</div>
+  <div class="hint">Tippen: Start · Absprung · Landeposition.<br>Im Flug: Finger halten &amp; wischen – neuer Tipp = Landung.<br>Desktop: Leertaste + ↑ ↓ · M = Ton</div>
   <div class="best" id="startBest"></div>
 </div>
 
@@ -98,11 +106,14 @@
     <div class="pill"><div class="v" id="pFlight">–</div><div class="k">Flug</div></div>
     <div class="pill"><div class="v" id="pLand">–</div><div class="k">Landung</div></div>
   </div>
-  <div class="total">Gesamt <b id="resTotal">–</b> Punkte</div>
+  <div class="total">Sprung <b id="resTotal">–</b> Punkte</div>
   <div class="windline"><span id="resLanding" class="rating"></span> · <span id="resWind"></span></div>
+  <div class="roundline" id="roundLine"></div>
   <button id="nextBtn">Nächster Sprung</button>
   <div class="best" id="resBest"></div>
 </div>
+
+<button id="muteBtn" title="Ton an/aus (M)">🔊</button>
 
 <!-- Interaktives Tutorial -->
 <div id="tutCard" class="hidden">
@@ -300,6 +311,7 @@ const Input = (() => {
 
   canvas.addEventListener('pointerdown', e => {
     e.preventDefault();
+    Sound.init();
     state.tap = true;
     state.pointerDown = true;
     lastY = e.clientY;
@@ -316,9 +328,11 @@ const Input = (() => {
 
   window.addEventListener('keydown', e => {
     if (e.repeat) return;
+    Sound.init();
     keys[e.key] = true;
     if (e.key === ' ' || e.key === 'Enter') state.tap = true;
     if (e.key === 'd' || e.key === 'D') Game.debug = !Game.debug;
+    if (e.key === 'm' || e.key === 'M') muteBtn.click();
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
 
@@ -334,6 +348,73 @@ const Input = (() => {
     return { tap, angle: a, swipe };
   }
   return { poll, state };
+})();
+
+// ------------------------------------------------------------------ Sound
+// Komplett synthetisiert (WebAudio): Windrauschen + kurze Effekt-Töne.
+const Sound = (() => {
+  let ac = null, master = null, windGain = null, windFilter = null;
+  let enabled = true;
+
+  function init() { // muss aus einer User-Geste heraus passieren
+    if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return; }
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
+    // Dauerschleife Rauschen → Bandpass → Gain (Wind)
+    const buf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    windFilter = ac.createBiquadFilter(); windFilter.type = 'bandpass';
+    windFilter.frequency.value = 500; windFilter.Q.value = 0.7;
+    windGain = ac.createGain(); windGain.gain.value = 0;
+    src.connect(windFilter).connect(windGain).connect(master);
+    src.start();
+  }
+
+  function wind(level, freq) {
+    if (!ac) return;
+    windGain.gain.setTargetAtTime(enabled ? level : 0, ac.currentTime, 0.12);
+    windFilter.frequency.setTargetAtTime(freq, ac.currentTime, 0.2);
+  }
+
+  function tone(freq, dur, { type = 'sine', vol = 0.25, slide = 0, delay = 0 } = {}) {
+    if (!ac || !enabled) return;
+    const t0 = ac.currentTime + delay;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g).connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+
+  function burst(dur, vol, freq, q = 1, delay = 0) { // Rausch-Impuls (Swoosh/Aufprall)
+    if (!ac || !enabled) return;
+    const t0 = ac.currentTime + delay;
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const n = ac.createBufferSource(); n.buffer = buf;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain(); g.gain.value = vol;
+    n.connect(f).connect(g).connect(master);
+    n.start(t0);
+  }
+
+  return {
+    init, wind,
+    click:    () => tone(700, 0.07, { type: 'triangle', vol: 0.14 }),
+    takeoff:  () => { burst(0.3, 0.5, 1200, 0.8); tone(280, 0.25, { type: 'triangle', vol: 0.2, slide: 320 }); },
+    perfect:  () => { tone(880, 0.12, { vol: 0.2, delay: 0.1 }); tone(1320, 0.2, { vol: 0.2, delay: 0.2 }); },
+    stance:   () => tone(520, 0.08, { type: 'triangle', vol: 0.18 }),
+    telemark: () => { tone(660, 0.12, { vol: 0.24 }); tone(990, 0.24, { vol: 0.24, delay: 0.1 }); burst(1.1, 0.22, 900, 0.5, 0.15); },
+    landOk:   () => { tone(520, 0.16, { vol: 0.2 }); burst(0.6, 0.16, 800, 0.6, 0.05); },
+    crash:    () => { tone(90, 0.4, { type: 'sawtooth', vol: 0.32, slide: -50 }); burst(0.5, 0.5, 300, 0.6); },
+    toggle()  { enabled = !enabled; if (ac && !enabled) windGain.gain.setTargetAtTime(0, ac.currentTime, 0.05); return enabled; },
+  };
 })();
 
 // ------------------------------------------------------------------ Ragdoll
@@ -433,11 +514,11 @@ const Tutorial = {
     { id: 'flight',
       when: () => Game.state === 'FLIGHT' && Game.flight.time > 0.45,
       pause: true,
-      text: 'Flug: Wische nach oben = aufrichten, nach unten = Vorlage. Halte die Nadel im grünen Korridor!' },
+      text: 'Flug: Finger GEDRÜCKT HALTEN und hoch/runter wischen, um die Lage zu justieren. Nicht loslassen und neu tippen – das löst die Landung aus!' },
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
-      text: 'Landung: Tippe ein zweites Mal, dann geht der Springer SOFORT in die Landeposition. Zu früh kostet Weite – ohne Landeposition stürzt du!' },
+      text: 'Landung: Jetzt loslassen und neu TIPPEN – der Springer geht sofort in die Landeposition. Zu früh kostet Weite, ohne Landeposition stürzt du!' },
   ],
 
   update() {
@@ -499,6 +580,11 @@ const Game = {
   landingTap: { windowOpen: false, tta: 99 },
   result: null,
   best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
+  bestComp: parseFloat(store.get('alpenflug_best_comp') || '0') || 0,
+
+  // Wettkampf: 2 Durchgänge, Gesamtwertung
+  round: 1,
+  roundTotals: [],
 
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
@@ -562,6 +648,7 @@ const Game = {
         this.state = 'INRUN';
         this.setPose('crouch', 0.35);
         this.showMsg('LOS!', '#9be8ff', 0.7);
+        Sound.click();
       }
     }
 
@@ -598,6 +685,8 @@ const Game = {
         this.state = 'FLIGHT';
         this.ring(tte <= CONFIG.perfectWindow ? '#5cffa8' : tte <= 0.15 ? '#b9f6ca' : '#ffb74d');
         this.spray(8);
+        Sound.takeoff();
+        if (tte <= CONFIG.perfectWindow) Sound.perfect();
         this.rateTakeoff(T.quality, tte <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
       }
 
@@ -639,6 +728,7 @@ const Game = {
         F.stance = true;
         F.stanceT = this.time;
         this.setPose('telemark', 0.28);
+        Sound.stance();
       }
 
       // Nach der Streckung zügig in die tiefe Flughaltung absenken
@@ -824,12 +914,14 @@ const Game = {
       Ragdoll.start(S);          // echter Ragdoll-Sturz
       S.y = g.y;
       this.showMsg('STURZ!', '#ff5252', 1.8);
+      Sound.crash();
     } else {
       const vTang = S.vx * Math.cos(th) - S.vy * Math.sin(th);
       S.v = Math.max(3, vTang);
       S.y = g.y;
       this.setPose(landing === 'Telemark!' ? 'telemark' : 'landed', 0.15);
       this.showMsg(landing, landing === 'Telemark!' ? '#5cffa8' : '#fff', 1.4);
+      if (landing === 'Telemark!') Sound.telemark(); else Sound.landOk();
     }
     this.spray(crashed ? 40 : 18);
   },
@@ -845,6 +937,7 @@ const Game = {
     S.crash = true;
     Ragdoll.start(S);
     this.showMsg('STURZ!', '#ff5252', 1.6);
+    Sound.crash();
     this.spray(28);
   },
 
@@ -869,7 +962,8 @@ const Game = {
     this.state = 'RESULT';
     Tutorial.finish();
     const r = this.result;
-    resTitle.textContent = r.crashed ? 'Gestürzt' : 'Sprungweite';
+    this.roundTotals[this.round - 1] = r.total;
+    resTitle.textContent = r.crashed ? `Gestürzt · ${this.round}. Durchgang` : `${this.round}. Durchgang`;
     resDist.textContent = r.dist.toFixed(1).replace('.', ',') + ' m';
     pDist.textContent = r.distPts.toFixed(1);
     pFlight.textContent = r.flightPts.toFixed(1);
@@ -877,9 +971,30 @@ const Game = {
     resTotal.textContent = r.total.toFixed(1);
     resLanding.textContent = r.landing;
     resWind.textContent = 'Wind: ' + windLabel(r.wind);
-    resBest.textContent = this.best
-      ? `Bestleistung: ${this.best.dist.toFixed(1).replace('.', ',')} m · ${this.best.total.toFixed(1)} Pkt.` : '';
+    if (this.round === 1) {
+      roundLine.textContent = '';
+      nextBtn.textContent = '2. Durchgang';
+    } else {
+      const t1 = this.roundTotals[0] || 0, sum = t1 + r.total;
+      roundLine.textContent = `Wettkampf: ${t1.toFixed(1)} + ${r.total.toFixed(1)} = ${sum.toFixed(1)} Punkte`;
+      nextBtn.textContent = 'Neuer Wettkampf';
+      if (sum > this.bestComp) {
+        this.bestComp = sum;
+        store.set('alpenflug_best_comp', String(sum));
+        roundLine.textContent += ' · NEUER REKORD!';
+      }
+    }
+    resBest.textContent = (this.best
+      ? `Bester Sprung: ${this.best.dist.toFixed(1).replace('.', ',')} m · ${this.best.total.toFixed(1)} Pkt.` : '')
+      + (this.bestComp ? ` · Bester Wettkampf: ${this.bestComp.toFixed(1)}` : '');
     show(resultPanel);
+  },
+
+  // Weiter nach dem Ergebnis: Durchgang 2 oder neuer Wettkampf
+  advance() {
+    if (this.state === 'RESULT' && this.round === 1 && this.roundTotals[0] != null) this.round = 2;
+    else { this.round = 1; this.roundTotals = []; }
+    this.newJump();
   },
 };
 
@@ -1548,7 +1663,7 @@ function drawHUD() {
     ctx.fillText(`${(spd * 3.6).toFixed(0)} km/h`, px + pw / 2, pad + ph / 2 + 0.5);
   }
 
-  // --- Best-Pill (oben rechts) ---
+  // --- Best-Pill (oben rechts) + Durchgangs-Anzeige darunter ---
   if (Game.best) {
     const bw = 112 * ui;
     pillRect(W - bw - pad, pad, bw, ph);
@@ -1556,6 +1671,14 @@ function drawHUD() {
     ctx.font = `700 ${13 * ui}px system-ui`;
     ctx.textAlign = 'center';
     ctx.fillText(`★ ${Game.best.dist.toFixed(1).replace('.', ',')} m`, W - bw / 2 - pad, pad + ph / 2 + 0.5);
+  }
+  {
+    const rw = 74 * ui, ry = pad + ph + 6 * ui;
+    pillRect(W - rw - pad, ry, rw, 24 * ui);
+    ctx.fillStyle = '#9be8ff';
+    ctx.font = `800 ${11 * ui}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`DG ${Game.round}/2`, W - rw / 2 - pad, ry + 12 * ui + 0.5);
   }
 
   // --- zentrale Meldung mit Pop ---
@@ -1676,6 +1799,20 @@ function frame(now) {
     acc -= CONFIG.timestep;
   }
   updateCamera(dt);
+  // Wind-Sound: Pegel und Frequenz folgen Tempo und Phase
+  {
+    const S = Game.skier;
+    let lvl = 0.02, frq = 400;
+    if (Game.state === 'FLIGHT') {
+      const spd = Math.hypot(S.vx, S.vy);
+      lvl = clamp((spd - 10) / 45, 0, 1) * 0.32;
+      frq = 380 + spd * 9;
+    } else if (Game.state === 'INRUN' || Game.state === 'OUTRUN') {
+      lvl = clamp(S.v / 26, 0, 1) * 0.18;
+      frq = 280 + S.v * 7;
+    }
+    Sound.wind(lvl, frq);
+  }
   drawBackground();
   drawHill();
   drawTrees();
@@ -1711,12 +1848,19 @@ const tutGo = document.getElementById('tutGo');
 const show = el => el.classList.remove('hidden');
 const hide = el => el.classList.add('hidden');
 
-document.getElementById('startBtn').addEventListener('click', () => Game.newJump());
-document.getElementById('nextBtn').addEventListener('click', () => Game.newJump());
+const nextBtn = document.getElementById('nextBtn');
+const roundLine = document.getElementById('roundLine');
+const muteBtn = document.getElementById('muteBtn');
+document.getElementById('startBtn').addEventListener('click', () => { Sound.init(); Sound.click(); Game.advance(); });
+nextBtn.addEventListener('click', () => { Sound.init(); Sound.click(); Game.advance(); });
+muteBtn.addEventListener('click', () => {
+  Sound.init();
+  muteBtn.textContent = Sound.toggle() ? '🔊' : '🔇';
+});
 window.addEventListener('keydown', e => {
   if ((e.key === ' ' || e.key === 'Enter') && (Game.state === 'MENU' || Game.state === 'RESULT')) {
     e.preventDefault();
-    Game.newJump();
+    Game.advance();
   }
 });
 if (Game.best)
