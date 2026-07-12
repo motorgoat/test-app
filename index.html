@@ -1601,7 +1601,7 @@ function drawHill() {
   ctx.beginPath();
   for (const p of ir) { const s = worldToScreen(p.x + IR_DEPTH.x * 0.5, p.y + IR_DEPTH.y * 0.5); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  drawStartBar();
+  drawStartBar('back');
   // Tischkante: rote Linie quer über die Spur + Markierung nach unten
   const e2 = worldToScreen(IR_DEPTH.x, IR_DEPTH.y);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(3, cam.ppm * 0.2);
@@ -1611,25 +1611,34 @@ function drawHill() {
   ctx.stroke();
 }
 
-// --- Startbalken: kompakter Sitzpfosten mit roter Sitzflaeche direkt
-// unter der Huefte des sitzenden Springers – klar geerdet, nichts schwebt.
-function drawStartBar() {
+// --- Startbank in zwei Ebenen: Pfosten HINTER dem Springer, Sitzfläche als
+// vordere Schiene NACH dem Springer gezeichnet – so liegen die Ski sichtbar
+// hinter der Bank und nichts ragt durch.
+function drawStartBar(stage) {
   const gpos = Hill.inrunAt(CONFIG.gateOffset);
   const th = gpos.angle * D2R;
   const p = renToScreen(gpos.x + 0.06, gpos.y + 0.54);
   ctx.save();
   ctx.translate(p.x, p.y); ctx.rotate(th);
   const bw = 0.46 * cam.ppm;
-  // Pfosten (hell genug fuer Band UND dunklen Schanzenkoerper)
-  ctx.fillStyle = '#3a5470';
-  ctx.fillRect(-bw * 0.55, 0, bw, 0.85 * cam.ppm);
-  ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045);
-  ctx.strokeRect(-bw * 0.55, 0, bw, 0.85 * cam.ppm);
-  // rote Sitzflaeche, ragt beidseitig etwas ueber
-  ctx.fillStyle = '#ff3d55';
-  const sw = bw * 1.45;
-  ctx.fillRect(-sw * 0.55, -0.12 * cam.ppm, sw, 0.14 * cam.ppm);
-  ctx.strokeRect(-sw * 0.55, -0.12 * cam.ppm, sw, 0.14 * cam.ppm);
+  if (stage === 'back') {
+    // Pfosten + Sitzfläche (hinter dem Springer)
+    ctx.fillStyle = '#3a5470';
+    ctx.fillRect(-bw * 0.55, 0, bw, 0.85 * cam.ppm);
+    ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045);
+    ctx.strokeRect(-bw * 0.55, 0, bw, 0.85 * cam.ppm);
+    const sw = bw * 1.5;
+    ctx.fillStyle = '#ff3d55';
+    ctx.fillRect(-sw * 0.55, -0.12 * cam.ppm, sw, 0.15 * cam.ppm);
+    ctx.strokeRect(-sw * 0.55, -0.12 * cam.ppm, sw, 0.15 * cam.ppm);
+  } else {
+    // untere Pfostenhälfte NACH dem Springer: verdeckt das Ski-Heck,
+    // das die Bank kreuzt – die Ski liegen damit sichtbar HINTER der Bank
+    ctx.fillStyle = '#3a5470';
+    ctx.fillRect(-bw * 0.55, 0.38 * cam.ppm, bw, 0.47 * cam.ppm);
+    ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045);
+    ctx.strokeRect(-bw * 0.55, 0.38 * cam.ppm, bw, 0.47 * cam.ppm);
+  }
   ctx.restore();
 }
 
@@ -2789,7 +2798,9 @@ function frame(now) {
     drawTrail();
     drawParticles();
     drawFX();
-    drawSkier();
+      drawSkier();
+    if (Game.state === 'MENU' || Game.state === 'GATE'
+        || (Game.state === 'INRUN' && Game.skier.s < CONFIG.gateOffset + 6)) drawStartBar('front');
     posterizeWorld();
     // HUD-Ebene: volle Auflösung, scharfe Texte und Anzeigen
     ctx = hctx;
