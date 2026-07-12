@@ -709,6 +709,7 @@ const Game = {
 
   obstacles: [],
   freeSkis: [],
+  features: [],
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
   particles: [],
@@ -756,6 +757,17 @@ const Game = {
         bobSpd: 0.6 + Math.random() * 0.9, phase: Math.random() * 7,
         spin: (Math.random() < 0.5 ? -1 : 1) * (2.5 + Math.random() * 3.5), hit: false,
       });
+    }
+    // Boden-Spass: Gräben, Wassergräben mit Krokodilen, Trampoline, Feuerringe
+    this.features = [];
+    let fx2 = 78 + Math.random() * 18;
+    while (fx2 < 315) {
+      const roll = Math.random();
+      if (roll < 0.28) this.features.push({ type: 'pit', x: fx2, w: 5 + Math.random() * 4, got: false });
+      else if (roll < 0.56) this.features.push({ type: 'water', x: fx2, w: 9 + Math.random() * 5, got: false, chomp: 0 });
+      else if (roll < 0.8) this.features.push({ type: 'tramp', x: fx2, w: 4.2, boing: -9 });
+      else this.features.push({ type: 'fire', x: fx2, w: 0, h: 3.5 + Math.random() * 5.5, r: 2.1 + Math.random() * 0.7, used: false });
+      fx2 += 26 + Math.random() * 26;
     }
     // Windzonen entlang der Strecke: am Absprung gilt exakt der Basiswind,
     // am Hang und im Aufsprung weicht er in Stärke und Richtung ab.
@@ -993,6 +1005,18 @@ const Game = {
           break;
         }
       }
+      // Feuerring: durchfliegen gibt einen Feuer-Boost!
+      for (const f of this.features) {
+        if (f.type !== 'fire' || f.used || Math.abs(S.x - f.x) > 1.0) continue;
+        const fg = Hill.groundAt(f.x);
+        if (Math.abs(S.y - (fg.y + f.h)) < f.r * 0.55) {
+          f.used = true;
+          S.vx += 3.5; S.vy += 0.8;
+          this.showMsg('FEUER-BOOST!', '#ff9d3c', 1.0);
+          this.ring('#ff9d3c');
+          Sound.perfect();
+        }
+      }
       if (this.state !== 'FLIGHT') return; // nach Treffer sofort raus
 
       // Haltungsnote: nur die aktive Flugphase zählt.
@@ -1034,7 +1058,18 @@ const Game = {
           // zu früh gesprungen und auf der Rampe aufgekommen → Sturz (DSJ-Stil)
           this.crashOnRamp();
         } else if (F.time > 0.1) {
-          this.touchdown(surf);
+          const tf = this.featureAtX(S.x);
+          if (tf && tf.type === 'tramp') {
+            // Trampolin: zurück in die Luft statt Landung!
+            S.y = surf.y + 0.02;
+            S.vy = Math.max(6.5, -S.vy * 0.7 + 2.5);
+            tf.boing = this.time;
+            this.showMsg('BOING!', '#5cffa8', 0.8);
+            this.ring('#5cffa8');
+            Sound.telemark();
+          } else {
+            this.touchdown(surf);
+          }
         }
       }
     }
@@ -1052,6 +1087,8 @@ const Game = {
         // STUNT: Die Weite zählt dort, wo die Puppe liegen bleibt –
         // rutschen und purzeln bringt also noch Extrameter!
         if (this.state === 'OUTRUN') {
+          const feat = this.featureAtX(S.x);
+          if (feat) this.applyFeatureToRagdoll(feat, dt);
           this.result.dist = Math.max(this.result.dist,
             Math.round(Hill.groundAt(clamp(S.x, 0, 460)).s * 2) / 2);
           if ((S.v < 0.9 && this.outrunTimer > 1.2) || this.outrunTimer > 8) {
@@ -1239,6 +1276,39 @@ const Game = {
       if (landing === 'Telemark!') Sound.telemark(); else Sound.landOk();
     }
     this.spray(crashed ? 40 : 18);
+  },
+
+  // Boden-Feature an Position x (Graben / Wasser / Trampolin)
+  featureAtX(x) {
+    for (const f of this.features) if (f.w && x > f.x && x < f.x + f.w) return f;
+    return null;
+  },
+
+  // Wirkung der Boden-Features auf die rutschende Ragdoll-Puppe
+  applyFeatureToRagdoll(f, dt) {
+    const damp = (k) => {
+      for (const p of Ragdoll.pts) {
+        p.px = p.x - (p.x - p.px) * k;
+        p.py = p.y - (p.y - p.py) * k;
+      }
+    };
+    if (f.type === 'pit') {
+      if (!f.got) { f.got = true; this.showMsg('IM GRABEN VERSENKT!', '#ffd35c', 1.6); Sound.crash(); }
+      damp(0.6);                       // der Graben schluckt die Puppe
+    } else if (f.type === 'water') {
+      if (!f.got) { f.got = true; f.chomp = this.time; this.showMsg('KROKODIL-FUTTER!', '#5cffa8', 1.6); this.spray(20); Sound.crash(); }
+      damp(0.93);                      // Wasser bremst hart
+      if (Math.random() < dt * 40) this.spray(2);
+    } else if (f.type === 'tramp') {
+      const hip = Ragdoll.pts[0];
+      const falling = (hip.y - hip.py) < 0;
+      if (falling && this.time - (f.boing || 0) > 0.4) {
+        f.boing = this.time;
+        for (const p of Ragdoll.pts) { const dy = p.y - p.py; p.py = p.y + dy * 0.75 - 0.03; }
+        this.showMsg('BOING!', '#5cffa8', 0.7);
+        Sound.telemark();
+      }
+    }
   },
 
   // Ski abschnallen: zwei freie Ski-Projektile, die liegen bleiben
@@ -2000,8 +2070,114 @@ function drawCrowd() {
   }
 }
 
+// --- Boden-Features: Gräben, Wasser mit Krokodilen, Trampoline, Feuerringe ---
+function drawFeatures() {
+  for (const f of Game.features || []) {
+    const g0 = Hill.groundAt(f.x);
+    if (f.type === 'fire') {
+      const p = renToScreen(f.x, g0.y + f.h);
+      const rr = f.r * 0.55 * cam.ppm;
+      if (p.x < -rr - 60 || p.x > W + rr + 60) continue;
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * Math.PI * 2 + Game.time * 1.6;
+        const fl = 1 + 0.45 * Math.sin(Game.time * 9 + i * 2.3);
+        ctx.fillStyle = i % 2 ? '#ff9d3c' : '#ff5e3c';
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(a) * rr * 0.92, p.y + Math.sin(a) * rr * 0.92);
+        ctx.lineTo(p.x + Math.cos(a + 0.28) * rr * (1.15 + 0.25 * fl), p.y + Math.sin(a + 0.28) * rr * (1.15 + 0.25 * fl));
+        ctx.lineTo(p.x + Math.cos(a + 0.55) * rr * 0.92, p.y + Math.sin(a + 0.55) * rr * 0.92);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.strokeStyle = '#ffd35c'; ctx.lineWidth = Math.max(2, rr * 0.14);
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.9, 0, 7); ctx.stroke();
+      continue;
+    }
+    const g1 = Hill.groundAt(f.x + f.w);
+    const a = renToScreen(f.x, g0.y), b = renToScreen(f.x + f.w, g1.y);
+    if (b.x < -60 || a.x > W + 60) continue;
+    if (f.type === 'pit') {
+      // Loch im Schneeband: von der Springer-Linie zur nahen Bandkante
+      const C = worldToScreen(f.x + f.w + DEPTH.x * 1.02, g1.y + DEPTH.y * 1.02);
+      const D = worldToScreen(f.x + DEPTH.x * 1.02, g0.y + DEPTH.y * 1.02);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y - cam.ppm * 0.04);
+      ctx.lineTo(b.x, b.y - cam.ppm * 0.04);
+      ctx.lineTo(C.x, C.y);
+      ctx.lineTo(D.x, D.y);
+      ctx.closePath();
+      ctx.fillStyle = '#0d1826'; ctx.fill();
+      ctx.strokeStyle = '#e8f2fa'; ctx.lineWidth = Math.max(2, cam.ppm * 0.12);
+      ctx.beginPath();
+      for (let i = 0; i <= 6; i++) {
+        const t = i / 6;
+        const x = lerp(a.x, b.x, t), y = lerp(a.y, b.y, t) + (i % 2 ? cam.ppm * 0.14 : -cam.ppm * 0.02);
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    } else if (f.type === 'water') {
+      // Wasserbecken als Flaeche im Schneeband
+      const C = worldToScreen(f.x + f.w + DEPTH.x * 1.02, g1.y + DEPTH.y * 1.02);
+      const D = worldToScreen(f.x + DEPTH.x * 1.02, g0.y + DEPTH.y * 1.02);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.lineTo(C.x, C.y);
+      ctx.lineTo(D.x, D.y);
+      ctx.closePath();
+      ctx.fillStyle = '#2f7fd1'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = Math.max(1.5, cam.ppm * 0.07);
+      ctx.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        const x = lerp(a.x, b.x, t);
+        const y = lerp(a.y, b.y, t) + Math.sin(Game.time * 2.5 + i * 1.7) * cam.ppm * 0.06;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+      const nCroc = f.w > 12 ? 2 : 1;
+      for (let c = 0; c < nCroc; c++) {
+        const t = nCroc === 1 ? 0.5 : 0.3 + c * 0.4;
+        const cxp = lerp(a.x, b.x, t), cyp = lerp(a.y, b.y, t);
+        const s = cam.ppm;
+        const speed = f.got ? 9 : 2.2;
+        const jaw = (Math.sin(Game.time * speed + c * 2.5) * 0.5 + 0.5) * 0.5 + 0.06;
+        ctx.fillStyle = '#2e7d4f';
+        ctx.beginPath(); ctx.ellipse(cxp - s * 0.5, cyp - s * 0.05, s * 0.75, s * 0.22, 0, 0, 7); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cxp, cyp - s * 0.1);
+        ctx.lineTo(cxp + s * 0.85, cyp - s * 0.1 - Math.sin(jaw) * s * 0.55);
+        ctx.lineTo(cxp + s * 0.3, cyp - s * 0.02);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cxp, cyp - s * 0.06);
+        ctx.lineTo(cxp + s * 0.85, cyp + s * 0.12);
+        ctx.lineTo(cxp + s * 0.2, cyp + s * 0.1);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(cxp - s * 0.15, cyp - s * 0.24, s * 0.09, 0, 7); ctx.fill();
+        ctx.fillStyle = '#12212f';
+        ctx.beginPath(); ctx.arc(cxp - s * 0.13, cyp - s * 0.24, s * 0.045, 0, 7); ctx.fill();
+      }
+    } else if (f.type === 'tramp') {
+      const squash = Math.max(0, 1 - (Game.time - (f.boing || -9)) / 0.3);
+      const sag = squash * cam.ppm * 0.35;
+      ctx.strokeStyle = '#22354a'; ctx.lineWidth = Math.max(2, cam.ppm * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(a.x + cam.ppm * 0.2, a.y); ctx.lineTo(a.x + cam.ppm * 0.35, a.y + cam.ppm * 0.9);
+      ctx.moveTo(b.x - cam.ppm * 0.2, b.y); ctx.lineTo(b.x - cam.ppm * 0.35, b.y + cam.ppm * 0.9);
+      ctx.stroke();
+      ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(3, cam.ppm * 0.2);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y - cam.ppm * 0.15);
+      ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 - cam.ppm * 0.15 + sag, b.x, b.y - cam.ppm * 0.15);
+      ctx.stroke();
+    }
+  }
+}
+
 // --- Sägeblätter: rotierende Scheibe mit Zähnen, auf Mast oder schwebend ---
 function drawObstacles() {
+  drawFeatures();
   for (const o of Game.obstacles) {
     const g = Hill.groundAt(o.x);
     const oy = Game.obstacleY(o);
@@ -2610,6 +2786,17 @@ function drawHUD() {
     ctx.font = `700 ${13 * ui}px system-ui`;
     ctx.textAlign = 'center';
     ctx.fillText(`★ ${Game.best.dist.toFixed(1).replace('.', ',')} m`, W - bw / 2 - pad, pad + ph / 2 + 0.5);
+  }
+  // Live-Weite: wie weit bin ich gerade? (Flug + Rutschphase)
+  if (Game.state === 'FLIGHT' || Game.state === 'OUTRUN' || Game.state === 'RESULT') {
+    const liveD = Game.result ? Game.result.dist
+      : Hill.groundAt(clamp(Game.skier.x, 0, 460)).s;
+    const lw = 118 * ui, ly = pad + (Game.best ? ph + 6 * ui : 0);
+    pillRect(W - lw - pad, ly, lw, 30 * ui);
+    ctx.fillStyle = '#9be8ff';
+    ctx.font = `800 ${16 * ui}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${liveD.toFixed(0)} m`, W - lw / 2 - pad, ly + 15 * ui + 0.5);
   }
   if (Game.mode === 'comp') {
     const rw = 74 * ui, ry = pad + ph + 6 * ui;
