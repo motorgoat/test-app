@@ -56,6 +56,11 @@
     box-shadow: 0 6px 20px rgba(34,184,230,.45), inset 0 1px 0 rgba(255,255,255,.6);
   }
   .panel button:active { transform: translateY(1px); }
+  .menurow { display: flex; gap: 8px; margin-top: 8px; }
+  .panel .menurow button.secondary {
+    background: rgba(255,255,255,.08); color: #cfe6f8; box-shadow: none;
+    border: 1px solid rgba(120,200,255,.25); font-size: 15px; padding: 11px; margin-top: 0;
+  }
   .best { font-size: 13px; color: #ffd35c; margin-top: 12px; font-weight: 600; }
   .hint { font-size: 12px; color: #7ea8c9; margin-top: 10px; line-height: 1.5; }
   .roundline { font-size: 14px; color: #9be8ff; font-weight: 700; margin: 2px 0 6px; }
@@ -67,6 +72,12 @@
     width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
     border: 1px solid rgba(120,200,255,.3); background: rgba(13,27,46,.72);
     font-size: 18px; line-height: 1; color: #fff; z-index: 5;
+  }
+  #homeBtn {
+    position: fixed; left: 62px; bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(120,200,255,.3); background: rgba(13,27,46,.72);
+    font-size: 20px; line-height: 1; color: #fff; z-index: 5;
   }
   #nextBtn {
     position: fixed; left: 50%; bottom: max(6vh, env(safe-area-inset-bottom, 0px) + 20px);
@@ -106,7 +117,11 @@
 <div id="startPanel" class="panel">
   <h1>ALPENFLUG</h1>
   <div class="sub">K90 · HILLSIZE 100</div>
-  <button id="startBtn">Spiel starten</button>
+  <button id="startBtn">Wettkampf starten</button>
+  <div class="menurow">
+    <button id="trainBtn" class="secondary">Training</button>
+    <button id="tutBtn" class="secondary">Tutorial</button>
+  </div>
   <div class="hint">Tippen: Start · Absprung · Landeposition.<br>Im Flug: Finger halten &amp; wischen – neuer Tipp = Landung.<br>Desktop: Leertaste + ↑ ↓ · M = Ton</div>
   <div class="best" id="startBest"></div>
 </div>
@@ -115,6 +130,7 @@
 <button id="nextBtn" class="hidden">Nächster Sprung</button>
 
 <button id="muteBtn" title="Ton an/aus (M)">🔊</button>
+<button id="homeBtn" class="hidden" title="Zurück zum Menü">⌂</button>
 
 <!-- Interaktives Tutorial -->
 <div id="tutCard" class="hidden">
@@ -198,7 +214,8 @@ const CONFIG = {
   stanceDrag: 1.9,            // Widerstands-Faktor in Landeposition
   stanceMinTime: 0.12,        // so lange muss die Position vor dem Aufsetzen stehen → Telemark
   crashSpeed: 11.5,           // Aufprall senkrecht zum Hang > x m/s = Sturz
-  outrunFriction: 0.06,       // Bremsreibung im Auslauf
+  outrunFriction: 0.06,       // Gleitreibung direkt nach der Landung
+  brakeFriction: 0.75,        // Schneepflug-Bremsen im Auslauf (Springer hält an)
   crashFriction: 0.30,        // Sturz bremst stark
 
   // Punkte (FIS-Schema)
@@ -596,14 +613,19 @@ const Game = {
   best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
   bestComp: parseFloat(store.get('alpenflug_best_comp') || '0') || 0,
 
+  // Modus: 'comp' = Wettkampf (2 Durchgänge + Platzierung), 'train' = freies Springen
+  mode: 'comp',
   // Wettkampf: 2 Durchgänge, Gesamtwertung, KI-Starterfeld für die Platzierung
   round: 1,
   roundTotals: [],
+  theme: null,
   field: [],
 
   newCompetition() {
     this.round = 1;
     this.roundTotals = [];
+    // Stimmung pro Wettkampf: meist Tag, manchmal Abendlicht
+    this.theme = Math.random() < 0.3 ? THEMES.dusk : THEMES.day;
     this.field = [];
     for (let i = 0; i < CONFIG.fieldSize - 1; i++) {
       const skill = 88 + Math.random() * 42;               // Grundstärke des Springers
@@ -862,16 +884,25 @@ const Game = {
         // Ergebnis sofort, sobald der Sturz kurz sichtbar war
         if (this.state === 'OUTRUN' && this.outrunTimer > 1.0) this.showResult();
       } else {
+        // erst ausfahren, dann kräftig in den Schneepflug bremsen und anhalten
+        const braking = this.outrunTimer > 1.15;
         const th = Hill.groundAt(S.x).angle * D2R;
-        const a = CONFIG.gravity * Math.sin(th) - CONFIG.outrunFriction * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
+        const fric = braking ? CONFIG.brakeFriction : CONFIG.outrunFriction;
+        const a = CONFIG.gravity * Math.sin(th) - fric * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
         S.v = Math.max(0, S.v + a * dt);
         S.x += S.v * Math.cos(th) * dt;
+        if (S.x > 200) S.v = 0;              // Sicherheitsnetz am Kartenrand
         const g2 = Hill.groundAt(S.x);
         S.y = g2.y;
         S.body = -g2.angle;
-        if (S.v > 6 && Math.random() < dt * 40) this.dust();
-        // nach dem Telemark aufrichten und ausfahren
+        // nach dem Telemark aufrichten, dann Bremshaltung, im Stand aufrecht
         if (this.outrunTimer > 1.1 && S.poseB === 'telemark') this.setPose('landed', 0.45);
+        if (braking && S.v > 2) {
+          if (S.poseB === 'landed') this.setPose('brake', 0.35);
+          if (Math.random() < dt * 55) this.spray(1);
+        }
+        if (S.v < 0.4 && S.poseB !== 'gate') this.setPose('gate', 0.5);
+        if (S.v > 6 && Math.random() < dt * 40) this.dust();
         // Ergebnis direkt nach der Landung – wie im echten Skispringen
         if (this.state === 'OUTRUN' && this.outrunTimer > 0.7) this.showResult();
       }
@@ -976,6 +1007,7 @@ const Game = {
     if (crashed) {
       Ragdoll.start(S);          // echter Ragdoll-Sturz
       S.y = g.y;
+      cam.shake = 1.2;
       this.showMsg('STURZ!', '#ff5252', 1.8);
       Sound.crash();
     } else {
@@ -999,6 +1031,7 @@ const Game = {
     this.outrunTimer = 0;
     S.crash = true;
     Ragdoll.start(S);
+    cam.shake = 1.2;
     this.showMsg('STURZ!', '#ff5252', 1.6);
     Sound.crash();
     this.spray(28);
@@ -1044,13 +1077,32 @@ const Game = {
     }
     this.notesShown = 0;
     this.buttonShown = false;
-    nextBtn.textContent = this.round === 1 ? '2. Durchgang' : 'Neuer Wettkampf';
+    nextBtn.textContent = this.mode === 'train' ? 'Nächster Sprung'
+      : this.round === 1 ? '2. Durchgang' : 'Neuer Wettkampf';
+    // Konfetti aus dem Publikum bei Sprüngen über Hillsize
+    if (!r.crashed && r.dist >= CONFIG.hillSize) this.confetti();
   },
 
-  // Weiter nach dem Ergebnis: Durchgang 2 oder neuer Wettkampf
+  confetti() {
+    const S = this.skier;
+    for (let i = 0; i < 60; i++)
+      this.particles.push({
+        x: S.x + (Math.random() - 0.5) * 8, y: S.y + 1 + Math.random() * 4,
+        vx: (Math.random() - 0.5) * 7, vy: 2 + Math.random() * 6,
+        life: 1.2 + Math.random() * 0.9,
+        color: CROWD_COLORS[i % CROWD_COLORS.length],
+      });
+  },
+
+  // Weiter nach dem Ergebnis: Durchgang 2, neuer Wettkampf oder Trainingssprung
   advance() {
-    if (this.state === 'RESULT' && this.round === 1 && this.roundTotals[0] != null) this.round = 2;
-    else this.newCompetition();
+    if (this.mode === 'train') {
+      if (!this.theme) this.newCompetition();
+    } else if (this.state === 'RESULT' && this.round === 1 && this.roundTotals[0] != null) {
+      this.round = 2;
+    } else {
+      this.newCompetition();
+    }
     this.newJump();
   },
 };
@@ -1071,8 +1123,27 @@ const hctx = hudCanvas.getContext('2d');
 let ctx = wctx;
 let W = 0, H = 0, DPR = 1, vignette = null;
 
+// Farbwelten: Tag und Abendlicht (pro Wettkampf ausgelost)
+const THEMES = {
+  day: {
+    skyTop: '#2a6cb8', skyMid: '#5b9fda', skyLow: '#d4ecfb',
+    sun: '#ffe9a8', halo: '255,244,200',
+    ridge1: '#a8c4dd', ridge2: '#7fa3c4', ridge3: '#597e9f', forest: '#37536e',
+    snowBody: '#d9e8f6', snowShade: '#c3d9ee', band: '#fdfeff',
+    cloudTop: '#ffffff', cloudBot: '#b9d9f2',
+  },
+  dusk: {
+    skyTop: '#2b2f6e', skyMid: '#8a5f9e', skyLow: '#f7b26e',
+    sun: '#ffcf7d', halo: '255,190,120',
+    ridge1: '#bb9db6', ridge2: '#8d7398', ridge3: '#5f5378', forest: '#3a3355',
+    snowBody: '#e5dbee', snowShade: '#d1c4e0', band: '#fbf5fb',
+    cloudTop: '#ffe9d9', cloudBot: '#d8a98f',
+  },
+};
+const TH = () => Game.theme || THEMES.day;
+
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  DPR = Math.min(window.devicePixelRatio || 1, 2); // Cap 2: volle Schärfe, halbe Füllrate
   W = window.innerWidth; H = window.innerHeight;
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
@@ -1090,7 +1161,8 @@ resize();
 // Kamera: Weltkoordinaten (m) → Bildschirm (CSS-px)
 const cam = { x: -55, y: 22, ppm: 14 };
 function worldToScreen(wx, wy) {
-  return { x: (wx - cam.x) * cam.ppm + W * 0.5, y: H * 0.46 - (wy - cam.y) * cam.ppm };
+  return { x: (wx - cam.x - (cam.ox || 0)) * cam.ppm + W * 0.5,
+           y: H * 0.46 - (wy - cam.y - (cam.oy || 0)) * cam.ppm };
 }
 
 function updateCamera(dt) {
@@ -1112,6 +1184,11 @@ function updateCamera(dt) {
   cam.ppm = damp(cam.ppm, targetPpm, 3, dt);
   cam.x = damp(cam.x, tx, 5.5, dt);
   cam.y = damp(cam.y, ty, 5.5, dt);
+  // Sturz-Shake klingt aus
+  cam.shake = Math.max(0, (cam.shake || 0) - dt * 1.4);
+  const sm = cam.shake * cam.shake * 0.4;
+  cam.ox = Math.sin(Game.time * 43) * sm;
+  cam.oy = Math.cos(Game.time * 53) * sm * 0.7;
 }
 
 // --- Hintergrund: Himmel, Sonne, Wolken, Parallax-Bergketten mit Wald ---
@@ -1121,21 +1198,24 @@ const PAR_PX = 7;
 function ridgeY(x, seed) {
   return Math.sin(x * 0.011 + seed) * 14 + Math.sin(x * 0.031 + seed * 2.3) * 6 + Math.sin(x * 0.005 + seed * 0.7) * 20;
 }
+// Himmelsverlauf cachen (Neubau nur bei Resize/Themenwechsel – Performance)
+let skyCache = { grad: null, h: 0, theme: null };
 function drawBackground() {
-  // Himmel: sanfter moderner Verlauf
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#2a6cb8');
-  sky.addColorStop(0.5, '#5b9fda');
-  sky.addColorStop(1, '#d4ecfb');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  const T = TH();
+  if (!skyCache.grad || skyCache.h !== H || skyCache.theme !== T) {
+    const g = wctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, T.skyTop); g.addColorStop(0.5, T.skyMid); g.addColorStop(1, T.skyLow);
+    skyCache = { grad: g, h: H, theme: T };
+  }
+  ctx.fillStyle = skyCache.grad; ctx.fillRect(0, 0, W, H);
 
   // Flat-Sonne: Kern + zwei flache Halo-Ringe
   const sx = W * 0.76, sy = H * 0.15, sr = Math.min(W, H) * 0.055;
-  ctx.fillStyle = 'rgba(255,244,200,0.10)';
+  ctx.fillStyle = `rgba(${T.halo},0.10)`;
   ctx.beginPath(); ctx.arc(sx, sy, sr * 2.6, 0, 7); ctx.fill();
-  ctx.fillStyle = 'rgba(255,244,200,0.16)';
+  ctx.fillStyle = `rgba(${T.halo},0.16)`;
   ctx.beginPath(); ctx.arc(sx, sy, sr * 1.7, 0, 7); ctx.fill();
-  ctx.fillStyle = '#ffe9a8';
+  ctx.fillStyle = T.sun;
   ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 7); ctx.fill();
 
   // Vögel: kleine animierte Schwingen-Silhouetten
@@ -1157,12 +1237,12 @@ function drawBackground() {
     const cy = c[1] * H, cw = c[2] * clamp(Math.min(W, H) / 400, 0.95, 1.6);
     const r1 = 20 * cw, r2 = 15 * cw, r3 = 12 * cw;
     // Unterseite (flacher Schattenton)
-    ctx.fillStyle = '#b9d9f2';
+    ctx.fillStyle = T.cloudBot;
     ctx.beginPath();
     ctx.ellipse(cx, cy + 5 * cw, 48 * cw, 9 * cw, 0, 0, 7);
     ctx.fill();
     // Oberseite aus runden Kuppen
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = T.cloudTop;
     ctx.beginPath();
     ctx.arc(cx - 22 * cw, cy, r3, 0, 7);
     ctx.arc(cx - 4 * cw, cy - 8 * cw, r1, 0, 7);
@@ -1173,9 +1253,9 @@ function drawBackground() {
 
   // drei Bergketten: hinten hell/dunstig, vorn kräftiger + Waldsilhouette
   const layers = [
-    { par: 0.06, base: 0.38, color: '#a8c4dd', snow: true,  seed: 3 },
-    { par: 0.14, base: 0.47, color: '#7fa3c4', snow: true,  seed: 8 },
-    { par: 0.26, base: 0.58, color: '#597e9f', snow: false, seed: 13 },
+    { par: 0.06, base: 0.38, color: T.ridge1, seed: 3 },
+    { par: 0.14, base: 0.47, color: T.ridge2, seed: 8 },
+    { par: 0.26, base: 0.58, color: T.ridge3, seed: 13 },
   ];
   for (const l of layers) {
     ctx.fillStyle = l.color;
@@ -1190,7 +1270,7 @@ function drawBackground() {
   // Waldband auf der vordersten Kette – Zacken als stetige Dreieckswelle in
   // WELT-Koordinaten (screen-quantisierte Zacken flackern bei Kamerafahrt)
   const l = layers[2];
-  ctx.fillStyle = '#37536e';
+  ctx.fillStyle = T.forest;
   ctx.beginPath();
   ctx.moveTo(0, H);
   for (let px = 0; px <= W; px += 4) {
@@ -1201,6 +1281,22 @@ function drawBackground() {
     ctx.lineTo(px, baseY - tooth * spikeH);
   }
   ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+
+  drawSnowfall();
+}
+
+// Leiser Schneefall über der ganzen Szene
+const FLAKES = [];
+for (let i = 0; i < 42; i++)
+  FLAKES.push({ x: Math.random(), y: Math.random(), s: 0.4 + Math.random() * 0.8, r: 1 + Math.random() * 1.6 });
+function drawSnowfall() {
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  const drift = Game.wind * 14;
+  for (const f of FLAKES) {
+    const x = ((f.x * W + Game.time * (drift + 6) * f.s - cam.x * PAR_PX * 0.12) % (W + 16) + W + 16) % (W + 16) - 8;
+    const y = ((f.y * H + Game.time * 26 * f.s) % (H + 16) + H + 16) % (H + 16) - 8;
+    ctx.beginPath(); ctx.arc(x, y, f.r, 0, 7); ctx.fill();
+  }
 }
 
 // 2.5D: Tiefenversatz der Schneeoberfläche (Weltmeter, nach hinten-oben)
@@ -1211,52 +1307,58 @@ const REN = { x: 0.55, y: 0.32 };
 const renToScreen = (wx, wy) => worldToScreen(wx + REN.x, wy + REN.y);
 
 function drawHill() {
+  // Sichtbaren Profilbereich bestimmen – nur dieser wird gezeichnet (Performance)
+  const xLo = cam.x - (W * 0.5 + 80) / cam.ppm;
+  const xHi = cam.x + (W * 0.5 + 80) / cam.ppm;
+  const i0 = clamp(Math.floor(xLo / 0.5), 0, Hill.prof.length - 2);
+  const i1 = clamp(Math.ceil(xHi / 0.5) + 1, i0 + 1, Hill.prof.length - 1);
+  const P = Hill.prof;
+  if (xHi > 0) {
   // --- Aufsprunghang: Schneekörper (Querschnitt) ---
-  const first = worldToScreen(Hill.prof[0].x, Hill.prof[0].y);
-  const last = worldToScreen(Hill.prof[Hill.prof.length - 1].x, Hill.prof[Hill.prof.length - 1].y);
+  const first = worldToScreen(P[i0].x, P[i0].y);
+  const last = worldToScreen(P[i1].x, P[i1].y);
   ctx.beginPath();
   ctx.moveTo(first.x, first.y);
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  for (let i = i0; i <= i1; i += 2) { const s = worldToScreen(P[i].x, P[i].y); ctx.lineTo(s.x, s.y); }
   ctx.lineTo(last.x, H + 60); ctx.lineTo(first.x, H + 60); ctx.closePath();
-  ctx.fillStyle = '#d9e8f6'; ctx.fill();   // flacher Schneekörper
+  ctx.fillStyle = TH().snowBody; ctx.fill();   // flacher Schneekörper
   // flacher Schattenstreifen direkt unter der Oberflächenkante
   ctx.beginPath();
-  ctx.moveTo(worldToScreen(Hill.prof[0].x, Hill.prof[0].y).x, worldToScreen(Hill.prof[0].x, Hill.prof[0].y).y);
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  for (let i = Hill.prof.length - 1; i >= 0; i -= 3) {
-    const p = Hill.prof[i];
-    const s = worldToScreen(p.x, p.y - 1.4);
+  ctx.moveTo(first.x, first.y);
+  for (let i = i0; i <= i1; i += 2) { const s = worldToScreen(P[i].x, P[i].y); ctx.lineTo(s.x, s.y); }
+  for (let i = i1; i >= i0; i -= 3) {
+    const s = worldToScreen(P[i].x, P[i].y - 1.4);
     ctx.lineTo(s.x, s.y);
   }
   ctx.closePath();
-  ctx.fillStyle = '#c3d9ee'; ctx.fill();
+  ctx.fillStyle = TH().snowShade; ctx.fill();
 
   // --- 2.5D-Oberflächenband: helle Schneefläche zwischen Nah- und Fernkante ---
   ctx.beginPath();
-  const p0 = Hill.prof[0];
-  ctx.moveTo(worldToScreen(p0.x, p0.y).x, worldToScreen(p0.x, p0.y).y);
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  for (let i = Hill.prof.length - 1; i >= 0; i -= 2) {
-    const p = Hill.prof[i];
-    const s = worldToScreen(p.x + DEPTH.x, p.y + DEPTH.y);
+  ctx.moveTo(first.x, first.y);
+  for (let i = i0; i <= i1; i += 2) { const s = worldToScreen(P[i].x, P[i].y); ctx.lineTo(s.x, s.y); }
+  for (let i = i1; i >= i0; i -= 2) {
+    const s = worldToScreen(P[i].x + DEPTH.x, P[i].y + DEPTH.y);
     ctx.lineTo(s.x, s.y);
   }
   ctx.closePath();
-  ctx.fillStyle = '#fdfeff'; ctx.fill();
+  ctx.fillStyle = TH().band; ctx.fill();
   // Fernkante fein, Nahkante kräftig
   ctx.strokeStyle = 'rgba(160,195,225,0.8)'; ctx.lineWidth = 1;
   ctx.beginPath();
-  for (const p of Hill.prof) { const s = worldToScreen(p.x + DEPTH.x, p.y + DEPTH.y); ctx.lineTo(s.x, s.y); }
+  for (let i = i0; i <= i1; i += 2) { const s = worldToScreen(P[i].x + DEPTH.x, P[i].y + DEPTH.y); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
   ctx.strokeStyle = 'rgba(120,160,200,0.75)'; ctx.lineWidth = 1.8;
   ctx.beginPath();
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
+  for (let i = i0; i <= i1; i += 2) { const s = worldToScreen(P[i].x, P[i].y); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
+  }
 
   // Weitenmarken: Linien liegen quer AUF der Schneefläche
   // (die Beschriftungen zeichnet drawHillLabels() scharf aufs HUD)
   for (let d = 20; d <= 130; d += 10) {
     const x = Hill.xAtDistance(d);
+    if (x < xLo - 3 || x > xHi + 3) continue;
     const g = Hill.groundAt(x);
     const a = worldToScreen(x, g.y);
     const b = worldToScreen(x + DEPTH.x, g.y + DEPTH.y);
@@ -1268,6 +1370,7 @@ function drawHill() {
 
   // --- Anlaufturm: schlanke Stahl-Optik mit Akzentlinie ---
   const ir = Hill.inrun;
+  if (xLo > 2) return; // Anlauf ist links außerhalb des Bildes
   const top = worldToScreen(ir[0].x, ir[0].y);
   const edge = worldToScreen(0, 0);
   // Deckband unter der Spur (1,8 m stark), darunter Stützpfeiler
@@ -1499,7 +1602,9 @@ function drawTrail() {
 // --- Schatten: senkrechte Projektion auf den Hang (Lande-Orientierung!) ---
 function drawShadow() {
   const S = Game.skier;
-  if (Game.state === 'FLIGHT') {
+  // Im Flug UND beim Ragdoll-Sturz: Schatten senkrecht auf die Fläche projizieren
+  // (sonst klebt der Kontaktschatten am trudelnden Körper)
+  if (Game.state === 'FLIGHT' || S.crash) {
     const g = S.x < 0 ? Hill.inrunAtX(S.x) : Hill.groundAt(S.x);
     const h = clamp(S.y - g.y, 0, 40);
     const fade = clamp(1 - h / 34, 0.18, 1);
@@ -1614,23 +1719,26 @@ const POSES = {
     arm1: [0.2, -0.95, 0.34, -0.55], arm2: [0.18, -0.93, 0.06, -0.55],
     head: [0.34, -1.18], skiV: 0,
   },
-  crouch: { // echte Anfahrtshocke: Oberschenkel waagrecht, Rücken flach, Arme nach hinten
-    legF: [0.05, 0, 0.2, -0.3, -0.18, -0.48], legB: [0.05, 0, 0.2, -0.3, -0.18, -0.48],
-    torso: [-0.18, -0.48, 0.56, -0.54],
-    arm1: [0.36, -0.5, -0.42, -0.4], arm2: [0.34, -0.48, -0.4, -0.38],
-    head: [0.74, -0.6], skiV: 0,
+  // Posen nach echtem Skisprung-Vorbild: Hocke mit Brust auf den Knien,
+  // Absprung tief nach VORN (kein Aufrichten), Flug als gestreckte Linie
+  // weit über den Skiern mit nach hinten anliegenden Armen.
+  crouch: {
+    legF: [0.05, 0, 0.22, -0.28, -0.15, -0.42], legB: [0.05, 0, 0.22, -0.28, -0.15, -0.42],
+    torso: [-0.15, -0.42, 0.55, -0.48],
+    arm1: [0.32, -0.44, -0.45, -0.34], arm2: [0.3, -0.42, -0.43, -0.32],
+    head: [0.74, -0.56], skiV: 0,
   },
-  extend: { // explosives Abdrücken an der Kante: gestreckt nach oben-vorn
-    legF: [0.05, 0, 0.02, -0.35, -0.08, -0.68], legB: [0.05, 0, 0.02, -0.35, -0.08, -0.68],
-    torso: [-0.08, -0.68, 0.42, -0.92],
-    arm1: [0.3, -0.88, 0.56, -0.5], arm2: [0.28, -0.86, 0.5, -0.48],
-    head: [0.56, -1.05], skiV: 0.3,
+  extend: {
+    legF: [0.05, 0, 0.1, -0.32, -0.12, -0.62], legB: [0.05, 0, 0.1, -0.32, -0.12, -0.62],
+    torso: [-0.12, -0.62, 0.55, -0.8],
+    arm1: [0.35, -0.75, -0.32, -0.52], arm2: [0.33, -0.73, -0.3, -0.5],
+    head: [0.74, -0.9], skiV: 0.3,
   },
-  flight: { // tiefe Flughaltung: Körper fast parallel flach über den Skiern
-    legF: [0.05, 0, -0.08, -0.17, -0.45, -0.3], legB: [0.05, 0, -0.08, -0.17, -0.45, -0.3],
-    torso: [-0.45, -0.3, 0.55, -0.48],
-    arm1: [0.4, -0.44, -0.32, -0.3], arm2: [0.38, -0.41, -0.3, -0.27],
-    head: [0.74, -0.53], skiV: 1,
+  flight: {
+    legF: [0.05, 0, -0.1, -0.16, -0.5, -0.26], legB: [0.05, 0, -0.1, -0.16, -0.5, -0.26],
+    torso: [-0.5, -0.26, 0.6, -0.5],
+    arm1: [0.25, -0.42, -0.6, -0.2], arm2: [0.23, -0.39, -0.58, -0.17],
+    head: [0.8, -0.56], skiV: 1,
   },
   telemark: {
     legF: [0.42, 0, 0.46, -0.36, 0.08, -0.58], legB: [-0.5, 0, -0.32, -0.26, 0.08, -0.58],
@@ -1643,6 +1751,12 @@ const POSES = {
     torso: [0.02, -0.6, 0.16, -1.05],
     arm1: [0.14, -1.0, 0.5, -0.72], arm2: [0.14, -1.0, -0.2, -0.75],
     head: [0.22, -1.25], skiV: 0,
+  },
+  brake: { // Schneepflug: tief, Arme vor dem Körper, leicht zurückgelehnt
+    legF: [0.18, 0, 0.28, -0.28, -0.08, -0.5], legB: [-0.12, 0, 0.0, -0.26, -0.08, -0.5],
+    torso: [-0.08, -0.5, 0.12, -0.92],
+    arm1: [0.1, -0.86, 0.48, -0.62], arm2: [0.08, -0.84, 0.4, -0.58],
+    head: [0.2, -1.1], skiV: 0,
   },
 };
 const mixArr = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
@@ -1707,11 +1821,11 @@ function drawSkier() {
     ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 0.05;
     ctx.beginPath(); ctx.arc(hx, hy, 0.155, Math.PI * 0.75, Math.PI * 1.45); ctx.stroke();
   };
-  const ski = (yOff, tipUp, color) => {
+  const ski = (yOff, tipUp, color) => { // lange Sprungski (~2,7 m) mit Schaufel
     ctx.beginPath();
-    ctx.moveTo(-1.05, yOff);
-    ctx.lineTo(1.1, yOff - tipUp * 0.4);
-    ctx.quadraticCurveTo(1.32, yOff - tipUp * 0.4 - 0.02, 1.42, yOff - tipUp * 0.4 - 0.16);
+    ctx.moveTo(-1.15, yOff);
+    ctx.lineTo(1.2, yOff - tipUp * 0.42);
+    ctx.quadraticCurveTo(1.44, yOff - tipUp * 0.42 - 0.02, 1.55, yOff - tipUp * 0.42 - 0.17);
     ctx.strokeStyle = OUT; ctx.lineWidth = 0.21; ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = 0.14; ctx.stroke();
   };
@@ -1808,7 +1922,7 @@ function drawParticles() {
   for (const p of Game.particles) {
     const s = renToScreen(p.x, p.y);
     ctx.globalAlpha = clamp(p.life * 2, 0, 0.85);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = p.color || '#ffffff';
     ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1.5, cam.ppm * 0.11), 0, 7); ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -1848,15 +1962,15 @@ function drawHUD() {
     : `${Math.abs(w).toFixed(1).replace('.', ',')} m/s ${w < 0 ? 'Gegenwind' : 'Rückenwind'}`;
   ctx.fillText(windTxt, ax + 16 * ui, ay + 0.5);
 
-  // --- Tempo-Pill (daneben) ---
+  // --- Tempo-Pill (zweite Zeile links – kollidiert nie mit der Best-Pill) ---
   if (Game.state === 'INRUN' || Game.state === 'FLIGHT' || Game.state === 'OUTRUN') {
     const spd = Game.state === 'FLIGHT' ? Math.hypot(S.vx, S.vy) : S.v;
-    const px = pad + windW + 8 * ui, pw = 86 * ui;
-    pillRect(px, pad, pw, ph);
+    const px = pad, pw = 86 * ui, py = pad + ph + 6 * ui;
+    pillRect(px, py, pw, 24 * ui);
     ctx.fillStyle = '#9be8ff';
-    ctx.font = `800 ${13 * ui}px system-ui`;
+    ctx.font = `800 ${12 * ui}px system-ui`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${(spd * 3.6).toFixed(0)} km/h`, px + pw / 2, pad + ph / 2 + 0.5);
+    ctx.fillText(`${(spd * 3.6).toFixed(0)} km/h`, px + pw / 2, py + 12 * ui + 0.5);
   }
 
   // --- Best-Pill (oben rechts) + Durchgangs-Anzeige darunter ---
@@ -1868,7 +1982,7 @@ function drawHUD() {
     ctx.textAlign = 'center';
     ctx.fillText(`★ ${Game.best.dist.toFixed(1).replace('.', ',')} m`, W - bw / 2 - pad, pad + ph / 2 + 0.5);
   }
-  {
+  if (Game.mode === 'comp') {
     const rw = 74 * ui, ry = pad + ph + 6 * ui;
     pillRect(W - rw - pad, ry, rw, 24 * ui);
     ctx.fillStyle = '#9be8ff';
@@ -1972,11 +2086,13 @@ function drawHUD() {
       ctx.fillStyle = '#ffffff';
       ctx.fillText(ptsTxt, cx, y);
       y += 26 * ui;
-      ctx.font = `800 ${16 * ui}px system-ui`;
-      const placeTxt = `${Game.round === 2 ? 'Endstand' : 'Zwischenstand'}: Platz ${r.rank} von ${CONFIG.fieldSize}`;
-      ctx.strokeText(placeTxt, cx, y);
-      ctx.fillStyle = '#ffd35c';
-      ctx.fillText(placeTxt, cx, y);
+      if (Game.mode === 'comp') {
+        ctx.font = `800 ${16 * ui}px system-ui`;
+        const placeTxt = `${Game.round === 2 ? 'Endstand' : 'Zwischenstand'}: Platz ${r.rank} von ${CONFIG.fieldSize}`;
+        ctx.strokeText(placeTxt, cx, y);
+        ctx.fillStyle = '#ffd35c';
+        ctx.fillText(placeTxt, cx, y);
+      }
       if (Game.round === 2 && r.sum != null) {
         y += 22 * ui;
         ctx.font = `700 ${13 * ui}px system-ui`;
@@ -2108,14 +2224,43 @@ const hide = el => el.classList.add('hidden');
 
 const nextBtn = document.getElementById('nextBtn');
 const muteBtn = document.getElementById('muteBtn');
-document.getElementById('startBtn').addEventListener('click', () => { Sound.init(); Sound.click(); Game.advance(); });
-nextBtn.addEventListener('click', () => { Sound.init(); Sound.click(); Game.advance(); });
+const homeBtn = document.getElementById('homeBtn');
+function goMenu() {
+  Game.state = 'MENU';
+  Game.result = null; Game.popup = null;
+  Game.trail.length = 0; Game.particles.length = 0;
+  Ragdoll.active = false;
+  Tutorial.paused = false; tutCard.classList.add('hidden');
+  hide(nextBtn); hide(homeBtn); show(startPanel);
+  const start = Hill.inrunAt(CONFIG.gateOffset);
+  Object.assign(Game.skier, { x: start.x, y: start.y, vx: 0, vy: 0, v: 0, s: CONFIG.gateOffset,
+    body: -start.angle, poseA: 'gate', poseB: 'gate', poseT: 1, crash: false });
+}
+function startRun(mode) {
+  Sound.init(); Sound.click();
+  Game.mode = mode;
+  Game.newCompetition();
+  Game.newJump();
+  show(homeBtn);
+}
+document.getElementById('startBtn').addEventListener('click', () => startRun('comp'));
+document.getElementById('trainBtn').addEventListener('click', () => startRun('train'));
+document.getElementById('tutBtn').addEventListener('click', () => {
+  try { localStorage.removeItem('alpenflug_tut_v1'); } catch (e) {}
+  Tutorial.active = true; Tutorial.step = 0; Tutorial.paused = false;
+  startRun('train');
+});
+homeBtn.addEventListener('click', () => { Sound.click(); goMenu(); });
+nextBtn.addEventListener('click', () => { Sound.init(); Sound.click(); Game.advance(); show(homeBtn); });
 muteBtn.addEventListener('click', () => {
   Sound.init();
   muteBtn.textContent = Sound.toggle() ? '🔊' : '🔇';
 });
 window.addEventListener('keydown', e => {
-  if ((e.key === ' ' || e.key === 'Enter') && (Game.state === 'MENU' || Game.state === 'RESULT')) {
+  if ((e.key === ' ' || e.key === 'Enter') && Game.state === 'MENU') {
+    e.preventDefault();
+    startRun('comp');
+  } else if ((e.key === ' ' || e.key === 'Enter') && Game.state === 'RESULT') {
     e.preventDefault();
     Game.advance();
   }
