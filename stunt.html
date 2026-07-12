@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#2b6cb8">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Alpenflug K90 – Skisprung</title>
+<title>STUNT Alpenflug K90 – Skisprung</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; background: #2b6cb8; }
@@ -129,8 +129,8 @@
 
 <!-- Startbildschirm -->
 <div id="startPanel" class="panel">
-  <h1>ALPENFLUG</h1>
-  <div class="sub">K90 · HILLSIZE 100</div>
+  <h1>ALPENFLUG <span style="color:#ffd35c">STUNT</span></h1>
+  <div class="sub">STUNT-FLUG · WEICH DEN SÄGEBLÄTTERN AUS!</div>
   <button id="startBtn">Wettkampf starten</button>
   <div class="menurow">
     <button id="trainBtn" class="secondary">Training</button>
@@ -182,8 +182,8 @@ const CONFIG = {
   ditherAmount: 0.5,          // Breite der Dither-Übergänge (nur bei pixelLevels > 0)
 
   // Schanze (K90 / HS100)
-  kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
-  hillSize: 100,              // Hillsize in m
+  kPoint: 200,                 // K-Punkt in m (entlang des Hangs gemessen)
+  hillSize: 300,              // Hillsize in m
   takeoffHeight: 3.0,         // Höhe der Tischkante über dem Profil-Ursprung (m)
   tableAngle: 10.5,           // Neigung des Schanzentischs (Grad, abwärts)
   tableLength: 6.5,           // Länge des Tischs (m)
@@ -192,7 +192,7 @@ const CONFIG = {
   inrunRadius: 90,            // Übergangsradius Anlauf → Tisch (m)
   gateOffset: 3.5,            // Startposition unterhalb des Spur-Anfangs (m)
   // Aufsprungprofil: Winkelverlauf über horizontale Distanz x
-  landing: { startAngle: 10, maxAngle: 36, steepen0: 8, steepen1: 50, flat0: 88, flat1: 135 },
+  landing: { startAngle: 10, maxAngle: 36, steepen0: 8, steepen1: 50, flat0: 300, flat1: 385 },
 
   // Anlauf
   inrunFriction: 0.025,       // Gleitreibungskoeffizient Ski/Spur
@@ -206,21 +206,21 @@ const CONFIG = {
   jumpAnimTime: 0.16,         // Dauer der Streck-Animation beim Absprung (s)
 
   // Flug
-  liftCoefficient: 0.0043,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
+  liftCoefficient: 0.0058,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
   dragCoefficient: 0.0024,    // Grundwiderstand: a = CD · v_rel² · dragFactor(α)
   dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
   // Der Spieler steuert den ANSTELLWINKEL (alpha) direkt – der Körper folgt der
   // Flugbahn automatisch. Drift + Böen stören alpha, Wischen korrigiert.
   optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
-  angleTolerance: 6.5,        // ± Korridor (Grad) – eng: 5° daneben kosten ~30 m
+  angleTolerance: 11,        // ± Korridor (Grad) – eng: 5° daneben kosten ~30 m
   angleSpeed: 40,             // Änderungsrate der Tastatursteuerung (Grad/s)
   swipeSensitivity: 0.11,     // Grad Winkeländerung pro Pixel Wischweg (absolut –
                               // fühlt sich in jedem Fenster/Vollbild gleich an)
-  pitchDrift: 3.0,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
-  gustPitchFactor: 5.0,       // Böen stören alpha (Grad/s pro m/s Böenabweichung)
-  gustPitchV: 8.0,            // vertikale Böen stören alpha zusätzlich
-  windPitchH: 1.0,            // stetiger Horizontalwind drückt die Haltung (Grad/s pro m/s)
-  windPitchV: 2.4,            // stetiger Auf-/Abwind drückt die Haltung (Grad/s pro m/s)
+  pitchDrift: 1.2,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
+  gustPitchFactor: 2.0,       // Böen stören alpha (Grad/s pro m/s Böenabweichung)
+  gustPitchV: 3.0,            // vertikale Böen stören alpha zusätzlich
+  windPitchH: 0.4,            // stetiger Horizontalwind drückt die Haltung (Grad/s pro m/s)
+  windPitchV: 1.0,            // stetiger Auf-/Abwind drückt die Haltung (Grad/s pro m/s)
   windShakeMin: 3.5,          // ab diesem Störwert (Grad/s) zittert die Figur
   jumpLockout: 3.0,           // Sekunden nach dem Abstoßen ohne Absprung (schützt vor Doppel-Tap)
   gateGreenDelay: 1.5,        // Sekunden bis die Startampel auf Grün springt
@@ -234,11 +234,11 @@ const CONFIG = {
   bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
 
   // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
-  windStrength: 2.5,          // maximale Windstärke ± m/s (zufällig pro Sprung)
-  windVertical: 0.9,          // vertikaler Wind (Auf-/Abwind) ± m/s – große Wirkung!
+  windStrength: 1.2,          // maximale Windstärke ± m/s (zufällig pro Sprung)
+  windVertical: 0.4,          // vertikaler Wind (Auf-/Abwind) ± m/s – große Wirkung!
   windWander: 0.35,           // langsames Wandern des Winds während des Sprungs
   windAeroFactor: 2.0,        // Gameplay-Verstärkung der Windwirkung auf die Anströmung
-  gustAmount: 0.45,           // Böen: ±45 % um den Basiswind
+  gustAmount: 0.22,           // Böen: ±45 % um den Basiswind
   inrunFricJitter: 0.08,      // Spur-/Wachs-Streuung: ±8 % Reibung pro Sprung
 
   // Landung (DSJ-Stil): zweiter Tap = sofort Landeposition. In der Landeposition
@@ -263,7 +263,7 @@ const CONFIG = {
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
   camGateView: 13.5,
   camInrunView: 22,
-  camFlightMin: 17.5, camFlightMax: 36,
+  camFlightMin: 17.5, camFlightMax: 46,
   camOutrunView: 20,
 };
 
@@ -292,7 +292,7 @@ const Hill = (() => {
   }
 
   // Profil integrieren: y(x) und Bogenlänge s(x) (= gemessene Weite)
-  const STEP = 0.5, XMAX = 320;
+  const STEP = 0.5, XMAX = 470;
   const prof = [{ x: 0, y: -CONFIG.takeoffHeight, s: 0 }];
   for (let x = STEP; x <= XMAX; x += STEP) {
     const th = landingAngle(x - STEP / 2) * D2R;
@@ -666,8 +666,8 @@ const Game = {
   flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0, stance: false, stanceT: 0, tv: 0, lastErr: null },
   landingTap: { windowOpen: false, tta: 99 },
   result: null,
-  best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
-  bestComp: parseFloat(store.get('alpenflug_best_comp') || '0') || 0,
+  best: (() => { try { return JSON.parse(store.get('alpenflug_stunt_best') || 'null'); } catch (e) { return null; } })(),
+  bestComp: parseFloat(store.get('alpenflug_stunt_best_comp') || '0') || 0,
   // Schanzenrekord = weitester gestandener Sprung des TAGES (Spieler springen
   // abwechselnd gegeneinander; jeden Tag zählt neu). Wird nach der
   // Objekt-Definition aus dem Speicher geladen (Schlüssel enthält das Datum).
@@ -707,6 +707,7 @@ const Game = {
     return rank;
   },
 
+  obstacles: [],
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
   particles: [],
@@ -743,6 +744,17 @@ const Game = {
     this.wanderPhase = Math.random() * 100;
     this.gateTimer = 0;
     this.inrunTimer = 0;
+    // Sägeblätter: auf Masten oder frei schwebend, Höhen im Flugfenster
+    this.obstacles = [];
+    for (let ox = 55; ox < 320; ox += 16 + Math.random() * 14) {
+      const float = Math.random() < 0.45;
+      this.obstacles.push({
+        x: ox, h: 1.6 + Math.random() * 7.6, r: 1.35 + Math.random() * 1.15,
+        float, bob: float ? 1.0 + Math.random() * 1.4 : 0,
+        bobSpd: 0.6 + Math.random() * 0.9, phase: Math.random() * 7,
+        spin: (Math.random() < 0.5 ? -1 : 1) * (2.5 + Math.random() * 3.5), hit: false,
+      });
+    }
     // Windzonen entlang der Strecke: am Absprung gilt exakt der Basiswind,
     // am Hang und im Aufsprung weicht er in Stärke und Richtung ab.
     const zone = () => ({ fw: 0.72 + Math.random() * 0.62, fv: 0.72 + Math.random() * 0.62,
@@ -959,6 +971,19 @@ const Game = {
       S.vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
       S.x += S.vx * dt; S.y += S.vy * dt;
 
+      // Sägeblatt erwischt? Comic-Ragdoll statt Zerfetzen.
+      for (const o of this.obstacles) {
+        if (o.hit) continue;
+        if (Math.abs(S.x - o.x) > o.r + 1) continue;
+        const oy = this.obstacleY(o);
+        if (Math.hypot(S.x - o.x, S.y - oy) < o.r + 0.42) {
+          o.hit = true;
+          this.hitObstacle(o);
+          break;
+        }
+      }
+      if (this.state !== 'FLIGHT') return; // nach Treffer sofort raus
+
       // Haltungsnote: nur die aktive Flugphase zählt.
       // tv = Gesamtbewegung des Haltungsfehlers – wer ruhig und dosiert
       // ausgleicht, hält tv klein; hektisches Hin- und Herreißen treibt es hoch.
@@ -1023,7 +1048,7 @@ const Game = {
         const a = CONFIG.gravity * Math.sin(th) - fric * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
         S.v = Math.max(0, S.v + a * dt);
         S.x += S.v * Math.cos(th) * dt;
-        if (S.x > 200) S.v = 0;              // Sicherheitsnetz am Kartenrand
+        if (S.x > 440) S.v = 0;              // Sicherheitsnetz am Kartenrand
         const g2 = Hill.groundAt(S.x);
         S.y = g2.y;
         S.body = -g2.angle;
@@ -1155,7 +1180,7 @@ const Game = {
     }
     if (!crashed && (!this.best || total > this.best.total)) {
       this.best = { dist, total };
-      store.set('alpenflug_best', JSON.stringify(this.best));
+      store.set('alpenflug_stunt_best', JSON.stringify(this.best));
     }
 
     // Weiten-Popup in der Welt
@@ -1180,6 +1205,34 @@ const Game = {
       if (landing === 'Telemark!') Sound.telemark(); else Sound.landOk();
     }
     this.spray(crashed ? 40 : 18);
+  },
+
+  // aktuelle Höhe eines Hindernisses (Schweber pendeln auf und ab)
+  obstacleY(o) {
+    const g = Hill.groundAt(o.x);
+    return g.y + o.h + (o.float ? Math.sin(this.time * o.bobSpd + o.phase) * o.bob : 0);
+  },
+
+  // Kollision mit einem Sägeblatt: Abpraller + Ragdoll (FlatOut-Style, unblutig)
+  hitObstacle(o) {
+    const S = this.skier;
+    const notes = [4.5, 5, 4.5, 5.5, 5].map(n => n + Math.round(Math.random() * 2) * 0.5);
+    const sorted = [...notes].sort((a, b) => a - b);
+    const g = Hill.groundAt(S.x);
+    const dist = Math.round(g.s * 2) / 2;
+    this.result = { dist, distPts: 0, stylePts: sorted[1] + sorted[2] + sorted[3], windPts: 0,
+                    notes, total: 0, landing: 'Vom Sägeblatt erwischt!', crashed: true, wind: this.wind };
+    this.popup = { text: dist.toFixed(1).replace('.', ',') + ' m', x: S.x, y: S.y + 2.5, t0: this.time, crashed: true };
+    S.vx *= 0.35;
+    S.vy = Math.max(S.vy, 2.5);
+    this.state = 'OUTRUN';
+    this.outrunTimer = 0;
+    S.crash = true;
+    Ragdoll.start(S);
+    cam.shake = 1.4;
+    this.showMsg('GETROFFEN!', '#ff5252', 1.6);
+    Sound.crash();
+    this.spray(24);
   },
 
   // Sturz durch Aufkommen auf der Anlaufspur (zu früher Sprung)
@@ -1237,7 +1290,7 @@ const Game = {
       r.sum = (this.roundTotals[0] || 0) + r.total;
       if (r.sum > this.bestComp) {
         this.bestComp = r.sum;
-        store.set('alpenflug_best_comp', String(r.sum));
+        store.set('alpenflug_stunt_best_comp', String(r.sum));
         r.record = true;
       }
     }
@@ -1277,7 +1330,7 @@ const Game = {
 // Tagesrekord laden: eigener Speicher-Schlüssel pro Kalendertag
 {
   const d = new Date();
-  Game.recordKey = `alpenflug_record_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  Game.recordKey = `alpenflug_stunt_record_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   Game.record = parseFloat(store.get(Game.recordKey) || '0') || 0;
 }
 
@@ -1539,7 +1592,7 @@ function drawHill() {
 
   // Weitenmarken: Linien liegen quer AUF der Schneefläche
   // (die Beschriftungen zeichnet drawHillLabels() scharf aufs HUD)
-  for (let d = 20; d <= 130; d += 10) {
+  for (let d = 40; d <= 440; d += 40) {
     const x = Hill.xAtDistance(d);
     if (x < xLo - 3 || x > xHi + 3) continue;
     const g = Hill.groundAt(x);
@@ -1655,7 +1708,7 @@ function drawStartBar(stage) {
 // --- Weitenbeschriftungen (scharf auf dem HUD-Canvas) ---
 function drawHillLabels() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  for (let d = 20; d <= 130; d += 10) {
+  for (let d = 40; d <= 440; d += 40) {
     const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
     if (cam.ppm <= 5 && !isK && !isHS) continue;
     const x = Hill.xAtDistance(d);
@@ -1782,7 +1835,7 @@ function drawCrowd() {
   const comp = Game.mode === 'comp';
   // Jubel: nach einem gestandenen Sprung hüpfen die Fans und schwenken Fahnen
   const cheer = (Game.state === 'OUTRUN' || Game.state === 'RESULT') && Game.result && !Game.result.crashed;
-  const X0 = 98, X1 = 150, BD = 1.02; // Banden-Tiefe (nahe Seite des Auslaufs)
+  const X0 = 355, X1 = 435, BD = 1.02; // Banden-Tiefe (nahe Seite des Auslaufs)
 
   // --- Werbebanden entlang des Auslaufs ---
   const top = [], bot = [];
@@ -1878,6 +1931,47 @@ function drawCrowd() {
       if (p.x < -25 || p.x > W + 25) continue;
       fan(p.x, p.y, x * 1.71, cam.ppm * 0.37);
     }
+  }
+}
+
+// --- Sägeblätter: rotierende Scheibe mit Zähnen, auf Mast oder schwebend ---
+function drawObstacles() {
+  for (const o of Game.obstacles) {
+    const g = Hill.groundAt(o.x);
+    const oy = Game.obstacleY(o);
+    const p = renToScreen(o.x, oy);
+    const rr = o.r * cam.ppm;
+    if (p.x < -rr - 40 || p.x > W + rr + 40) continue;
+    if (!o.float) {
+      const b = renToScreen(o.x, g.y);
+      ctx.strokeStyle = '#22354a'; ctx.lineWidth = Math.max(2, cam.ppm * 0.14);
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(Game.time * o.spin + o.phase);
+    ctx.fillStyle = '#8fa0b0';
+    const teeth = 10;
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = (i / teeth) * Math.PI * 2, a1 = a0 + 0.28, am = a0 + 0.14;
+      ctx.moveTo(Math.cos(a0) * rr * 0.86, Math.sin(a0) * rr * 0.86);
+      ctx.lineTo(Math.cos(am) * rr * 1.06, Math.sin(am) * rr * 1.06);
+      ctx.lineTo(Math.cos(a1) * rr * 0.86, Math.sin(a1) * rr * 0.86);
+    }
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, rr * 0.88, 0, 7);
+    ctx.fillStyle = '#c3cfda'; ctx.fill();
+    ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1.5, cam.ppm * 0.06); ctx.stroke();
+    ctx.strokeStyle = 'rgba(70,90,110,0.55)'; ctx.lineWidth = Math.max(1.5, rr * 0.09);
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI * 2 / 3;
+      ctx.beginPath(); ctx.arc(0, 0, rr * 0.52, a, a + 0.9); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, rr * 0.2, 0, 7);
+    ctx.fillStyle = '#ff3d55'; ctx.fill();
+    ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045); ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -2802,6 +2896,7 @@ function frame(now) {
     drawTrees();
     drawBuildings();
     drawCrowd();
+    drawObstacles();
     drawFlag(Hill.xAtDistance(CONFIG.kPoint), '#ff3d55');
     drawFlag(Hill.xAtDistance(CONFIG.hillSize), '#35d0ff');
     drawShadow();
