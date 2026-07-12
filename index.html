@@ -259,7 +259,6 @@ const CONFIG = {
   basePoints: 60,             // Punkte am K-Punkt
   windFactor: 3.5,            // Windpunkte pro m/s (Kompensation, K90-getunt)
   fieldSize: 30,              // Starterfeld inkl. Spieler (für die Platzierung)
-  recordPreset: 118,          // vorbesetzter Schanzenrekord – nur mit Ausnahme-Sprung zu knacken
 
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
   camGateView: 13.5,
@@ -669,7 +668,10 @@ const Game = {
   result: null,
   best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
   bestComp: parseFloat(store.get('alpenflug_best_comp') || '0') || 0,
-  record: parseFloat(store.get('alpenflug_record') || '0') || 118, // Schanzenrekord
+  // Schanzenrekord = weitester gestandener Sprung des TAGES (Spieler springen
+  // abwechselnd gegeneinander; jeden Tag zählt neu). Wird nach der
+  // Objekt-Definition aus dem Speicher geladen (Schlüssel enthält das Datum).
+  record: 0, recordKey: 'alpenflug_record',
 
   // Modus: 'comp' = Wettkampf (2 Durchgänge + Platzierung), 'train' = freies Springen
   mode: 'comp',
@@ -1128,12 +1130,18 @@ const Game = {
     const total = Math.max(0, distPts + stylePts + windPts);
     this.result = { dist, distPts, stylePts, windPts, notes, total, landing, crashed, wind: this.wind };
     if (!crashed && dist > this.record) {
+      const hadRecord = this.record > 0;
       this.record = dist;
-      store.set('alpenflug_record', String(dist));
+      store.set(this.recordKey, String(dist));
       this.result.isRecord = true;
-      this.showMsg('SCHANZENREKORD!', '#ffd35c', 2.4);
-      this.confetti(); this.confetti();
-      Sound.telemark(); Sound.perfect();
+      if (hadRecord) {
+        this.showMsg('SCHANZENREKORD!', '#ffd35c', 2.4);
+        this.confetti(); this.confetti();
+        Sound.telemark(); Sound.perfect();
+      } else {
+        this.showMsg('Erste Tagesbestmarke!', '#5cffa8', 1.8);
+        this.confetti();
+      }
     }
     if (!crashed && (!this.best || total > this.best.total)) {
       this.best = { dist, total };
@@ -1255,6 +1263,13 @@ const Game = {
     this.newJump();
   },
 };
+
+// Tagesrekord laden: eigener Speicher-Schlüssel pro Kalendertag
+{
+  const d = new Date();
+  Game.recordKey = `alpenflug_record_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  Game.record = parseFloat(store.get(Game.recordKey) || '0') || 0;
+}
 
 // Richtung des Windvektors (horizontal + vertikal) als Text, 8 Sektoren
 function windLabel(w, wv) {
@@ -1465,8 +1480,11 @@ function drawHill() {
   // Sichtbaren Profilbereich bestimmen – nur dieser wird gezeichnet (Performance)
   const xLo = cam.x - (W * 0.5 + 80) / cam.ppm;
   const xHi = cam.x + (W * 0.5 + 80) / cam.ppm;
-  const i0 = clamp(Math.floor(xLo / 0.5), 0, Hill.prof.length - 2);
-  const i1 = clamp(Math.ceil(xHi / 0.5) + 1, i0 + 1, Hill.prof.length - 1);
+  // WICHTIG: i0/i1 auf GERADE Indizes einrasten. Die Schleifen zeichnen jeden
+  // 2. Punkt – wechselt die Parität beim Scrollen, springt das ganze Band
+  // zwischen zwei Vertex-Sätzen hin und her ("Zucken" nach dem Tisch).
+  const i0 = clamp(Math.floor(xLo / 0.5), 0, Hill.prof.length - 4) & ~1;
+  const i1 = Math.min((clamp(Math.ceil(xHi / 0.5) + 2, i0 + 2, Hill.prof.length - 1)) & ~1 || (i0 + 2), Hill.prof.length - 1 - ((Hill.prof.length - 1) & 1));
   const P = Hill.prof;
   if (xHi > 0) {
   // --- Aufsprunghang: Schneekörper (Querschnitt) ---
@@ -1481,7 +1499,7 @@ function drawHill() {
   ctx.beginPath();
   ctx.moveTo(first.x, first.y);
   for (let i = i0; i <= i1; i += 2) { const s = worldToScreen(P[i].x, P[i].y); ctx.lineTo(s.x, s.y); }
-  for (let i = i1; i >= i0; i -= 3) {
+  for (let i = i1; i >= i0; i -= 2) {
     const s = worldToScreen(P[i].x, P[i].y - 1.4);
     ctx.lineTo(s.x, s.y);
   }
@@ -1524,7 +1542,7 @@ function drawHill() {
   }
 
   // Rekordlinie (grün gestrichelt quer über die Fläche)
-  {
+  if (Game.record > 0) {
     const rx = Hill.xAtDistance(Game.record);
     if (rx > xLo - 3 && rx < xHi + 3) {
       const g = Hill.groundAt(rx);
@@ -1630,7 +1648,7 @@ function drawHillLabels() {
     ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, b.x + 5, b.y - 3);
   }
   // Rekord-Label
-  {
+  if (Game.record > 0) {
     const rx = Hill.xAtDistance(Game.record);
     const g = Hill.groundAt(rx);
     const b = worldToScreen(rx + DEPTH.x, g.y + DEPTH.y);
@@ -2807,6 +2825,7 @@ const muteBtn = document.getElementById('muteBtn');
 const homeBtn = document.getElementById('homeBtn');
 function goMenu() {
   Podium.stop();
+  updateStartPanel();
   Game.state = 'MENU';
   Game.result = null; Game.popup = null;
   Game.trail.length = 0; Game.particles.length = 0;
@@ -2855,9 +2874,14 @@ window.addEventListener('keydown', e => {
     Game.advance();
   }
 });
-document.getElementById('startBest').textContent =
-  `Schanzenrekord: ${Game.record.toFixed(1).replace('.', ',')} m` +
-  (Game.best ? ` · Deine Bestweite: ${Game.best.dist.toFixed(1).replace('.', ',')} m` : '');
+function updateStartPanel() {
+  document.getElementById('startBest').textContent =
+    (Game.record > 0
+      ? `Schanzenrekord heute: ${Game.record.toFixed(1).replace('.', ',')} m`
+      : 'Heute noch kein Schanzenrekord – setz die erste Marke!') +
+    (Game.best ? ` · Deine Bestweite: ${Game.best.dist.toFixed(1).replace('.', ',')} m` : '');
+}
+updateStartPanel();
 
 // Springer für den Startbildschirm ans Gate setzen
 {
