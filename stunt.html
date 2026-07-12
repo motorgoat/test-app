@@ -1108,6 +1108,15 @@ const Game = {
         if (this.state === 'OUTRUN') {
           if (this.bloodUntil && this.time < this.bloodUntil && Math.random() < dt * 22)
             this.blood(S.x, S.y + 0.3, 1);
+          // Wischen/Pfeiltasten wirken auch auf die purzelnde Puppe:
+          // hochziehen für kleine Hüpfer, runterdrücken für mehr Bodendruck
+          const rag = (inp.swipe * 0.05 + inp.angle * 10 * dt) * 0.6;
+          if (rag) {
+            for (const p of Ragdoll.pts) {
+              p.py -= rag * CONFIG.timestep;
+              p.px += Math.abs(rag) * 0.45 * CONFIG.timestep;
+            }
+          }
           const feat = this.featureAtX(S.x);
           if (feat) this.applyFeatureToRagdoll(feat, dt);
           this.result.dist = Math.max(this.result.dist,
@@ -1381,7 +1390,7 @@ const Game = {
     // kein Popup hier – die Weite zählt erst dort, wo die Ragdoll-Puppe liegen bleibt
     // Sägeblatt: Cartoon-Blutspritzer + Nachtropfen beim Purzeln
     if (!isTree) {
-      this.blood(S.x, S.y, 26);
+      this.blood(S.x, S.y, 34);
       this.bloodUntil = this.time + 1.6;
     }
     // Comic-Zerlegung: Helm (und Ski) fliegen davon
@@ -1400,7 +1409,7 @@ const Game = {
     cam.shake = 1.4;
     this.showMsg(isTree ? 'BAUM GEKÜSST!' : 'GETROFFEN!', '#ff5252', 1.6);
     Sound.crash();
-    this.spray(24);
+    if (isTree) this.spray(14); // Schnee rieselt vom Baum – beim Sägeblatt nur Blut
   },
 
   // Sturz durch Aufkommen auf der Anlaufspur (zu früher Sprung)
