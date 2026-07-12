@@ -192,21 +192,26 @@ const CONFIG = {
   // Der Spieler steuert den ANSTELLWINKEL (alpha) direkt – der Körper folgt der
   // Flugbahn automatisch. Drift + Böen stören alpha, Wischen korrigiert.
   optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
-  angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
+  angleTolerance: 6.5,        // ± Korridor (Grad) – eng: 5° daneben kosten ~30 m
   angleSpeed: 40,             // Änderungsrate der Tastatursteuerung (Grad/s)
   swipeSensitivity: 0.11,     // Grad Winkeländerung pro Pixel Wischweg (absolut –
                               // fühlt sich in jedem Fenster/Vollbild gleich an)
-  pitchDrift: 2.5,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
-  gustPitchFactor: 2,         // Böen stören alpha (Grad/s pro m/s Böenabweichung)
+  pitchDrift: 3.0,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
+  gustPitchFactor: 3.5,       // Böen stören alpha (Grad/s pro m/s Böenabweichung)
   initAlpha: 9,               // Anstellwinkel unmittelbar nach dem Absprung
+  initAlphaSpread: 5,         // schlechter Absprung → Startlage streut bis ± so viel
+  impulseBase: 0.72,          // Impuls-Grundanteil; Rest kommt nur bei gutem Timing
   alphaMin: -12, alphaMax: 32,// Begrenzung des steuerbaren Anstellwinkels
   bodyFollowRate: 140,        // wie schnell der Körper der Bahn nachrotiert (Grad/s)
   bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
 
   // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
   windStrength: 2.5,          // maximale Windstärke ± m/s (zufällig pro Sprung)
+  windVertical: 0.9,          // vertikaler Wind (Auf-/Abwind) ± m/s – große Wirkung!
+  windWander: 0.35,           // langsames Wandern des Winds während des Sprungs
   windAeroFactor: 2.0,        // Gameplay-Verstärkung der Windwirkung auf die Anströmung
-  gustAmount: 0.25,           // Böen: ±25 % um den Basiswind
+  gustAmount: 0.45,           // Böen: ±45 % um den Basiswind
+  inrunFricJitter: 0.08,      // Spur-/Wachs-Streuung: ±8 % Reibung pro Sprung
 
   // Landung (DSJ-Stil): zweiter Tap = sofort Landeposition. In der Landeposition
   // bricht der Auftrieb ein (zu früh = Weitenverlust), ohne Landeposition = Sturz.
@@ -226,6 +231,7 @@ const CONFIG = {
   basePoints: 60,             // Punkte am K-Punkt
   windFactor: 3.5,            // Windpunkte pro m/s (Kompensation, K90-getunt)
   fieldSize: 30,              // Starterfeld inkl. Spieler (für die Platzierung)
+  recordPreset: 118,          // vorbesetzter Schanzenrekord – nur mit Ausnahme-Sprung zu knacken
 
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
   camGateView: 15,
@@ -615,6 +621,7 @@ const Game = {
   result: null,
   best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
   bestComp: parseFloat(store.get('alpenflug_best_comp') || '0') || 0,
+  record: parseFloat(store.get('alpenflug_record') || '0') || 118, // Schanzenrekord
 
   // Modus: 'comp' = Wettkampf (2 Durchgänge + Platzierung), 'train' = freies Springen
   mode: 'comp',
@@ -676,7 +683,10 @@ const Game = {
   newJump() {
     this.state = 'GATE';
     this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
+    this.windV = (Math.random() * 2 - 1) * CONFIG.windVertical;
     this.gustPhase = Math.random() * 100;
+    this.wanderPhase = Math.random() * 100;
+    this.fricJit = 1 + (Math.random() * 2 - 1) * CONFIG.inrunFricJitter;
     const start = Hill.inrunAt(CONFIG.gateOffset);
     Object.assign(this.skier, { s: CONFIG.gateOffset, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle,
                                 spin: 0, poseA: 'gate', poseB: 'gate', poseT: 1, crash: false, standing: false });
@@ -692,9 +702,15 @@ const Game = {
     hide(startPanel); hide(nextBtn);
   },
 
+  // aktueller Wind: Basis + Böen + langsames Wandern (jeder Sprung anders)
   currentWind() {
     const gust = Math.sin(this.time * 1.3 + this.gustPhase) * Math.sin(this.time * 0.7);
-    return this.wind * (1 + CONFIG.gustAmount * gust);
+    const wander = Math.sin(this.time * 0.35 + this.wanderPhase) * CONFIG.windWander * CONFIG.windStrength;
+    return this.wind * (1 + CONFIG.gustAmount * gust) + wander;
+  },
+  // vertikaler Wind (Auf-/Abwind), leicht pulsierend
+  currentWindV() {
+    return (this.windV || 0) * (1 + 0.4 * Math.sin(this.time * 0.8 + this.gustPhase * 1.7));
   },
 
   // ---------------- Physik-Update (fixer Timestep) ----------------
@@ -720,7 +736,7 @@ const Game = {
     else if (this.state === 'INRUN') {
       const th = Hill.inrunAt(S.s).angle * D2R;
       const a = CONFIG.gravity * Math.sin(th)
-              - CONFIG.inrunFriction * CONFIG.gravity * Math.cos(th)
+              - CONFIG.inrunFriction * this.fricJit * CONFIG.gravity * Math.cos(th)
               - CONFIG.inrunDrag * S.v * S.v;
       S.v += a * dt;
       S.s += S.v * dt;
@@ -740,11 +756,14 @@ const Game = {
           ? 1
           : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
         const p = Hill.inrunAt(S.s), th = p.angle * D2R;
+        const imp = CONFIG.takeoffImpulse * (CONFIG.impulseBase + (1 - CONFIG.impulseBase) * T.quality);
         S.x = p.x; S.y = p.y + 0.02;
-        S.vx = S.v * Math.cos(th) + CONFIG.takeoffImpulse * Math.sin(th);
-        S.vy = -S.v * Math.sin(th) + CONFIG.takeoffImpulse * Math.cos(th);
+        S.vx = S.v * Math.cos(th) + imp * Math.sin(th);
+        S.vy = -S.v * Math.sin(th) + imp * Math.cos(th);
         S.body = -p.angle;
-        S.alphaCtl = CONFIG.initAlpha;
+        S.alphaCtl = CONFIG.initAlpha
+          + (1 - T.quality) * (Math.random() * 2 - 1) * CONFIG.initAlphaSpread
+          + (Math.random() * 2 - 1) * 1.2;
         this.setPose('extend', CONFIG.jumpAnimTime);
         this.state = 'FLIGHT';
         this.ring(tte <= CONFIG.perfectWindow ? '#5cffa8' : tte <= 0.15 ? '#b9f6ca' : '#ffb74d');
@@ -803,7 +822,8 @@ const Game = {
       // Anströmung (Wind verstärkt via windAeroFactor)
       const gust = this.currentWind();
       const w = gust * CONFIG.windAeroFactor;
-      const rvx = S.vx - w, rvy = S.vy;
+      const wv = this.currentWindV() * CONFIG.windAeroFactor;
+      const rvx = S.vx - w, rvy = S.vy - wv;
       const rv = Math.hypot(rvx, rvy);
       const velAng = Math.atan2(rvy, rvx) / D2R;
 
@@ -940,14 +960,14 @@ const Game = {
     S.x = 0; S.y = 0;
     S.vx = S.v * Math.cos(ta); S.vy = S.v * Math.sin(ta);
     S.body = -CONFIG.tableAngle;   // kontinuierlich zur Tischneigung – kein Winkel-Sprung
-    S.alphaCtl = CONFIG.initAlpha;
+    S.alphaCtl = CONFIG.initAlpha + (Math.random() * 2 - 1) * CONFIG.initAlphaSpread;
     this.state = 'FLIGHT';
     // ohne Tap bleibt der Springer sichtbar in der Hocke (lateWindow läuft im Flug)
   },
 
   applyTakeoffImpulse(q, late) {
     const S = this.skier, ta = CONFIG.tableAngle * D2R;
-    const imp = CONFIG.takeoffImpulse * q * (late ? 0.8 : 1);
+    const imp = CONFIG.takeoffImpulse * (CONFIG.impulseBase + (1 - CONFIG.impulseBase) * q) * (late ? 0.8 : 1);
     S.vx += imp * Math.sin(ta) * 0.25;
     S.vy += imp * Math.cos(ta);
   },
@@ -1005,7 +1025,15 @@ const Game = {
 
     const total = Math.max(0, distPts + stylePts + windPts);
     this.result = { dist, distPts, stylePts, windPts, notes, total, landing, crashed, wind: this.wind };
-    if (!this.best || total > this.best.total) {
+    if (!crashed && dist > this.record) {
+      this.record = dist;
+      store.set('alpenflug_record', String(dist));
+      this.result.isRecord = true;
+      this.showMsg('SCHANZENREKORD!', '#ffd35c', 2.4);
+      this.confetti(); this.confetti();
+      Sound.telemark(); Sound.perfect();
+    }
+    if (!crashed && (!this.best || total > this.best.total)) {
       this.best = { dist, total };
       store.set('alpenflug_best', JSON.stringify(this.best));
     }
@@ -1381,6 +1409,20 @@ function drawHill() {
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
 
+  // Rekordlinie (grün gestrichelt quer über die Fläche)
+  {
+    const rx = Hill.xAtDistance(Game.record);
+    if (rx > xLo - 3 && rx < xHi + 3) {
+      const g = Hill.groundAt(rx);
+      const a = worldToScreen(rx, g.y);
+      const b = worldToScreen(rx + DEPTH.x, g.y + DEPTH.y);
+      ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = Math.max(2, cam.ppm * 0.14);
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   // --- Anlaufturm: schlanke Stahl-Optik mit Akzentlinie ---
   const ir = Hill.inrun;
   if (xLo > 2) return; // Anlauf ist links außerhalb des Bildes
@@ -1457,6 +1499,17 @@ function drawHillLabels() {
     ctx.fillStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(70,100,130,0.8)';
     ctx.font = `${isK || isHS ? '800' : '600'} ${Math.max(10, cam.ppm * 1.05)}px system-ui`;
     ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, b.x + 5, b.y - 3);
+  }
+  // Rekord-Label
+  {
+    const rx = Hill.xAtDistance(Game.record);
+    const g = Hill.groundAt(rx);
+    const b = worldToScreen(rx + DEPTH.x, g.y + DEPTH.y);
+    if (b.x > -80 && b.x < W + 80 && b.y > -30 && b.y < H + 30) {
+      ctx.fillStyle = '#2ecc71';
+      ctx.font = `800 ${Math.max(10, cam.ppm * 0.95)}px system-ui`;
+      ctx.fillText('Rekord ' + Game.record.toFixed(1).replace('.', ','), b.x + 5, b.y - 3);
+    }
   }
 }
 
@@ -1655,9 +1708,10 @@ function predictLanding() {
   let x = S.x, y = S.y, vx = S.vx, vy = S.vy;
   const alpha = S.alphaCtl; // Annahme: aktueller Anstellwinkel wird gehalten
   const w = Game.currentWind() * CONFIG.windAeroFactor;
+  const wv = Game.currentWindV() * CONFIG.windAeroFactor;
   const dt = 1 / 40;
   for (let t = 0; t < 9; t += dt) {
-    const rvx = vx - w, rvy = vy;
+    const rvx = vx - w, rvy = vy - wv;
     const rv = Math.hypot(rvx, rvy);
     const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
     const liftF = Math.exp(-dNorm * dNorm);
@@ -1984,8 +2038,10 @@ function drawHUD() {
   ctx.fillStyle = '#fff';
   ctx.font = `700 ${13 * ui}px system-ui`;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  const windTxt = Math.abs(w) < 0.15 ? 'windstill'
-    : `${Math.abs(w).toFixed(1).replace('.', ',')} m/s ${w < 0 ? 'Gegenwind' : 'Rückenwind'}`;
+  const wv = Game.currentWindV();
+  const vArrow = Math.abs(wv) > 0.25 ? (wv > 0 ? ' ↑' : ' ↓') : '';
+  const windTxt = (Math.abs(w) < 0.15 ? 'windstill'
+    : `${Math.abs(w).toFixed(1).replace('.', ',')} m/s ${w < 0 ? 'Gegenwind' : 'Rückenwind'}`) + vArrow;
   ctx.fillText(windTxt, ax + 16 * ui, ay + 0.5);
 
   // --- Tempo-Pill (zweite Zeile links – kollidiert nie mit der Best-Pill) ---
@@ -2299,9 +2355,9 @@ window.addEventListener('keydown', e => {
     Game.advance();
   }
 });
-if (Game.best)
-  document.getElementById('startBest').textContent =
-    `Bestleistung: ${Game.best.dist.toFixed(1).replace('.', ',')} m · ${Game.best.total.toFixed(1)} Pkt.`;
+document.getElementById('startBest').textContent =
+  `Schanzenrekord: ${Game.record.toFixed(1).replace('.', ',')} m` +
+  (Game.best ? ` · Deine Bestweite: ${Game.best.dist.toFixed(1).replace('.', ',')} m` : '');
 
 // Springer für den Startbildschirm ans Gate setzen
 {
