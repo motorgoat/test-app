@@ -57,6 +57,7 @@
   .best { font-size: 13px; color: #ffd35c; margin-top: 12px; font-weight: 600; }
   .hint { font-size: 12px; color: #7ea8c9; margin-top: 10px; line-height: 1.5; }
   .roundline { font-size: 14px; color: #9be8ff; font-weight: 700; margin: 2px 0 6px; }
+  .place { font-size: 19px; color: #ffd35c; font-weight: 900; letter-spacing: .5px; margin: 4px 0; }
   .hidden { display: none !important; }
 
   #muteBtn {
@@ -103,11 +104,12 @@
   <div class="big" id="resDist">–</div>
   <div class="pills">
     <div class="pill"><div class="v" id="pDist">–</div><div class="k">Weite</div></div>
-    <div class="pill"><div class="v" id="pFlight">–</div><div class="k">Flug</div></div>
-    <div class="pill"><div class="v" id="pLand">–</div><div class="k">Landung</div></div>
+    <div class="pill"><div class="v" id="pStyle">–</div><div class="k">Haltung</div></div>
+    <div class="pill"><div class="v" id="pWind">–</div><div class="k">Wind</div></div>
   </div>
   <div class="total">Sprung <b id="resTotal">–</b> Punkte</div>
-  <div class="windline"><span id="resLanding" class="rating"></span> · <span id="resWind"></span></div>
+  <div class="windline"><span id="resLanding" class="rating"></span> · <span id="resNotes"></span></div>
+  <div class="place" id="resPlace"></div>
   <div class="roundline" id="roundLine"></div>
   <button id="nextBtn">Nächster Sprung</button>
   <div class="best" id="resBest"></div>
@@ -197,16 +199,16 @@ const CONFIG = {
   outrunFriction: 0.06,       // Bremsreibung im Auslauf
   crashFriction: 0.30,        // Sturz bremst stark
 
-  // Punkte
+  // Punkte (FIS-Schema)
   meterValue: 1.8,            // Weitenpunkte pro Meter (K90-Standard)
   basePoints: 60,             // Punkte am K-Punkt
-  styleFlightMax: 30,         // Haltungsnote Flug (Zeit im Korridor)
-  styleLandingMax: 30,        // Haltungsnote Landung
+  windFactor: 3.5,            // Windpunkte pro m/s (Kompensation, K90-getunt)
+  fieldSize: 30,              // Starterfeld inkl. Spieler (für die Platzierung)
 
   // Kamera (sichtbare Weltbreite in m pro Phase – kleiner = näher dran)
   camGateView: 17,
   camInrunView: 28,
-  camFlightMin: 24, camFlightMax: 48,
+  camFlightMin: 21, camFlightMax: 42,
   camOutrunView: 25,
 };
 
@@ -514,7 +516,7 @@ const Tutorial = {
     { id: 'flight',
       when: () => Game.state === 'FLIGHT' && Game.flight.time > 0.45,
       pause: true,
-      text: 'Flug: Finger GEDRÜCKT HALTEN und hoch/runter wischen, um die Lage zu justieren. Nicht loslassen und neu tippen – das löst die Landung aus!' },
+      text: 'Flug: Finger GEDRÜCKT HALTEN und hoch/runter wischen. Liegt der Springer ruhig und flach über den Skiern, stimmt die Lage – zittert er, musst du korrigieren!' },
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
@@ -582,9 +584,34 @@ const Game = {
   best: (() => { try { return JSON.parse(store.get('alpenflug_best') || 'null'); } catch (e) { return null; } })(),
   bestComp: parseFloat(store.get('alpenflug_best_comp') || '0') || 0,
 
-  // Wettkampf: 2 Durchgänge, Gesamtwertung
+  // Wettkampf: 2 Durchgänge, Gesamtwertung, KI-Starterfeld für die Platzierung
   round: 1,
   roundTotals: [],
+  field: [],
+
+  newCompetition() {
+    this.round = 1;
+    this.roundTotals = [];
+    this.field = [];
+    for (let i = 0; i < CONFIG.fieldSize - 1; i++) {
+      const skill = 88 + Math.random() * 42;               // Grundstärke des Springers
+      this.field.push({
+        r1: Math.max(30, skill + (Math.random() - 0.5) * 20),
+        r2: Math.max(30, skill + (Math.random() - 0.5) * 20),
+      });
+    }
+  },
+
+  // Platzierung nach aktuellem Stand (Summe der gesprungenen Durchgänge)
+  placement() {
+    const mine = this.roundTotals.reduce((a, b) => a + (b || 0), 0);
+    let rank = 1;
+    for (const ai of this.field) {
+      const theirs = this.round === 1 ? ai.r1 : ai.r1 + ai.r2;
+      if (theirs > mine) rank++;
+    }
+    return rank;
+  },
 
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
@@ -809,8 +836,8 @@ const Game = {
       }
     }
 
-    // ---------- AUSLAUF ----------
-    else if (this.state === 'OUTRUN') {
+    // ---------- AUSLAUF (läuft hinter dem Ergebnis-Panel weiter) ----------
+    else if ((this.state === 'OUTRUN' || this.state === 'RESULT') && this.result) {
       this.outrunTimer += dt;
       if (this.result.crashed) {
         // Ragdoll übernimmt – Kamera folgt der Hüfte
@@ -819,7 +846,8 @@ const Game = {
         S.x = hip.x; S.y = hip.y;
         S.v = Ragdoll.speed();
         if (S.v > 3 && Math.random() < dt * 35) this.spray(1);
-        if (this.outrunTimer > 2.8 || (this.outrunTimer > 1.4 && S.v < 1)) this.showResult();
+        // Ergebnis sofort, sobald der Sturz kurz sichtbar war
+        if (this.state === 'OUTRUN' && this.outrunTimer > 1.0) this.showResult();
       } else {
         const th = Hill.groundAt(S.x).angle * D2R;
         const a = CONFIG.gravity * Math.sin(th) - CONFIG.outrunFriction * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
@@ -831,7 +859,8 @@ const Game = {
         if (S.v > 6 && Math.random() < dt * 40) this.dust();
         // nach dem Telemark aufrichten und ausfahren
         if (this.outrunTimer > 1.1 && S.poseB === 'telemark') this.setPose('landed', 0.45);
-        if ((S.v < 1.5 || this.outrunTimer > 3.5) && this.outrunTimer > 1.6) this.showResult();
+        // Ergebnis direkt nach der Landung – wie im echten Skispringen
+        if (this.state === 'OUTRUN' && this.outrunTimer > 0.7) this.showResult();
       }
     }
 
@@ -885,20 +914,35 @@ const Game = {
     // DSJ-Regel: ohne Landeposition = Sturz; Position rechtzeitig stehen = Telemark
     const F0 = this.flight;
     const stanceDur = F0.stance ? this.time - F0.stanceT : -1;
-    let landing, landingPts, crashed = false;
-    if (!F0.stance)                              { landing = 'STURZ!';         landingPts = 0; crashed = true; }
-    else if (stanceDur >= CONFIG.stanceMinTime)  { landing = 'Telemark!';      landingPts = CONFIG.styleLandingMax; }
-    else                                         { landing = 'Knappe Landung'; landingPts = CONFIG.styleLandingMax * 0.6; }
-    if (vNormal > CONFIG.crashSpeed)             { landing = 'STURZ – zu hart!'; landingPts = 0; crashed = true; }
+    let landing, crashed = false;
+    if (!F0.stance)                              { landing = 'STURZ!';           crashed = true; }
+    else if (stanceDur >= CONFIG.stanceMinTime)  { landing = 'Telemark!'; }
+    else                                         { landing = 'Knappe Landung'; }
+    if (vNormal > CONFIG.crashSpeed)             { landing = 'STURZ – zu hart!'; crashed = true; }
 
     const dist = Math.round(g.s * 2) / 2;
+    // Weitenpunkte (FIS): 60 am K-Punkt ± meterValue pro Meter
     const distPts = Math.max(0, CONFIG.basePoints + (dist - CONFIG.kPoint) * CONFIG.meterValue);
-    const F = this.flight;
-    let flightPts = (F.time > 0 ? F.corridorTime / F.time : 0) * CONFIG.styleFlightMax;
-    if (crashed) flightPts *= 0.25;
-    const total = distPts + flightPts + landingPts;
 
-    this.result = { dist, distPts, flightPts, landingPts, total, landing, crashed, wind: this.wind, takeoffQ: this.takeoff.quality };
+    // Haltungsnoten (FIS): 5 Wertungsrichter je 0–20 in 0,5er-Schritten,
+    // höchste und niedrigste Note gestrichen → maximal 60 Punkte
+    const styleFrac = F0.time > 0 ? F0.corridorTime / F0.time : 0;
+    let base = 16.5 + styleFrac * 2;                       // Flugstabilität
+    if (landing === 'Telemark!') base += 1;
+    else if (!crashed) base -= 1.5;                        // keine Telemark-Landung
+    if (crashed) base = 8 + styleFrac * 3;                 // Sturz
+    const notes = [];
+    for (let i = 0; i < 5; i++)
+      notes.push(clamp(Math.round((base + (Math.random() - 0.5) * 1.4) * 2) / 2, 0, 20));
+    const sorted = [...notes].sort((a, b) => a - b);
+    const stylePts = sorted[1] + sorted[2] + sorted[3];
+
+    // Windpunkte (FIS-Kompensation): Rückenwind wird gutgeschrieben,
+    // Gegenwind-Vorteil abgezogen
+    const windPts = Math.round(this.wind * CONFIG.windFactor * 10) / 10;
+
+    const total = Math.max(0, distPts + stylePts + windPts);
+    this.result = { dist, distPts, stylePts, windPts, notes, total, landing, crashed, wind: this.wind };
     if (!this.best || total > this.best.total) {
       this.best = { dist, total };
       store.set('alpenflug_best', JSON.stringify(this.best));
@@ -963,14 +1007,16 @@ const Game = {
     Tutorial.finish();
     const r = this.result;
     this.roundTotals[this.round - 1] = r.total;
+    const rank = this.placement();
     resTitle.textContent = r.crashed ? `Gestürzt · ${this.round}. Durchgang` : `${this.round}. Durchgang`;
     resDist.textContent = r.dist.toFixed(1).replace('.', ',') + ' m';
     pDist.textContent = r.distPts.toFixed(1);
-    pFlight.textContent = r.flightPts.toFixed(1);
-    pLand.textContent = r.landingPts.toFixed(1);
+    pStyle.textContent = r.stylePts.toFixed(1);
+    pWind.textContent = (r.windPts >= 0 ? '+' : '') + r.windPts.toFixed(1);
     resTotal.textContent = r.total.toFixed(1);
     resLanding.textContent = r.landing;
-    resWind.textContent = 'Wind: ' + windLabel(r.wind);
+    resNotes.textContent = 'Noten: ' + r.notes.map(n => n.toFixed(1).replace('.', ',')).join(' ');
+    resPlace.textContent = `${this.round === 2 ? 'Endstand' : 'Zwischenstand'}: Platz ${rank} von ${CONFIG.fieldSize}`;
     if (this.round === 1) {
       roundLine.textContent = '';
       nextBtn.textContent = '2. Durchgang';
@@ -993,7 +1039,7 @@ const Game = {
   // Weiter nach dem Ergebnis: Durchgang 2 oder neuer Wettkampf
   advance() {
     if (this.state === 'RESULT' && this.round === 1 && this.roundTotals[0] != null) this.round = 2;
-    else { this.round = 1; this.roundTotals = []; }
+    else this.newCompetition();
     this.newJump();
   },
 };
@@ -1038,8 +1084,8 @@ function updateCamera(dt) {
   } else if (Game.state === 'FLIGHT') {
     const surfY = S.x < 0 ? Hill.inrunAtX(S.x).y : Hill.groundAt(S.x).y;
     const hAbove = S.y - surfY;
-    vw = clamp(hAbove * 1.4 + 19, CONFIG.camFlightMin, CONFIG.camFlightMax);
-    tx = S.x + S.vx * 0.38; ty = S.y - hAbove * 0.42;
+    vw = clamp(hAbove * 1.2 + 17, CONFIG.camFlightMin, CONFIG.camFlightMax);
+    tx = S.x + S.vx * 0.36; ty = S.y - hAbove * 0.42;
   } else {
     vw = CONFIG.camOutrunView; tx = S.x + 5; ty = S.y + 2;
   }
@@ -1119,6 +1165,10 @@ function drawBackground() {
 
 // 2.5D: Tiefenversatz der Schneeoberfläche (Weltmeter, nach hinten-oben)
 const DEPTH = { x: 1.25, y: 0.72 };
+// Der Springer (und alles, was zu ihm gehört) wird MITTIG AUF dem
+// Oberflächenband gerendert – sonst wirkt es, als lande er vor der Piste.
+const REN = { x: 0.55, y: 0.32 };
+const renToScreen = (wx, wy) => worldToScreen(wx + REN.x, wy + REN.y);
 
 function drawHill() {
   // --- Aufsprunghang: Schneekörper (Querschnitt) ---
@@ -1315,7 +1365,7 @@ function drawTrail() {
   for (const t of Game.trail) {
     const age = Game.time - t.t;
     if (age > 1.5) continue;
-    const p = worldToScreen(t.x, t.y);
+    const p = renToScreen(t.x, t.y);
     ctx.globalAlpha = (1 - age / 1.5) * 0.3;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1.2, cam.ppm * 0.07), 0, 7); ctx.fill();
@@ -1332,7 +1382,7 @@ function drawShadow() {
     const fade = clamp(1 - h / 34, 0.18, 1);
     // exakt senkrecht unter dem Springer: der Abstand Springer↔Schatten
     // schließt sich genau beim Aufsetzen – das ist das Lande-Timing-Signal
-    const p = worldToScreen(S.x, g.y + 0.05);
+    const p = renToScreen(S.x, g.y + 0.05);
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(g.angle * D2R);
@@ -1344,7 +1394,7 @@ function drawShadow() {
     ctx.restore();
   } else if (Game.state !== 'MENU') {
     // Kontaktschatten unter den Skiern
-    const p = worldToScreen(S.x, S.y);
+    const p = renToScreen(S.x, S.y);
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(-S.body * D2R);
@@ -1441,11 +1491,11 @@ const POSES = {
     arm1: [0.2, -0.95, 0.34, -0.55], arm2: [0.18, -0.93, 0.06, -0.55],
     head: [0.34, -1.18], skiV: 0,
   },
-  crouch: {
-    legF: [0.05, 0, -0.12, -0.32, -0.28, -0.5], legB: [0.05, 0, -0.12, -0.32, -0.28, -0.5],
-    torso: [-0.28, -0.5, 0.5, -0.62],
-    arm1: [0.34, -0.58, 0.62, -0.3], arm2: [0.32, -0.56, 0.58, -0.32],
-    head: [0.68, -0.72], skiV: 0,
+  crouch: { // echte Anfahrtshocke: Oberschenkel waagrecht, Rücken flach, Arme nach hinten
+    legF: [0.05, 0, 0.2, -0.3, -0.18, -0.48], legB: [0.05, 0, 0.2, -0.3, -0.18, -0.48],
+    torso: [-0.18, -0.48, 0.56, -0.54],
+    arm1: [0.36, -0.5, -0.42, -0.4], arm2: [0.34, -0.48, -0.4, -0.38],
+    head: [0.74, -0.6], skiV: 0,
   },
   extend: { // explosives Abdrücken an der Kante: gestreckt nach oben-vorn
     legF: [0.05, 0, 0.02, -0.35, -0.08, -0.68], legB: [0.05, 0, 0.02, -0.35, -0.08, -0.68],
@@ -1477,7 +1527,7 @@ const mixArr = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
 function drawSkier() {
   const S = Game.skier;
   if (S.crash && Ragdoll.active) { drawRagdoll(); return; }
-  const p = worldToScreen(S.x, S.y);
+  const p = renToScreen(S.x, S.y);
 
   // Speedlines im Flug
   if (Game.state === 'FLIGHT') {
@@ -1495,33 +1545,57 @@ function drawSkier() {
     }
   }
 
+  // Turbulenz-Zittern: außerhalb des Winkel-Korridors flattert die Figur –
+  // das ERSETZT den Regler als Feedback für die Fluglage.
+  let jitter = 0;
+  if (Game.state === 'FLIGHT' && !Game.flight.stance && Game.flight.time > 0.3) {
+    const dev = Math.abs(S.alphaCtl - CONFIG.optimalAngle) / CONFIG.angleTolerance;
+    if (dev > 1) jitter = Math.min(dev - 1, 1.6) * 2.2 * Math.sin(Game.time * 34);
+  }
+
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.rotate(-S.body * D2R);
+  ctx.rotate(-(S.body + jitter) * D2R);
   ctx.scale(cam.ppm, cam.ppm);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-  const SUIT = '#ff4757', SUIT_D = '#d63447', LEGS = '#22354a', SKI = '#ffd23f', SKI_D = '#e0a800';
-  const path = (pts, color, w) => {
-    ctx.strokeStyle = color; ctx.lineWidth = w;
+  const SUIT = '#ff4757', SUIT_D = '#d63447', LEGS = '#22354a',
+        SKI = '#ffd23f', SKI_D = '#e0a800', OUT = '#12212f';
+  // Gliedmaßen mit dunkler Kontur (Vektor-Look)
+  const limb = (pts, color, w) => {
     ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
     for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
-    ctx.stroke();
+    ctx.strokeStyle = OUT; ctx.lineWidth = w + 0.07; ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
   };
   const head = (hx, hy) => {
+    // Helm
     ctx.fillStyle = '#f8fafc';
-    ctx.beginPath(); ctx.arc(hx, hy, 0.18, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#22354a'; ctx.lineWidth = 0.045; ctx.stroke();
-    ctx.strokeStyle = '#35d0ff'; ctx.lineWidth = 0.06;
-    ctx.beginPath(); ctx.arc(hx, hy, 0.13, -0.5, 0.6); ctx.stroke();
+    ctx.strokeStyle = OUT; ctx.lineWidth = 0.05;
+    ctx.beginPath(); ctx.arc(hx, hy, 0.2, 0, 7); ctx.fill(); ctx.stroke();
+    // Visier (dunkler Keil in Blickrichtung)
+    ctx.fillStyle = '#35d0ff';
+    ctx.beginPath();
+    ctx.moveTo(hx + 0.03, hy - 0.11);
+    ctx.quadraticCurveTo(hx + 0.27, hy - 0.05, hx + 0.18, hy + 0.08);
+    ctx.lineTo(hx + 0.03, hy + 0.03);
+    ctx.closePath(); ctx.fill();
+    // Helmstreifen
+    ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 0.05;
+    ctx.beginPath(); ctx.arc(hx, hy, 0.155, Math.PI * 0.75, Math.PI * 1.45); ctx.stroke();
   };
   const ski = (yOff, tipUp, color) => {
-    ctx.strokeStyle = color; ctx.lineWidth = 0.15;
     ctx.beginPath();
     ctx.moveTo(-1.05, yOff);
     ctx.lineTo(1.1, yOff - tipUp * 0.4);
     ctx.quadraticCurveTo(1.32, yOff - tipUp * 0.4 - 0.02, 1.42, yOff - tipUp * 0.4 - 0.16);
-    ctx.stroke();
+    ctx.strokeStyle = OUT; ctx.lineWidth = 0.21; ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = 0.14; ctx.stroke();
+  };
+  const boot = (bx, by) => {
+    ctx.fillStyle = OUT;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - 0.1, by - 0.13, 0.26, 0.15, 0.04) : ctx.rect(bx - 0.1, by - 0.13, 0.26, 0.15);
+    ctx.fill();
   };
 
   {
@@ -1534,34 +1608,33 @@ function drawSkier() {
     const hd = mixArr(A.head, B.head, t);
     let skiV = lerp(A.skiV, B.skiV, t);
 
-    // Haltungs-Morph: die Figur reagiert sichtbar auf den Anstellwinkel –
-    // hoher alpha = aufgerichtet, niedriger alpha = flach nach vorn gedrückt
+    // Haltungs-Morph: die Figur zeigt den Anstellwinkel deutlich –
+    // hoher alpha = aufgerichtet + Ski-V weit offen, niedriger = flacher Vorwärtsdruck
     if (Game.state === 'FLIGHT' && S.poseB === 'flight') {
-      const dev = clamp((S.alphaCtl - CONFIG.optimalAngle) / 14, -1, 1) * t;
-      torso[3] -= dev * 0.3;                    // Schulter hebt/senkt sich
-      hd[1] -= dev * 0.36; hd[0] -= Math.max(0, dev) * 0.2;
-      arm1[1] -= dev * 0.22; arm2[1] -= dev * 0.2;
-      legF[5] -= dev * 0.12; legB[5] -= dev * 0.12;
-      skiV = clamp(skiV + dev * 0.5, 0, 1.4);
+      const dev = clamp((S.alphaCtl - CONFIG.optimalAngle) / 10, -1, 1) * t;
+      torso[3] -= dev * 0.38;
+      hd[1] -= dev * 0.46; hd[0] -= Math.max(0, dev) * 0.26;
+      arm1[1] -= dev * 0.28; arm2[1] -= dev * 0.26;
+      legF[5] -= dev * 0.16; legB[5] -= dev * 0.16;
+      skiV = clamp(skiV + dev * 0.9, -0.3, 1.8);
     }
 
     ski(0.12, skiV * 0.05, SKI_D);
     ski(0.0, skiV * 0.25, SKI);
-    // Bindungen
-    ctx.fillStyle = '#22354a';
-    ctx.fillRect(-0.02, -0.06, 0.16, 0.1);
-    path(legB, LEGS, 0.15);
-    path(legF, LEGS, 0.17);
-    path(torso, SUIT, 0.24);
+    boot(legF[0], legF[1]);
+    limb(legB, LEGS, 0.15);
+    limb(legF, LEGS, 0.17);
+    limb(arm2, SUIT_D, 0.1);
+    limb(torso, SUIT, 0.25);
     // weißer Zierstreifen auf dem Anzug
-    ctx.globalAlpha = 0.55;
-    path(torso, '#ffd9dd', 0.07);
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = '#ffe3e6'; ctx.lineWidth = 0.06;
+    ctx.beginPath(); ctx.moveTo(torso[0], torso[1] + 0.06); ctx.lineTo(torso[2], torso[3] + 0.06); ctx.stroke();
     ctx.globalAlpha = 1;
-    path(arm2, SUIT_D, 0.1);
-    path(arm1, SUIT_D, 0.11);
+    limb(arm1, SUIT_D, 0.11);
     // Handschuh
-    ctx.fillStyle = '#16283c';
-    ctx.beginPath(); ctx.arc(arm1[2], arm1[3], 0.07, 0, 7); ctx.fill();
+    ctx.fillStyle = OUT;
+    ctx.beginPath(); ctx.arc(arm1[2], arm1[3], 0.08, 0, 7); ctx.fill();
     head(hd[0], hd[1]);
   }
   ctx.restore();
@@ -1570,7 +1643,7 @@ function drawSkier() {
 // --- Ragdoll zeichnen (ersetzt die Figur bei Stürzen) ---
 function drawRagdoll() {
   const P = Ragdoll.pts, K = Ragdoll.skiPts;
-  const w2s = p => worldToScreen(p.x, p.y);
+  const w2s = p => renToScreen(p.x, p.y);
   const line = (a, b, color, w) => {
     const A = w2s(a), B = w2s(b);
     ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, w * cam.ppm);
@@ -1597,7 +1670,7 @@ function drawFX() {
   for (const f of Game.fx) {
     const age = Game.time - f.t0;
     if (age < 0 || age > 0.6) continue;
-    const p = worldToScreen(f.x, f.y);
+    const p = renToScreen(f.x, f.y);
     ctx.globalAlpha = (1 - age / 0.6) * 0.9;
     ctx.strokeStyle = f.color;
     ctx.lineWidth = 3.5 * (1 - age / 0.6) + 1;
@@ -1610,7 +1683,7 @@ function drawFX() {
 
 function drawParticles() {
   for (const p of Game.particles) {
-    const s = worldToScreen(p.x, p.y);
+    const s = renToScreen(p.x, p.y);
     ctx.globalAlpha = clamp(p.life * 2, 0, 0.85);
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1.5, cam.ppm * 0.11), 0, 7); ctx.fill();
@@ -1705,7 +1778,7 @@ function drawHUD() {
   if (Game.popup) {
     const age = Game.time - Game.popup.t0;
     if (age < 2.2) {
-      const p = worldToScreen(S.x, S.y + 3 + age * 1.2);
+      const p = renToScreen(S.x, S.y + 3 + age * 1.2);
       ctx.globalAlpha = clamp(2.2 - age, 0, 1) * clamp(age * 6, 0, 1);
       ctx.font = `900 ${34 * ui}px system-ui`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1727,30 +1800,8 @@ function drawHUD() {
     ctx.globalAlpha = 1;
   }
 
-  // --- Fluglagen-Korridor (rechts; in der Landeposition ausgeblendet) ---
-  if (Game.state === 'FLIGHT' && !Game.flight.stance) {
-    const gw = 12 * ui, gh = Math.min(H * 0.36, 230);
-    const gx = W - gw - 18, gy = (H - gh) / 2;
-    const mapA = a => gy + gh * (1 - (a + 15) / 50);   // Skala: -15° … +35°
-    // Track
-    ctx.fillStyle = 'rgba(10,22,38,0.55)';
-    roundRect(gx - 4, gy - 8, gw + 8, gh + 16, (gw + 8) / 2);
-    // Korridor mit Glow
-    const c0 = mapA(CONFIG.optimalAngle - CONFIG.angleTolerance);
-    const c1 = mapA(CONFIG.optimalAngle + CONFIG.angleTolerance);
-    ctx.fillStyle = 'rgba(50,220,130,0.9)';
-    roundRect(gx, c1, gw, c0 - c1, gw / 2);
-    // Nadel
-    const inCorr = Math.abs(Game.flight.alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance;
-    const ny = clamp(mapA(Game.flight.alpha), gy - 4, gy + gh + 4);
-    ctx.save();
-    ctx.shadowColor = inCorr ? '#5cffa8' : '#ff7a7a';
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = inCorr ? '#eafff3' : '#ffdfdf';
-    roundRect(gx - 6, ny - 3, gw + 12, 6, 3);
-    ctx.restore();
-    // (keine Lande-Prompts mehr – wie in DSJ zählen Schatten und Gefühl)
-  }
+  // (Kein Fluglagen-Regler mehr: die Haltung des Springers selbst zeigt den
+  //  Winkel – bei falscher Lage zittert die Figur sichtbar in der Anströmung.)
 
   // --- Debug (Taste D) ---
   if (Game.debug) {
@@ -1835,11 +1886,12 @@ const resultPanel = document.getElementById('resultPanel');
 const resTitle = document.getElementById('resTitle');
 const resDist = document.getElementById('resDist');
 const pDist = document.getElementById('pDist');
-const pFlight = document.getElementById('pFlight');
-const pLand = document.getElementById('pLand');
+const pStyle = document.getElementById('pStyle');
+const pWind = document.getElementById('pWind');
 const resTotal = document.getElementById('resTotal');
 const resLanding = document.getElementById('resLanding');
-const resWind = document.getElementById('resWind');
+const resNotes = document.getElementById('resNotes');
+const resPlace = document.getElementById('resPlace');
 const resBest = document.getElementById('resBest');
 const tutCard = document.getElementById('tutCard');
 const tutStep = document.getElementById('tutStep');
