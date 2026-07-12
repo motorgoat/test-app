@@ -11,7 +11,11 @@
   html, body { height: 100%; overflow: hidden; background: #2b6cb8; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action: none;
          -webkit-user-select: none; user-select: none; }
-  #game { display: block; width: 100%; height: 100%; touch-action: none; }
+  /* Welt-Canvas: niedrig aufgelöst + pixelig hochskaliert (Retro-Look) */
+  #game { display: block; width: 100%; height: 100%; touch-action: none;
+          image-rendering: pixelated; image-rendering: crisp-edges; }
+  /* HUD-Canvas: volle Auflösung, scharfe Texte, liegt über der Welt */
+  #hud { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
   /* --- Glas-Overlays (Start / Ergebnis / Tutorial) --- */
   .panel {
@@ -88,6 +92,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<canvas id="hud"></canvas>
 
 <!-- Startbildschirm -->
 <div id="startPanel" class="panel">
@@ -143,6 +148,7 @@ const CONFIG = {
   // Allgemein
   gravity: 9.81,              // m/s²
   timestep: 1 / 240,          // fixe Physikrate (240 Hz → butterweich auch auf 120-Hz-Displays)
+  pixelSize: 2.5,             // Retro-Look: CSS-Pixel pro Art-Pixel (größer = klobiger)
 
   // Schanze (K90 / HS100)
   kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
@@ -177,7 +183,8 @@ const CONFIG = {
   optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
   angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
   angleSpeed: 40,             // Änderungsrate der Tastatursteuerung (Grad/s)
-  swipeSensitivity: 70,       // Grad Winkeländerung pro voller Bildschirmhöhe Wischweg
+  swipeSensitivity: 0.11,     // Grad Winkeländerung pro Pixel Wischweg (absolut –
+                              // fühlt sich in jedem Fenster/Vollbild gleich an)
   pitchDrift: 2.5,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
   gustPitchFactor: 2,         // Böen stören alpha (Grad/s pro m/s Böenabweichung)
   initAlpha: 9,               // Anstellwinkel unmittelbar nach dem Absprung
@@ -306,8 +313,11 @@ const Hill = (() => {
 
 // ------------------------------------------------------------------ Input
 const Input = (() => {
-  const state = { tap: false, pointerDown: false };
-  let lastY = 0, swipeAcc = 0; // aufsummierter Wischweg (px, + = nach oben) seit letztem poll()
+  // tap: sofort bei Berührung (zeitkritisch: Start/Absprung).
+  // tapUp: nur bei kurzem Tipp OHNE Wischbewegung (Landeposition) – so löst
+  // ein Wisch-Griff nach dem Absprung nie versehentlich die Landung aus.
+  const state = { tap: false, tapUp: false, pointerDown: false };
+  let lastY = 0, swipeAcc = 0, downT = 0, moveTotal = 0;
   const keys = {};
   const canvas = document.getElementById('game');
 
@@ -317,37 +327,44 @@ const Input = (() => {
     state.tap = true;
     state.pointerDown = true;
     lastY = e.clientY;
+    downT = performance.now();
+    moveTotal = 0;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   });
   canvas.addEventListener('pointermove', e => {
     if (!state.pointerDown) return;
-    swipeAcc += lastY - e.clientY;
+    const dy = lastY - e.clientY;
+    swipeAcc += dy;
+    moveTotal += Math.abs(dy);
     lastY = e.clientY;
   });
-  const up = () => { state.pointerDown = false; };
+  const up = () => {
+    if (state.pointerDown && performance.now() - downT < 250 && moveTotal < 14)
+      state.tapUp = true;
+    state.pointerDown = false;
+  };
   canvas.addEventListener('pointerup', up);
-  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('pointercancel', () => { state.pointerDown = false; });
 
   window.addEventListener('keydown', e => {
     if (e.repeat) return;
     Sound.init();
     keys[e.key] = true;
-    if (e.key === ' ' || e.key === 'Enter') state.tap = true;
+    if (e.key === ' ' || e.key === 'Enter') { state.tap = true; state.tapUp = true; }
     if (e.key === 'd' || e.key === 'D') Game.debug = !Game.debug;
     if (e.key === 'm' || e.key === 'M') muteBtn.click();
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-  // Pro Physikframe: liefert Steuerwerte, konsumiert Tap und Wischweg.
-  // Touch: nach oben/unten WISCHEN justiert den Winkel direkt (relativ zur Bewegung).
+  // Pro Physikframe: liefert Steuerwerte, konsumiert Taps und Wischweg (px).
   function poll() {
     let a = 0;
     if (keys['ArrowUp'] || keys['w']) a = 1;
     if (keys['ArrowDown'] || keys['s']) a = -1;
     const tap = state.tap; state.tap = false;
-    const swipe = swipeAcc / window.innerHeight; // Anteil der Bildschirmhöhe
-    swipeAcc = 0;
-    return { tap, angle: a, swipe };
+    const tapUp = state.tapUp; state.tapUp = false;
+    const swipe = swipeAcc; swipeAcc = 0;
+    return { tap, tapUp, angle: a, swipe };
   }
   return { poll, state };
 })();
@@ -750,8 +767,9 @@ const Game = {
         }
       }
 
-      // DSJ-Landemechanik: zweiter Tap = SOFORT in die Landeposition
-      if (tapFree && T.done && !F.stance && S.x > 0) {
+      // DSJ-Landemechanik: kurzer TIPP (ohne Wischen) = SOFORT Landeposition.
+      // Kleine Schonfrist nach dem Absprung, damit der Griffwechsel nie landet.
+      if (inp.tapUp && T.done && !F.stance && S.x > 0 && F.time > 0.35) {
         F.stance = true;
         F.stanceT = this.time;
         this.setPose('telemark', 0.28);
@@ -1051,17 +1069,27 @@ function windLabel(w) {
 }
 
 // ------------------------------------------------------------------ Render
+// Zwei Ebenen: Welt in niedriger Auflösung (Pixel-Look), HUD scharf darüber.
+// Alle Zeichenfunktionen nutzen die globale `ctx`, die pro Phase umgeschaltet wird.
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const wctx = canvas.getContext('2d');
+const hudCanvas = document.getElementById('hud');
+const hctx = hudCanvas.getContext('2d');
+let ctx = wctx;
 let W = 0, H = 0, DPR = 1, vignette = null;
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 3);
   W = window.innerWidth; H = window.innerHeight;
-  canvas.width = Math.round(W * DPR);
-  canvas.height = Math.round(H * DPR);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  vignette = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
+  const P = CONFIG.pixelSize;
+  canvas.width = Math.ceil(W / P);
+  canvas.height = Math.ceil(H / P);
+  wctx.setTransform(1 / P, 0, 0, 1 / P, 0, 0);
+  wctx.imageSmoothingEnabled = false;
+  hudCanvas.width = Math.round(W * DPR);
+  hudCanvas.height = Math.round(H * DPR);
+  hctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  vignette = hctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
   vignette.addColorStop(0, 'rgba(8,20,36,0)');
   vignette.addColorStop(1, 'rgba(8,20,36,0.30)');
 }
@@ -1207,7 +1235,7 @@ function drawHill() {
   ctx.stroke();
 
   // Weitenmarken: Linien liegen quer AUF der Schneefläche
-  ctx.textBaseline = 'alphabetic';
+  // (die Beschriftungen zeichnet drawHillLabels() scharf aufs HUD)
   for (let d = 20; d <= 130; d += 10) {
     const x = Hill.xAtDistance(d);
     const g = Hill.groundAt(x);
@@ -1217,12 +1245,6 @@ function drawHill() {
     ctx.strokeStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(110,140,170,0.5)';
     ctx.lineWidth = isK || isHS ? Math.max(2.5, cam.ppm * 0.18) : Math.max(1.2, cam.ppm * 0.08);
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    if (cam.ppm > 5 || isK || isHS) {
-      ctx.fillStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(70,100,130,0.8)';
-      ctx.font = `${isK || isHS ? '800' : '600'} ${Math.max(10, cam.ppm * 1.05)}px system-ui`;
-      ctx.textAlign = 'left';
-      ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, b.x + 5, b.y - 3);
-    }
   }
 
   // --- Anlaufturm: schlanke Stahl-Optik mit Akzentlinie ---
@@ -1285,6 +1307,22 @@ function drawHill() {
   ctx.moveTo(edge.x, edge.y); ctx.lineTo(e2.x, e2.y);
   ctx.moveTo(edge.x, edge.y); ctx.lineTo(edge.x, edge.y + cam.ppm * 1.1);
   ctx.stroke();
+}
+
+// --- Weitenbeschriftungen (scharf auf dem HUD-Canvas) ---
+function drawHillLabels() {
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  for (let d = 20; d <= 130; d += 10) {
+    const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
+    if (cam.ppm <= 5 && !isK && !isHS) continue;
+    const x = Hill.xAtDistance(d);
+    const g = Hill.groundAt(x);
+    const b = worldToScreen(x + DEPTH.x, g.y + DEPTH.y);
+    if (b.x < -60 || b.x > W + 60 || b.y < -30 || b.y > H + 30) continue;
+    ctx.fillStyle = isK ? '#ff3d55' : isHS ? '#35d0ff' : 'rgba(70,100,130,0.8)';
+    ctx.font = `${isK || isHS ? '800' : '600'} ${Math.max(10, cam.ppm * 1.05)}px system-ui`;
+    ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, b.x + 5, b.y - 3);
+  }
 }
 
 // --- Deko: Bäume, Publikum und Fahnen machen die Szene lebendig ---
@@ -1864,6 +1902,8 @@ function frame(now) {
     }
     Sound.wind(lvl, frq);
   }
+  // Welt-Ebene: niedrig aufgelöst, pixelig
+  ctx = wctx;
   drawBackground();
   drawHill();
   drawTrees();
@@ -1871,11 +1911,15 @@ function frame(now) {
   drawFlag(Hill.xAtDistance(CONFIG.kPoint), '#ff3d55');
   drawFlag(Hill.xAtDistance(CONFIG.hillSize), '#35d0ff');
   drawShadow();
-  drawPrediction();
   drawTrail();
   drawParticles();
   drawFX();
   drawSkier();
+  // HUD-Ebene: volle Auflösung, scharfe Texte und Anzeigen
+  ctx = hctx;
+  ctx.clearRect(0, 0, W, H);
+  drawHillLabels();
+  drawPrediction();
   ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
   drawHUD();
 }
