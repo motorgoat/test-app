@@ -106,7 +106,21 @@
   #tutCard .txt { font-size: 15px; font-weight: 600; line-height: 1.45; margin-top: 4px; }
   #tutCard .go { font-size: 12px; color: #7ea8c9; margin-top: 8px; animation: blink 1.1s ease-in-out infinite; }
   @keyframes blink { 50% { opacity: .35; } }
-  @media (prefers-reduced-motion: reduce) { #tutCard, #tutCard .go { animation: none; } }
+  #tutCard .row { display: flex; gap: 14px; align-items: center; margin-top: 6px; }
+  #tutCard .gest { flex: none; width: 64px; text-align: center; }
+  #tutAnim { position: relative; width: 64px; height: 58px; }
+  #tutAnim .dot, #tutAnim .ring2 { position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; margin: -10px; border-radius: 50%; }
+  #tutAnim .dot { background: #eaf6ff; box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+  #tutAnim .ring2 { border: 2px solid #35d0ff; opacity: 0; }
+  #tutAnim.tap .dot { animation: tutTap 1.15s ease-in-out infinite; }
+  #tutAnim.tap .ring2 { animation: tutRipple 1.15s ease-out infinite; }
+  @keyframes tutTap { 0%, 100% { transform: scale(1); } 12% { transform: scale(.68); } 28% { transform: scale(1); } }
+  @keyframes tutRipple { 0%, 10% { opacity: 0; transform: scale(.7); } 16% { opacity: .95; } 55% { opacity: 0; transform: scale(2.6); } 100% { opacity: 0; } }
+  #tutAnim.swipe::before { content: ''; position: absolute; left: 50%; top: 4px; bottom: 4px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: rgba(120,200,255,.28); }
+  #tutAnim.swipe .dot { animation: tutSwipe 1.7s ease-in-out infinite; }
+  @keyframes tutSwipe { 0%, 100% { transform: translateY(15px); } 50% { transform: translateY(-15px); } }
+  #tutCard .lbl { font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #5cffa8; text-transform: uppercase; margin-top: 3px; line-height: 1.3; }
+  @media (prefers-reduced-motion: reduce) { #tutCard, #tutCard .go, #tutAnim .dot, #tutAnim .ring2 { animation: none; } }
 </style>
 </head>
 <body>
@@ -135,7 +149,13 @@
 <!-- Interaktives Tutorial -->
 <div id="tutCard" class="hidden">
   <div class="step" id="tutStep">Tutorial 1/4</div>
-  <div class="txt" id="tutText"></div>
+  <div class="row">
+    <div class="gest">
+      <div id="tutAnim" class="tap"><div class="ring2"></div><div class="dot"></div></div>
+      <div class="lbl" id="tutLbl">Tippen</div>
+    </div>
+    <div class="txt" id="tutText"></div>
+  </div>
   <div class="go" id="tutGo">▸ Tippen zum Fortfahren</div>
 </div>
 
@@ -180,8 +200,8 @@ const CONFIG = {
 
   // Absprung (jederzeit möglich – der Springer streckt sich sofort)
   takeoffImpulse: 3.5,        // Absprung-Impuls senkrecht zur Spur (m/s)
-  perfectWindow: 0.040,       // ± Sekunden vor der Tischkante = "perfekt" (Bewertungstext)
-  earlyFalloff: 0.55,         // Bewertungs-Abfall für frühe Sprünge (Weite ist ohnehin geometrisch)
+  perfectWindow: 0.016,       // Sekunden vor der Tischkante = "perfekt" – muss GENAU sitzen (~40 cm)
+  earlyFalloff: 0.38,         // Bewertungs-Abfall für frühe Sprünge (steiler = Timing zählt mehr)
   lateWindow: 0.18,           // so lange nach der Kante zählt ein Tap noch (stark reduziert)
   jumpAnimTime: 0.16,         // Dauer der Streck-Animation beim Absprung (s)
 
@@ -565,18 +585,22 @@ const Tutorial = {
     { id: 'gate',
       when: () => Game.state === 'GATE',
       pause: false, // Spiel wartet ohnehin – der Start-Tap ist die Aktion
+      anim: 'tap', lbl: 'Tippen = Start',
       text: 'Du sitzt am Startbalken. Tippe, um dich abzustoßen – der Anlauf läuft dann automatisch.' },
     { id: 'takeoff',
       when: () => Game.state === 'INRUN' && (Hill.inrunLength - Game.skier.s) / Math.max(Game.skier.v, 0.1) < 1.15,
       pause: true,
+      anim: 'tap', lbl: 'Tippen = Absprung',
       text: 'Gleich kommt die Tischkante (rote Linie)! Du kannst jederzeit springen – aber nur GENAU an der Kante holt die volle Weite.' },
     { id: 'flight',
       when: () => Game.state === 'FLIGHT' && Game.flight.time > 0.45,
       pause: true,
+      anim: 'swipe', lbl: 'Halten + Wischen',
       text: 'Flug: Finger GEDRÜCKT HALTEN und hoch/runter wischen. Liegt der Springer ruhig und flach über den Skiern, stimmt die Lage – zittert er, musst du korrigieren!' },
     { id: 'landing',
       when: () => Game.state === 'FLIGHT' && Game.landingTap.tta < 0.85,
       pause: true,
+      anim: 'tap', lbl: 'Tippen = Landung',
       text: 'Landung: Jetzt loslassen und neu TIPPEN – der Springer geht sofort in die Landeposition. Zu früh kostet Weite, ohne Landeposition stürzt du!' },
   ],
 
@@ -591,6 +615,8 @@ const Tutorial = {
 
   show(s) {
     tutStep.textContent = `Tutorial ${this.step + 1}/${this.steps.length}`;
+    tutAnim.className = s.anim || 'tap';
+    tutLbl.textContent = s.lbl || 'Tippen';
     tutText.textContent = s.text;
     tutGo.textContent = s.pause ? '▸ Tippen zum Fortfahren' : '▸ Tippen, wenn du bereit bist';
     tutCard.classList.remove('hidden');
@@ -732,6 +758,18 @@ const Game = {
     const wander = Math.sin(this.time * 0.35 + this.wanderPhase) * CONFIG.windWander * CONFIG.windStrength;
     return this.wind * (1 + CONFIG.gustAmount * gust) + wander;
   },
+  // Windmesspunkte wie an echten Schanzen: 0 = Absprung (exakt der Wind, der
+  // im Flug wirkt), 1 = Hang, 2 = Aufsprung – lokal leicht abweichend.
+  windAtPoint(k) {
+    const w = this.currentWind(), wv = this.currentWindV();
+    if (k === 0) return { w, wv };
+    const t = this.time, ph = k * 2.1 + (this.wanderPhase || 0);
+    return {
+      w:  w * (1 + 0.22 * Math.sin(t * 0.5 + ph)) + 0.15 * Math.sin(t * 0.37 + ph * 1.7),
+      wv: wv * (1 + 0.25 * Math.sin(t * 0.42 + ph * 1.3)) + 0.06 * Math.sin(t * 0.6 + ph),
+    };
+  },
+
   // vertikaler Wind (Auf-/Abwind), leicht pulsierend + eigenes Wandern –
   // zusammen mit currentWind() dreht sich der Windvektor langsam im Kreis
   currentWindV() {
@@ -1162,7 +1200,8 @@ const Game = {
     this.notesShown = 0;
     this.buttonShown = false;
     nextBtn.textContent = this.mode === 'train' ? 'Nächster Sprung'
-      : this.round === 1 ? '2. Durchgang' : 'Neuer Wettkampf';
+      : this.round === 1 ? '2. Durchgang'
+      : (r.rank <= 3 ? 'Zur Siegerehrung' : 'Neuer Wettkampf');
     // Konfetti aus dem Publikum bei Sprüngen über Hillsize
     if (!r.crashed && r.dist >= CONFIG.hillSize) this.confetti();
   },
@@ -1677,6 +1716,20 @@ function drawBuildings() {
 const CROWD_COLORS = ['#e94f64', '#3aa0e8', '#f2b134', '#7bc96f', '#b087e8', '#ff8a5c'];
 function drawCrowd() {
   if (cam.ppm < 3.2) return;
+  const comp = Game.mode === 'comp';
+  // Jubel: nach einem gestandenen Sprung hüpfen die Fans
+  const cheer = (Game.state === 'OUTRUN' || Game.state === 'RESULT') && Game.result && !Game.result.crashed;
+  const bobAmp = cheer ? 0.18 : 0.05, bobSpd = cheer ? 8 : 3;
+
+  const fan = (px, py, seed, r) => {
+    const c = CROWD_COLORS[Math.floor(seed * 7.31) % CROWD_COLORS.length];
+    const bob = (Math.sin(Game.time * bobSpd + seed * 2.7) * 0.5 + (cheer ? 0.5 : 0)) * cam.ppm * bobAmp;
+    ctx.fillStyle = c;
+    ctx.beginPath(); ctx.ellipse(px, py - r + bob, r * 0.55, r * 0.8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f5d7c0';
+    ctx.beginPath(); ctx.arc(px, py - r * 2 + bob, r * 0.32, 0, 7); ctx.fill();
+  };
+
   // Zaunlinie am Auslauf
   const z0 = Hill.groundAt(103), z1 = Hill.groundAt(145);
   const a = worldToScreen(103 + DEPTH.x * 1.1, z0.y + DEPTH.y * 1.1 + 1.0);
@@ -1689,14 +1742,36 @@ function drawCrowd() {
     const g = Hill.groundAt(x);
     const p = worldToScreen(x + DEPTH.x * 1.1, g.y + DEPTH.y * 1.1 + 0.35);
     if (p.x < -20 || p.x > W + 20) continue;
-    const c = CROWD_COLORS[Math.floor(x * 7.31) % CROWD_COLORS.length];
-    const r = cam.ppm * 0.26;
-    // kleine wippende Zuschauer
-    const bob = Math.sin(Game.time * 3 + x * 2.7) * cam.ppm * 0.05;
-    ctx.fillStyle = c;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y - r + bob, r * 0.55, r * 0.8, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#f5d7c0';
-    ctx.beginPath(); ctx.arc(p.x, p.y - r * 2 + bob, r * 0.32, 0, 7); ctx.fill();
+    fan(p.x, p.y, x, cam.ppm * 0.26);
+  }
+
+  if (!comp) return;
+  // Wettkampf: zweite Zuschauerreihe im Auslauf ...
+  for (let x = 104.7; x <= 144; x += 1.4) {
+    const g = Hill.groundAt(x);
+    const p = worldToScreen(x + DEPTH.x * 1.45, g.y + DEPTH.y * 1.45 + 0.35);
+    if (p.x < -20 || p.x > W + 20) continue;
+    fan(p.x, p.y, x * 1.7, cam.ppm * 0.24);
+  }
+  // ... und Fans mit Fähnchen entlang des Aufsprunghangs (ferne Seite)
+  for (let x = 34; x <= 98; x += 2.1) {
+    const g = Hill.groundAt(x);
+    const p = worldToScreen(x - DEPTH.x * 0.42, g.y - DEPTH.y * 0.42 + 0.3);
+    if (p.x < -20 || p.x > W + 20) continue;
+    const r = cam.ppm * 0.22;
+    fan(p.x, p.y, x * 3.1, r);
+    // jedes ~4. Fähnchen schwenkt
+    if (Math.floor(x * 3.1) % 4 === 0) {
+      const wave = Math.sin(Game.time * (cheer ? 9 : 4) + x) * r * 0.35;
+      ctx.strokeStyle = 'rgba(40,60,80,0.8)'; ctx.lineWidth = Math.max(1, cam.ppm * 0.035);
+      ctx.beginPath(); ctx.moveTo(p.x + r * 0.5, p.y - r * 2.1); ctx.lineTo(p.x + r * 0.9 + wave, p.y - r * 3.3); ctx.stroke();
+      ctx.fillStyle = CROWD_COLORS[Math.floor(x * 5.13) % CROWD_COLORS.length];
+      ctx.beginPath();
+      ctx.moveTo(p.x + r * 0.9 + wave, p.y - r * 3.3);
+      ctx.lineTo(p.x + r * 1.8 + wave, p.y - r * 3.05);
+      ctx.lineTo(p.x + r * 0.9 + wave, p.y - r * 2.8);
+      ctx.closePath(); ctx.fill();
+    }
   }
 }
 
@@ -2117,6 +2192,37 @@ function drawHUD() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(windLabel(w, wv), ax + 16 * ui, ay + 0.5);
 
+  // --- Windampel am Start: 3 Messpunkte, damit man auf guten Wind warten kann ---
+  if (Game.state === 'GATE') {
+    const rows = [['Absprung', 0], ['Hang', 1], ['Aufsprung', 2]];
+    const py = pad + ph + 6 * ui, rw = 186 * ui, rh = 20 * ui;
+    pillRect(pad, py, rw, rows.length * rh + 10 * ui);
+    ctx.font = `600 ${10.5 * ui}px system-ui`;
+    ctx.textBaseline = 'middle';
+    rows.forEach(([name, k], i) => {
+      const yy = py + 5 * ui + rh * i + rh / 2;
+      const s = Game.windAtPoint(k);
+      const mag = Math.hypot(s.w, s.wv);
+      const hlp = -s.w / CONFIG.windStrength + s.wv / CONFIG.windVertical;
+      const col = mag < 0.15 ? '#9fb8cc' : (hlp > 0.12 ? '#5cffa8' : hlp < -0.12 ? '#ff7a7a' : '#ffd35c');
+      ctx.fillStyle = '#7ea8c9'; ctx.textAlign = 'left';
+      ctx.fillText(name, pad + 10 * ui, yy);
+      // rotierender Pfeil
+      const axx = pad + 92 * ui;
+      const ang = Math.atan2(-(s.wv / CONFIG.windVertical), s.w / CONFIG.windStrength);
+      const al = (4 + Math.min(mag / CONFIG.windStrength, 1.2) * 6) * ui;
+      ctx.save(); ctx.translate(axx, yy); ctx.rotate(ang);
+      ctx.strokeStyle = col; ctx.lineWidth = 2 * ui; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-al, 0); ctx.lineTo(al, 0);
+      ctx.moveTo(al - 3.5 * ui, -3 * ui); ctx.lineTo(al, 0); ctx.lineTo(al - 3.5 * ui, 3 * ui);
+      ctx.stroke(); ctx.restore();
+      ctx.fillStyle = col; ctx.textAlign = 'right';
+      ctx.fillText(`${mag.toFixed(1).replace('.', ',')} m/s`, pad + rw - 10 * ui, yy);
+    });
+    ctx.textAlign = 'left';
+  }
+
   // --- Tempo-Pill (zweite Zeile links – kollidiert nie mit der Best-Pill) ---
   if (Game.state === 'INRUN' || Game.state === 'FLIGHT' || Game.state === 'OUTRUN') {
     const spd = Game.state === 'FLIGHT' ? Math.hypot(S.vx, S.vy) : S.v;
@@ -2196,7 +2302,8 @@ function drawHUD() {
   //  Winkel – bei falscher Lage zittert die Figur sichtbar in der Anströmung.)
 
   // --- Live-Ergebnis unter dem Springer, während er ausfährt ---
-  if ((Game.state === 'RESULT' || Game.state === 'OUTRUN') && Game.result && Game.outrunTimer > 0.9) {
+  // (während der Siegerehrung ausgeblendet, damit nichts durchscheint)
+  if ((Game.state === 'RESULT' || Game.state === 'OUTRUN') && Game.result && Game.outrunTimer > 0.9 && !Podium.active) {
     const r = Game.result, ot = Game.outrunTimer;
     const sp = renToScreen(S.x, S.y);
     const cx = clamp(sp.x, 130 * ui, W - 130 * ui);
@@ -2325,6 +2432,147 @@ function posterizeWorld() {
   wctx.putImageData(img, 0, 0);
 }
 
+// ------------------------------------------------------------------ Siegerehrung
+// Screen-Space-Overlay nach Durchgang 2 (Top 3): Podest, Medaille, Konfettiregen.
+const Podium = {
+  active: false, rank: 1, sum: 0, t0: 0, lastNow: 0, conf: [], btnShown: false,
+  start(rank, sum) {
+    this.active = true; this.rank = rank; this.sum = sum || 0;
+    this.t0 = this.lastNow = performance.now() / 1000;
+    this.conf = []; this.btnShown = false;
+    hide(nextBtn);
+    Sound.perfect(); Sound.telemark();
+  },
+  stop() { this.active = false; },
+};
+
+function drawPodium() {
+  const now = performance.now() / 1000;
+  const dt = Math.min(now - Podium.lastNow, 0.05); Podium.lastNow = now;
+  const t = now - Podium.t0;
+  const ui = clamp(Math.min(W, H) / 370, 0.95, 1.6);
+
+  // Abdunkeln + Buehne
+  ctx.fillStyle = 'rgba(6,14,26,0.93)'; ctx.fillRect(0, 0, W, H);
+
+  const cx = W / 2, baseY = H * 0.66;
+  const bw = Math.min(W * 0.26, 150), bh = Math.min(H * 0.16, 120);
+  // Bloecke: [2., 1., 3.] – Einflug der Bloecke
+  const rise = t < 0.5 ? 1 - Math.pow(1 - clamp(t / 0.5, 0, 1), 3) : 1;
+  const steps = [
+    { rank: 2, x: cx - bw, h: bh * 0.72 },
+    { rank: 1, x: cx,      h: bh * 1.0 },
+    { rank: 3, x: cx + bw, h: bh * 0.55 },
+  ];
+  const medalCol = { 1: '#ffd35c', 2: '#cfd8e3', 3: '#d9975a' };
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const s of steps) {
+    const h = s.h * rise;
+    ctx.fillStyle = '#16283c';
+    ctx.fillRect(s.x - bw / 2 + 2, baseY - h, bw - 4, h);
+    ctx.fillStyle = 'rgba(127,227,255,0.14)';
+    ctx.fillRect(s.x - bw / 2 + 2, baseY - h, bw - 4, 8 * ui);
+    ctx.fillStyle = medalCol[s.rank];
+    ctx.font = `800 ${26 * ui}px system-ui`;
+    ctx.fillText(String(s.rank), s.x, baseY - h / 2 + 4 * ui);
+  }
+
+  // Figuren: Spieler (rot) auf seinem Platz, zwei KI-Springer daneben
+  const others = ['#38bdf8', '#a78bfa'];
+  let oi = 0;
+  for (const s of steps) {
+    const isMe = s.rank === Podium.rank;
+    const suit = isMe ? '#ff4757' : others[oi++ % 2];
+    const fs = (isMe ? 1.12 : 1.0) * ui;
+    const fy = baseY - s.h * rise;             // Standflaeche
+    const jump = isMe && t > 1.7 ? Math.abs(Math.sin((t - 1.7) * 5.2)) * 10 * ui * Math.max(0, 1 - (t - 1.7) / 4) : 0;
+    drawPodiumFig(s.x, fy - jump, fs, suit, isMe, isMe ? clamp((t - 1.55) * 3, 0, 1) : 0);
+    // Medaille faellt auf die Brust des Spielers
+    if (isMe && t > 0.7) {
+      const drop = 1 - Math.pow(1 - clamp((t - 0.7) / 0.7, 0, 1), 3);
+      const my = lerp(-40 * ui, fy - jump - 26 * fs, drop);
+      const r = 13 * ui;
+      // Band
+      ctx.strokeStyle = '#d63447'; ctx.lineWidth = 4 * ui;
+      ctx.beginPath(); ctx.moveTo(s.x - r * 0.7, my - r * 1.4); ctx.lineTo(s.x, my); ctx.lineTo(s.x + r * 0.7, my - r * 1.4); ctx.stroke();
+      ctx.fillStyle = medalCol[Podium.rank];
+      ctx.beginPath(); ctx.arc(s.x, my, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(18,33,47,0.55)'; ctx.lineWidth = 2 * ui; ctx.stroke();
+      ctx.fillStyle = 'rgba(18,33,47,0.75)';
+      ctx.font = `800 ${13 * ui}px system-ui`;
+      ctx.fillText(String(Podium.rank), s.x, my + 1);
+      // Glitzern nach dem Aufsetzen
+      if (drop >= 1) {
+        for (let i = 0; i < 3; i++) {
+          const ga = t * 3 + i * 2.1, gr = r * (1.5 + Math.sin(t * 5 + i) * 0.3);
+          ctx.fillStyle = `rgba(255,240,180,${0.35 + 0.3 * Math.sin(t * 7 + i * 2)})`;
+          ctx.beginPath(); ctx.arc(s.x + Math.cos(ga) * gr, my + Math.sin(ga) * gr, 1.6 * ui, 0, 7); ctx.fill();
+        }
+      }
+    }
+  }
+
+  // Titel + Ergebnis
+  ctx.fillStyle = '#9be8ff';
+  ctx.font = `800 ${11 * ui}px system-ui`;
+  ctx.fillText('S I E G E R E H R U N G', cx, H * 0.18);
+  ctx.fillStyle = medalCol[Podium.rank];
+  ctx.font = `900 ${44 * ui}px system-ui`;
+  ctx.fillText(`PLATZ ${Podium.rank}`, cx, H * 0.25);
+  ctx.fillStyle = '#eef6ff';
+  ctx.font = `700 ${15 * ui}px system-ui`;
+  ctx.fillText(`${Podium.sum.toFixed(1).replace('.', ',')} Punkte gesamt`, cx, H * 0.31);
+
+  // Konfettiregen (Screen-Space)
+  if (t < 7 && Podium.conf.length < 140 && Math.random() < dt * 90) {
+    Podium.conf.push({ x: Math.random() * W, y: -10, vx: (Math.random() - 0.5) * 40,
+                       vy: 60 + Math.random() * 90, rot: Math.random() * 7, vr: (Math.random() - 0.5) * 9,
+                       c: CROWD_COLORS[(Math.random() * CROWD_COLORS.length) | 0], s: (3 + Math.random() * 4) * ui });
+  }
+  for (let i = Podium.conf.length - 1; i >= 0; i--) {
+    const p = Podium.conf[i];
+    p.x += (p.vx + Math.sin(p.y * 0.02 + p.rot) * 30) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    if (p.y > H + 20) { Podium.conf.splice(i, 1); continue; }
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+    ctx.restore();
+  }
+
+  // Weiter-Button nach kurzem Genuss
+  if (!Podium.btnShown && t > 2.6) {
+    Podium.btnShown = true;
+    nextBtn.textContent = 'Neuer Wettkampf';
+    show(nextBtn);
+  }
+}
+
+// Mini-Figur fuer das Podest: steht frontal, Spieler reisst die Arme hoch
+function drawPodiumFig(x, footY, s, suit, isMe, armUp) {
+  ctx.lineCap = 'round';
+  const lw = 5 * s;
+  // Beine
+  ctx.strokeStyle = '#22354a'; ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(x - 5 * s, footY); ctx.lineTo(x - 4 * s, footY - 16 * s);
+  ctx.moveTo(x + 5 * s, footY); ctx.lineTo(x + 4 * s, footY - 16 * s);
+  ctx.stroke();
+  // Torso
+  ctx.strokeStyle = suit; ctx.lineWidth = lw * 1.5;
+  ctx.beginPath(); ctx.moveTo(x, footY - 15 * s); ctx.lineTo(x, footY - 34 * s); ctx.stroke();
+  // Arme (armUp 0..1: von unten nach V-Jubel)
+  const ay = footY - 31 * s;
+  const spread = lerp(10 * s, 13 * s, armUp), lift = lerp(8 * s, -14 * s, armUp);
+  ctx.strokeStyle = suit; ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(x - 2 * s, ay); ctx.lineTo(x - spread, ay + lift);
+  ctx.moveTo(x + 2 * s, ay); ctx.lineTo(x + spread, ay + lift);
+  ctx.stroke();
+  // Kopf mit Helm
+  ctx.fillStyle = '#f8fafc';
+  ctx.beginPath(); ctx.arc(x, footY - 41 * s, 6.5 * s, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#12212f'; ctx.lineWidth = 1.4 * s; ctx.stroke();
+}
+
 // ------------------------------------------------------------------ Loop
 let last = performance.now(), acc = 0;
 function frame(now) {
@@ -2377,6 +2625,7 @@ function frame(now) {
     drawPrediction();
     ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
     drawHUD();
+    if (Podium.active) drawPodium();
   } catch (e) {
     // Notbremse: Save-Stack beider Kontexte komplett leeren (restore über
     // die Stacktiefe hinaus ist ein No-Op) und Basistransform wiederherstellen
@@ -2393,6 +2642,8 @@ const tutCard = document.getElementById('tutCard');
 const tutStep = document.getElementById('tutStep');
 const tutText = document.getElementById('tutText');
 const tutGo = document.getElementById('tutGo');
+const tutAnim = document.getElementById('tutAnim');
+const tutLbl = document.getElementById('tutLbl');
 const show = el => el.classList.remove('hidden');
 const hide = el => el.classList.add('hidden');
 
@@ -2400,6 +2651,7 @@ const nextBtn = document.getElementById('nextBtn');
 const muteBtn = document.getElementById('muteBtn');
 const homeBtn = document.getElementById('homeBtn');
 function goMenu() {
+  Podium.stop();
   Game.state = 'MENU';
   Game.result = null; Game.popup = null;
   Game.trail.length = 0; Game.particles.length = 0;
@@ -2425,7 +2677,16 @@ document.getElementById('tutBtn').addEventListener('click', () => {
   startRun('train');
 });
 homeBtn.addEventListener('click', () => { Sound.click(); goMenu(); });
-nextBtn.addEventListener('click', () => { Sound.init(); Sound.click(); Game.advance(); show(homeBtn); });
+nextBtn.addEventListener('click', () => {
+  Sound.init(); Sound.click();
+  if (Podium.active) { Podium.stop(); Game.advance(); show(homeBtn); return; }
+  if (Game.mode === 'comp' && Game.round === 2 && Game.state === 'RESULT'
+      && Game.result && Game.result.rank <= 3) {
+    Podium.start(Game.result.rank, Game.result.sum || Game.result.total);
+    return;
+  }
+  Game.advance(); show(homeBtn);
+});
 muteBtn.addEventListener('click', () => {
   Sound.init();
   muteBtn.textContent = Sound.toggle() ? '🔊' : '🔇';
