@@ -197,7 +197,10 @@ const CONFIG = {
   swipeSensitivity: 0.11,     // Grad Winkeländerung pro Pixel Wischweg (absolut –
                               // fühlt sich in jedem Fenster/Vollbild gleich an)
   pitchDrift: 3.0,            // Aufdreh-Tendenz von alpha (Grad/s) – regelmäßig gegenwischen
-  gustPitchFactor: 3.5,       // Böen stören alpha (Grad/s pro m/s Böenabweichung)
+  gustPitchFactor: 5.0,       // Böen stören alpha (Grad/s pro m/s Böenabweichung)
+  gustPitchV: 8.0,            // vertikale Böen stören alpha zusätzlich
+  windShakeMin: 3.5,          // ab diesem Störwert (Grad/s) zittert die Figur
+  hapticMin: 5.0,             // ab diesem Störwert vibriert das Handy
   initAlpha: 9,               // Anstellwinkel unmittelbar nach dem Absprung
   initAlphaSpread: 5,         // schlechter Absprung → Startlage streut bis ± so viel
   impulseBase: 0.72,          // Impuls-Grundanteil; Rest kommt nur bei gutem Timing
@@ -388,6 +391,20 @@ const Input = (() => {
     return { tap, tapUp, angle: a, swipe };
   }
   return { poll, state };
+})();
+
+// ------------------------------------------------------------------ Haptik
+// Vibration, wenn der Wind an der Fluglage reißt (Android; iOS ignoriert es still).
+const Haptics = (() => {
+  let last = 0;
+  function gust(strength) {
+    if (!navigator.vibrate) return;
+    const now = performance.now();
+    if (now - last < 160) return; // Puls-Abstand, kein Dauerbrummen
+    last = now;
+    navigator.vibrate(Math.min(12 + strength * 3, 45) | 0);
+  }
+  return { gust };
 })();
 
 // ------------------------------------------------------------------ Sound
@@ -692,7 +709,7 @@ const Game = {
                                 spin: 0, poseA: 'gate', poseB: 'gate', poseT: 1, crash: false, standing: false });
     this.fx.length = 0;
     this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
-    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0, stance: false, stanceT: 0 };
+    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0, stance: false, stanceT: 0, windPush: 0 };
     this.landingTap = { windowOpen: false, tta: 99 };
     this.result = null;
     this.popup = null;
@@ -828,12 +845,18 @@ const Game = {
       const velAng = Math.atan2(rvy, rvx) / D2R;
 
       if (!F.stance) {
-        // Anstellwinkel-Steuerung: Wischen justiert alpha direkt, Drift + Böen stören
+        // Anstellwinkel-Steuerung: Wischen justiert alpha direkt, Drift + Böen stören.
+        // Der Wind schiebt die Fluglage aktiv weg – horizontal UND vertikal.
+        const push = (gust - this.wind) * CONFIG.gustPitchFactor
+                   + (this.currentWindV() - this.windV) * CONFIG.gustPitchV;
+        F.windPush = push;
         S.alphaCtl += inp.swipe * CONFIG.swipeSensitivity
                     + inp.angle * CONFIG.angleSpeed * dt
                     + CONFIG.pitchDrift * dt
-                    + (gust - this.wind) * CONFIG.gustPitchFactor * dt;
+                    + push * dt;
         S.alphaCtl = clamp(S.alphaCtl, CONFIG.alphaMin, CONFIG.alphaMax);
+        // Haptik: wenn der Wind an der Haltung reißt, vibriert das Handy
+        if (F.time > 0.3 && Math.abs(push) > CONFIG.hapticMin) Haptics.gust(Math.abs(push));
         // Der Körper rotiert automatisch mit der steiler werdenden Flugbahn mit
         S.body += clamp(velAng + S.alphaCtl - S.body, -CONFIG.bodyFollowRate * dt, CONFIG.bodyFollowRate * dt);
       } else {
@@ -1469,14 +1492,14 @@ function drawHill() {
   ctx.beginPath();
   for (const p of ir) { const s = worldToScreen(p.x + IR_DEPTH.x * 0.5, p.y + IR_DEPTH.y * 0.5); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
-  // Startbalken hinter der Gate-Position
+  // Startbalken direkt unter der Sitzposition des Springers
   const gpos = Hill.inrunAt(CONFIG.gateOffset);
-  const gp = worldToScreen(gpos.x - 0.9, gpos.y + 1.0);
+  const gp = worldToScreen(gpos.x - 0.05, gpos.y + 0.56);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(2, cam.ppm * 0.16);
-  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.7, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.7, gp.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.65, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.65, gp.y); ctx.stroke();
   ctx.strokeStyle = '#16283c'; ctx.lineWidth = Math.max(1.5, cam.ppm * 0.08);
-  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.7, gp.y); ctx.lineTo(gp.x - cam.ppm * 0.7, gp.y + cam.ppm * 1.0);
-  ctx.moveTo(gp.x + cam.ppm * 0.7, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.7, gp.y + cam.ppm * 1.0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(gp.x - cam.ppm * 0.65, gp.y); ctx.lineTo(gp.x - cam.ppm * 0.65, gp.y + cam.ppm * 0.8);
+  ctx.moveTo(gp.x + cam.ppm * 0.65, gp.y); ctx.lineTo(gp.x + cam.ppm * 0.65, gp.y + cam.ppm * 0.8); ctx.stroke();
   // Tischkante: rote Linie quer über die Spur + Markierung nach unten
   const e2 = worldToScreen(IR_DEPTH.x, IR_DEPTH.y);
   ctx.strokeStyle = '#ff3d55'; ctx.lineWidth = Math.max(3, cam.ppm * 0.2);
@@ -1780,11 +1803,11 @@ function drawPrediction() {
 // --- Springer: Posen als Keypoints, weich ineinander überblendet ---
 // legF/legB: Bindung→Knie→Hüfte · torso: Hüfte→Schulter · arm1/arm2 · head · skiV: V-Stil 0..1
 const POSES = {
-  gate: { // aufrecht am Startbalken, leicht lockere Knie
-    legF: [0.05, 0, 0.02, -0.32, -0.02, -0.62], legB: [0.05, 0, 0.02, -0.32, -0.02, -0.62],
-    torso: [-0.02, -0.62, 0.24, -1.0],
-    arm1: [0.2, -0.95, 0.34, -0.55], arm2: [0.18, -0.93, 0.06, -0.55],
-    head: [0.34, -1.18], skiV: 0,
+  gate: { // sitzend auf dem Startbalken: Knie vorn, Hüfte hinten auf dem Balken
+    legF: [0.05, 0, 0.32, -0.3, -0.24, -0.46], legB: [0.05, 0, 0.32, -0.3, -0.24, -0.46],
+    torso: [-0.24, -0.46, 0.06, -0.9],
+    arm1: [0.03, -0.84, 0.32, -0.48], arm2: [0.01, -0.82, 0.28, -0.46],
+    head: [0.14, -1.06], skiV: 0,
   },
   // Posen nach echtem Skisprung-Vorbild: Hocke mit Brust auf den Knien,
   // Absprung tief nach VORN (kein Aufrichten), Flug als gestreckte Linie
@@ -1856,6 +1879,11 @@ function drawSkier() {
   if (Game.state === 'FLIGHT' && !Game.flight.stance && Game.flight.time > 0.3) {
     const dev = Math.abs(S.alphaCtl - CONFIG.optimalAngle) / CONFIG.angleTolerance;
     if (dev > 1) jitter = Math.min(dev - 1, 1.6) * 2.2 * Math.sin(Game.time * 34);
+    // Wind-Rütteln: Böen, die an der Haltung reißen, schütteln die Figur sichtbar
+    const push = Math.abs(Game.flight.windPush || 0);
+    if (push > CONFIG.windShakeMin) {
+      jitter += Math.min((push - CONFIG.windShakeMin) / 6, 1) * 1.7 * Math.sin(Game.time * 47);
+    }
   }
 
   ctx.save();
@@ -1889,11 +1917,11 @@ function drawSkier() {
     ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 0.05;
     ctx.beginPath(); ctx.arc(hx, hy, 0.155, Math.PI * 0.75, Math.PI * 1.45); ctx.stroke();
   };
-  const ski = (yOff, tipUp, color, xOff = 0) => { // Bindung hinten: viel Ski vor dem Fuß
+  const ski = (yOff, tipUp, color, xOff = 0) => { // Bindung hinter der Mitte, Fuß etwas weiter vorn
     ctx.beginPath();
-    ctx.moveTo(-0.85 + xOff, yOff);
-    ctx.lineTo(1.68 + xOff, yOff - tipUp * 0.42);
-    ctx.quadraticCurveTo(1.92 + xOff, yOff - tipUp * 0.42 - 0.02, 2.02 + xOff, yOff - tipUp * 0.42 - 0.17);
+    ctx.moveTo(-0.97 + xOff, yOff);
+    ctx.lineTo(1.56 + xOff, yOff - tipUp * 0.42);
+    ctx.quadraticCurveTo(1.8 + xOff, yOff - tipUp * 0.42 - 0.02, 1.9 + xOff, yOff - tipUp * 0.42 - 0.17);
     ctx.strokeStyle = OUT; ctx.lineWidth = 0.21; ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = 0.14; ctx.stroke();
   };
