@@ -1300,10 +1300,10 @@ function drawSnowfall() {
 }
 
 // 2.5D: Tiefenversatz der Schneeoberfläche (Weltmeter, nach hinten-oben)
-const DEPTH = { x: 1.25, y: 0.72 };
+const DEPTH = { x: 1.85, y: 1.08 };
 // Der Springer (und alles, was zu ihm gehört) wird MITTIG AUF dem
 // Oberflächenband gerendert – sonst wirkt es, als lande er vor der Piste.
-const REN = { x: 0.55, y: 0.32 };
+const REN = { x: 0.8, y: 0.47 };
 const renToScreen = (wx, wy) => worldToScreen(wx + REN.x, wy + REN.y);
 
 function drawHill() {
@@ -1396,7 +1396,7 @@ function drawHill() {
   for (const p of ir) { const s = worldToScreen(p.x, p.y - 1.8); ctx.lineTo(s.x, s.y); }
   ctx.stroke();
   // Anlaufspur als 2.5D-Band mit Mittelrille
-  const IR_DEPTH = { x: 0.6, y: 0.35 };
+  const IR_DEPTH = { x: 0.85, y: 0.5 };
   ctx.beginPath();
   ctx.moveTo(worldToScreen(ir[0].x, ir[0].y).x, worldToScreen(ir[0].x, ir[0].y).y);
   for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
@@ -1740,11 +1740,11 @@ const POSES = {
     arm1: [0.25, -0.42, -0.6, -0.2], arm2: [0.23, -0.39, -0.58, -0.17],
     head: [0.8, -0.56], skiV: 1,
   },
-  telemark: {
+  telemark: { // Ausfallschritt: vorderer Ski deutlich vor, hinterer zurück
     legF: [0.42, 0, 0.46, -0.36, 0.08, -0.58], legB: [-0.5, 0, -0.32, -0.26, 0.08, -0.58],
     torso: [0.08, -0.58, 0.14, -1.08],
     arm1: [0.12, -1.0, 0.58, -0.82], arm2: [0.12, -1.0, -0.4, -0.86],
-    head: [0.17, -1.27], skiV: 0,
+    head: [0.17, -1.27], skiV: 0, skiSplit: 1,
   },
   landed: {
     legF: [0.08, 0, 0.0, -0.35, 0.02, -0.6], legB: [0.08, 0, 0.0, -0.35, 0.02, -0.6],
@@ -1793,7 +1793,7 @@ function drawSkier() {
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(-(S.body + jitter) * D2R);
-  ctx.scale(cam.ppm, cam.ppm);
+  ctx.scale(cam.ppm * 1.12, cam.ppm * 1.12); // Figur leicht größer
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
   const SUIT = '#ff4757', SUIT_D = '#d63447', LEGS = '#22354a',
@@ -1821,11 +1821,11 @@ function drawSkier() {
     ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 0.05;
     ctx.beginPath(); ctx.arc(hx, hy, 0.155, Math.PI * 0.75, Math.PI * 1.45); ctx.stroke();
   };
-  const ski = (yOff, tipUp, color) => { // lange Sprungski (~2,7 m) mit Schaufel
+  const ski = (yOff, tipUp, color, xOff = 0) => { // lange Sprungski (~2,9 m) mit Schaufel
     ctx.beginPath();
-    ctx.moveTo(-1.15, yOff);
-    ctx.lineTo(1.2, yOff - tipUp * 0.42);
-    ctx.quadraticCurveTo(1.44, yOff - tipUp * 0.42 - 0.02, 1.55, yOff - tipUp * 0.42 - 0.17);
+    ctx.moveTo(-1.25 + xOff, yOff);
+    ctx.lineTo(1.28 + xOff, yOff - tipUp * 0.42);
+    ctx.quadraticCurveTo(1.52 + xOff, yOff - tipUp * 0.42 - 0.02, 1.62 + xOff, yOff - tipUp * 0.42 - 0.17);
     ctx.strokeStyle = OUT; ctx.lineWidth = 0.21; ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = 0.14; ctx.stroke();
   };
@@ -1844,6 +1844,7 @@ function drawSkier() {
     const arm1 = mixArr(A.arm1, B.arm1, t), arm2 = mixArr(A.arm2, B.arm2, t);
     const hd = mixArr(A.head, B.head, t);
     let skiV = lerp(A.skiV, B.skiV, t);
+    const split = lerp(A.skiSplit || 0, B.skiSplit || 0, t);
 
     // Haltungs-Morph: die Figur zeigt den Anstellwinkel deutlich –
     // hoher alpha = aufgerichtet + Ski-V weit offen, niedriger = flacher Vorwärtsdruck
@@ -1856,8 +1857,8 @@ function drawSkier() {
       skiV = clamp(skiV + dev * 0.9, -0.3, 1.8);
     }
 
-    ski(0.12, skiV * 0.05, SKI_D);
-    ski(0.0, skiV * 0.25, SKI);
+    ski(0.12, skiV * 0.05, SKI_D, -split * 0.34); // hinterer Ski zurück
+    ski(0.0, skiV * 0.25, SKI, split * 0.52);     // vorderer Ski nach vorn
     boot(legF[0], legF[1]);
     limb(legB, LEGS, 0.15);
     limb(legF, LEGS, 0.17);
