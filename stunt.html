@@ -182,6 +182,7 @@ const CONFIG = {
   ditherAmount: 0.5,          // Breite der Dither-Übergänge (nur bei pixelLevels > 0)
 
   // Schanze (K90 / HS100)
+  blood: true,               // Cartoon-Blut bei Sägeblatt-Treffern
   kPoint: 200,                 // K-Punkt in m (entlang des Hangs gemessen)
   hillSize: 300,              // Hillsize in m
   takeoffHeight: 3.0,         // Höhe der Tischkante über dem Profil-Ursprung (m)
@@ -710,6 +711,7 @@ const Game = {
   obstacles: [],
   freeSkis: [],
   features: [],
+  helmetOff: false,
   message: { text: '', color: '#fff', until: 0, start: 0 },
   popup: null,       // Weiten-Popup nach der Landung
   particles: [],
@@ -769,6 +771,12 @@ const Game = {
       else this.features.push({ type: 'fire', x: fx2, w: 0, h: 3.5 + Math.random() * 5.5, r: 2.1 + Math.random() * 0.7, used: false });
       fx2 += 26 + Math.random() * 26;
     }
+    // Bäume mitten auf der Strecke: hoch genug, dass man drüber MUSS
+    for (let tx = 92; tx < 305; tx += 38 + Math.random() * 34) {
+      if (this.features.some(f => Math.abs(f.x - tx) < 10)) continue;
+      this.features.push({ type: 'tree', x: tx, w: 1.8, h: 5 + Math.random() * 7, hitT: -9 });
+    }
+    this.helmetOff = false;
     // Windzonen entlang der Strecke: am Absprung gilt exakt der Basiswind,
     // am Hang und im Aufsprung weicht er in Stärke und Richtung ab.
     const zone = () => ({ fw: 0.72 + Math.random() * 0.62, fv: 0.72 + Math.random() * 0.62,
@@ -1005,6 +1013,17 @@ const Game = {
           break;
         }
       }
+      // Baum erwischt? Stamm oder Krone = Sturz
+      for (const f of this.features) {
+        if (f.type !== 'tree' || Math.abs(S.x - (f.x + 0.9)) > 0.9) continue;
+        const tg = Hill.groundAt(f.x + 0.9);
+        if (S.y < tg.y + f.h) {
+          f.hitT = this.time;
+          this.hitObstacle(f);
+          break;
+        }
+      }
+      if (this.state !== 'FLIGHT') return;
       // Feuerring: durchfliegen gibt einen Feuer-Boost!
       for (const f of this.features) {
         if (f.type !== 'fire' || f.used || Math.abs(S.x - f.x) > 1.0) continue;
@@ -1087,6 +1106,8 @@ const Game = {
         // STUNT: Die Weite zählt dort, wo die Puppe liegen bleibt –
         // rutschen und purzeln bringt also noch Extrameter!
         if (this.state === 'OUTRUN') {
+          if (this.bloodUntil && this.time < this.bloodUntil && Math.random() < dt * 22)
+            this.blood(S.x, S.y + 0.3, 1);
           const feat = this.featureAtX(S.x);
           if (feat) this.applyFeatureToRagdoll(feat, dt);
           this.result.dist = Math.max(this.result.dist,
@@ -1278,6 +1299,19 @@ const Game = {
     this.spray(crashed ? 40 : 18);
   },
 
+  // Cartoon-Blut bei Sägeblatt-Treffern (BLOOD=false schaltet es ab,
+  // z.B. für eine familienfreundliche Store-Version)
+  blood(x, y, n) {
+    if (!CONFIG.blood) return;
+    for (let i = 0; i < n; i++)
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 0.6, y: y + (Math.random() - 0.5) * 0.6,
+        vx: (Math.random() - 0.5) * 7, vy: 1 + Math.random() * 5,
+        life: 0.7 + Math.random() * 0.7,
+        color: Math.random() < 0.5 ? '#e03131' : '#b71c1c',
+      });
+  },
+
   // Boden-Feature an Position x (Graben / Wasser / Trampolin)
   featureAtX(x) {
     for (const f of this.features) if (f.w && x > f.x && x < f.x + f.w) return f;
@@ -1299,6 +1333,9 @@ const Game = {
       if (!f.got) { f.got = true; f.chomp = this.time; this.showMsg('KROKODIL-FUTTER!', '#5cffa8', 1.6); this.spray(20); Sound.crash(); }
       damp(0.93);                      // Wasser bremst hart
       if (Math.random() < dt * 40) this.spray(2);
+    } else if (f.type === 'tree') {
+      if (this.time - f.hitT > 1) { f.hitT = this.time; this.showMsg('BAUM-STOPP!', '#ffd35c', 1.2); Sound.crash(); }
+      damp(0.55);                      // der Baum stoppt die Puppe fast sofort
     } else if (f.type === 'tramp') {
       const hip = Ragdoll.pts[0];
       const falling = (hip.y - hip.py) < 0;
@@ -1337,9 +1374,23 @@ const Game = {
     const sorted = [...notes].sort((a, b) => a - b);
     const g = Hill.groundAt(S.x);
     const dist = Math.round(g.s * 2) / 2;
+    const isTree = o && o.type === 'tree';
     this.result = { dist, distPts: 0, stylePts: sorted[1] + sorted[2] + sorted[3], windPts: 0,
-                    notes, total: 0, landing: 'Vom Sägeblatt erwischt!', crashed: true, wind: this.wind };
+                    notes, total: 0, landing: isTree ? 'Baum geküsst!' : 'Vom Sägeblatt erwischt!',
+                    crashed: true, wind: this.wind };
     // kein Popup hier – die Weite zählt erst dort, wo die Ragdoll-Puppe liegen bleibt
+    // Sägeblatt: Cartoon-Blutspritzer + Nachtropfen beim Purzeln
+    if (!isTree) {
+      this.blood(S.x, S.y, 26);
+      this.bloodUntil = this.time + 1.6;
+    }
+    // Comic-Zerlegung: Helm (und Ski) fliegen davon
+    if (!this.helmetOff) {
+      this.helmetOff = true;
+      this.freeSkis.push({ kind: 'helmet', x: S.x + 0.3, y: S.y + 0.5,
+        vx: S.vx * 0.6 + 1.5, vy: Math.max(S.vy, 0) + 5 + Math.random() * 2,
+        ang: 0, spin: (Math.random() - 0.5) * 14, rest: false });
+    }
     S.vx *= 0.35;
     S.vy = Math.max(S.vy, 2.5);
     this.state = 'OUTRUN';
@@ -1347,7 +1398,7 @@ const Game = {
     S.crash = true;
     Ragdoll.start(S);
     cam.shake = 1.4;
-    this.showMsg('GETROFFEN!', '#ff5252', 1.6);
+    this.showMsg(isTree ? 'BAUM GEKÜSST!' : 'GETROFFEN!', '#ff5252', 1.6);
     Sound.crash();
     this.spray(24);
   },
@@ -2158,6 +2209,33 @@ function drawFeatures() {
         ctx.fillStyle = '#12212f';
         ctx.beginPath(); ctx.arc(cxp - s * 0.13, cyp - s * 0.24, s * 0.045, 0, 7); ctx.fill();
       }
+    } else if (f.type === 'tree') {
+      const p = renToScreen(f.x + 0.9, g0.y);
+      const h = f.h * cam.ppm;
+      const wob = Math.max(0, 1 - (Game.time - f.hitT) / 1.2);
+      const sway = Math.sin((Game.time - f.hitT) * 11) * wob * 0.1;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(sway);
+      ctx.fillStyle = '#5b4232';
+      ctx.fillRect(-cam.ppm * 0.14, -h * 0.22, cam.ppm * 0.28, h * 0.24);
+      ctx.fillStyle = '#265c46';
+      for (let l = 0; l < 3; l++) {
+        const ly = -h * (0.18 + l * 0.27);
+        const lw2 = h * (0.4 - l * 0.1);
+        ctx.beginPath();
+        ctx.moveTo(0, ly - h * 0.34);
+        ctx.lineTo(-lw2, ly);
+        ctx.lineTo(lw2, ly);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = Math.max(1.5, cam.ppm * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(-h * 0.1, -h * 0.92);
+      ctx.lineTo(0, -h * 1.0);
+      ctx.lineTo(h * 0.1, -h * 0.92);
+      ctx.stroke();
+      ctx.restore();
     } else if (f.type === 'tramp') {
       const squash = Math.max(0, 1 - (Game.time - (f.boing || -9)) / 0.3);
       const sag = squash * cam.ppm * 0.35;
@@ -2215,16 +2293,24 @@ function drawObstacles() {
     ctx.strokeStyle = '#12212f'; ctx.lineWidth = Math.max(1, cam.ppm * 0.045); ctx.stroke();
     ctx.restore();
   }
-  // abgeschnallte Ski
+  // abgeschnallte Ski + davongeflogener Helm
   for (const k of Game.freeSkis || []) {
     const p = renToScreen(k.x, k.y);
     if (p.x < -70 || p.x > W + 70) continue;
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(k.ang);
     ctx.scale(cam.ppm, cam.ppm); ctx.lineCap = 'round';
-    ctx.strokeStyle = '#12212f'; ctx.lineWidth = 0.2;
-    ctx.beginPath(); ctx.moveTo(-1.2, 0); ctx.lineTo(1.2, 0); ctx.stroke();
-    ctx.strokeStyle = OUTFIT.ski; ctx.lineWidth = 0.13;
-    ctx.beginPath(); ctx.moveTo(-1.2, 0); ctx.lineTo(1.2, 0); ctx.stroke();
+    if (k.kind === 'helmet') {
+      ctx.fillStyle = OUTFIT.helmet;
+      ctx.beginPath(); ctx.arc(0, 0, 0.24, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#12212f'; ctx.lineWidth = 0.05; ctx.stroke();
+      ctx.fillStyle = OUTFIT.visor;
+      ctx.fillRect(-0.18, -0.06, 0.36, 0.07);
+    } else {
+      ctx.strokeStyle = '#12212f'; ctx.lineWidth = 0.2;
+      ctx.beginPath(); ctx.moveTo(-1.2, 0); ctx.lineTo(1.2, 0); ctx.stroke();
+      ctx.strokeStyle = OUTFIT.ski; ctx.lineWidth = 0.13;
+      ctx.beginPath(); ctx.moveTo(-1.2, 0); ctx.lineTo(1.2, 0); ctx.stroke();
+    }
     ctx.restore();
   }
 }
@@ -2648,10 +2734,10 @@ function drawRagdoll() {
   // Helm mit Visier
   const h = w2s(P[2]);
   const r = Math.max(3, 0.2 * cam.ppm * 1.12);
-  ctx.fillStyle = OUTFIT.helmet;
+  ctx.fillStyle = Game.helmetOff ? '#f5d7c0' : OUTFIT.helmet;
   ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, 7); ctx.fill();
   ctx.strokeStyle = OUT; ctx.lineWidth = Math.max(1.5, 0.05 * cam.ppm); ctx.stroke();
-  ctx.fillStyle = OUTFIT.visor;
+  ctx.fillStyle = Game.helmetOff ? 'rgba(0,0,0,0)' : OUTFIT.visor;
   ctx.beginPath(); ctx.arc(h.x + r * 0.35, h.y, r * 0.45, -0.9, 0.9); ctx.fill();
 }
 
