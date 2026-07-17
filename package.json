@@ -1,0 +1,20 @@
+{
+  "name": "ident-it",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Website ident-it.at – Werbeagentur Graz",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.3",
+    "@fontsource-variable/raleway": "^5.2.8",
+    "@fontsource/roboto": "^5.2.10",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.1.0",
+    "tailwindcss": "^4.3.3"
+  }
+}

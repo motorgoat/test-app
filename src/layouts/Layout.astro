@@ -1,0 +1,104 @@
+---
+import '@fontsource-variable/raleway';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import ContactButtons from '../components/ContactButtons.astro';
+import { SITE } from '../lib/site';
+
+interface Props {
+  /** Seitentitel, ≤ 60 Zeichen, Muster „{Leistung} Graz | ident-IT" */
+  title: string;
+  /** Meta-Description, ≤ 155 Zeichen, mit CTA */
+  description: string;
+  /** Canonical-Override – Standard ist die aktuelle URL */
+  canonical?: string;
+  /** Pfad zum OG-Image (1200×630) */
+  ogImage?: string;
+  /** noindex, follow – für /danke/, Rechtsseiten usw. */
+  noindex?: boolean;
+}
+
+const { title, description, canonical, ogImage, noindex = false } = Astro.props;
+
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site).href;
+const ogImageUrl = new URL(ogImage ?? '/og-default.jpg', Astro.site).href;
+
+/* Sitewide-Schema laut BRIEFING.md, Abschnitt 7 */
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfessionalService',
+  name: SITE.name,
+  legalName: SITE.legalName,
+  url: SITE.url,
+  telephone: SITE.phoneE164,
+  email: SITE.email,
+  priceRange: '€€',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: SITE.address.street,
+    postalCode: SITE.address.zip,
+    addressLocality: SITE.address.city,
+    addressCountry: SITE.address.country,
+  },
+  geo: {
+    '@type': 'GeoCoordinates',
+    latitude: SITE.geo.lat,
+    longitude: SITE.geo.lng,
+  },
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday'],
+      opens: '08:00',
+      closes: '17:00',
+    },
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: 'Friday',
+      opens: '08:00',
+      closes: '12:00',
+    },
+  ],
+  sameAs: [SITE.social.facebook, SITE.social.instagram].filter(Boolean),
+};
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:locale" content="de_AT" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <slot name="head" />
+  </head>
+  <body>
+    <a href="#iIT_main" class="iIT_skip-link">Zum Inhalt springen</a>
+    <Header />
+    <main id="iIT_main">
+      <slot />
+    </main>
+    <Footer />
+    <ContactButtons />
+  </body>
+</html>

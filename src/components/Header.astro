@@ -1,0 +1,201 @@
+---
+import Logo from './Logo.astro';
+import { NAV, SITE } from '../lib/site';
+---
+
+<header class="iIT_header sticky top-0 z-50 border-b border-steel/10 bg-base/90 backdrop-blur-md">
+  <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-6">
+    <a href="/" class="shrink-0" aria-label={`${SITE.name} – zur Startseite`}>
+      <Logo />
+    </a>
+
+    {/* Desktop-Navigation mit Dropdowns (Hover + Tastatur via focus-within) */}
+    <nav class="hidden lg:block" aria-label="Hauptnavigation">
+      <ul class="flex items-center gap-1">
+        {
+          NAV.map((item) => (
+            <li class="iIT_nav-item relative">
+              <a
+                href={item.href}
+                class="flex items-center gap-1 rounded-lg px-3 py-2 font-medium text-ink transition-colors hover:text-teal-light"
+              >
+                {item.label}
+                {item.children && (
+                  <svg
+                    viewBox="0 0 20 20"
+                    width="14"
+                    height="14"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    class="iIT_nav-chevron opacity-60"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                )}
+              </a>
+              {item.children && (
+                <ul class="iIT_dropdown iIT_neu-card absolute left-0 top-full w-80 p-2">
+                  {item.children.map((child) => (
+                    <li>
+                      <a
+                        href={child.href}
+                        class="block rounded-lg px-3 py-2.5 transition-colors hover:bg-teal/10"
+                      >
+                        <span class="block font-medium text-ink">{child.label}</span>
+                        <span class="block text-sm text-steel">{child.description}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <a
+        href={`tel:${SITE.phoneE164}`}
+        class="hidden items-center gap-2 font-medium text-ink transition-colors hover:text-teal-light md:flex"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <path
+            d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2Z"
+          ></path>
+        </svg>
+        <span class="hidden xl:inline">{SITE.phoneDisplay}</span>
+      </a>
+      {/* Kontakt-CTA bleibt auch mobil fix sichtbar (BRIEFING.md, Abschnitt 4) */}
+      <a href="/kontakt/" class="iIT_btn-glow text-sm">Kontakt</a>
+
+      {/* Burger (mobil) */}
+      <button
+        type="button"
+        id="iIT_burger"
+        class="grid h-11 w-11 place-items-center rounded-lg border border-steel/20 lg:hidden"
+        aria-expanded="false"
+        aria-controls="iIT_mobile-nav"
+        aria-label="Menü öffnen"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path class="iIT_burger-open" d="M4 7h16M4 12h16M4 17h16"></path>
+          <path class="iIT_burger-close hidden" d="M6 6l12 12M18 6L6 18"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  {/* Mobile Navigation: Accordion-Untermenüs, Kontakt-CTA fix sichtbar */}
+  <nav id="iIT_mobile-nav" class="hidden border-t border-steel/10 lg:hidden" aria-label="Hauptnavigation mobil">
+    <div class="mx-auto max-w-7xl space-y-1 px-4 py-4 sm:px-6">
+      {
+        NAV.map((item) =>
+          item.children ? (
+            <details class="group rounded-lg">
+              <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
+                {item.label}
+                <svg
+                  viewBox="0 0 20 20"
+                  width="16"
+                  height="16"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  class="transition-transform group-open:rotate-180"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </summary>
+              <ul class="space-y-1 pb-2 pl-3">
+                <li>
+                  <a href={item.href} class="block min-h-11 rounded-lg px-3 py-2.5 text-steel hover:text-teal-light">
+                    {item.label} – Übersicht
+                  </a>
+                </li>
+                {item.children.map((child) => (
+                  <li>
+                    <a href={child.href} class="block min-h-11 rounded-lg px-3 py-2.5 text-steel hover:text-teal-light">
+                      {child.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : (
+            <a href={item.href} class="block min-h-11 rounded-lg px-3 py-2.5 font-medium">
+              {item.label}
+            </a>
+          )
+        )
+      }
+      <div class="flex items-center gap-3 pt-3">
+        <a href="/kontakt/" class="iIT_btn-glow flex-1 text-sm">Kostenloses Erstgespräch</a>
+        <a
+          href={`tel:${SITE.phoneE164}`}
+          class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-steel/20"
+          aria-label="Jetzt anrufen"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+            <path
+              d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2Z"
+            ></path>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<style>
+  /* Dropdown: unsichtbar, aber fokussierbar erst bei Hover/Fokus */
+  .iIT_dropdown {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease,
+      visibility 0.15s;
+  }
+  .iIT_nav-item:hover .iIT_dropdown,
+  .iIT_nav-item:focus-within .iIT_dropdown {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .iIT_dropdown {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  // Burger-Menü: Panel ein-/ausblenden, Zustand für Screenreader spiegeln.
+  const burger = document.getElementById('iIT_burger');
+  const panel = document.getElementById('iIT_mobile-nav');
+
+  burger?.addEventListener('click', () => {
+    const open = burger.getAttribute('aria-expanded') === 'true';
+    burger.setAttribute('aria-expanded', String(!open));
+    burger.setAttribute('aria-label', open ? 'Menü öffnen' : 'Menü schließen');
+    panel?.classList.toggle('hidden', open);
+    burger.querySelector('.iIT_burger-open')?.classList.toggle('hidden', !open);
+    burger.querySelector('.iIT_burger-close')?.classList.toggle('hidden', open);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && burger?.getAttribute('aria-expanded') === 'true') {
+      burger.click();
+      burger.focus();
+    }
+  });
+</script>

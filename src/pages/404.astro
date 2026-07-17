@@ -1,0 +1,37 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const quicklinks = [
+  { label: 'Zur Startseite', href: '/' },
+  { label: 'Unsere Leistungen', href: '/leistungen/' },
+  { label: 'Referenzen', href: '/referenzen/' },
+  { label: 'Kontakt', href: '/kontakt/' },
+];
+---
+
+<Layout
+  title="Seite nicht gefunden | ident-IT"
+  description="Diese Seite gibt es leider nicht (mehr). Hier findest du schnell zurück zu unseren Leistungen, Referenzen und dem Kontakt."
+  noindex
+>
+  <section class="mx-auto flex max-w-3xl flex-col items-center px-4 py-28 text-center sm:px-6">
+    <p class="iIT_eyebrow">Fehler 404</p>
+    <h1 class="mt-6 text-4xl sm:text-5xl">
+      Diese Seite ist <span class="iIT_gradient-text">nicht mehr da</span>
+    </h1>
+    <p class="mt-6 max-w-xl text-lg text-steel">
+      Kein Problem – vielleicht ist die Seite umgezogen. Hier kommst du direkt zu den wichtigsten Bereichen:
+    </p>
+    <ul class="mt-10 flex flex-wrap items-center justify-center gap-4">
+      {
+        quicklinks.map((link) => (
+          <li>
+            <a href={link.href} class="iIT_btn-outline">
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+</Layout>

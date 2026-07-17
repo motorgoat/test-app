@@ -1,0 +1,13 @@
+# Abhängigkeiten & Build
+node_modules/
+dist/
+.astro/
+
+# Lokale Vorlagen (Prototyp-Code & Recherche – bleibt außerhalb der Git-History)
+referenz/
+
+# Umgebung & System
+.env
+.env.*
+.DS_Store
+npm-debug.log*

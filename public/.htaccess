@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+# ident-it.at – Redirects & Server-Konfiguration (SiteGround / Apache)
+# Liegt in public/ und landet beim Build automatisch im Webroot (dist/).
+# Pflege-Regel: Jede URL-Änderung sofort hier als 301 nachziehen (KONVENTIONEN.md).
+# ---------------------------------------------------------------------------
+
+# Kanonische Domain: https:// + non-www
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off [OR]
+  RewriteCond %{HTTP_HOST} ^www\. [NC]
+  RewriteRule ^ https://ident-it.at%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# --- 301-Redirects Alt-Struktur → Neu (Basis-Mapping, BRIEFING.md Abschnitt 8) ---
+# WICHTIG vor Launch: komplette Alt-Sitemap ziehen und JEDE indexierte URL mappen
+# (v. a. alte Blog-Permalinks /JJJJ/MM/TT/…). Statuscodes vor Livegang testen.
+Redirect 301 /leistungen/webdesign/ /leistungen/web/webdesign/
+Redirect 301 /leistungen/grafikdesign/ /leistungen/grafik/
+Redirect 301 /leistungen/social-media-marketing/ /leistungen/marketing/social-media/
+Redirect 301 /leistungen/seo-agentur-graz/ /leistungen/marketing/seo/
+Redirect 301 /leistungen/videoproduktion-graz/ /leistungen/marketing/videoproduktion/
+Redirect 301 /leistungen/marketing-agentur/ /leistungen/marketing/
+Redirect 301 /pakete/marketing-betreuung/ /leistungen/marketing/
+Redirect 301 /pakete/seo-betreuung/ /leistungen/marketing/seo/
+Redirect 301 /pakete/website-wartung/ /leistungen/web/wartung/
+RedirectMatch 301 ^/pakete/?$ /website-kosten/
+Redirect 301 /kunden/ /referenzen/
+Redirect 301 /termin/ /kontakt/
+RedirectMatch 301 ^/home/?$ /
+Redirect 301 /jobs/ /ueber-uns/
+RedirectMatch 301 ^/aktuelles/category/.* /aktuelles/
+Redirect 301 /2021/03/31/foerderungen-fuer-digitalisierungsmassnahmen/ /aktuelles/foerderungen-digitalisierung/
+# TODO vor Launch: restliche Blog-Posts & Alt-URLs aus der WordPress-Sitemap ergänzen.
+
+# --- Kompression (Brotli bevorzugt, sonst Gzip) ---
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+# --- Cache-Header: Assets lang cachen (Astro hashed Dateinamen), HTML nicht ---
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/avif "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType video/mp4 "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>

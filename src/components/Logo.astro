@@ -1,0 +1,13 @@
+---
+// Logo-Slot: Platzhalter als Wortmarke, bis das finale Teal-Logo als SVG vorliegt
+// (BRIEFING.md, Abschnitt 12, Punkt 6). Dann hier nur das SVG einsetzen –
+// alle Verwendungen (Header, Footer) ziehen automatisch nach.
+interface Props {
+  class?: string;
+}
+const { class: className = '' } = Astro.props;
+---
+
+<span class={`iIT_logo font-display text-xl font-extrabold tracking-tight ${className}`}>
+  ident-<span class="text-teal">IT</span>
+</span>

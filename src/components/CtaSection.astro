@@ -1,0 +1,30 @@
+---
+import { SITE } from '../lib/site';
+
+// Wiederverwendbarer Abschluss-CTA – gehört ans Ende jeder Seite
+// (BRIEFING.md, Abschnitt 5: „Abschluss-CTA-Sektion auf jeder Seite").
+interface Props {
+  title?: string;
+  text?: string;
+  buttonLabel?: string;
+  buttonHref?: string;
+}
+
+const {
+  title = 'Bereit, durchzustarten?',
+  text = 'Erzähl uns von deinem Projekt – im kostenlosen Erstgespräch schauen wir uns gemeinsam an, was für dich drin ist.',
+  buttonLabel = 'Kostenloses Erstgespräch',
+  buttonHref = '/kontakt/',
+} = Astro.props;
+---
+
+<section class="iIT_noise relative overflow-hidden bg-section-alt">
+  <div class="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
+    <h2 class="text-3xl sm:text-4xl">{title}</h2>
+    <p class="mx-auto mt-4 max-w-2xl text-lg text-steel">{text}</p>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+      <a href={buttonHref} class="iIT_btn-glow">{buttonLabel}</a>
+      <a href={`tel:${SITE.phoneE164}`} class="iIT_btn-outline">{SITE.phoneDisplay}</a>
+    </div>
+  </div>
+</section>

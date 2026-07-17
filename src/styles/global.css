@@ -1,0 +1,182 @@
+@import 'tailwindcss';
+
+/*
+  Designsystem „Neumorphismus Dark + Teal" – Tokens laut BRIEFING.md, Abschnitt 11.
+  Eigene Klassen/IDs tragen immer den Prefix iIT_ (siehe KONVENTIONEN.md).
+*/
+@theme {
+  /* Markenfarben */
+  --color-teal: #0abab5;
+  --color-teal-dark: #088f8c;
+  --color-teal-light: #3dd6d0;
+  --color-petrol: #1a6b6a;
+  --color-steel: #95bbcc;
+  --color-charcoal: #323131;
+
+  /* Hintergründe */
+  --color-base: #0d1117;
+  --color-card: #151b23;
+  --color-section: #111820;
+  --color-section-alt: #1a2332;
+
+  /* Fließtext auf Dark – erfüllt AA auf allen Hintergrund-Tokens */
+  --color-ink: #e6edf3;
+
+  /* Typografie – lokal gehostet, kein Font-CDN */
+  --font-display: 'Raleway Variable', 'Raleway', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---------- Basis ---------- */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* Sichtbarer Fokus-Ring – Tastaturbedienung ist Abnahmekriterium */
+:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+::selection {
+  background-color: var(--color-teal);
+  color: var(--color-base);
+}
+
+/* Skip-Link zum Hauptinhalt */
+.iIT_skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -100%;
+  z-index: 1000;
+  padding: 0.6rem 1rem;
+  background: var(--color-teal);
+  color: var(--color-base);
+  font-weight: 700;
+  border-radius: 0 0 8px 8px;
+  transition: top 0.15s ease;
+}
+.iIT_skip-link:focus-visible {
+  top: 0;
+}
+
+/* ---------- Wiederkehrende Stil-Elemente aus dem Entwurf ---------- */
+
+/* Brand-Gradient als Text */
+.iIT_gradient-text {
+  background: linear-gradient(135deg, #1a6b6a, #0abab5, #95bbcc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Neumorphism-Card: weiche Schatten auf Dark */
+.iIT_neu-card {
+  background: var(--color-card);
+  border: 1px solid rgb(149 187 204 / 0.12);
+  border-radius: 1rem;
+  box-shadow:
+    8px 8px 20px rgb(0 0 0 / 0.45),
+    -4px -4px 12px rgb(149 187 204 / 0.04);
+}
+
+/* Primärer Glow-Button */
+.iIT_btn-glow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px; /* Touch-Target */
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-teal-dark), var(--color-teal));
+  color: var(--color-base);
+  font-weight: 700;
+  box-shadow: 0 0 24px rgb(10 186 181 / 0.35);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.iIT_btn-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 36px rgb(10 186 181 / 0.5);
+}
+
+/* Sekundärer Button (Outline) */
+.iIT_btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  border: 1px solid rgb(149 187 204 / 0.4);
+  color: var(--color-ink);
+  font-weight: 700;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.iIT_btn-outline:hover {
+  border-color: var(--color-teal);
+  background-color: rgb(10 186 181 / 0.08);
+}
+
+/* Eyebrow/Badge über Headlines */
+.iIT_eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgb(10 186 181 / 0.35);
+  background: rgb(10 186 181 / 0.08);
+  color: var(--color-teal-light);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Grain/Noise-Textur als Overlay (rein dekorativ) */
+.iIT_noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Reduced Motion: sämtliche Animationen aus ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

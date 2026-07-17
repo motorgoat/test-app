@@ -1,0 +1,47 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CtaSection from '../components/CtaSection.astro';
+import { SITE } from '../lib/site';
+
+// Platzhalter-Startseite: Die finale Startseite wird 1:1 aus dem freigegebenen
+// Entwurf (Home.tsx aus den Design-Zips) portiert – siehe BRIEFING.md, Abschnitt 5.
+---
+
+<Layout
+  title="Werbeagentur Graz | ident-IT – Webdesign, Marketing & Grafikdesign"
+  description="Deine Fullservice-Werbeagentur in Graz: Webdesign, SEO, Google Ads, Social Media & Grafikdesign aus einer Hand. Jetzt kostenloses Erstgespräch vereinbaren!"
+>
+  <section class="iIT_noise relative overflow-hidden">
+    <div class="mx-auto flex max-w-5xl flex-col items-center px-4 py-28 text-center sm:px-6 lg:py-36">
+      <p class="iIT_eyebrow">Werbeagentur in Graz – seit {SITE.foundedYear}</p>
+      <h1 class="mt-6 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
+        Deine Werbeagentur in Graz für <span class="iIT_gradient-text">digitale Strategien, die verkaufen</span>
+      </h1>
+      <p class="mt-6 max-w-2xl text-lg text-steel">
+        Fullservice aus einer Hand: Webdesign, Online Marketing, SEO, Social Media und Grafikdesign. {SITE.slogan}
+      </p>
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+        <a href="/kontakt/" class="iIT_btn-glow">Kostenloses Erstgespräch</a>
+        <a href="/leistungen/" class="iIT_btn-outline">Unsere Leistungen</a>
+      </div>
+      <p class="mt-10 text-sm text-steel">
+        <span class="text-teal-light" aria-hidden="true">★★★★★</span>
+        {SITE.rating.value} bei Google · {SITE.rating.count} Bewertungen · Graz, Steiermark · 100+ Kunden
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-section">
+    <div class="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
+      <div class="iIT_neu-card px-6 py-8">
+        <h2 class="text-2xl">Hier entsteht die neue ident-IT Website</h2>
+        <p class="mt-3 text-steel">
+          Der Relaunch ist in Arbeit: Die finale Startseite wird aus dem freigegebenen Design-Entwurf
+          übernommen und Schritt für Schritt um alle Leistungsseiten ergänzt.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <CtaSection />
+</Layout>
