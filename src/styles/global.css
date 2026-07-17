@@ -366,7 +366,7 @@ html.iIT_js .iIT_reveal.iIT_revealed {
 /* Wort-für-Wort-Reveal (Über-uns-Sektion) */
 html.iIT_js .iIT_word {
   display: inline-block;
-  opacity: calc(0.15 + var(--word-p, 0) * 0.85);
+  opacity: calc(0.55 + var(--word-p, 0) * 0.45); /* Floor 0.55 → Kontrast bleibt AA-konform */
   transform: translateY(calc((1 - var(--word-p, 0)) * 8px));
   transition:
     opacity 0.3s,

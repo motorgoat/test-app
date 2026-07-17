@@ -65,7 +65,7 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComp
                       </div>
                       <div>
                         <h3 class="mb-1 text-sm font-semibold text-white">{item.label}</h3>
-                        <p class="text-sm text-muted/70">
+                        <p class="text-sm text-muted/80">
                           {item.tel && (
                             <a href={`tel:${SITE.phoneE164}`} class="transition-colors hover:text-accent-light">
                               {SITE.phoneDisplay}
@@ -173,8 +173,8 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComp
                     required
                     class="mt-1 h-4 w-4 shrink-0 accent-accent"
                   />
-                  <label for="iIT_dsgvo" class="text-sm text-muted/70">
-                    Ich habe die <a href="/datenschutz/" class="text-accent hover:underline">Datenschutzerklärung</a> gelesen
+                  <label for="iIT_dsgvo" class="text-sm text-muted/80">
+                    Ich habe die <a href="/datenschutz/" class="text-accent underline">Datenschutzerklärung</a> gelesen
                     und stimme der Verarbeitung meiner Daten zur Bearbeitung der Anfrage zu. *
                   </label>
                 </div>
@@ -209,7 +209,7 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComp
           <Icon name="map-pin" size={32} class="text-accent" />
         </div>
         <p class="font-bold text-white">{SITE.address.street}</p>
-        <p class="text-sm text-muted/60">{SITE.address.zip} {SITE.address.city}</p>
+        <p class="text-sm text-muted/80">{SITE.address.zip} {SITE.address.city}</p>
         <p class="mt-2 text-sm text-accent group-hover:underline">In Google Maps öffnen</p>
       </div>
     </a>

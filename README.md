@@ -42,7 +42,7 @@ SiteGround Cloud Servers laden. Redirects pflegt `public/.htaccess`.
 - [ ] Pillar- und Leistungsseiten (Marketing / Grafik / Web) portieren bzw. neu erstellen
 - [ ] Referenzen, Über uns, Website-Kosten-Konfigurator, Blog-Migration
 - [ ] Card-Mockups & Team-/Bürofoto einsetzen (Platzhalter-Visuals aktiv; Bilder liefert Philipp)
-- [ ] OG-Default-Image (1200×630) unter `public/og-default.jpg` ablegen
+- [x] OG-Default-Image (1200×630) aus dem Logo erzeugt (`public/og-default.jpg`)
 - [ ] AGB-Text von der bestehenden Website übernehmen
 - [ ] CCM19 + Consent Mode v2 + GTM-Events
 - [ ] Redirect-Map aus Alt-Sitemap vervollständigen (`public/.htaccess`)

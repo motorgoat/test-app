@@ -1,5 +1,5 @@
 ---
-import '@fontsource-variable/raleway';
+import '@fontsource-variable/raleway/index.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
@@ -95,7 +95,7 @@ const schema = {
     <meta property="og:locale" content="de_AT" />
     <meta name="twitter:card" content="summary_large_image" />
 
-    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
     <slot name="head" />
   </head>
   <body>

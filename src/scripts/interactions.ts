@@ -97,7 +97,9 @@ function initCounters() {
           if (start === null) start = now;
           const progress = Math.min((now - start) / duration, 1);
           const value = easeOutExpo(progress) * end;
-          el.textContent = `${prefix}${decimals > 0 ? value.toFixed(decimals) : Math.round(value)}${suffix}`;
+          // Deutsches Zahlenformat: Komma statt Punkt (wie im SSR-Markup)
+          const formatted = decimals > 0 ? value.toFixed(decimals).replace('.', ',') : String(Math.round(value));
+          el.textContent = `${prefix}${formatted}${suffix}`;
           if (progress < 1) requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
