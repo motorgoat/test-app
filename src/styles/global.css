@@ -2,18 +2,17 @@
 
 /*
   Designsystem „Neumorphismus Dark" – Struktur & Stil-Elemente aus dem freigegebenen
-  Entwurf (BRIEFING.md, Abschnitt 11), Farbpalette aktualisiert auf die neue
-  Logo-Richtung (Violett→Orange-Verlauf, Vorlage von Philipp, Juli 2026).
-  Alle Farbwerte sind vorläufig „ungefähr" – Feinabstimmung folgt mit dem finalen Logo-SVG.
+  Entwurf (BRIEFING.md, Abschnitt 11). Farbpalette: Blau→Türkis-Verlauf, exakt aus
+  Philipps finalem Logo extrahiert (Juli 2026).
   Eigene Klassen/IDs tragen immer den Prefix iIT_ (siehe KONVENTIONEN.md).
 */
 @theme {
   /* Markenfarben (aus dem Logo extrahiert) */
-  --color-accent: #f4741f; /* Orange – primärer Akzent, CTAs, Icons */
-  --color-accent-light: #ff9d57;
-  --color-violet: #6023a8; /* Tiefes Violett – Verläufe, Ambient-Glows */
-  --color-violet-light: #a78bfa;
-  --color-brand-red: #d63a3f; /* Übergangston im Marken-Verlauf */
+  --color-accent: #00b4a8; /* Türkis – primärer Akzent, CTAs, Icons */
+  --color-accent-light: #00cca8;
+  --color-blue: #0078a8; /* Logo-Blau – Verläufe, Ambient-Glows (nicht für Fließtext) */
+  --color-blue-light: #5bc4e0;
+  --color-blue-deep: #006c90; /* Dunkles Logo-Blau */
   --color-charcoal: #323131;
 
   /* Gedämpfter Text auf Dark (neutral, ersetzt Steel Blue des Entwurfs) */
@@ -36,11 +35,11 @@
 
 /* Marken-Verläufe zentral – überall via var() nutzen, keine Hex-Werte streuen */
 :root {
-  --iIT-gradient-brand: linear-gradient(135deg, #6023a8, #d63a3f, #f4741f);
-  --iIT-gradient-text: linear-gradient(135deg, #a78bfa, #f4741f, #ff9d57);
-  --iIT-gradient-button: linear-gradient(135deg, #d63a3f, #f4741f, #ff9d57);
-  /* CTA-Fläche ohne tiefes Violett – dunkler Text braucht ≥ 3:1 auf jedem Verlaufston */
-  --iIT-gradient-cta: linear-gradient(135deg, #d63a3f, #f4741f, #ff9d57);
+  --iIT-gradient-brand: linear-gradient(135deg, #0078a8, #00a8a8, #00cca8);
+  --iIT-gradient-text: linear-gradient(135deg, #1899c4, #00b4a8, #00cca8);
+  --iIT-gradient-button: linear-gradient(135deg, #0090b4, #00b4a8, #00cca8);
+  /* CTA-Fläche ohne dunkles Blau – dunkler Text braucht ≥ 3:1 auf jedem Verlaufston */
+  --iIT-gradient-cta: linear-gradient(135deg, #0090b4, #00b4a8, #00cca8, #7fe8d0);
 }
 
 /* ---------- Basis ---------- */
@@ -77,7 +76,7 @@ h4 {
 }
 
 ::selection {
-  background-color: rgb(244 116 31 / 0.35);
+  background-color: rgb(0 180 168 / 0.35);
   color: #fff;
 }
 
@@ -89,11 +88,11 @@ h4 {
   background: var(--color-base);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(244 116 31 / 0.5);
+  background: rgb(0 180 168 / 0.5);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(244 116 31 / 0.8);
+  background: rgb(0 180 168 / 0.8);
 }
 
 /* Container wie im Entwurf (max. 1280px) */
@@ -145,7 +144,7 @@ h4 {
 }
 
 .iIT_glow-line {
-  background: linear-gradient(90deg, transparent, #6023a8, #d63a3f, #f4741f, transparent);
+  background: linear-gradient(90deg, transparent, #0078a8, #00b4a8, #00cca8, transparent);
 }
 
 /* ---------- Neumorphism (dark-adaptiert, aus dem Entwurf) ---------- */
@@ -226,7 +225,7 @@ h4 {
 .iIT_btn--secondary {
   background: linear-gradient(135deg, #1a2332, #151b23);
   color: #fff;
-  border: 1px solid rgb(244 116 31 / 0.2);
+  border: 1px solid rgb(0 180 168 / 0.2);
   box-shadow:
     10px 10px 20px #0a0e14,
     -10px -10px 20px #202833;
@@ -306,10 +305,10 @@ h4 {
 @keyframes iIT_pulse-accent {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgb(244 116 31 / 0.4);
+    box-shadow: 0 0 0 0 rgb(0 180 168 / 0.4);
   }
   50% {
-    box-shadow: 0 0 0 12px rgb(244 116 31 / 0);
+    box-shadow: 0 0 0 12px rgb(0 180 168 / 0);
   }
 }
 

@@ -21,7 +21,7 @@ npm run preview   # Build lokal testen
 | `wartung-seite_inhalt-referenz.md` | Inhaltsvorlage für `/leistungen/web/wartung/` |
 | `docs/websitebrief_ueber-uns.md` | Positionierungs-Brief für die Über-uns-Seite |
 | `src/lib/site.ts` | Zentrale Marken- & Kontaktdaten (NAP), Navigation |
-| `src/styles/global.css` | Design-Tokens (Dark + Violett/Orange) und Basis-Styles |
+| `src/styles/global.css` | Design-Tokens (Dark + Blau/Türkis aus dem Logo) und Basis-Styles |
 | `src/layouts/Layout.astro` | SEO-Head, Schema.org, Header/Footer/Schnellkontakt |
 | `public/.htaccess` | 301-Redirects + Caching/Kompression für SiteGround |
 | `referenz/` | Lokale Design-/Recherche-Vorlagen (nicht versioniert) |
@@ -37,13 +37,12 @@ SiteGround Cloud Servers laden. Redirects pflegt `public/.htaccess`.
 - [x] Startseite aus dem Design-Entwurf portiert (alle Sektionen, Animationen als CSS/Vanilla-JS)
 - [x] Hero-Video komprimiert (0,8 MB) & selbst gehostet, Poster als LCP-Element
 - [x] Kontakt (Formular + PHP-Mail-Script mit Honeypot/Zeitfalle), Danke-, Impressum-, Datenschutz-, AGB-Seite
-- [x] Farbpalette + Logo auf neue Richtung umgestellt (Violett→Orange, Vorlage von Philipp) – Hex-Werte vorläufig, Feinschliff mit finalem Logo-SVG
-- [x] Favicon + Header-Logo aus dem neuen Logo-Symbol (freigestellt)
+- [x] Finales Logo (Blau→Türkis) eingebaut: Symbol in Header/Footer, Favicon, Palette exakt aus dem Logo abgeleitet
+- [ ] Logo als SVG ablegen, sobald verfügbar (aktuell freigestelltes PNG aus der Vorlage)
 - [ ] Pillar- und Leistungsseiten (Marketing / Grafik / Web) portieren bzw. neu erstellen
 - [ ] Referenzen, Über uns, Website-Kosten-Konfigurator, Blog-Migration
 - [ ] Card-Mockups & Team-/Bürofoto einsetzen (Platzhalter-Visuals aktiv; Bilder liefert Philipp)
 - [ ] OG-Default-Image (1200×630) unter `public/og-default.jpg` ablegen
-- [ ] Finales Teal-Logo (SVG) in `src/components/Logo.astro` einsetzen (aktuell Wortmarke)
 - [ ] AGB-Text von der bestehenden Website übernehmen
 - [ ] CCM19 + Consent Mode v2 + GTM-Events
 - [ ] Redirect-Map aus Alt-Sitemap vervollständigen (`public/.htaccess`)
