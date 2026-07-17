@@ -304,11 +304,12 @@ const aboutWords = aboutText.split(' ').map((word) => ({
 
         <div class="iIT_reveal" style="--reveal-delay: 200ms">
           <h1 class="mb-6 text-4xl leading-[1.05] font-extrabold text-white sm:text-5xl lg:text-7xl">
-            Deine Werbeagentur
+            Deine Werbeagentur{' '}
             <br class="hidden sm:block" />
-            in Graz für{' '}
-            <span data-typewriter={JSON.stringify(typewriterWords)}>
-              <span class="iIT_gradient-text iIT_type-text drop-shadow-[0_0_40px_rgba(244,116,31,0.4)]"
+            in Graz für
+            {/* Eigene Zeile mit fixer Mindesthöhe – so springt beim Tippen nichts um */}
+            <span class="block min-h-[1.15em]" data-typewriter={JSON.stringify(typewriterWords)}>
+              <span class="iIT_gradient-text iIT_type-text drop-shadow-[0_0_40px_rgba(0,180,168,0.4)]"
                 >{typewriterWords[0]}</span
               ><span class="iIT_type-cursor" aria-hidden="true"></span>
             </span>
