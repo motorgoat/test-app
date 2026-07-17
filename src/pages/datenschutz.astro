@@ -1,0 +1,91 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { SITE } from '../lib/site';
+
+/* Datenschutzerklärung – auf den realen Stack der neuen Website zugeschnitten
+   (BRIEFING.md, Abschnitt 10): SiteGround-Hosting (EU), Kontaktformular per
+   eigenem Mail-Script, CCM19-Consent, GTM/Google Ads mit Consent Mode v2,
+   YouTube (nocookie) & Google Maps als 2-Klick-Lösung.
+   ⚠️ Vor Launch nochmal juristisch gegenprüfen lassen. */
+
+const sections: { title: string; paragraphs: string[] }[] = [
+  {
+    title: '1. Verantwortlicher',
+    paragraphs: [
+      `Verantwortlicher im Sinne der Datenschutz-Grundverordnung (DSGVO) und des österreichischen Datenschutzgesetzes (DSG): ${SITE.legalName}, ${SITE.address.street}, ${SITE.address.zip} ${SITE.address.city}, Österreich. E-Mail: ${SITE.email}, Telefon: ${SITE.phoneDisplay}.`,
+    ],
+  },
+  {
+    title: '2. Hosting & Server-Logfiles',
+    paragraphs: [
+      'Diese Website wird bei SiteGround auf Servern innerhalb der Europäischen Union gehostet. Beim Besuch der Website werden automatisch Informationen allgemeiner Natur erfasst (Server-Logfiles): Art des Webbrowsers, verwendetes Betriebssystem, Domainname deines Internet-Service-Providers, IP-Adresse und Ähnliches. Diese Daten dienen der Sicherstellung eines problemlosen Verbindungsaufbaus, der Systemsicherheit und -stabilität sowie administrativen Zwecken (Rechtsgrundlage: berechtigtes Interesse, Art. 6 Abs. 1 lit. f DSGVO) und werden nach kurzer Zeit automatisch gelöscht.',
+    ],
+  },
+  {
+    title: '3. Kontaktformular',
+    paragraphs: [
+      'Wenn du uns über das Kontaktformular eine Anfrage schickst, werden deine Angaben (Name, E-Mail-Adresse, optional Telefonnummer, Nachricht) ausschließlich zur Bearbeitung der Anfrage und für mögliche Anschlussfragen per E-Mail an uns übermittelt. Der Versand erfolgt über unseren eigenen Server in der EU, es wird kein externer Formulardienst eingesetzt. Die Verarbeitung erfolgt auf Grundlage deiner Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Wir geben diese Daten nicht ohne deine Einwilligung weiter.',
+    ],
+  },
+  {
+    title: '4. Cookies & Einwilligungsverwaltung (CCM19)',
+    paragraphs: [
+      'Diese Website verwendet Cookies nur, soweit sie technisch notwendig sind oder du ihnen ausdrücklich zugestimmt hast (§ 165 Abs. 3 TKG 2021). Zur Verwaltung deiner Einwilligungen setzen wir das Consent-Management-Tool CCM19 ein. Deine Auswahl kannst du jederzeit über den Link „Cookie-Einstellungen" im Footer ändern oder widerrufen. Vor deiner Einwilligung werden keine Inhalte oder Skripte von Drittanbietern geladen.',
+    ],
+  },
+  {
+    title: '5. Google Tag Manager, Google Ads & Conversion-Tracking',
+    paragraphs: [
+      'Nach deiner ausdrücklichen Einwilligung setzen wir den Google Tag Manager sowie Google Ads Conversion-Tracking der Google Ireland Limited (Gordon House, Barrow Street, Dublin 4, Irland) ein. Dabei kommt der Google Consent Mode v2 zum Einsatz: Ohne deine Einwilligung werden keine Cookies gesetzt und keine personenbezogenen Daten an Google übertragen. Die Verarbeitung erfolgt auf Grundlage deiner Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Bei der Übermittlung von Daten in die USA besteht das Risiko eines Zugriffs durch US-Behörden; Google ist nach dem EU-US Data Privacy Framework zertifiziert.',
+    ],
+  },
+  {
+    title: '6. Eingebettete Inhalte (YouTube, Google Maps)',
+    paragraphs: [
+      'Videos binden wir über den erweiterten Datenschutzmodus von YouTube (youtube-nocookie.com) und ausschließlich als 2-Klick-Lösung ein: Erst wenn du ein Video aktiv startest bzw. der Einbindung zustimmst, wird eine Verbindung zu YouTube (Google Ireland Limited) hergestellt. Gleiches gilt für Google Maps – standardmäßig zeigen wir nur einen Link bzw. ein statisches Vorschaubild ohne Datenübertragung an Google.',
+    ],
+  },
+  {
+    title: '7. SSL-Verschlüsselung',
+    paragraphs: [
+      'Diese Seite nutzt aus Sicherheitsgründen und zum Schutz der Übertragung vertraulicher Inhalte, wie zum Beispiel Anfragen, die du an uns als Seitenbetreiber sendest, eine SSL-Verschlüsselung. Eine verschlüsselte Verbindung erkennst du daran, dass die Adresszeile des Browsers von http auf https wechselt, und am Schloss-Symbol in deiner Browserzeile.',
+    ],
+  },
+  {
+    title: '8. Deine Rechte',
+    paragraphs: [
+      'Du hast jederzeit das Recht auf Auskunft über deine gespeicherten personenbezogenen Daten, deren Herkunft und Empfänger und den Zweck der Datenverarbeitung sowie ein Recht auf Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Erteilte Einwilligungen kannst du jederzeit mit Wirkung für die Zukunft widerrufen. Wende dich dazu einfach an die im Impressum angegebenen Kontaktdaten.',
+      'Darüber hinaus steht dir ein Beschwerderecht bei der zuständigen Aufsichtsbehörde zu: Österreichische Datenschutzbehörde, Barichgasse 40–42, 1030 Wien, www.dsb.gv.at.',
+    ],
+  },
+];
+---
+
+<Layout
+  title="Datenschutz | ident-IT GmbH – Werbeagentur Graz"
+  description="Datenschutzerklärung der ident-IT GmbH, Werbeagentur in Graz. Informationen zum Schutz deiner Daten."
+  noindex
+>
+  <section class="bg-base pt-32 pb-16 lg:pt-40 lg:pb-24">
+    <div class="iIT_container max-w-3xl">
+      <div class="mb-8">
+        <Breadcrumb items={[{ label: 'Datenschutz' }]} />
+      </div>
+      <h1 class="mb-12 text-4xl font-extrabold text-white md:text-5xl">Datenschutzerklärung</h1>
+
+      <div class="space-y-8">
+        {
+          sections.map((section) => (
+            <div>
+              <h2 class="mb-3 text-xl font-bold text-white">{section.title}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p class="mb-3 text-sm leading-relaxed text-muted/70">{paragraph}</p>
+              ))}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</Layout>

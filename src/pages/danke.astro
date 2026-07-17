@@ -1,0 +1,30 @@
+---
+import Layout from '../layouts/Layout.astro';
+import GlowButton from '../components/GlowButton.astro';
+import Icon from '../components/Icon.astro';
+
+/* Danke-Seite nach Formular-Absendung – noindex, dient später als
+   Google-Ads-Conversion-Ziel (BRIEFING.md, Abschnitt 9). */
+---
+
+<Layout
+  title="Danke für deine Anfrage | ident-IT"
+  description="Deine Nachricht ist bei uns angekommen. Wir melden uns in Kürze bei dir – meist noch am selben Werktag."
+  noindex
+>
+  <section class="iIT_container flex min-h-screen flex-col items-center justify-center py-32 text-center">
+    <div class="iIT_neu-raised mb-8 grid h-20 w-20 place-items-center rounded-2xl bg-card">
+      <Icon name="check-circle-2" size={40} class="text-accent" />
+    </div>
+    <h1 class="text-4xl font-extrabold text-white sm:text-5xl">
+      Nachricht <span class="iIT_gradient-text">gesendet!</span>
+    </h1>
+    <p class="mt-6 max-w-xl text-lg text-muted/80">
+      Danke für deine Anfrage. Wir schauen sie uns an und melden uns in Kürze bei dir – meist noch am selben Werktag.
+    </p>
+    <div class="mt-10 flex flex-wrap justify-center gap-4">
+      <GlowButton href="/" variant="primary" size="md">Zur Startseite</GlowButton>
+      <GlowButton href="/referenzen/" variant="outline" size="md">Referenzen ansehen</GlowButton>
+    </div>
+  </section>
+</Layout>

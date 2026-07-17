@@ -1,47 +1,813 @@
 ---
+import { getImage } from 'astro:assets';
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import GlowButton from '../components/GlowButton.astro';
+import FaqAccordion from '../components/FaqAccordion.astro';
 import CtaSection from '../components/CtaSection.astro';
 import { SITE } from '../lib/site';
+import heroPosterSrc from '../assets/hero-poster.jpg';
 
-// Platzhalter-Startseite: Die finale Startseite wird 1:1 aus dem freigegebenen
-// Entwurf (Home.tsx aus den Design-Zips) portiert – siehe BRIEFING.md, Abschnitt 5.
+/*
+ * Startseite – 1:1 aus dem freigegebenen Entwurf (Home.tsx) portiert.
+ * Primäres Keyword: werbeagentur graz · Title/H1 laut keyword_strategie_final.md.
+ * Leistungs-Karten auf die finale 3-Säulen-Struktur erweitert (Marketing/Grafik/Web).
+ */
+
+const heroPoster = await getImage({ src: heroPosterSrc, format: 'webp', width: 1280 });
+
+const typewriterWords = ['Webdesign', 'Online Marketing', 'Branding', 'Social Media', 'SEO'];
+
+const pillarCards = [
+  {
+    icon: 'trending-up',
+    title: 'Marketing',
+    desc: 'SEO, Google Ads, Social Media und Videoproduktion – wir sorgen dafür, dass deine Kunden dich bei Google und darüber hinaus finden.',
+    href: '/leistungen/marketing/',
+    visualIcon: 'trending-up',
+  },
+  {
+    icon: 'palette',
+    title: 'Grafik',
+    desc: 'Logos, Corporate Design, Visitenkarten und Flyer – wir geben deiner Marke ein Gesicht, das im Kopf bleibt.',
+    href: '/leistungen/grafik/',
+    visualIcon: 'palette',
+  },
+  {
+    icon: 'monitor',
+    title: 'Web',
+    desc: 'Professionelle Websites und Webshops aus Graz, die nicht nur gut aussehen, sondern auch Kunden bringen. Responsive, schnell und SEO-optimiert.',
+    href: '/leistungen/web/',
+    visualIcon: 'monitor',
+  },
+];
+
+const servicePills = [
+  { icon: 'globe', label: 'Websites & Webshops', href: '/leistungen/web/webdesign/' },
+  { icon: 'search', label: 'SEO Graz', href: '/leistungen/marketing/seo/' },
+  { icon: 'target', label: 'Google Ads', href: '/leistungen/marketing/google-ads/' },
+  { icon: 'megaphone', label: 'Social Media', href: '/leistungen/marketing/social-media/' },
+  { icon: 'video', label: 'Videoproduktion', href: '/leistungen/marketing/videoproduktion/' },
+  { icon: 'palette', label: 'Corporate Design', href: '/leistungen/grafik/branding/' },
+  { icon: 'printer', label: 'Drucksorten', href: '/leistungen/grafik/drucksorten/' },
+  { icon: 'shield', label: 'Wartung & Hosting', href: '/leistungen/web/wartung/' },
+];
+
+const usps = [
+  {
+    icon: 'users',
+    title: 'Persönlich',
+    desc: 'Du hast immer einen direkten Ansprechpartner – kein Callcenter, kein Ticket-System.',
+  },
+  {
+    icon: 'lightbulb',
+    title: 'Kreativ',
+    desc: 'Individuelle Lösungen statt Templates von der Stange. Jedes Projekt ist einzigartig.',
+  },
+  {
+    icon: 'bar-chart-3',
+    title: 'Messbar',
+    desc: 'Transparente Reports und klare KPIs – du siehst, was dein Investment bringt.',
+  },
+  {
+    icon: 'zap',
+    title: 'Schnell',
+    desc: 'Kurze Reaktionszeiten und effiziente Umsetzung – weil deine Zeit wertvoll ist.',
+  },
+];
+
+const yearsOfExperience = new Date().getFullYear() - SITE.foundedYear;
+const stats = [
+  { icon: 'users', end: 100, suffix: '+', decimals: 0, label: 'Zufriedene Kunden' },
+  { icon: 'star', end: 5.0, suffix: '', decimals: 1, label: 'Google Bewertung' },
+  { icon: 'award', end: yearsOfExperience, suffix: '+', decimals: 0, label: 'Jahre Erfahrung' },
+  { icon: 'bar-chart-3', end: 200, suffix: '+', decimals: 0, label: 'Projekte umgesetzt' },
+];
+
+const processSteps = [
+  {
+    step: '01',
+    icon: 'message-square',
+    title: 'Erstgespräch & Analyse',
+    desc: 'Wir lernen dein Unternehmen kennen, analysieren deine aktuelle Situation und definieren gemeinsam klare Ziele. Das Erstgespräch ist kostenlos und unverbindlich.',
+  },
+  {
+    step: '02',
+    icon: 'rocket',
+    title: 'Strategie & Umsetzung',
+    desc: 'Basierend auf der Analyse entwickeln wir eine maßgeschneiderte Strategie und setzen sie um – ob neue Website, SEO-Kampagne oder Markenauftritt.',
+  },
+  {
+    step: '03',
+    icon: 'bar-chart-3',
+    title: 'Optimierung & Wachstum',
+    desc: 'Nach dem Launch optimieren wir laufend. Du bekommst transparente Reports und siehst genau, wie sich deine Investition auszahlt.',
+  },
+];
+
+const serviceDetails = [
+  {
+    icon: 'monitor',
+    title: 'Webdesign & Webentwicklung',
+    points: [
+      'Responsive Websites für alle Geräte',
+      'WordPress, Shopify & individuelle Lösungen',
+      'SEO-optimierte Struktur von Anfang an',
+      'Schnelle Ladezeiten & Core Web Vitals',
+    ],
+    href: '/leistungen/web/webdesign/',
+  },
+  {
+    icon: 'search',
+    title: 'Suchmaschinenoptimierung (SEO)',
+    points: [
+      'Keyword-Recherche & Content-Strategie',
+      'Technisches SEO & On-Page-Optimierung',
+      'Local SEO für Graz & Steiermark',
+      'Monatliche Rankings & Traffic-Reports',
+    ],
+    href: '/leistungen/marketing/seo/',
+  },
+  {
+    icon: 'target',
+    title: 'Google Ads & Suchmaschinenwerbung',
+    points: [
+      'Professionelle Kampagnen-Erstellung',
+      'Keyword-Targeting & Anzeigenoptimierung',
+      'Conversion-Tracking & ROI-Analyse',
+      'Laufende Optimierung für maximalen Erfolg',
+    ],
+    href: '/leistungen/marketing/google-ads/',
+  },
+  {
+    icon: 'megaphone',
+    title: 'Social Media Marketing',
+    points: [
+      'Instagram, Facebook & LinkedIn',
+      'Content-Erstellung & Redaktionsplanung',
+      'Community Management & Interaktion',
+      'Bezahlte Werbeanzeigen & Targeting',
+    ],
+    href: '/leistungen/marketing/social-media/',
+  },
+  {
+    icon: 'palette',
+    title: 'Grafikdesign & Branding',
+    points: [
+      'Logo-Design & Corporate Identity',
+      'Visitenkarten, Flyer & Broschüren',
+      'Verpackungsdesign & Werbemittel',
+      'Markenentwicklung & Brand Guidelines',
+    ],
+    href: '/leistungen/grafik/',
+  },
+  {
+    icon: 'globe',
+    title: 'Local SEO & Google Unternehmensprofil',
+    points: [
+      'Google Unternehmensprofil optimieren',
+      'Lokale Keywords für Graz & Umgebung',
+      'Bewertungsmanagement & Reputation',
+      'Lokale Verzeichniseinträge & Citations',
+    ],
+    href: '/leistungen/marketing/seo/',
+  },
+];
+
+const audiences = [
+  {
+    icon: 'sparkles',
+    title: 'Startups & Gründer',
+    desc: 'Markenaufbau, erste Website und Online-Präsenz – wir begleiten dich von Anfang an.',
+  },
+  {
+    icon: 'shield',
+    title: 'KMU & Mittelstand',
+    desc: 'Digitalisierung, neue Kunden gewinnen und bestehende Prozesse optimieren.',
+  },
+  {
+    icon: 'globe',
+    title: 'E-Commerce & Shops',
+    desc: 'Webshop-Erstellung, SEO für Online-Shops und Performance Marketing.',
+  },
+  {
+    icon: 'heart',
+    title: 'Gastronomie & Hotellerie',
+    desc: 'Lokale Sichtbarkeit, Google Unternehmensprofil und ansprechende Websites.',
+  },
+  {
+    icon: 'users',
+    title: 'Dienstleister & Handwerk',
+    desc: 'Mehr Anfragen über Google, professioneller Webauftritt und lokales SEO.',
+  },
+  {
+    icon: 'trending-up',
+    title: 'Ärzte & Gesundheit',
+    desc: 'DSGVO-konforme Websites, Patientengewinnung und Online-Reputation.',
+  },
+];
+
+const faqItems = [
+  {
+    question: 'Was kostet eine Website bei einer Werbeagentur in Graz?',
+    answer:
+      'Die Kosten für eine professionelle Website hängen vom Umfang ab. Eine einfache Business-Website startet bei uns ab ca. 2.000 €, umfangreichere Projekte mit Webshop-Funktionalität oder individueller Programmierung können entsprechend mehr kosten. Im kostenlosen Erstgespräch erstellen wir dir ein unverbindliches Angebot.',
+  },
+  {
+    question: 'Wie lange dauert die Erstellung einer Website?',
+    answer:
+      'Eine typische Business-Website ist in 4–6 Wochen fertig. Komplexere Projekte wie Webshops oder Plattformen können 8–12 Wochen dauern. Den genauen Zeitplan besprechen wir im Erstgespräch.',
+  },
+  {
+    question: 'Was macht eine gute Werbeagentur in Graz aus?',
+    answer:
+      'Eine gute Werbeagentur versteht dein Geschäft, kennt den lokalen Markt und liefert messbare Ergebnisse. Bei ident-IT bekommst du persönliche Betreuung, transparente Kommunikation und Strategien, die auf deine Ziele zugeschnitten sind – keine Standardlösungen.',
+  },
+  {
+    question: 'Bietet ident-IT auch SEO und Google Ads an?',
+    answer:
+      'Ja, als Fullservice-Werbeagentur bieten wir neben Webdesign auch Suchmaschinenoptimierung (SEO), Google Ads (SEA), Social Media Marketing und Grafikdesign an. So bekommst du alles aus einer Hand und musst nicht mit mehreren Dienstleistern jonglieren.',
+  },
+  {
+    question: 'Arbeitet ident-IT nur mit Unternehmen aus Graz?',
+    answer:
+      'Unser Büro ist in Graz und viele unserer Kunden sind aus der Steiermark. Wir arbeiten aber auch mit Unternehmen aus ganz Österreich und dem DACH-Raum zusammen. Dank digitaler Kommunikation ist die Zusammenarbeit ortsunabhängig möglich.',
+  },
+  {
+    question: 'Wie kann ich ident-IT kontaktieren?',
+    answer: `Du erreichst uns telefonisch unter ${SITE.phoneDisplay}, per E-Mail an ${SITE.email} oder über unser Kontaktformular. Das Erstgespräch ist kostenlos und unverbindlich – wir freuen uns auf deine Anfrage!`,
+  },
+];
+
+/* Über-uns-Sektion: Wort-für-Wort-Reveal (SSR-seitig in Wörter zerlegt) */
+const aboutText =
+  'Wir sind keine typische Werbeagentur. Wir sind ein kleines Team aus Graz, das große Ergebnisse liefert. Seit 2018 helfen wir Unternehmen in der Steiermark dabei, online sichtbar zu werden – mit Webdesign, das verkauft, Marketing, das wirkt, und Design, das im Kopf bleibt. Persönlich, direkt und ohne Umwege.';
+const aboutHighlights = ['Werbeagentur', 'Graz', 'Ergebnisse', 'sichtbar', 'verkauft', 'wirkt', 'Steiermark'];
+const aboutWords = aboutText.split(' ').map((word) => ({
+  word,
+  highlight: aboutHighlights.some((hw) => word.toLowerCase().includes(hw.toLowerCase())),
+}));
 ---
 
 <Layout
   title="Werbeagentur Graz | ident-IT – Webdesign, Marketing & Grafikdesign"
-  description="Deine Fullservice-Werbeagentur in Graz: Webdesign, SEO, Google Ads, Social Media & Grafikdesign aus einer Hand. Jetzt kostenloses Erstgespräch vereinbaren!"
+  description="ident-IT ist deine Werbeagentur in Graz ✓ Webdesign ✓ SEO ✓ Google Ads ✓ Social Media ✓ Grafikdesign. Seit 2018 – Jetzt kostenloses Erstgespräch sichern!"
 >
-  <section class="iIT_noise relative overflow-hidden">
-    <div class="mx-auto flex max-w-5xl flex-col items-center px-4 py-28 text-center sm:px-6 lg:py-36">
-      <p class="iIT_eyebrow">Werbeagentur in Graz – seit {SITE.foundedYear}</p>
-      <h1 class="mt-6 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
-        Deine Werbeagentur in Graz für <span class="iIT_gradient-text">digitale Strategien, die verkaufen</span>
-      </h1>
-      <p class="mt-6 max-w-2xl text-lg text-steel">
-        Fullservice aus einer Hand: Webdesign, Online Marketing, SEO, Social Media und Grafikdesign. {SITE.slogan}
-      </p>
-      <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
-        <a href="/kontakt/" class="iIT_btn-glow">Kostenloses Erstgespräch</a>
-        <a href="/leistungen/" class="iIT_btn-outline">Unsere Leistungen</a>
+  <link slot="head" rel="preload" as="image" href={heroPoster.src} fetchpriority="high" />
+
+  {/* ===== HERO – Fullscreen-Hintergrundvideo ===== */}
+  <section class="relative flex min-h-screen items-center overflow-hidden">
+    <div class="absolute inset-0 overflow-hidden">
+      {/* Video selbst gehostet & komprimiert (0,8 MB); Script startet es nur auf Desktop ohne Datensparmodus */}
+      <video
+        data-hero
+        muted
+        loop
+        playsinline
+        preload="none"
+        poster={heroPoster.src}
+        class="absolute object-cover"
+        style="top: -5%; left: -5%; width: 110%; height: 110%; filter: brightness(0.35) saturate(0.7); backface-visibility: hidden; transform: translate3d(0,0,0);"
+        aria-hidden="true"
+      >
+        <source src="/videos/hero-bg.mp4" type="video/mp4" />
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-base/70 via-transparent to-base" aria-hidden="true"></div>
+      <div class="absolute inset-0 bg-gradient-to-r from-base/80 via-transparent to-transparent" aria-hidden="true">
       </div>
-      <p class="mt-10 text-sm text-steel">
-        <span class="text-teal-light" aria-hidden="true">★★★★★</span>
-        {SITE.rating.value} bei Google · {SITE.rating.count} Bewertungen · Graz, Steiermark · 100+ Kunden
-      </p>
+      <div class="absolute inset-0 bg-gradient-to-br from-violet/5 via-transparent to-muted/5" aria-hidden="true"></div>
+    </div>
+
+    {/* Animierte Grain-Textur */}
+    <div
+      class="iIT_animate-grain pointer-events-none absolute z-[1] opacity-[0.015]"
+      style="top: -10%; left: -10%; width: 120%; height: 120%; background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E&quot;);"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10 py-32 lg:py-0">
+      <div class="max-w-3xl">
+        <div class="iIT_reveal" style="--reveal-delay: 100ms">
+          <div
+            class="iIT_gradient-border iIT_neu-raised mb-8 inline-flex items-center gap-2 rounded-full bg-card/80 px-5 py-2.5 backdrop-blur-xl"
+          >
+            <span
+              class="iIT_animate-pulse-accent h-2 w-2 rounded-full"
+              style="background: var(--iIT-gradient-brand)"
+              aria-hidden="true"></span>
+            <span class="iIT_gradient-text text-sm font-semibold tracking-wide">
+              Werbeagentur in Graz – seit {SITE.foundedYear}
+            </span>
+          </div>
+        </div>
+
+        <div class="iIT_reveal" style="--reveal-delay: 200ms">
+          <h1 class="mb-6 text-4xl leading-[1.05] font-extrabold text-white sm:text-5xl lg:text-7xl">
+            Deine Werbeagentur
+            <br class="hidden sm:block" />
+            in Graz für{' '}
+            <span data-typewriter={JSON.stringify(typewriterWords)}>
+              <span class="iIT_gradient-text iIT_type-text drop-shadow-[0_0_40px_rgba(244,116,31,0.4)]"
+                >{typewriterWords[0]}</span
+              ><span class="iIT_type-cursor" aria-hidden="true"></span>
+            </span>
+          </h1>
+        </div>
+
+        <div class="iIT_reveal" style="--reveal-delay: 300ms">
+          <p class="mb-10 max-w-xl text-lg leading-relaxed text-muted/80 sm:text-xl">
+            Als Fullservice-Werbeagentur in Graz verbinden wir Kreativität mit Strategie. Ob neue Website, bessere
+            Google-Rankings oder ein starker Markenauftritt – wir bringen dein Unternehmen dorthin, wo deine Kunden
+            suchen.
+          </p>
+        </div>
+
+        <div class="iIT_reveal" style="--reveal-delay: 400ms">
+          <div class="flex flex-col gap-4 sm:flex-row">
+            <GlowButton href="/kontakt/" variant="primary" size="lg">
+              <Icon name="phone" size={20} />
+              Kostenloses Erstgespräch
+            </GlowButton>
+            <GlowButton href="#leistungen" variant="outline" size="lg">
+              Unsere Leistungen
+              <Icon name="arrow-right" size={20} />
+            </GlowButton>
+          </div>
+        </div>
+
+        <div class="iIT_reveal" style="--reveal-delay: 500ms">
+          <div class="mt-12 flex flex-wrap items-center gap-6">
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-accent" aria-hidden="true">★★★★★</span>
+              <span class="text-sm text-muted/60">
+                {SITE.rating.value} auf Google ({SITE.rating.count} Bewertungen)
+              </span>
+            </div>
+            <div class="hidden h-5 w-px bg-muted/20 sm:block" aria-hidden="true"></div>
+            <span class="flex items-center gap-1.5 text-sm text-muted/60">
+              <Icon name="map-pin" size={14} /> Graz, Steiermark
+            </span>
+            <div class="hidden h-5 w-px bg-muted/20 sm:block" aria-hidden="true"></div>
+            <span class="text-sm text-muted/60">100+ zufriedene Kunden</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <a
+      href="#leistungen"
+      class="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2 text-muted/50 transition-colors hover:text-accent"
+      aria-label="Zu den Leistungen scrollen"
+    >
+      <span class="text-xs tracking-widest uppercase">Entdecken</span>
+      <Icon name="chevron-down" size={20} class="animate-bounce" />
+    </a>
+  </section>
+
+  {/* ===== INTRO – SEO-Content für „werbeagentur graz" ===== */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto max-w-4xl">
+        <h2 class="mb-8 text-center text-2xl font-extrabold text-white sm:text-3xl lg:text-4xl">
+          Fullservice-Werbeagentur in Graz – alles aus einer Hand
+        </h2>
+        <div class="space-y-6 text-lg leading-relaxed text-muted/80">
+          <p>
+            Du suchst eine <strong class="text-white">Werbeagentur in Graz</strong>, die nicht nur gut aussehende
+            Websites baut, sondern auch dafür sorgt, dass deine Kunden dich online finden? Dann bist du bei ident-IT
+            genau richtig. Als Fullservice-Agentur in Graz bieten wir dir alles, was du für deinen digitalen Erfolg
+            brauchst: von professionellem Webdesign über Suchmaschinenoptimierung (SEO) und Google Ads bis hin zu Social
+            Media Marketing und Grafikdesign.
+          </p>
+          <p>
+            Seit {SITE.foundedYear} unterstützen wir Unternehmen in Graz, der Steiermark und ganz Österreich dabei,
+            online sichtbar zu werden und neue Kunden zu gewinnen. Dabei setzen wir nicht auf Standardlösungen, sondern
+            entwickeln individuelle Strategien, die genau zu deinem Unternehmen und deiner Zielgruppe passen. Ob
+            Einzelunternehmer, KMU oder etabliertes Unternehmen – wir finden die richtige Lösung für dich.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="bg-section">
-    <div class="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-      <div class="iIT_neu-card px-6 py-8">
-        <h2 class="text-2xl">Hier entsteht die neue ident-IT Website</h2>
-        <p class="mt-3 text-steel">
-          Der Relaunch ist in Arbeit: Die finale Startseite wird aus dem freigegebenen Design-Entwurf
-          übernommen und Schritt für Schritt um alle Leistungsseiten ergänzt.
+  {/* ===== LEISTUNGEN – 3 Säulen mit Tilt-Cards ===== */}
+  <section id="leistungen" class="relative overflow-hidden bg-base py-24 lg:py-32">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-30" aria-hidden="true"></div>
+    <div
+      class="absolute top-0 left-1/2 h-[400px] w-[800px] max-w-full -translate-x-1/2 rounded-full bg-gradient-to-b from-accent/[0.03] via-muted/[0.02] to-transparent blur-[120px]"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto mb-16 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">
+          Unsere Leistungen
+        </span>
+        <h2 class="mb-6 text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">
+          Was wir als Werbeagentur für dich tun
+        </h2>
+        <p class="text-lg leading-relaxed text-muted/60">
+          Von der neuen Website über bessere Google-Rankings bis zum kompletten Markenauftritt – als deine Agentur in
+          Graz liefern wir alles, was dein Unternehmen braucht.
         </p>
       </div>
+
+      <div class="grid gap-8 md:grid-cols-3">
+        {
+          pillarCards.map((service, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 150}ms`}>
+              <a href={service.href} class="group block h-full" data-tilt>
+                <div class="iIT_gradient-border iIT_neu-clickable h-full overflow-hidden rounded-2xl bg-card">
+                  {/* Visual-Platzhalter bis die finalen Mockup-Bilder vorliegen (offener Punkt 9) */}
+                  <div class="iIT_noise relative aspect-[16/10] overflow-hidden">
+                    <div class="iIT_gradient-brand absolute inset-0 opacity-30" aria-hidden="true" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent" aria-hidden="true" />
+                    <div class="absolute inset-0 grid place-items-center" aria-hidden="true">
+                      <Icon
+                        name={service.visualIcon}
+                        size={72}
+                        class="text-accent/60 transition-transform duration-700 group-hover:scale-110"
+                      />
+                    </div>
+                  </div>
+                  <div class="p-6">
+                    <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                      <Icon name={service.icon} size={24} class="text-accent" />
+                    </div>
+                    <h3 class="mb-3 text-xl font-bold text-white">{service.title}</h3>
+                    <p class="mb-4 leading-relaxed text-muted/60">{service.desc}</p>
+                    <span class="iIT_gradient-text inline-flex items-center gap-2 font-semibold transition-all group-hover:gap-3">
+                      Mehr erfahren <Icon name="arrow-right" size={16} class="text-accent" />
+                    </span>
+                  </div>
+                </div>
+              </a>
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="iIT_reveal" style="--reveal-delay: 200ms">
+        <div class="mt-16 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {
+            servicePills.map((item) => (
+              <a href={item.href} class="iIT_neu-clickable flex items-center gap-3 rounded-xl bg-card p-4">
+                <Icon name={item.icon} size={20} class="shrink-0 text-accent" />
+                <span class="text-sm font-medium text-muted/80">{item.label}</span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
     </div>
   </section>
 
+  {/* ===== WARUM IDENT-IT ===== */}
+  <section class="relative overflow-hidden bg-section py-24 lg:py-32">
+    <div
+      class="absolute right-0 bottom-0 h-[600px] w-[600px] rounded-full bg-gradient-to-tl from-muted/[0.03] via-accent/[0.02] to-transparent blur-[150px]"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10">
+      <div class="grid items-center gap-16 lg:grid-cols-2">
+        <div>
+          <div class="iIT_reveal iIT_reveal--left">
+            <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">
+              Warum ident-IT?
+            </span>
+            <h2 class="mb-6 text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">
+              Deine Werbeagentur in Graz – <span class="iIT_gradient-text">persönlich & messbar</span>
+            </h2>
+            <p class="mb-6 text-lg leading-relaxed text-muted/60">
+              Was unterscheidet ident-IT von anderen Werbeagenturen in Graz? Ganz einfach: Bei uns bist du keine Nummer.
+              Seit {SITE.foundedYear} arbeiten wir eng mit unseren Kunden zusammen und liefern Ergebnisse, die du messen
+              kannst – keine leeren Versprechen.
+            </p>
+            <p class="mb-10 leading-relaxed text-muted/60">
+              Als inhabergeführte Agentur in Graz kennen wir den lokalen Markt und wissen, was steirische Unternehmen
+              brauchen. Ob du ein Startup gründest, dein bestehendes Geschäft digitalisieren willst oder einfach mehr
+              Kunden über Google gewinnen möchtest – wir haben die passende Lösung.
+            </p>
+          </div>
+
+          <div class="grid gap-5 sm:grid-cols-2">
+            {
+              usps.map((item, i) => (
+                <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
+                  <div class="iIT_neu-raised rounded-2xl bg-card p-5">
+                    <div class="flex gap-4">
+                      <div class="iIT_neu-inset flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-base">
+                        <Icon name={item.icon} size={20} class="text-accent" />
+                      </div>
+                      <div>
+                        <h3 class="mb-1 font-bold text-white">{item.title}</h3>
+                        <p class="text-sm leading-relaxed text-muted/50">{item.desc}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* Rechts: Visual mit Floating-Stats (Team-/Bürofoto folgt – offener Punkt 9) */}
+        <div class="iIT_reveal iIT_reveal--right" style="--reveal-delay: 200ms">
+          <div class="relative">
+            <div class="iIT_gradient-border iIT_neu-raised iIT_noise relative aspect-[4/3] overflow-hidden rounded-2xl bg-card">
+              <div class="iIT_gradient-brand absolute inset-0 opacity-20" aria-hidden="true"></div>
+              <div class="absolute inset-0 grid place-items-center">
+                <span class="font-display text-4xl font-extrabold tracking-tight text-white/90 sm:text-5xl">
+                  ident-<span class="text-accent">IT</span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="absolute -bottom-6 -left-6 rounded-2xl px-6 py-4 shadow-[8px_8px_24px_rgba(0,0,0,0.4)]"
+              style="background: var(--iIT-gradient-button)"
+            >
+              <span class="block text-3xl font-extrabold text-[#0d1117]">Seit {SITE.foundedYear}</span>
+              <span class="text-sm font-medium text-[#0d1117]/70">Werbeagentur in Graz</span>
+            </div>
+            <div class="iIT_neu-raised absolute -top-4 -right-4 rounded-xl bg-card px-5 py-3 text-white">
+              <div class="flex items-center gap-2">
+                <Icon name="award" size={20} class="text-accent" />
+                <div>
+                  <span class="iIT_gradient-text block text-lg font-extrabold">100+</span>
+                  <span class="text-xs text-muted/50">Projekte</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* ===== ZAHLEN & FAKTEN ===== */}
+  <section class="relative overflow-hidden bg-base py-20">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_glow-line absolute right-0 bottom-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+
+    <div class="iIT_container relative z-10">
+      <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
+        {
+          stats.map((stat, i) => (
+            <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_neu-raised flex flex-col items-center rounded-2xl bg-card p-8">
+                <div class="iIT_neu-inset mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-base">
+                  <Icon name={stat.icon} size={24} class="text-accent" />
+                </div>
+                <div class="mb-1 text-3xl font-extrabold sm:text-4xl">
+                  <span
+                    class="iIT_gradient-text"
+                    data-counter
+                    data-end={stat.end}
+                    data-suffix={stat.suffix}
+                    data-decimals={stat.decimals}
+                  >
+                    {stat.decimals > 0 ? stat.end.toFixed(stat.decimals).replace('.', ',') : stat.end}
+                    {stat.suffix}
+                  </span>
+                </div>
+                <span class="text-center text-sm font-medium text-muted/60">{stat.label}</span>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* ===== SO ARBEITEN WIR – Prozess ===== */}
+  <section class="relative overflow-hidden bg-section py-24 lg:py-32">
+    <div
+      class="absolute top-0 left-1/2 h-[300px] w-[600px] max-w-full -translate-x-1/2 rounded-full bg-gradient-to-b from-accent/[0.03] to-transparent blur-[120px]"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto mb-16 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase"> Unser Prozess </span>
+        <h2 class="mb-6 text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">In 3 Schritten zum Erfolg</h2>
+        <p class="text-lg leading-relaxed text-muted/60">
+          Egal ob Webdesign, SEO oder Branding – so läuft die Zusammenarbeit mit unserer Werbeagentur in Graz ab.
+        </p>
+      </div>
+
+      <div class="mx-auto grid max-w-5xl gap-8 md:grid-cols-3">
+        {
+          processSteps.map((item, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 150}ms`}>
+              <div class="iIT_gradient-border iIT_neu-raised h-full rounded-2xl bg-card p-8 text-center">
+                <div class="iIT_gradient-text mb-4 text-5xl font-extrabold opacity-30">{item.step}</div>
+                <div class="iIT_neu-inset mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-base">
+                  <Icon name={item.icon} size={24} class="text-accent" />
+                </div>
+                <h3 class="mb-3 text-xl font-bold text-white">{item.title}</h3>
+                <p class="leading-relaxed text-muted/60">{item.desc}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* ===== LEISTUNGEN IM DETAIL ===== */}
+  <section class="relative overflow-hidden bg-base py-24 lg:py-32">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto mb-16 max-w-3xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">
+          Leistungen im Detail
+        </span>
+        <h2 class="mb-6 text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">
+          Was dich bei unserer Werbeagentur erwartet
+        </h2>
+      </div>
+
+      <div class="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
+        {
+          serviceDetails.map((service, i) => (
+            <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
+              <a href={service.href} class="group block h-full">
+                <div class="iIT_neu-clickable h-full rounded-2xl bg-card p-6">
+                  <div class="flex items-start gap-4">
+                    <div class="iIT_neu-inset flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-base">
+                      <Icon name={service.icon} size={24} class="text-accent" />
+                    </div>
+                    <div>
+                      <h3 class="mb-3 text-lg font-bold text-white transition-colors group-hover:text-accent">
+                        {service.title}
+                      </h3>
+                      <ul class="space-y-2">
+                        {service.points.map((point) => (
+                          <li class="flex items-start gap-2 text-sm text-muted/60">
+                            <Icon name="check-circle-2" size={16} class="mt-0.5 shrink-0 text-accent" />
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* ===== ÜBER UNS – Wort-für-Wort-Reveal ===== */}
+  <section class="relative overflow-hidden bg-base py-28 lg:py-36">
+    <div
+      class="absolute top-1/2 left-1/2 h-[800px] w-[800px] max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-violet/[0.03] via-accent/[0.02] to-muted/[0.02] blur-[200px]"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal">
+        <span class="iIT_gradient-text mb-8 block text-center text-sm font-semibold tracking-widest uppercase">
+          Über uns
+        </span>
+      </div>
+
+      <div class="mx-auto max-w-4xl" data-word-reveal>
+        <p class="text-center text-2xl leading-relaxed font-bold text-white md:text-3xl lg:text-4xl">
+          {aboutWords.map(({ word, highlight }) => (
+            <span class="iIT_word mr-[0.3em]" data-highlight={highlight ? '' : undefined}>
+              {word}
+            </span>
+          ))}
+        </p>
+      </div>
+
+      <div class="iIT_reveal" style="--reveal-delay: 400ms">
+        <div class="mt-12 flex justify-center">
+          <GlowButton href="/ueber-uns/" variant="outline" size="lg">Lerne uns kennen</GlowButton>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* ===== BRANCHEN & ZIELGRUPPEN ===== */}
+  <section class="relative overflow-hidden bg-section py-24 lg:py-32">
+    <div
+      class="absolute bottom-0 left-0 h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-violet/[0.03] to-transparent blur-[150px]"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto mb-16 max-w-3xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">
+          Für wen wir arbeiten
+        </span>
+        <h2 class="mb-6 text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">
+          Werbeagentur für Unternehmen in Graz
+        </h2>
+        <p class="text-lg leading-relaxed text-muted/60">
+          Wir arbeiten mit Unternehmen aus verschiedensten Branchen zusammen. Egal ob du gerade erst startest oder schon
+          etabliert bist – wir finden die richtige Strategie für dich.
+        </p>
+      </div>
+
+      <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          audiences.map((item, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 80}ms`}>
+              <div class="iIT_neu-raised h-full rounded-2xl bg-card p-6">
+                <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                  <Icon name={item.icon} size={24} class="text-accent" />
+                </div>
+                <h3 class="mb-2 text-lg font-bold text-white">{item.title}</h3>
+                <p class="text-sm leading-relaxed text-muted/60">{item.desc}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* ===== FAQ ===== */}
+  <section class="relative overflow-hidden bg-base py-24 lg:py-32">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div
+      class="absolute top-1/2 right-0 h-[400px] w-[400px] rounded-full bg-gradient-to-l from-accent/[0.02] to-transparent blur-[120px]"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto mb-16 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase"> Häufige Fragen </span>
+        <h2 class="mb-6 text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">FAQ – Werbeagentur Graz</h2>
+        <p class="text-lg leading-relaxed text-muted/60">
+          Die häufigsten Fragen, die uns als Werbeagentur in Graz gestellt werden.
+        </p>
+      </div>
+
+      <div class="mx-auto max-w-3xl">
+        <FaqAccordion items={faqItems} />
+      </div>
+    </div>
+  </section>
+
+  {/* ===== LOKALER BEZUG – Graz & Steiermark ===== */}
+  <section class="relative overflow-hidden bg-section py-20 lg:py-24">
+    <div class="iIT_container relative z-10">
+      <div class="iIT_reveal mx-auto max-w-4xl">
+        <h2 class="mb-8 text-center text-2xl font-extrabold text-white sm:text-3xl">
+          Werbeagentur in Graz – lokal verwurzelt, digital vernetzt
+        </h2>
+        <div class="space-y-5 leading-relaxed text-muted/80">
+          <p>
+            Graz ist nicht nur die zweitgrößte Stadt Österreichs, sondern auch ein dynamischer Wirtschaftsstandort mit
+            einer lebendigen Startup-Szene und zahlreichen etablierten Unternehmen. Als
+            <strong class="text-white">Werbeagentur in Graz</strong> kennen wir den lokalen Markt und die Bedürfnisse steirischer
+            Unternehmen aus erster Hand.
+          </p>
+          <p>
+            Unser Büro befindet sich in der {SITE.address.street}, {SITE.address.zip} Graz – mitten im Herzen der Stadt.
+            Von hier aus betreuen wir Kunden aus Graz, Graz-Umgebung, der gesamten Steiermark und darüber hinaus. Ob
+            Innere Stadt, Jakomini, Lend oder Gries – wir sind für Unternehmen aus allen Grazer Bezirken da.
+          </p>
+          <p>
+            Du möchtest dein Unternehmen in Graz online sichtbar machen? Dann vereinbare jetzt ein
+            <a href="/kontakt/" class="font-medium text-accent hover:underline">kostenloses Erstgespräch</a> mit unserer Werbeagentur.
+            Wir freuen uns darauf, dich und dein Projekt kennenzulernen.
+          </p>
+        </div>
+
+        <div class="mt-10 flex flex-wrap items-center justify-center gap-6">
+          <div class="flex items-center gap-2 text-sm text-muted/50">
+            <Icon name="map-pin" size={16} class="text-accent" />
+            <span>{SITE.address.street}, {SITE.address.zip} Graz</span>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-muted/50">
+            <Icon name="clock" size={16} class="text-accent" />
+            <span>Mo–Do: 08:00–17:00</span>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-muted/50">
+            <Icon name="phone" size={16} class="text-accent" />
+            <span>{SITE.phoneDisplay}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* ===== CTA ===== */}
   <CtaSection />
 </Layout>

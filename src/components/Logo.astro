@@ -1,6 +1,9 @@
 ---
-// Logo-Slot: Platzhalter als Wortmarke, bis das finale Teal-Logo als SVG vorliegt
-// (BRIEFING.md, Abschnitt 12, Punkt 6). Dann hier nur das SVG einsetzen –
+import { Image } from 'astro:assets';
+import logoMark from '../assets/logo-mark.png';
+
+// Logo: freigestelltes Symbol aus Philipps Vorlage + Wortmarke.
+// Sobald das finale Logo als SVG vorliegt, hier nur das Symbol/SVG tauschen –
 // alle Verwendungen (Header, Footer) ziehen automatisch nach.
 interface Props {
   class?: string;
@@ -8,6 +11,9 @@ interface Props {
 const { class: className = '' } = Astro.props;
 ---
 
-<span class={`iIT_logo font-display text-xl font-extrabold tracking-tight ${className}`}>
-  ident-<span class="text-teal">IT</span>
+<span class={`iIT_logo inline-flex items-center gap-2.5 ${className}`}>
+  <Image src={logoMark} alt="" width={88} densities={[1, 2]} class="h-9 w-auto" loading="eager" />
+  <span class="font-display text-xl font-extrabold tracking-tight">
+    ident-<span class="iIT_gradient-text">IT</span>
+  </span>
 </span>

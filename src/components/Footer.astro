@@ -1,65 +1,116 @@
 ---
 import Logo from './Logo.astro';
+import Icon from './Icon.astro';
 import { SITE, SERVICE_LINKS } from '../lib/site';
 
 const year = new Date().getFullYear();
 ---
 
-<footer class="border-t border-steel/10 bg-section">
-  <div class="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4">
+<footer class="relative overflow-hidden bg-footer">
+  {/* Gradient-Glow-Linie oben (Entwurf) */}
+  <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-30" aria-hidden="true"></div>
+
+  <div class="iIT_container grid gap-10 py-16 md:grid-cols-2 lg:grid-cols-4 lg:py-20">
     <div>
       <a href="/" aria-label={`${SITE.name} – zur Startseite`}>
         <Logo class="text-2xl" />
       </a>
-      <p class="mt-3 font-display font-extrabold tracking-wide text-steel">{SITE.slogan}</p>
+      <p class="font-display mt-3 font-extrabold tracking-wide text-muted">{SITE.slogan}</p>
+      <p class="mt-4 text-sm leading-relaxed text-white/60">
+        Deine Fullservice-Werbeagentur in Graz für Webdesign, Online Marketing und Grafikdesign. Seit {SITE.foundedYear}.
+      </p>
       <a
         href={SITE.rating.url}
         target="_blank"
         rel="noopener noreferrer"
-        class="mt-5 inline-flex items-center gap-2 rounded-lg text-sm text-ink transition-colors hover:text-teal-light"
+        class="text-ink mt-5 inline-flex items-center gap-2 rounded-lg text-sm transition-colors hover:text-accent-light"
       >
-        <span class="text-teal-light" aria-hidden="true">★★★★★</span>
+        <span class="text-accent" aria-hidden="true">★★★★★</span>
         <span>{SITE.rating.value} bei Google ({SITE.rating.count} Bewertungen)</span>
       </a>
+      <div class="mt-6 flex gap-3">
+        <a
+          href={SITE.social.facebook}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="iIT_neu-clickable grid h-10 w-10 place-items-center rounded-lg bg-white/5 text-white/70"
+          aria-label="Facebook"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path
+              d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+            ></path>
+          </svg>
+        </a>
+        {
+          SITE.social.instagram && (
+            <a
+              href={SITE.social.instagram}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="iIT_neu-clickable grid h-10 w-10 place-items-center rounded-lg bg-white/5 text-white/70"
+              aria-label="Instagram"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+              </svg>
+            </a>
+          )
+        }
+      </div>
     </div>
 
     <div>
-      <h2 class="text-sm font-bold tracking-wider text-steel uppercase">Kontakt</h2>
-      <address class="mt-4 space-y-2 text-sm not-italic">
-        <p>
-          {SITE.legalName}<br />
-          {SITE.address.street}<br />
-          {SITE.address.zip} {SITE.address.city}
+      <h2 class="text-sm font-bold tracking-wider text-white uppercase">Kontakt</h2>
+      <address class="mt-4 space-y-3 text-sm text-white/60 not-italic">
+        <p class="flex items-start gap-3">
+          <Icon name="map-pin" size={16} class="mt-0.5 shrink-0 text-accent" />
+          <span>
+            {SITE.legalName}<br />
+            {SITE.address.street}<br />
+            {`${SITE.address.zip} ${SITE.address.city}`}
+          </span>
         </p>
-        <p>
-          <a href={`tel:${SITE.phoneE164}`} class="transition-colors hover:text-teal-light">
+        <p class="flex items-center gap-3">
+          <Icon name="phone" size={16} class="shrink-0 text-accent" />
+          <a href={`tel:${SITE.phoneE164}`} class="transition-colors hover:text-accent-light">
             {SITE.phoneDisplay}
           </a>
-          <br />
-          <a href={`mailto:${SITE.email}`} class="transition-colors hover:text-teal-light">
+        </p>
+        <p class="flex items-center gap-3">
+          <Icon name="mail" size={16} class="shrink-0 text-accent" />
+          <a href={`mailto:${SITE.email}`} class="transition-colors hover:text-accent-light">
             {SITE.email}
           </a>
         </p>
+        <p class="flex items-start gap-3">
+          <Icon name="clock" size={16} class="mt-0.5 shrink-0 text-accent" />
+          <span>
+            {SITE.openingHours.map((slot) => <span class="block">{slot.label}: {slot.value}</span>)}
+          </span>
+        </p>
       </address>
-      <h2 class="mt-6 text-sm font-bold tracking-wider text-steel uppercase">Öffnungszeiten</h2>
-      <ul class="mt-3 space-y-1 text-sm">
-        {
-          SITE.openingHours.map((slot) => (
-            <li>
-              {slot.label}: {slot.value}
-            </li>
-          ))
-        }
-      </ul>
     </div>
 
     <div class="lg:col-span-2">
-      <h2 class="text-sm font-bold tracking-wider text-steel uppercase">Leistungen</h2>
-      <ul class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <h2 class="text-sm font-bold tracking-wider text-white uppercase">Leistungen</h2>
+      <ul class="mt-4 grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
         {
           SERVICE_LINKS.map((link) => (
             <li>
-              <a href={link.href} class="transition-colors hover:text-teal-light">
+              <a href={link.href} class="text-white/60 transition-colors hover:text-accent-light">
                 {link.label}
               </a>
             </li>
@@ -69,18 +120,18 @@ const year = new Date().getFullYear();
     </div>
   </div>
 
-  <div class="border-t border-steel/10">
+  <div class="border-t border-white/10">
     <div
-      class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 text-sm text-steel sm:px-6 md:flex-row"
+      class="iIT_container flex flex-col items-center justify-between gap-3 py-6 text-xs text-white/40 md:flex-row"
     >
-      <p>© {year} {SITE.legalName} · Werbeagentur Graz</p>
+      <p>© {year} {SITE.legalName} · Werbeagentur in Graz | Webdesign, Marketing & Grafikdesign</p>
       <ul class="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <li><a href="/impressum/" class="transition-colors hover:text-teal-light">Impressum</a></li>
-        <li><a href="/datenschutz/" class="transition-colors hover:text-teal-light">Datenschutz</a></li>
-        <li><a href="/agb/" class="transition-colors hover:text-teal-light">AGB</a></li>
+        <li><a href="/impressum/" class="transition-colors hover:text-accent-light">Impressum</a></li>
+        <li><a href="/datenschutz/" class="transition-colors hover:text-accent-light">Datenschutz</a></li>
+        <li><a href="/agb/" class="transition-colors hover:text-accent-light">AGB</a></li>
         <li>
           {/* Öffnet das CCM19-Widget – Einbindung folgt im Tracking-Schritt */}
-          <button type="button" class="iIT_ccm-trigger cursor-pointer transition-colors hover:text-teal-light">
+          <button type="button" class="iIT_ccm-trigger cursor-pointer transition-colors hover:text-accent-light">
             Cookie-Einstellungen
           </button>
         </li>

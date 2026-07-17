@@ -1,0 +1,29 @@
+---
+// Inline-SVG-Icons (lucide-static) – werden zur Buildzeit eingebettet,
+// kein Client-JS, keine externen Requests.
+const icons = import.meta.glob('/node_modules/lucide-static/icons/*.svg', {
+  query: '?raw',
+  import: 'default',
+});
+
+interface Props {
+  name: string;
+  class?: string;
+  size?: number;
+}
+
+const { name, class: className = '', size = 24 } = Astro.props;
+const loader = icons[`/node_modules/lucide-static/icons/${name}.svg`];
+if (!loader) {
+  throw new Error(`Icon "${name}" existiert nicht in lucide-static.`);
+}
+let svg = (await loader()) as string;
+svg = svg
+  .replace(/<!--[\s\S]*?-->\s*/, '')
+  .replace('width="24"', `width="${size}"`)
+  .replace('height="24"', `height="${size}"`)
+  .replace('<svg', '<svg aria-hidden="true"')
+  .replace('class="', `class="${className ? className + ' ' : ''}`);
+---
+
+<Fragment set:html={svg} />

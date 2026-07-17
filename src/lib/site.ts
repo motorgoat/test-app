@@ -36,8 +36,11 @@ export const SITE = {
   },
   register: {
     firmenbuch: 'FN 488011p',
-    gericht: 'LG ZRS Graz',
+    gericht: 'Landesgericht für Zivilrechtssachen Graz',
     uid: 'ATU73235545',
+    gegenstand: 'IT-Dienstleistungen, Werbeagentur',
+    mitglied: 'Wirtschaftskammer Österreich (WKO)',
+    aufsicht: 'Bezirkshauptmannschaft Graz',
   },
   foundedYear: 2018,
 } as const;

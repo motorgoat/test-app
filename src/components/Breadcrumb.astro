@@ -28,7 +28,7 @@ const schema = {
 };
 ---
 
-<nav aria-label="Breadcrumb" class="text-sm text-steel">
+<nav aria-label="Breadcrumb" class="text-sm text-muted">
   <ol class="flex flex-wrap items-center gap-2">
     {
       crumbs.map((crumb, index) => (
@@ -39,7 +39,7 @@ const schema = {
             </span>
           )}
           {crumb.href && index < crumbs.length - 1 ? (
-            <a href={crumb.href} class="transition-colors hover:text-teal-light">
+            <a href={crumb.href} class="transition-colors hover:text-accent-light">
               {crumb.label}
             </a>
           ) : (

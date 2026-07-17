@@ -77,8 +77,14 @@ const schema = {
     <link rel="canonical" href={canonicalUrl} />
     {noindex && <meta name="robots" content="noindex, follow" />}
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="sitemap" href="/sitemap-index.xml" />
+
+    {/* Muss vor dem ersten Paint laufen: aktiviert die Reveal-Ausgangszustände nur bei aktivem JS */}
+    <script is:inline>
+      document.documentElement.classList.add('iIT_js');
+    </script>
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={SITE.name} />
@@ -100,5 +106,8 @@ const schema = {
     </main>
     <Footer />
     <ContactButtons />
+    <script>
+      import '../scripts/interactions.ts';
+    </script>
   </body>
 </html>

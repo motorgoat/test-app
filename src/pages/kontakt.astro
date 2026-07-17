@@ -1,0 +1,229 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../lib/site';
+
+/* Kontaktseite aus dem Entwurf (Kontakt.tsx) portiert.
+   Formular sendet an das PHP-Mail-Script (public/kontakt-senden.php) mit
+   Honeypot + Zeitfalle als Spamschutz → Redirect auf /danke/. */
+
+const contactInfo = [
+  { icon: 'map-pin', label: 'Adresse', lines: [SITE.address.street, `${SITE.address.zip} ${SITE.address.city}`] },
+  { icon: 'phone', label: 'Telefon', tel: true },
+  { icon: 'mail', label: 'E-Mail', mail: true },
+  {
+    icon: 'clock',
+    label: 'Erreichbarkeit',
+    lines: SITE.openingHours.map((slot) => `${slot.label}: ${slot.value}`),
+  },
+];
+
+const services = [
+  ['webdesign', 'Webdesign / Webshop'],
+  ['seo', 'SEO & Online Marketing'],
+  ['google-ads', 'Google Ads'],
+  ['social-media', 'Social Media'],
+  ['grafikdesign', 'Grafikdesign & Branding'],
+  ['wartung', 'Wartung & Hosting'],
+  ['sonstiges', 'Sonstiges'],
+];
+
+const inputClasses =
+  'iIT_input w-full rounded-lg border border-[#1e2530] bg-base px-4 py-3 text-sm text-white transition-all placeholder:text-muted/40 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none';
+
+const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`ident-IT ${SITE.address.street} ${SITE.address.zip} ${SITE.address.city}`)}`;
+---
+
+<Layout
+  title="Kontakt | ident-IT – Werbeagentur Graz"
+  description="Kontaktiere die Werbeagentur ident-IT in Graz ✓ Kostenloses Erstgespräch ✓ Webdesign, SEO & Grafikdesign. Jetzt Anfrage senden!"
+>
+  <PageHero
+    badge="Kontakt"
+    subtitle="Ob Webdesign, Online Marketing oder Grafikdesign – erzähl uns von deinem Projekt. Das Erstgespräch ist immer kostenlos und unverbindlich."
+  >
+    <Breadcrumb slot="breadcrumb" items={[{ label: 'Kontakt' }]} />
+    <Fragment slot="title">Lass uns <span class="iIT_gradient-text">reden</span></Fragment>
+  </PageHero>
+
+  <section class="relative overflow-hidden bg-section py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="grid gap-12 lg:grid-cols-5 lg:gap-16">
+        {/* Kontakt-Infos */}
+        <div class="lg:col-span-2">
+          <div class="iIT_reveal iIT_reveal--left">
+            <h2 class="mb-8 text-2xl font-bold text-white">So erreichst du uns</h2>
+            <div class="space-y-4">
+              {
+                contactInfo.map((item) => (
+                  <div class="iIT_neu-raised rounded-2xl bg-card p-5">
+                    <div class="flex items-start gap-4">
+                      <div class="iIT_neu-inset flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-base">
+                        <Icon name={item.icon} size={20} class="text-accent" />
+                      </div>
+                      <div>
+                        <h3 class="mb-1 text-sm font-semibold text-white">{item.label}</h3>
+                        <p class="text-sm text-muted/70">
+                          {item.tel && (
+                            <a href={`tel:${SITE.phoneE164}`} class="transition-colors hover:text-accent-light">
+                              {SITE.phoneDisplay}
+                            </a>
+                          )}
+                          {item.mail && (
+                            <a href={`mailto:${SITE.email}`} class="transition-colors hover:text-accent-light">
+                              {SITE.email}
+                            </a>
+                          )}
+                          {item.lines && item.lines.map((line) => <span class="block">{line}</span>)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* Formular */}
+        <div class="lg:col-span-3">
+          <div class="iIT_reveal iIT_reveal--right">
+            <div class="iIT_neu-raised rounded-2xl bg-card p-8">
+              <h2 class="mb-8 text-2xl font-bold text-white">Schreib uns</h2>
+              {/* Wird nur eingeblendet, wenn das PHP-Script mit ?fehler=1 zurückleitet */}
+              <p
+                id="iIT_form-error"
+                class="mb-6 hidden rounded-lg border border-red-400/40 bg-red-400/10 px-4 py-3 text-sm text-red-200"
+                role="alert"
+              >
+                Das hat leider nicht geklappt. Bitte prüfe deine Angaben und versuch es noch einmal – oder ruf uns
+                einfach an: {SITE.phoneDisplay}
+              </p>
+              <form method="POST" action="/kontakt-senden.php" class="space-y-6">
+                {/* Spamschutz: Honeypot (bleibt leer) + Zeitfalle (Buildzeit ≠ Absendezeit reicht als Basis, das PHP-Script prüft zusätzlich) */}
+                <div class="hidden" aria-hidden="true">
+                  <label for="iIT_hp">Firmen-Website</label>
+                  <input id="iIT_hp" type="text" name="firmen_website" tabindex="-1" autocomplete="off" />
+                </div>
+                <input type="hidden" name="form_ts" value="" data-form-ts />
+
+                <div class="grid gap-6 sm:grid-cols-2">
+                  <div>
+                    <label for="iIT_name" class="mb-2 block text-sm font-medium text-muted">Name *</label>
+                    <input
+                      id="iIT_name"
+                      name="name"
+                      type="text"
+                      required
+                      autocomplete="name"
+                      class={inputClasses}
+                      placeholder="Dein Name"
+                    />
+                  </div>
+                  <div>
+                    <label for="iIT_email" class="mb-2 block text-sm font-medium text-muted">E-Mail *</label>
+                    <input
+                      id="iIT_email"
+                      name="email"
+                      type="email"
+                      required
+                      autocomplete="email"
+                      class={inputClasses}
+                      placeholder="deine@email.at"
+                    />
+                  </div>
+                </div>
+                <div class="grid gap-6 sm:grid-cols-2">
+                  <div>
+                    <label for="iIT_phone" class="mb-2 block text-sm font-medium text-muted">Telefon</label>
+                    <input
+                      id="iIT_phone"
+                      name="telefon"
+                      type="tel"
+                      autocomplete="tel"
+                      class={inputClasses}
+                      placeholder="+43 ..."
+                    />
+                  </div>
+                  <div>
+                    <label for="iIT_service" class="mb-2 block text-sm font-medium text-muted">Worum geht es?</label>
+                    <select id="iIT_service" name="leistung" class={inputClasses}>
+                      <option value="">Bitte wählen …</option>
+                      {services.map(([value, label]) => <option value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label for="iIT_message" class="mb-2 block text-sm font-medium text-muted">Nachricht *</label>
+                  <textarea
+                    id="iIT_message"
+                    name="nachricht"
+                    required
+                    rows={5}
+                    class={`${inputClasses} resize-none`}
+                    placeholder="Erzähl uns kurz, was du brauchst …"></textarea>
+                </div>
+                <div class="flex items-start gap-3">
+                  <input
+                    id="iIT_dsgvo"
+                    name="dsgvo"
+                    type="checkbox"
+                    required
+                    class="mt-1 h-4 w-4 shrink-0 accent-accent"
+                  />
+                  <label for="iIT_dsgvo" class="text-sm text-muted/70">
+                    Ich habe die <a href="/datenschutz/" class="text-accent hover:underline">Datenschutzerklärung</a> gelesen
+                    und stimme der Verarbeitung meiner Daten zur Bearbeitung der Anfrage zu. *
+                  </label>
+                </div>
+                <button type="submit" class="iIT_btn iIT_btn--md iIT_btn--primary">
+                  <span class="iIT_btn-shine" aria-hidden="true"></span>
+                  <span class="relative z-10 flex items-center gap-2">
+                    <Icon name="send" size={16} />
+                    Nachricht senden
+                  </span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* Karte: statischer Block mit Link – kein Maps-Embed ohne Consent (DSGVO) */}
+  <section class="relative border-t border-[#1e2530] bg-section-alt">
+    <a
+      href={mapsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="group flex h-80 items-center justify-center"
+      aria-label={`${SITE.address.street}, ${SITE.address.zip} ${SITE.address.city} auf Google Maps öffnen`}
+    >
+      <div class="text-center">
+        <div
+          class="iIT_neu-raised mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-card transition-transform group-hover:scale-105"
+        >
+          <Icon name="map-pin" size={32} class="text-accent" />
+        </div>
+        <p class="font-bold text-white">{SITE.address.street}</p>
+        <p class="text-sm text-muted/60">{SITE.address.zip} {SITE.address.city}</p>
+        <p class="mt-2 text-sm text-accent group-hover:underline">In Google Maps öffnen</p>
+      </div>
+    </a>
+  </section>
+</Layout>
+
+<script>
+  // Zeitfalle: Absendezeitpunkt minus Ladezeitpunkt muss > 3 s sein (prüft das PHP-Script).
+  document.querySelectorAll<HTMLInputElement>('[data-form-ts]').forEach((field) => {
+    field.value = String(Math.floor(Date.now() / 1000));
+  });
+
+  // Fehlermeldung anzeigen, wenn das Mail-Script zurückgeleitet hat
+  if (new URLSearchParams(window.location.search).has('fehler')) {
+    document.getElementById('iIT_form-error')?.classList.remove('hidden');
+  }
+</script>

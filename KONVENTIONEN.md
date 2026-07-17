@@ -41,7 +41,7 @@ nicht in Commit-Messages, nicht in Doku oder README.
 
 ## 6. Barrierefreiheit (Abnahmekriterium, WCAG 2.1 AA)
 
-- Kontraste ≥ 4,5:1 für Text; Teal `#0ABAB5` und Steel `#95BBCC` nicht für Fließtext auf hellen Flächen, auf Dark gezielt gegenprüfen.
+- Kontraste ≥ 4,5:1 für Text; Akzent-Orange `#f4741f` und Violett-Hell `#a78bfa` auf Dark gezielt gegenprüfen. Tiefes Violett `#6023a8` ist rein dekorativ (Verläufe/Glows) – nie für Text.
 - Volle Tastaturbedienung (inkl. Dropdowns/Mobile-Menü), sichtbarer Fokus-Ring, Skip-Link.
 - Touch-Targets ≥ 44 px; Alt-Texte für Inhaltsbilder (dekorative leer).
 - **Kein Accessibility-Overlay** – nativ lösen.

@@ -1,0 +1,17 @@
+---
+// GlowButton aus dem Entwurf: Neumorphismus-Button mit Gradient, Shine-Sweep
+// und Pressed-State – rein CSS (Styles in global.css unter .iIT_btn*).
+interface Props {
+  href: string;
+  variant?: 'primary' | 'secondary' | 'outline';
+  size?: 'md' | 'lg';
+  class?: string;
+}
+
+const { href, variant = 'primary', size = 'lg', class: className = '' } = Astro.props;
+---
+
+<a href={href} class={`iIT_btn iIT_btn--${size} iIT_btn--${variant} ${className}`}>
+  <span class="iIT_btn-shine" aria-hidden="true"></span>
+  <span class="relative z-10 flex items-center gap-2"><slot /></span>
+</a>

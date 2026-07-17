@@ -1,0 +1,36 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { SITE } from '../lib/site';
+
+/* AGB – der Text der bestehenden Website (ident-it.at/agb) wird 1:1 übernommen,
+   sobald er vorliegt. Bis dahin Verweis auf Anfrage per E-Mail. */
+---
+
+<Layout
+  title="AGB | ident-IT GmbH – Werbeagentur Graz"
+  description="Allgemeine Geschäftsbedingungen der ident-IT GmbH, Werbeagentur in Graz."
+  noindex
+>
+  <section class="bg-base pt-32 pb-16 lg:pt-40 lg:pb-24">
+    <div class="iIT_container max-w-3xl">
+      <div class="mb-8">
+        <Breadcrumb items={[{ label: 'AGB' }]} />
+      </div>
+      <h1 class="mb-12 text-4xl font-extrabold text-white md:text-5xl">Allgemeine Geschäftsbedingungen</h1>
+
+      {/* TODO vor Launch: AGB-Text von der bestehenden Website übernehmen */}
+      <div class="space-y-4 leading-relaxed text-muted/80">
+        <p>
+          Die vollständigen Allgemeinen Geschäftsbedingungen der {SITE.legalName} stellen wir dir gerne auf Anfrage zur
+          Verfügung.
+        </p>
+        <p>
+          Schreib uns einfach an
+          <a href={`mailto:${SITE.email}`} class="text-accent hover:underline">{SITE.email}</a> oder ruf uns an unter
+          <a href={`tel:${SITE.phoneE164}`} class="text-accent hover:underline">{SITE.phoneDisplay}</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+</Layout>

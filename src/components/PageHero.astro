@@ -1,0 +1,61 @@
+---
+// Wiederverwendbarer Hero für Unterseiten (aus dem Entwurf portiert):
+// Grain-Textur, Ambient-Glows, Badge mit Gradient-Border.
+// Der Seitentitel (H1) kommt über den title-Slot bzw. die title-Prop.
+interface Props {
+  badge?: string;
+  subtitle?: string;
+}
+
+const { badge, subtitle } = Astro.props;
+---
+
+<section class="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-28">
+  <div class="absolute inset-0 bg-gradient-to-b from-base via-section to-base" aria-hidden="true"></div>
+  <div
+    class="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-br from-violet/[0.04] to-accent/[0.03] blur-[150px]"
+    aria-hidden="true"
+  >
+  </div>
+  <div
+    class="absolute right-1/4 bottom-0 h-[400px] w-[400px] rounded-full bg-gradient-to-tl from-muted/[0.03] to-accent/[0.02] blur-[120px]"
+    aria-hidden="true"
+  >
+  </div>
+  <div class="iIT_noise absolute inset-0" aria-hidden="true"></div>
+
+  <div class="iIT_container relative z-10">
+    <div class="max-w-3xl">
+      <div class="mb-8">
+        <slot name="breadcrumb" />
+      </div>
+      {
+        badge && (
+          <div class="iIT_reveal" style="--reveal-delay: 100ms">
+            <div class="iIT_gradient-border iIT_neu-raised mb-6 inline-flex items-center gap-2 rounded-full bg-card/80 px-5 py-2.5 backdrop-blur-xl">
+              <span
+                class="iIT_animate-pulse-accent h-2 w-2 rounded-full"
+                style="background: var(--iIT-gradient-brand)"
+                aria-hidden="true"
+              />
+              <span class="iIT_gradient-text text-sm font-semibold tracking-wide">{badge}</span>
+            </div>
+          </div>
+        )
+      }
+      <div class="iIT_reveal" style="--reveal-delay: 200ms">
+        <h1 class="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl">
+          <slot name="title" />
+        </h1>
+      </div>
+      {
+        subtitle && (
+          <div class="iIT_reveal" style="--reveal-delay: 300ms">
+            <p class="mt-6 max-w-xl text-lg leading-relaxed text-muted/80 sm:text-xl">{subtitle}</p>
+          </div>
+        )
+      }
+      <slot />
+    </div>
+  </div>
+</section>

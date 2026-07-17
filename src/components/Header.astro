@@ -1,10 +1,11 @@
 ---
 import Logo from './Logo.astro';
+import Icon from './Icon.astro';
 import { NAV, SITE } from '../lib/site';
 ---
 
-<header class="iIT_header sticky top-0 z-50 border-b border-steel/10 bg-base/90 backdrop-blur-md">
-  <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-6">
+<header id="iIT_header" class="iIT_header fixed top-0 right-0 left-0 z-50">
+  <div class="iIT_container flex items-center justify-between gap-6 py-3">
     <a href="/" class="shrink-0" aria-label={`${SITE.name} – zur Startseite`}>
       <Logo />
     </a>
@@ -17,36 +18,18 @@ import { NAV, SITE } from '../lib/site';
             <li class="iIT_nav-item relative">
               <a
                 href={item.href}
-                class="flex items-center gap-1 rounded-lg px-3 py-2 font-medium text-ink transition-colors hover:text-teal-light"
+                class="text-ink flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:text-accent-light"
               >
                 {item.label}
-                {item.children && (
-                  <svg
-                    viewBox="0 0 20 20"
-                    width="14"
-                    height="14"
-                    fill="currentColor"
-                    aria-hidden="true"
-                    class="iIT_nav-chevron opacity-60"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                )}
+                {item.children && <Icon name="chevron-down" size={14} class="iIT_nav-chevron opacity-60" />}
               </a>
               {item.children && (
-                <ul class="iIT_dropdown iIT_neu-card absolute left-0 top-full w-80 p-2">
+                <ul class="iIT_dropdown absolute top-full left-0 w-80 rounded-xl border border-white/[0.08] bg-card/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-2xl">
                   {item.children.map((child) => (
                     <li>
-                      <a
-                        href={child.href}
-                        class="block rounded-lg px-3 py-2.5 transition-colors hover:bg-teal/10"
-                      >
-                        <span class="block font-medium text-ink">{child.label}</span>
-                        <span class="block text-sm text-steel">{child.description}</span>
+                      <a href={child.href} class="block rounded-lg px-4 py-3 transition-all hover:bg-accent/10">
+                        <span class="text-ink block text-sm font-medium">{child.label}</span>
+                        <span class="text-muted block text-xs">{child.description}</span>
                       </a>
                     </li>
                   ))}
@@ -59,70 +42,66 @@ import { NAV, SITE } from '../lib/site';
     </nav>
 
     <div class="flex items-center gap-3">
+      {/* Tel-CTA wie im Entwurf – auf Mobil als kompakter Icon-Button fix sichtbar */}
       <a
         href={`tel:${SITE.phoneE164}`}
-        class="hidden items-center gap-2 font-medium text-ink transition-colors hover:text-teal-light md:flex"
+        class="iIT_neu-clickable relative hidden items-center gap-2 overflow-hidden rounded-lg px-5 py-2.5 text-sm font-bold text-[#0d1117] md:flex"
+        style="background: var(--iIT-gradient-button); border: none;"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-          <path
-            d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2Z"
-          ></path>
-        </svg>
-        <span class="hidden xl:inline">{SITE.phoneDisplay}</span>
+        <span
+          class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 hover:translate-x-full"
+          aria-hidden="true"></span>
+        <Icon name="phone" size={16} class="relative z-10" />
+        <span class="relative z-10">Jetzt anrufen</span>
       </a>
-      {/* Kontakt-CTA bleibt auch mobil fix sichtbar (BRIEFING.md, Abschnitt 4) */}
-      <a href="/kontakt/" class="iIT_btn-glow text-sm">Kontakt</a>
+      <a
+        href={`tel:${SITE.phoneE164}`}
+        class="grid h-11 w-11 place-items-center rounded-lg text-[#0d1117] md:hidden"
+        style="background: var(--iIT-gradient-button);"
+        aria-label="Jetzt anrufen"
+      >
+        <Icon name="phone" size={20} />
+      </a>
 
       {/* Burger (mobil) */}
       <button
         type="button"
         id="iIT_burger"
-        class="grid h-11 w-11 place-items-center rounded-lg border border-steel/20 lg:hidden"
+        class="text-ink grid h-11 w-11 place-items-center rounded-lg border border-muted/20 lg:hidden"
         aria-expanded="false"
         aria-controls="iIT_mobile-nav"
         aria-label="Menü öffnen"
       >
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path class="iIT_burger-open" d="M4 7h16M4 12h16M4 17h16"></path>
-          <path class="iIT_burger-close hidden" d="M6 6l12 12M18 6L6 18"></path>
-        </svg>
+        <span class="iIT_burger-open"><Icon name="menu" size={22} /></span>
+        <span class="iIT_burger-close hidden"><Icon name="x" size={22} /></span>
       </button>
     </div>
   </div>
 
   {/* Mobile Navigation: Accordion-Untermenüs, Kontakt-CTA fix sichtbar */}
-  <nav id="iIT_mobile-nav" class="hidden border-t border-steel/10 lg:hidden" aria-label="Hauptnavigation mobil">
-    <div class="mx-auto max-w-7xl space-y-1 px-4 py-4 sm:px-6">
+  <nav
+    id="iIT_mobile-nav"
+    class="hidden max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-muted/10 bg-base/95 backdrop-blur-2xl lg:hidden"
+    aria-label="Hauptnavigation mobil"
+  >
+    <div class="iIT_container space-y-1 py-4">
       {
         NAV.map((item) =>
           item.children ? (
             <details class="group rounded-lg">
               <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
                 {item.label}
-                <svg
-                  viewBox="0 0 20 20"
-                  width="16"
-                  height="16"
-                  fill="currentColor"
-                  aria-hidden="true"
-                  class="transition-transform group-open:rotate-180"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
+                <Icon name="chevron-down" size={16} class="transition-transform group-open:rotate-180" />
               </summary>
               <ul class="space-y-1 pb-2 pl-3">
                 <li>
-                  <a href={item.href} class="block min-h-11 rounded-lg px-3 py-2.5 text-steel hover:text-teal-light">
+                  <a href={item.href} class="text-muted block min-h-11 rounded-lg px-3 py-2.5 hover:text-accent-light">
                     {item.label} – Übersicht
                   </a>
                 </li>
                 {item.children.map((child) => (
                   <li>
-                    <a href={child.href} class="block min-h-11 rounded-lg px-3 py-2.5 text-steel hover:text-teal-light">
+                    <a href={child.href} class="text-muted block min-h-11 rounded-lg px-3 py-2.5 hover:text-accent-light">
                       {child.label}
                     </a>
                   </li>
@@ -136,18 +115,10 @@ import { NAV, SITE } from '../lib/site';
           )
         )
       }
-      <div class="flex items-center gap-3 pt-3">
-        <a href="/kontakt/" class="iIT_btn-glow flex-1 text-sm">Kostenloses Erstgespräch</a>
-        <a
-          href={`tel:${SITE.phoneE164}`}
-          class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-steel/20"
-          aria-label="Jetzt anrufen"
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path
-              d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2Z"
-            ></path>
-          </svg>
+      <div class="pt-3">
+        <a href="/kontakt/" class="iIT_btn iIT_btn--md iIT_btn--primary w-full">
+          <span class="iIT_btn-shine" aria-hidden="true"></span>
+          <span class="relative z-10">Kostenloses Erstgespräch</span>
         </a>
       </div>
     </div>
@@ -155,7 +126,30 @@ import { NAV, SITE } from '../lib/site';
 </header>
 
 <style>
-  /* Dropdown: unsichtbar, aber fokussierbar erst bei Hover/Fokus */
+  /* Transparent über dem Hero, solide + Blur beim Scrollen (Entwurfs-Verhalten) */
+  .iIT_header {
+    background: transparent;
+    transition:
+      background-color 0.5s ease,
+      box-shadow 0.5s ease,
+      border-color 0.5s ease;
+    border-bottom: 1px solid transparent;
+  }
+  .iIT_header.iIT_scrolled {
+    background: rgb(13 17 23 / 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom-color: rgb(255 255 255 / 0.05);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+  }
+  /* Sobald das Mobile-Menü offen ist, braucht der Header ebenfalls Hintergrund */
+  .iIT_header:has(#iIT_mobile-nav:not(.hidden)) {
+    background: rgb(13 17 23 / 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  /* Dropdown: unsichtbar, aber öffnet bei Hover/Tastatur-Fokus */
   .iIT_dropdown {
     visibility: hidden;
     opacity: 0;
@@ -172,6 +166,7 @@ import { NAV, SITE } from '../lib/site';
     transform: translateY(0);
   }
   @media (prefers-reduced-motion: reduce) {
+    .iIT_header,
     .iIT_dropdown {
       transition: none;
     }

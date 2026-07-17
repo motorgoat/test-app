@@ -1,23 +1,30 @@
 @import 'tailwindcss';
 
 /*
-  Designsystem „Neumorphismus Dark + Teal" – Tokens laut BRIEFING.md, Abschnitt 11.
+  Designsystem „Neumorphismus Dark" – Struktur & Stil-Elemente aus dem freigegebenen
+  Entwurf (BRIEFING.md, Abschnitt 11), Farbpalette aktualisiert auf die neue
+  Logo-Richtung (Violett→Orange-Verlauf, Vorlage von Philipp, Juli 2026).
+  Alle Farbwerte sind vorläufig „ungefähr" – Feinabstimmung folgt mit dem finalen Logo-SVG.
   Eigene Klassen/IDs tragen immer den Prefix iIT_ (siehe KONVENTIONEN.md).
 */
 @theme {
-  /* Markenfarben */
-  --color-teal: #0abab5;
-  --color-teal-dark: #088f8c;
-  --color-teal-light: #3dd6d0;
-  --color-petrol: #1a6b6a;
-  --color-steel: #95bbcc;
+  /* Markenfarben (aus dem Logo extrahiert) */
+  --color-accent: #f4741f; /* Orange – primärer Akzent, CTAs, Icons */
+  --color-accent-light: #ff9d57;
+  --color-violet: #6023a8; /* Tiefes Violett – Verläufe, Ambient-Glows */
+  --color-violet-light: #a78bfa;
+  --color-brand-red: #d63a3f; /* Übergangston im Marken-Verlauf */
   --color-charcoal: #323131;
+
+  /* Gedämpfter Text auf Dark (neutral, ersetzt Steel Blue des Entwurfs) */
+  --color-muted: #a4adbf;
 
   /* Hintergründe */
   --color-base: #0d1117;
   --color-card: #151b23;
   --color-section: #111820;
   --color-section-alt: #1a2332;
+  --color-footer: #080b10;
 
   /* Fließtext auf Dark – erfüllt AA auf allen Hintergrund-Tokens */
   --color-ink: #e6edf3;
@@ -25,6 +32,15 @@
   /* Typografie – lokal gehostet, kein Font-CDN */
   --font-display: 'Raleway Variable', 'Raleway', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Marken-Verläufe zentral – überall via var() nutzen, keine Hex-Werte streuen */
+:root {
+  --iIT-gradient-brand: linear-gradient(135deg, #6023a8, #d63a3f, #f4741f);
+  --iIT-gradient-text: linear-gradient(135deg, #a78bfa, #f4741f, #ff9d57);
+  --iIT-gradient-button: linear-gradient(135deg, #d63a3f, #f4741f, #ff9d57);
+  /* CTA-Fläche ohne tiefes Violett – dunkler Text braucht ≥ 3:1 auf jedem Verlaufston */
+  --iIT-gradient-cta: linear-gradient(135deg, #d63a3f, #f4741f, #ff9d57);
 }
 
 /* ---------- Basis ---------- */
@@ -37,7 +53,9 @@ body {
   background-color: var(--color-base);
   color: var(--color-ink);
   font-family: var(--font-body);
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 h1,
@@ -46,20 +64,54 @@ h3,
 h4 {
   font-family: var(--font-display);
   font-weight: 800;
+  line-height: 1.15;
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
 
 /* Sichtbarer Fokus-Ring – Tastaturbedienung ist Abnahmekriterium */
 :focus-visible {
-  outline: 2px solid var(--color-teal);
+  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
   border-radius: 4px;
 }
 
 ::selection {
-  background-color: var(--color-teal);
-  color: var(--color-base);
+  background-color: rgb(244 116 31 / 0.35);
+  color: #fff;
+}
+
+/* Scrollbar im Markenlook (wie Entwurf) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-base);
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(244 116 31 / 0.5);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(244 116 31 / 0.8);
+}
+
+/* Container wie im Entwurf (max. 1280px) */
+.iIT_container {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+@media (min-width: 640px) {
+  .iIT_container {
+    padding-inline: 1.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .iIT_container {
+    padding-inline: 2rem;
+  }
 }
 
 /* Skip-Link zum Hauptinhalt */
@@ -69,7 +121,7 @@ h4 {
   top: -100%;
   z-index: 1000;
   padding: 0.6rem 1rem;
-  background: var(--color-teal);
+  background: var(--color-accent);
   color: var(--color-base);
   font-weight: 700;
   border-radius: 0 0 8px 8px;
@@ -79,95 +131,254 @@ h4 {
   top: 0;
 }
 
-/* ---------- Wiederkehrende Stil-Elemente aus dem Entwurf ---------- */
+/* ---------- Gradients ---------- */
 
-/* Brand-Gradient als Text */
 .iIT_gradient-text {
-  background: linear-gradient(135deg, #1a6b6a, #0abab5, #95bbcc);
+  background: var(--iIT-gradient-text);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* Neumorphism-Card: weiche Schatten auf Dark */
-.iIT_neu-card {
-  background: var(--color-card);
-  border: 1px solid rgb(149 187 204 / 0.12);
-  border-radius: 1rem;
-  box-shadow:
-    8px 8px 20px rgb(0 0 0 / 0.45),
-    -4px -4px 12px rgb(149 187 204 / 0.04);
+.iIT_gradient-brand {
+  background: var(--iIT-gradient-brand);
 }
 
-/* Primärer Glow-Button */
-.iIT_btn-glow {
+.iIT_glow-line {
+  background: linear-gradient(90deg, transparent, #6023a8, #d63a3f, #f4741f, transparent);
+}
+
+/* ---------- Neumorphism (dark-adaptiert, aus dem Entwurf) ---------- */
+
+.iIT_neu-raised {
+  box-shadow:
+    12px 12px 24px #0a0e14,
+    -12px -12px 24px #202833;
+  border: 1px solid rgb(255 255 255 / 0.04);
+}
+
+.iIT_neu-inset {
+  box-shadow:
+    inset 6px 6px 12px #0a0e14,
+    inset -6px -6px 12px #202833;
+}
+
+.iIT_neu-clickable {
+  box-shadow:
+    10px 10px 20px #0a0e14,
+    -10px -10px 20px #202833;
+  border: 1px solid rgb(255 255 255 / 0.04);
+  transition: all 0.15s ease-out;
+  transform: translateY(0);
+}
+.iIT_neu-clickable:hover {
+  box-shadow:
+    14px 14px 28px #0a0e14,
+    -14px -14px 28px #283040;
+  transform: translateY(-2px);
+}
+.iIT_neu-clickable:active {
+  box-shadow:
+    inset 6px 6px 12px #0a0e14,
+    inset -6px -6px 12px #202833;
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Karte mit Gradient-Border (Doppel-Background-Trick aus dem Entwurf) */
+.iIT_gradient-border {
+  border: 1px solid transparent;
+  background-image: linear-gradient(var(--color-card), var(--color-card)), var(--iIT-gradient-brand);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+/* ---------- Buttons (GlowButton aus dem Entwurf) ---------- */
+
+.iIT_btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   min-height: 44px; /* Touch-Target */
-  padding: 0.75rem 1.75rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--color-teal-dark), var(--color-teal));
+  font-weight: 700;
+  overflow: hidden;
+  user-select: none;
+  transition: all 0.15s ease-out;
+}
+.iIT_btn--lg {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  border-radius: 0.75rem;
+}
+.iIT_btn--md {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 0.5rem;
+}
+.iIT_btn--primary {
+  background: var(--iIT-gradient-button);
   color: var(--color-base);
-  font-weight: 700;
-  box-shadow: 0 0 24px rgb(10 186 181 / 0.35);
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
+  box-shadow:
+    10px 10px 20px #0a0e14,
+    -10px -10px 20px #202833;
 }
-.iIT_btn-glow:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 36px rgb(10 186 181 / 0.5);
+.iIT_btn--secondary {
+  background: linear-gradient(135deg, #1a2332, #151b23);
+  color: #fff;
+  border: 1px solid rgb(244 116 31 / 0.2);
+  box-shadow:
+    10px 10px 20px #0a0e14,
+    -10px -10px 20px #202833;
 }
-
-/* Sekundärer Button (Outline) */
-.iIT_btn-outline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 44px;
-  padding: 0.75rem 1.75rem;
-  border-radius: 999px;
-  border: 1px solid rgb(149 187 204 / 0.4);
-  color: var(--color-ink);
-  font-weight: 700;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
+.iIT_btn--outline {
+  background: transparent;
+  color: #e8edf2;
+  border: 2px solid rgb(164 173 191 / 0.25);
 }
-.iIT_btn-outline:hover {
-  border-color: var(--color-teal);
-  background-color: rgb(10 186 181 / 0.08);
+.iIT_btn:active {
+  box-shadow:
+    inset 5px 5px 10px #0a0e14,
+    inset -5px -5px 10px #202833;
+  transform: translateY(2px) scale(0.97);
 }
-
-/* Eyebrow/Badge über Headlines */
-.iIT_eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgb(10 186 181 / 0.35);
-  background: rgb(10 186 181 / 0.08);
-  color: var(--color-teal-light);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+/* Shine-Sweep bei Hover */
+.iIT_btn .iIT_btn-shine {
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.15), transparent);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+.iIT_btn:hover .iIT_btn-shine {
+  transform: translateX(100%);
 }
 
-/* Grain/Noise-Textur als Overlay (rein dekorativ) */
+/* ---------- Animationen (aus dem Entwurf, CSS statt Library) ---------- */
+
+@keyframes iIT_blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes iIT_grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  10% {
+    transform: translate(-2%, -3%);
+  }
+  20% {
+    transform: translate(1%, 2%);
+  }
+  30% {
+    transform: translate(-1%, -1%);
+  }
+  40% {
+    transform: translate(3%, -2%);
+  }
+  50% {
+    transform: translate(-2%, 1%);
+  }
+  60% {
+    transform: translate(1%, -3%);
+  }
+  70% {
+    transform: translate(-3%, 2%);
+  }
+  80% {
+    transform: translate(2%, 1%);
+  }
+  90% {
+    transform: translate(-1%, -2%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes iIT_pulse-accent {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(244 116 31 / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgb(244 116 31 / 0);
+  }
+}
+
+.iIT_animate-grain {
+  animation: iIT_grain 12s linear infinite;
+  will-change: transform;
+}
+.iIT_animate-pulse-accent {
+  animation: iIT_pulse-accent 2s ease-in-out infinite;
+}
+.iIT_type-cursor {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+  background: var(--color-accent);
+  animation: iIT_blink 1s step-end infinite;
+}
+
+/* Grain-Textur als statisches Overlay */
 .iIT_noise::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ---------- Reduced Motion: sämtliche Animationen aus ---------- */
+/* ---------- ScrollReveal-System (IntersectionObserver setzt .iIT_revealed) ----------
+   Wichtig: Der versteckte Ausgangszustand gilt NUR wenn JS aktiv ist (html.iIT_js) –
+   ohne JS und mit prefers-reduced-motion ist jeder Inhalt sofort sichtbar. */
+
+html.iIT_js .iIT_reveal {
+  opacity: 0;
+  transform: translate3d(0, 40px, 0);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+html.iIT_js .iIT_reveal--left {
+  transform: translate3d(40px, 0, 0);
+}
+html.iIT_js .iIT_reveal--right {
+  transform: translate3d(-40px, 0, 0);
+}
+html.iIT_js .iIT_reveal.iIT_revealed {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Wort-für-Wort-Reveal (Über-uns-Sektion) */
+html.iIT_js .iIT_word {
+  display: inline-block;
+  opacity: calc(0.15 + var(--word-p, 0) * 0.85);
+  transform: translateY(calc((1 - var(--word-p, 0)) * 8px));
+  transition:
+    opacity 0.3s,
+    transform 0.3s,
+    color 0.3s;
+}
+html.iIT_js .iIT_word--highlight {
+  color: var(--color-accent);
+}
+
+/* ---------- Reduced Motion: sämtliche Animationen aus (Abnahmekriterium) ---------- */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -178,5 +389,13 @@ h4 {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  html.iIT_js .iIT_reveal {
+    opacity: 1;
+    transform: none;
+  }
+  html.iIT_js .iIT_word {
+    opacity: 1;
+    transform: none;
   }
 }

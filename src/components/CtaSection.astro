@@ -1,8 +1,10 @@
 ---
+import GlowButton from './GlowButton.astro';
+import Icon from './Icon.astro';
 import { SITE } from '../lib/site';
 
-// Wiederverwendbarer Abschluss-CTA – gehört ans Ende jeder Seite
-// (BRIEFING.md, Abschnitt 5: „Abschluss-CTA-Sektion auf jeder Seite").
+// Abschluss-CTA aus dem Entwurf: heller Brand-Gradient + Noise-Textur.
+// Gehört ans Ende jeder Seite (BRIEFING.md, Abschnitt 5).
 interface Props {
   title?: string;
   text?: string;
@@ -12,19 +14,54 @@ interface Props {
 
 const {
   title = 'Bereit, durchzustarten?',
-  text = 'Erzähl uns von deinem Projekt – im kostenlosen Erstgespräch schauen wir uns gemeinsam an, was für dich drin ist.',
-  buttonLabel = 'Kostenloses Erstgespräch',
+  text = 'Lass uns gemeinsam herausfinden, wie wir dein Unternehmen in Graz nach vorne bringen. Das Erstgespräch ist kostenlos und unverbindlich.',
+  buttonLabel = 'Jetzt kontaktieren',
   buttonHref = '/kontakt/',
 } = Astro.props;
 ---
 
-<section class="iIT_noise relative overflow-hidden bg-section-alt">
-  <div class="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
-    <h2 class="text-3xl sm:text-4xl">{title}</h2>
-    <p class="mx-auto mt-4 max-w-2xl text-lg text-steel">{text}</p>
-    <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-      <a href={buttonHref} class="iIT_btn-glow">{buttonLabel}</a>
-      <a href={`tel:${SITE.phoneE164}`} class="iIT_btn-outline">{SITE.phoneDisplay}</a>
+<section class="relative overflow-hidden py-24 lg:py-32">
+  <div
+    class="absolute inset-0"
+    style="background: var(--iIT-gradient-cta);"
+    aria-hidden="true"
+  >
+  </div>
+  <div
+    class="pointer-events-none absolute inset-0"
+    style="background-image: radial-gradient(circle at 20% 50%, rgba(13,17,23,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(13,17,23,0.2) 0%, transparent 50%);"
+    aria-hidden="true"
+  >
+  </div>
+  <div
+    class="pointer-events-none absolute inset-0 opacity-[0.06]"
+    style="background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E&quot;);"
+    aria-hidden="true"
+  >
+  </div>
+
+  <div class="iIT_container relative z-10 text-center">
+    <div class="iIT_reveal">
+      <h2 class="text-3xl font-extrabold text-[#0d1117] sm:text-4xl lg:text-5xl">{title}</h2>
+    </div>
+    <div class="iIT_reveal" style="--reveal-delay: 100ms">
+      <p class="mx-auto mt-6 mb-10 max-w-2xl text-xl leading-relaxed text-[#0d1117]/70">{text}</p>
+    </div>
+    <div class="iIT_reveal" style="--reveal-delay: 200ms">
+      <div class="flex flex-col justify-center gap-4 sm:flex-row">
+        <GlowButton href={buttonHref} variant="secondary" size="lg">
+          <Icon name="phone" size={20} />
+          {buttonLabel}
+        </GlowButton>
+        <GlowButton
+          href={`tel:${SITE.phoneE164}`}
+          variant="outline"
+          size="lg"
+          class="!border-[#0d1117]/20 !text-[#0d1117]"
+        >
+          {SITE.phoneDisplay}
+        </GlowButton>
+      </div>
     </div>
   </div>
 </section>
