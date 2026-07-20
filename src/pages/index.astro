@@ -240,9 +240,11 @@ const faqItems = [
 ];
 
 /* Über-uns-Sektion: Wort-für-Wort-Reveal (SSR-seitig in Wörter zerlegt) */
+/* Text folgt dem Über-uns-Positionierungsbrief: Netzwerk-Modell selbstbewusst,
+   kein „kleines Team"-Framing. */
 const aboutText =
-  'Wir sind keine typische Werbeagentur. Wir sind ein kleines Team aus Graz, das große Ergebnisse liefert. Seit 2018 helfen wir Unternehmen in der Steiermark dabei, online sichtbar zu werden – mit Webdesign, das verkauft, Marketing, das wirkt, und Design, das im Kopf bleibt. Persönlich, direkt und ohne Umwege.';
-const aboutHighlights = ['Werbeagentur', 'Graz', 'Ergebnisse', 'sichtbar', 'verkauft', 'wirkt', 'Steiermark'];
+  'Wir sind keine typische Werbeagentur. Hinter ident-IT steht ein eingespieltes Netzwerk aus Spezialisten – mit Philipp als deinem direkten Ansprechpartner. Seit 2018 machen wir Unternehmen in Graz und der Steiermark online sichtbar: mit Webdesign, das verkauft, Marketing, das wirkt, und Design, das im Kopf bleibt.';
+const aboutHighlights = ['Werbeagentur', 'Netzwerk', 'Spezialisten', 'sichtbar', 'verkauft', 'wirkt', 'Graz', 'Steiermark'];
 const aboutWords = aboutText.split(' ').map((word) => ({
   word,
   highlight: aboutHighlights.some((hw) => word.toLowerCase().includes(hw.toLowerCase())),
@@ -686,9 +688,7 @@ const aboutWords = aboutText.split(' ').map((word) => ({
       <div class="mx-auto max-w-4xl" data-word-reveal>
         <p class="text-center text-2xl leading-relaxed font-bold text-white md:text-3xl lg:text-4xl">
           {aboutWords.map(({ word, highlight }) => (
-            <span class="iIT_word mr-[0.3em]" data-highlight={highlight ? '' : undefined}>
-              {word}
-            </span>
+            <Fragment><span class="iIT_word" data-highlight={highlight ? '' : undefined}>{word}</span>{' '}</Fragment>
           ))}
         </p>
       </div>
