@@ -151,35 +151,35 @@ h4 {
 
 .iIT_neu-raised {
   box-shadow:
-    12px 12px 24px #0a0e14,
-    -12px -12px 24px #202833;
+    5px 5px 14px rgb(0 0 0 / 0.3),
+    -3px -3px 10px rgb(38 48 62 / 0.35);
   border: 1px solid rgb(255 255 255 / 0.04);
 }
 
 .iIT_neu-inset {
   box-shadow:
-    inset 6px 6px 12px #0a0e14,
-    inset -6px -6px 12px #202833;
+    inset 3px 3px 8px rgb(0 0 0 / 0.35),
+    inset -2px -2px 6px rgb(38 48 62 / 0.3);
 }
 
 .iIT_neu-clickable {
   box-shadow:
-    10px 10px 20px #0a0e14,
-    -10px -10px 20px #202833;
+    4px 4px 12px rgb(0 0 0 / 0.3),
+    -3px -3px 8px rgb(38 48 62 / 0.3);
   border: 1px solid rgb(255 255 255 / 0.04);
   transition: all 0.15s ease-out;
   transform: translateY(0);
 }
 .iIT_neu-clickable:hover {
   box-shadow:
-    14px 14px 28px #0a0e14,
-    -14px -14px 28px #283040;
-  transform: translateY(-2px);
+    6px 6px 16px rgb(0 0 0 / 0.35),
+    -4px -4px 10px rgb(44 56 72 / 0.3);
+  transform: translateY(-1px);
 }
 .iIT_neu-clickable:active {
   box-shadow:
-    inset 6px 6px 12px #0a0e14,
-    inset -6px -6px 12px #202833;
+    inset 3px 3px 8px rgb(0 0 0 / 0.35),
+    inset -2px -2px 6px rgb(38 48 62 / 0.3);
   transform: translateY(1px) scale(0.98);
 }
 
@@ -219,16 +219,16 @@ h4 {
   background: var(--iIT-gradient-button);
   color: var(--color-base);
   box-shadow:
-    10px 10px 20px #0a0e14,
-    -10px -10px 20px #202833;
+    4px 4px 12px rgb(0 0 0 / 0.3),
+    -3px -3px 8px rgb(38 48 62 / 0.3);
 }
 .iIT_btn--secondary {
   background: linear-gradient(135deg, #1a2332, #151b23);
   color: #fff;
   border: 1px solid rgb(0 180 168 / 0.2);
   box-shadow:
-    10px 10px 20px #0a0e14,
-    -10px -10px 20px #202833;
+    4px 4px 12px rgb(0 0 0 / 0.3),
+    -3px -3px 8px rgb(38 48 62 / 0.3);
 }
 .iIT_btn--outline {
   background: transparent;
@@ -237,8 +237,8 @@ h4 {
 }
 .iIT_btn:active {
   box-shadow:
-    inset 5px 5px 10px #0a0e14,
-    inset -5px -5px 10px #202833;
+    inset 3px 3px 8px rgb(0 0 0 / 0.35),
+    inset -2px -2px 6px rgb(38 48 62 / 0.3);
   transform: translateY(2px) scale(0.97);
 }
 /* Shine-Sweep bei Hover */

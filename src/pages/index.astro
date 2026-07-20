@@ -76,11 +76,10 @@ const usps = [
   },
 ];
 
-const yearsOfExperience = new Date().getFullYear() - SITE.foundedYear;
+/* „Jahre Erfahrung" bewusst weggelassen – „seit 2018" steht bereits an mehreren Stellen */
 const stats = [
   { icon: 'users', end: 100, suffix: '+', decimals: 0, label: 'Zufriedene Kunden' },
   { icon: 'star', end: 5.0, suffix: '', decimals: 1, label: 'Google Bewertung' },
-  { icon: 'award', end: yearsOfExperience, suffix: '+', decimals: 0, label: 'Jahre Erfahrung' },
   { icon: 'bar-chart-3', end: 200, suffix: '+', decimals: 0, label: 'Projekte umgesetzt' },
 ];
 
@@ -268,8 +267,8 @@ const aboutWords = aboutText.split(' ').map((word) => ({
         playsinline
         preload="none"
         poster={heroPoster.src}
-        class="absolute object-cover"
-        style="top: -5%; left: -5%; width: 110%; height: 110%; filter: brightness(0.35) saturate(0.7); backface-visibility: hidden; transform: translate3d(0,0,0);"
+        class="absolute inset-0 h-full w-full object-cover"
+        style="filter: brightness(0.35) saturate(0.7); backface-visibility: hidden; transform: translate3d(0,0,0);"
         aria-hidden="true"
       >
         <source src="/videos/hero-bg.mp4" type="video/mp4" />
@@ -558,7 +557,7 @@ const aboutWords = aboutText.split(' ').map((word) => ({
     <div class="iIT_glow-line absolute right-0 bottom-0 left-0 h-px opacity-20" aria-hidden="true"></div>
 
     <div class="iIT_container relative z-10">
-      <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
+      <div class="grid gap-6 sm:grid-cols-3">
         {
           stats.map((stat, i) => (
             <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
@@ -775,7 +774,7 @@ const aboutWords = aboutText.split(' ').map((word) => ({
         <div class="space-y-5 leading-relaxed text-muted/80">
           <p>
             Graz ist nicht nur die zweitgrößte Stadt Österreichs, sondern auch ein dynamischer Wirtschaftsstandort mit
-            einer lebendigen Startup-Szene und zahlreichen etablierten Unternehmen. Als
+            einer lebendigen Startup-Szene und zahlreichen etablierten Unternehmen. Als{' '}
             <strong class="text-white">Werbeagentur in Graz</strong> kennen wir den lokalen Markt und die Bedürfnisse steirischer
             Unternehmen aus erster Hand.
           </p>
