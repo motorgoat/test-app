@@ -1,0 +1,42 @@
+# Staging-Deployment auf SiteGround per FTP.
+# Benötigte GitHub-Secrets (Repo → Settings → Secrets and variables → Actions):
+#   FTP_SERVER      z. B. ident-it.at oder der SiteGround-Hostname
+#   FTP_USERNAME    eigener FTP-Account, idealerweise nur auf den Staging-Ordner beschränkt
+#   FTP_PASSWORD
+#   FTP_SERVER_DIR  Zielordner, z. B. / (bei ordner-beschränktem FTP-Account) oder neu.ident-it.at/public_html/
+name: Staging deployen
+
+on:
+  push:
+    branches: [claude/ident-it-website-relaunch-6ajhiv, main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # STAGING=true setzt sitewide noindex (siehe Layout.astro)
+      - run: npm run build
+        env:
+          STAGING: 'true'
+
+      # Staging darf nicht in Suchmaschinen landen
+      - run: printf 'User-agent: *\nDisallow: /\n' > dist/robots.txt
+
+      - name: Per FTP hochladen
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          local-dir: dist/

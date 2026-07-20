@@ -24,6 +24,9 @@ interface Props {
 
 const { title, description, canonical, ogImage, noindex = false } = Astro.props;
 
+/* Staging-Builds (GitHub Action setzt STAGING=true) sind komplett noindex */
+const forceNoindex = noindex || process.env.STAGING === 'true';
+
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site).href;
 const ogImageUrl = new URL(ogImage ?? '/og-default.jpg', Astro.site).href;
 
@@ -75,7 +78,7 @@ const schema = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl} />
-    {noindex && <meta name="robots" content="noindex, follow" />}
+    {forceNoindex && <meta name="robots" content="noindex, follow" />}
 
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
