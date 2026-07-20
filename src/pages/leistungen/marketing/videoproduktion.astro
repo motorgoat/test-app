@@ -1,0 +1,114 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+
+/* Videoproduktion – neue Seite. KW: videoproduktion graz, imagefilm graz, werbespot graz. */
+
+const benefits = [
+  {
+    icon: 'film',
+    title: 'Imagefilme',
+    desc: 'Dein Unternehmen in bewegten Bildern: Ein Imagefilm zeigt, wer du bist, wie du arbeitest und warum Kunden dir vertrauen können.',
+  },
+  {
+    icon: 'clapperboard',
+    title: 'Werbespots',
+    desc: 'Kurze, pointierte Spots für Online-Kampagnen, Kino oder Screens – mit einer Botschaft, die hängen bleibt.',
+  },
+  {
+    icon: 'smartphone',
+    title: 'Social-Media-Videos',
+    desc: 'Reels, Shorts und Stories im richtigen Format: Videos, die in den Feeds deiner Zielgruppe auffallen und Reichweite bringen.',
+  },
+  {
+    icon: 'lightbulb',
+    title: 'Erklärvideos',
+    desc: 'Komplexe Produkte oder Abläufe einfach erklärt – ideal für Website, Vertrieb und Kundenservice.',
+  },
+  {
+    icon: 'users',
+    title: 'Recruiting-Videos',
+    desc: 'Zeig potenziellen Mitarbeitern, wie es bei dir wirklich zugeht – authentische Einblicke statt Stock-Material.',
+  },
+  {
+    icon: 'scissors',
+    title: 'Schnitt & Postproduktion',
+    desc: 'Schnitt, Farbkorrektur, Ton und Musik: Wir veredeln dein Material bis zum fertigen Video in allen benötigten Formaten.',
+  },
+];
+
+const process = [
+  {
+    icon: 'pen-tool',
+    title: 'Konzept & Drehbuch',
+    desc: 'Wir klären Ziel, Botschaft und Zielgruppe deines Videos und entwickeln daraus Konzept, Storyboard und Drehplan.',
+  },
+  {
+    icon: 'video',
+    title: 'Dreh',
+    desc: 'Gedreht wird bei dir vor Ort in Graz und Umgebung oder im Studio – professionell ausgeleuchtet, mit sauberem Ton.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Schnitt & Veröffentlichung',
+    desc: 'Nach deiner Freigabe bekommst du das fertige Video in allen Formaten – optimiert für Website, YouTube und Social Media.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet eine Videoproduktion in Graz?',
+    answer:
+      'Das hängt stark vom Format ab: Ein kurzes Social-Media-Video ist deutlich günstiger als ein aufwendiger Imagefilm mit mehreren Drehtagen. Einfache Produktionen starten im niedrigen vierstelligen Bereich. Im kostenlosen Erstgespräch bekommst du ein Angebot mit Fixpreis für dein Projekt.',
+  },
+  {
+    question: 'Wie lange dauert die Produktion eines Videos?',
+    answer:
+      'Von der Konzeption bis zum fertigen Video vergehen je nach Umfang meist 2–6 Wochen. Social-Media-Videos gehen schneller, Imagefilme mit Drehbuch, mehreren Drehtagen und aufwendiger Postproduktion brauchen etwas länger.',
+  },
+  {
+    question: 'Was brauche ich, um ein Video produzieren zu lassen?',
+    answer:
+      'Eigentlich nur eine Idee, was du erreichen willst – mehr Bekanntheit, mehr Bewerbungen, mehr Verkäufe. Alles andere erarbeiten wir gemeinsam: Konzept, Drehbuch, Drehort, Musik und Schnitt kommen von uns.',
+  },
+  {
+    question: 'Bekomme ich die Nutzungsrechte am fertigen Video?',
+    answer:
+      'Ja. Du kannst dein Video zeitlich unbegrenzt auf deiner Website, auf Social Media und in deinen Kampagnen einsetzen. Auch das Rohmaterial können wir auf Wunsch für spätere Projekte archivieren.',
+  },
+];
+---
+
+<ServicePage
+  title="Videoproduktion Graz | Imagefilme & Werbespots – ident-IT"
+  description="Videoproduktion in Graz: Imagefilme, Werbespots, Social-Media-Videos & Erklärvideos aus einer Hand. Jetzt Videoprojekt unverbindlich anfragen!"
+  badge="Videoproduktion Graz"
+  subtitle="Bewegte Bilder verkaufen: Wir planen, drehen und schneiden Videos, die deine Marke zeigen, wie sie wirklich ist – vom Imagefilm bis zum Reel."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Marketing', href: '/leistungen/marketing/' },
+    { label: 'Videoproduktion' },
+  ]}
+  serviceName="Videoproduktion"
+  intro={[
+    'Kein Medium transportiert Emotionen so stark wie Video – und kein Format wird auf Social Media so belohnt. Mit professioneller <strong class="text-white">Videoproduktion aus Graz</strong> bekommst du Filme, die dein Unternehmen authentisch zeigen und deine Zielgruppe wirklich erreichen.',
+    'Vom ersten Konzept über den Dreh bei dir vor Ort bis zur fertigen Postproduktion: Alles kommt aus einer Hand. Und weil Marketing, Grafik und Web bei uns im selben Haus sitzen, passt dein Video von Anfang an zu deiner Marke und deinen Kampagnen.',
+  ]}
+  introHeadline="Videoproduktion aus Graz – Geschichten, die verkaufen"
+  benefits={benefits}
+  benefitsHeadline="Diese Videos produzieren wir für dich"
+  process={process}
+  processHeadline="In 3 Schritten zu deinem Video"
+  faq={faq}
+  faqHeadline="FAQ – Videoproduktion Graz"
+  related={[
+    { label: 'Social Media Agentur Graz', href: '/leistungen/marketing/social-media/', desc: 'Die Bühne für deine Videos' },
+    { label: 'Google Ads Agentur Graz', href: '/leistungen/marketing/google-ads/', desc: 'Video-Kampagnen mit Reichweite' },
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Alle Marketing-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit für dein Video?"
+  ctaText="Erzähl uns, was du zeigen willst – wir entwickeln daraus ein Konzept mit Fixpreis. Das Erstgespräch ist kostenlos."
+>
+  <Fragment slot="h1">Videoproduktion <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* TODO: Referenzvideos (Hochwasserschutz, Marburgerhöfe) via YouTube nocookie + Consent einbetten */}
+</ServicePage>

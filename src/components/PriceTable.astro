@@ -1,0 +1,61 @@
+---
+import Icon from './Icon.astro';
+
+// Tarif-Karten für Wartung/SEO/Marketing-Pakete (BRIEFING.md, Abschnitt 6).
+// Responsive: Karten-Grid statt breiter Tabelle, Feature-Gruppen als Listen.
+export interface PricePlan {
+  name: string;
+  price: string;
+  oldPrice?: string;
+  period?: string;
+  label?: string;
+  highlight?: boolean;
+  features: string[];
+  ctaHref?: string;
+}
+
+interface Props {
+  plans: PricePlan[];
+  ctaLabel?: string;
+}
+
+const { plans, ctaLabel = 'Anfragen' } = Astro.props;
+---
+
+<div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+  {
+    plans.map((plan) => (
+      <div
+        class={`iIT_neu-raised relative flex h-full flex-col rounded-2xl bg-card p-6 ${plan.highlight ? 'iIT_gradient-border' : ''}`}
+      >
+        {plan.highlight && (
+          <span class="iIT_gradient-brand absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-4 py-1 text-xs font-bold text-[#0d1117]">
+            Beliebt
+          </span>
+        )}
+        <h3 class="text-lg font-bold text-white">{plan.name}</h3>
+        {plan.label && <p class="text-muted/80 mt-1 text-sm">{plan.label}</p>}
+        <p class="mt-4 mb-6">
+          {plan.oldPrice && <span class="text-muted/80 mr-2 text-lg line-through">{plan.oldPrice}</span>}
+          <span class="iIT_gradient-text text-3xl font-extrabold">{plan.price}</span>
+          <span class="text-muted/80 text-sm"> {plan.period ?? '/ Monat'}</span>
+        </p>
+        <ul class="mb-6 flex-1 space-y-2.5">
+          {plan.features.map((feature) => (
+            <li class="text-muted/80 flex items-start gap-2 text-sm">
+              <Icon name="check-circle-2" size={16} class="mt-0.5 shrink-0 text-accent" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+        <a
+          href={plan.ctaHref ?? '/kontakt/'}
+          class={`iIT_btn iIT_btn--md ${plan.highlight ? 'iIT_btn--primary' : 'iIT_btn--outline'} w-full`}
+        >
+          <span class="iIT_btn-shine" aria-hidden="true" />
+          <span class="relative z-10">{ctaLabel}</span>
+        </a>
+      </div>
+    ))
+  }
+</div>

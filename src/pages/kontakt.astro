@@ -223,7 +223,19 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComp
   });
 
   // Fehlermeldung anzeigen, wenn das Mail-Script zurückgeleitet hat
-  if (new URLSearchParams(window.location.search).has('fehler')) {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('fehler')) {
     document.getElementById('iIT_form-error')?.classList.remove('hidden');
+  }
+
+  // Von der Wartungsseite mit ?paket=… verlinkt: Leistung vorauswählen, Paket in die Nachricht
+  const paket = params.get('paket');
+  if (paket) {
+    const select = document.getElementById('iIT_service') as HTMLSelectElement | null;
+    if (select) select.value = 'wartung';
+    const message = document.getElementById('iIT_message') as HTMLTextAreaElement | null;
+    if (message && !message.value) {
+      message.value = `Ich interessiere mich für das Wartungs-Paket „${paket.charAt(0).toUpperCase()}${paket.slice(1)}".\n\n`;
+    }
   }
 </script>

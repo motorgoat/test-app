@@ -1,0 +1,155 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Onlineshop – neue Seite. KW: webshop agentur graz, onlineshop erstellen graz.
+   Preisanker „Onlineshops ab 4.900 €" prominent. */
+
+const benefits = [
+  {
+    icon: 'shopping-cart',
+    title: 'WooCommerce-Shops',
+    desc: 'Wir bauen deinen Shop mit WooCommerce auf WordPress-Basis: flexibel, erweiterbar und ohne monatliche Lizenzkosten pro Verkauf.',
+  },
+  {
+    icon: 'credit-card',
+    title: 'Zahlungsanbieter',
+    desc: 'Kreditkarte, Klarna, PayPal, Apple Pay: Wir binden die Zahlungsarten an, die deine Kunden erwarten – sicher und DSGVO-konform.',
+  },
+  {
+    icon: 'truck',
+    title: 'Versand & Logistik',
+    desc: 'Versandkosten, Lieferzonen, Etiketten und Schnittstellen zu Post & Co: Wir richten deinen Versandprozess praxistauglich ein.',
+  },
+  {
+    icon: 'book-open',
+    title: 'Produktpflege & Schulung',
+    desc: 'Du lernst, Produkte, Preise und Aktionen selbst zu verwalten. Wir schulen dich persönlich ein – kein Fachchinesisch.',
+  },
+  {
+    icon: 'zap',
+    title: 'Performance & SEO',
+    desc: 'Schnelle Ladezeiten und saubere Produktdaten, damit dein Shop bei Google gefunden wird und Besucher zu Käufern werden.',
+  },
+  {
+    icon: 'shield-check',
+    title: 'Rechtssicher verkaufen',
+    desc: 'AGB-Einbindung, Widerruf, Cookie-Banner und SSL: Dein Shop wird nach österreichischem und EU-Recht aufgesetzt.',
+  },
+];
+
+const included = [
+  'Individuelles Shop-Design passend zu deiner Marke',
+  'WooCommerce-Setup mit Zahlungs- & Versandanbindung',
+  'Produktseiten, Warenkorb & Checkout optimiert',
+  'SEO-Grundoptimierung & schnelle Ladezeiten',
+  'Persönliche Einschulung in die Shop-Verwaltung',
+  'DSGVO-konforme Umsetzung inkl. Cookie-Banner',
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Erstgespräch & Konzept',
+    desc: 'Wir besprechen dein Sortiment, deine Zielgruppe und deine Abläufe – und planen Struktur und Funktionen deines Shops.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Design & Umsetzung',
+    desc: 'Dein Shop entsteht: Design, Produktseiten, Zahlung und Versand. Du gibst Feedback, wir verfeinern bis zur Freigabe.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Launch & Betreuung',
+    desc: 'Dein Shop geht live. Auf Wunsch betreuen wir ihn laufend weiter – mit Hosting, Updates und Marketing aus einer Hand.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet ein Onlineshop?',
+    answer:
+      'Unsere Onlineshops starten ab 4.900 €. Darin enthalten sind Design, WooCommerce-Setup, Zahlungs- und Versandanbindung sowie deine persönliche Einschulung. Der genaue Preis hängt von Sortimentsgröße und Funktionen ab – nach dem Erstgespräch bekommst du ein Fixpreis-Angebot.',
+  },
+  {
+    question: 'Warum setzt ihr auf WooCommerce?',
+    answer:
+      'WooCommerce läuft auf WordPress, dem meistgenutzten CMS der Welt: Du zahlst keine laufenden Lizenzgebühren pro Verkauf, kannst deinen Shop beliebig erweitern und bleibst unabhängig. Für spezielle Anforderungen setzen wir auch Shopify um – wir beraten dich ehrlich, was besser passt.',
+  },
+  {
+    question: 'Welche laufenden Kosten kommen auf mich zu?',
+    answer:
+      'Neben dem einmaligen Projektpreis brauchst du Hosting und Wartung – bei uns ab 14,99 €/Monat, mit Shop-tauglichen Paketen inklusive täglicher Backups und Updates. Dazu kommen je nach Zahlungsanbieter übliche Transaktionsgebühren.',
+  },
+  {
+    question: 'Kann ich Produkte selbst einpflegen?',
+    answer:
+      'Ja, das ist das Ziel: Nach der persönlichen Einschulung verwaltest du Produkte, Preise, Lagerstände und Aktionen selbst. Wenn du das lieber abgibst, erledigen wir die Produktpflege gerne laufend für dich.',
+  },
+  {
+    question: 'Wie lange dauert es, bis mein Shop online ist?',
+    answer:
+      'Je nach Sortimentsgröße und Funktionsumfang ist dein Onlineshop in 8–12 Wochen startklar. Kleinere Shops gehen schneller – den Zeitplan legen wir im Erstgespräch gemeinsam fest.',
+  },
+];
+---
+
+<ServicePage
+  title="Webshop Agentur Graz | Onlineshop erstellen – ident-IT"
+  description="Webshop Agentur in Graz: Onlineshops mit WooCommerce ab 4.900 € – inkl. Zahlung, Versand & persönlicher Schulung. Jetzt Shop-Projekt besprechen!"
+  badge="Webshop Agentur Graz"
+  subtitle="Verkaufe deine Produkte online: Wir bauen dir einen Onlineshop mit WooCommerce, der gut aussieht, sicher läuft und sich einfach verwalten lässt – ab 4.900 €."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Web', href: '/leistungen/web/' },
+    { label: 'Onlineshop' },
+  ]}
+  serviceName="Onlineshop-Erstellung (E-Commerce)"
+  intro={[
+    'Deine Kunden kaufen online – die Frage ist nur: bei dir oder bei der Konkurrenz? Als <strong class="text-white">Webshop Agentur in Graz</strong> bauen wir dir einen Onlineshop, der zu deinem Sortiment und deinen Abläufen passt: mit WooCommerce, den richtigen Zahlungsarten und einem Checkout, der Käufe abschließt statt abbricht.',
+    'Vom Konzept über Design und Technik bis zur Einschulung bekommst du alles aus einer Hand. Und wenn dein Shop läuft, unterstützen wir dich auf Wunsch weiter – mit Hosting, Wartung und Marketing, damit auch Besucher in deinen Shop kommen.',
+  ]}
+  introHeadline="Onlineshop erstellen lassen in Graz – verkaufen statt basteln"
+  benefits={benefits}
+  benefitsHeadline="Was dein Onlineshop von uns mitbringt"
+  process={process}
+  processHeadline="In 3 Schritten zu deinem Onlineshop"
+  faq={faq}
+  faqHeadline="FAQ – Webshop Agentur Graz"
+  related={[
+    { label: 'Webdesign Graz', href: '/leistungen/web/webdesign/', desc: 'Business-Websites ab 2.000 €' },
+    { label: 'Wartung & Hosting', href: '/leistungen/web/wartung/', desc: 'Dein Shop sicher betreut ab 14,99 €' },
+    { label: 'Webagentur Graz', href: '/leistungen/web/', desc: 'Alle Web-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit, online zu verkaufen?"
+  ctaText="Erzähl uns von deinem Sortiment – wir zeigen dir, wie dein Shop aussehen kann und was er kostet. Das Erstgespräch ist kostenlos."
+>
+  <Fragment slot="h1">Webshop Agentur <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Preisanker */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24" id="preis">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto max-w-3xl">
+        <div class="iIT_gradient-border iIT_neu-raised rounded-2xl bg-card p-8 text-center sm:p-12">
+          <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Preis</span>
+          <p class="mb-2 text-3xl font-extrabold text-white sm:text-4xl">
+            Onlineshops ab <span class="iIT_gradient-text">4.900 €</span>
+          </p>
+          <p class="text-muted/80 mx-auto mb-8 max-w-xl leading-relaxed">
+            Fixpreis nach dem Erstgespräch – keine versteckten Kosten, keine Lizenzgebühren pro Verkauf.
+          </p>
+          <ul class="mx-auto grid max-w-2xl gap-3 text-left sm:grid-cols-2">
+            {
+              included.map((item) => (
+                <li class="text-muted/80 flex items-start gap-2.5 text-sm leading-relaxed">
+                  <Icon name="check-circle-2" size={17} class="mt-0.5 shrink-0 text-accent" />
+                  {item}
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</ServicePage>

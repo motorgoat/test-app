@@ -1,0 +1,182 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Google Ads (SEA) – portiert aus GoogleAdsGraz (Entwurf).
+   KW: google ads agentur graz, google ads graz, sea agentur graz. */
+
+const benefits = [
+  {
+    icon: 'zap',
+    title: 'Sofort sichtbar',
+    desc: 'Anders als bei SEO bist du mit Google Ads sofort auf Seite 1 – ab dem ersten Tag.',
+  },
+  {
+    icon: 'target',
+    title: 'Zielgenau',
+    desc: 'Deine Anzeigen werden nur Leuten gezeigt, die aktiv nach deinem Angebot suchen.',
+  },
+  {
+    icon: 'euro',
+    title: 'Volle Kostenkontrolle',
+    desc: 'Du bestimmst dein Budget. Du zahlst nur, wenn jemand auf deine Anzeige klickt.',
+  },
+  {
+    icon: 'bar-chart-3',
+    title: 'Messbare Ergebnisse',
+    desc: 'Jeder Euro ist nachvollziehbar – du siehst genau, was deine Kampagnen bringen.',
+  },
+  {
+    icon: 'message-square',
+    title: 'Mehr Anfragen',
+    desc: 'Google Ads bringt qualifizierte Besucher auf deine Website – Leute, die kaufen wollen.',
+  },
+  {
+    icon: 'settings',
+    title: 'Laufende Optimierung',
+    desc: 'Wir optimieren deine Kampagnen laufend – für bessere Ergebnisse bei gleichem Budget.',
+  },
+];
+
+const comparison = [
+  {
+    icon: 'target',
+    title: 'Google Ads (SEA)',
+    points: [
+      'Sofort auf Seite 1 bei Google',
+      'Perfekt für schnelle Ergebnisse',
+      'Volle Kontrolle über Budget',
+      'Ideal für Aktionen und Launches',
+      'Zahlung pro Klick (CPC)',
+    ],
+  },
+  {
+    icon: 'trending-up',
+    title: 'SEO (Organisch)',
+    points: [
+      'Langfristig kostenloser Traffic',
+      'Höheres Vertrauen bei Nutzern',
+      'Dauerhaft bessere Sichtbarkeit',
+      'Braucht 3–6 Monate Anlaufzeit',
+      'Einmalige + laufende Investition',
+    ],
+  },
+];
+
+const process = [
+  {
+    icon: 'search',
+    title: 'Analyse',
+    desc: 'Wir analysieren dein Angebot, deine Zielgruppe und den Wettbewerb.',
+  },
+  {
+    icon: 'settings',
+    title: 'Kampagnen-Setup',
+    desc: 'Wir erstellen deine Kampagnen, Anzeigen und Landing Pages.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Launch & Monitoring',
+    desc: 'Deine Kampagnen gehen live. Wir überwachen alles in Echtzeit.',
+  },
+  {
+    icon: 'trending-up',
+    title: 'Optimierung',
+    desc: 'Wir optimieren Keywords, Gebote und Anzeigen für maximalen ROI.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet Google Ads?',
+    answer:
+      'Das Budget bestimmst du selbst. Wir empfehlen für den Start mindestens 500–1.000 € pro Monat an Werbebudget, plus unsere Betreuungspauschale. So können wir genug Daten sammeln, um die Kampagnen zu optimieren.',
+  },
+  {
+    question: 'Wie schnell sehe ich Ergebnisse?',
+    answer:
+      'Die ersten Klicks und Anfragen kommen oft schon in den ersten Tagen. Für eine richtig gute Performance brauchen wir aber 2–4 Wochen Optimierungszeit.',
+  },
+  {
+    question: 'Brauche ich Google Ads, wenn ich schon SEO mache?',
+    answer:
+      'SEO und Google Ads ergänzen sich perfekt. SEO bringt langfristigen Traffic, Google Ads liefert sofortige Ergebnisse. Gerade am Anfang oder bei saisonalen Aktionen ist Google Ads ideal.',
+  },
+  {
+    question: 'Kann ich Google Ads auch selbst machen?',
+    answer:
+      'Grundsätzlich ja, aber ohne Erfahrung verbrennst du schnell Budget. Wir kennen die Tricks und Fallstricke und holen das Maximum aus deinem Budget raus.',
+  },
+];
+---
+
+<ServicePage
+  title="Google Ads Agentur Graz | SEA – ident-IT"
+  description="Google Ads Agentur in Graz: sofort sichtbar bei Google, volle Kostenkontrolle und laufende Optimierung. Jetzt kostenlose Beratung sichern!"
+  badge="Google Ads Agentur Graz"
+  subtitle="Du willst nicht monatelang auf SEO-Ergebnisse warten? Mit Google Ads bist du sofort sichtbar – genau dann, wenn deine Kunden nach deinem Angebot suchen."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Marketing', href: '/leistungen/marketing/' },
+    { label: 'Google Ads' },
+  ]}
+  serviceName="Google Ads (SEA)"
+  intro={[
+    'Als <strong class="text-white">Google Ads Agentur in Graz</strong> planen und betreuen wir deine Suchmaschinenwerbung so, dass jeder Euro zählt: von der Keyword-Auswahl über zielgenaue Anzeigen bis zum sauberen Conversion-Tracking. Du siehst jederzeit, was deine Kampagnen bringen – in Anfragen, nicht nur in Klicks.',
+    'Ob lokales Unternehmen aus Graz oder Betrieb mit Kunden in ganz Österreich: Wir richten deine Kampagnen auf die Suchanfragen aus, die wirklich Umsatz bringen, und optimieren laufend Keywords, Gebote und Anzeigentexte.',
+  ]}
+  introHeadline="Suchmaschinenwerbung, die Anfragen bringt"
+  benefits={benefits}
+  benefitsHeadline="Warum Google Ads mit ident-IT?"
+  benefitsEyebrow="Deine Vorteile"
+  process={process}
+  processHeadline="So starten wir deine Google Ads Kampagne"
+  faq={faq}
+  faqHeadline="Häufige Fragen zu Google Ads"
+  related={[
+    { label: 'SEO Agentur Graz', href: '/leistungen/marketing/seo/', desc: 'Langfristige Sichtbarkeit ohne Klickkosten' },
+    { label: 'Social Media Agentur Graz', href: '/leistungen/marketing/social-media/', desc: 'Reichweite auf Instagram, Facebook & Co.' },
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Alle Marketing-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit für mehr Kunden durch Google Ads?"
+  ctaText="Lass uns gemeinsam herausfinden, wie viel Potenzial in Google Ads für dein Unternehmen steckt."
+>
+  <Fragment slot="h1">Google Ads Agentur <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Vergleich: Google Ads vs. SEO */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Vergleich</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Google Ads oder SEO – was ist besser?</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Beide Strategien haben ihre Stärken. Am besten funktionieren sie zusammen.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
+        {
+          comparison.map((card, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_gradient-border iIT_neu-raised h-full rounded-2xl bg-card p-8">
+                <div class="mb-5 flex items-center gap-3">
+                  <div class="iIT_neu-inset flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                    <Icon name={card.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="text-xl font-bold text-white">{card.title}</h3>
+                </div>
+                <ul class="space-y-3">
+                  {card.points.map((point) => (
+                    <li class="text-muted/80 flex items-start gap-2.5 text-sm leading-relaxed">
+                      <Icon name="check-circle-2" size={17} class="mt-0.5 shrink-0 text-accent" />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</ServicePage>

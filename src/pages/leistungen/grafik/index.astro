@@ -1,0 +1,176 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Pillar „Grafik" – portiert aus GrafikdesignGraz (Entwurf).
+   KW: grafikdesign graz, corporate design graz, grafiker graz.
+   Verlinkt alle Unterseiten der Säule (Silo-Struktur). */
+
+const benefits = [
+  {
+    icon: 'pen-tool',
+    title: 'Logo-Entwicklung',
+    desc: 'Ein Logo, das zu dir passt und im Kopf bleibt. Wir entwickeln dein Markenzeichen von der Skizze bis zur fertigen Datei.',
+  },
+  {
+    icon: 'layers',
+    title: 'Corporate Design',
+    desc: 'Farben, Schriften, Bildsprache – wir definieren den visuellen Auftritt deiner Marke. Einheitlich und wiedererkennbar.',
+  },
+  {
+    icon: 'book-open',
+    title: 'Geschäftsausstattung',
+    desc: 'Visitenkarten, Briefpapier, E-Mail-Signaturen – alles, was dein Unternehmen professionell repräsentiert.',
+  },
+  {
+    icon: 'printer',
+    title: 'Drucksorten & Print',
+    desc: 'Flyer, Broschüren, Plakate und Kataloge – wir gestalten und übernehmen auch die komplette Druckabwicklung.',
+  },
+  {
+    icon: 'package',
+    title: 'Verpackungsdesign',
+    desc: 'Verpackungen, die am Regal auffallen und deine Marke stärken.',
+  },
+  {
+    icon: 'palette',
+    title: 'Illustrationen & Icons',
+    desc: 'Individuelle Illustrationen und Icon-Sets für deine Website, App oder Printmedien.',
+  },
+];
+
+const subpages = [
+  {
+    icon: 'sparkles',
+    title: 'Branding & Corporate Design',
+    desc: 'Markenstrategie, Logo-Design und Brand Guidelines – wir machen deine Marke unverwechselbar.',
+    href: '/leistungen/grafik/branding/',
+  },
+  {
+    icon: 'printer',
+    title: 'Drucksorten',
+    desc: 'Visitenkarten, Flyer, Folder und Kataloge – gestaltet und gedruckt aus einer Hand.',
+    href: '/leistungen/grafik/drucksorten/',
+  },
+  {
+    icon: 'car',
+    title: 'Beschriftungen',
+    desc: 'Fahrzeugbeschriftung, Autobeklebung und Schaufensterbeschriftung – deine Werbung im Grazer Stadtbild.',
+    href: '/leistungen/grafik/beschriftungen/',
+  },
+];
+
+const stats = [
+  { value: '0,05 s', label: 'für den ersten Eindruck' },
+  { value: '80%', label: 'höhere Wiedererkennung' },
+  { value: '33%', label: 'mehr Umsatz durch Branding' },
+];
+
+const faq = [
+  {
+    question: 'Was kostet Grafikdesign in Graz?',
+    answer:
+      'Das hängt vom Projekt ab: Ein einfaches Logo-Design startet bei ca. 800 €, ein komplettes Branding-Paket mit Strategie, Logo und Corporate Identity liegt typischerweise zwischen 2.500 € und 8.000 €. Kleinere Drucksorten wie Visitenkarten oder Flyer kalkulieren wir projektbezogen. Im kostenlosen Erstgespräch bekommst du ein klares Angebot.',
+  },
+  {
+    question: 'Welche Grafikdesign-Leistungen bietet ident-IT an?',
+    answer:
+      'Von der Logo-Entwicklung über Corporate Design und Geschäftsausstattung bis zu Drucksorten, Verpackungsdesign und Fahrzeugbeschriftungen: Wir gestalten alles, was deine Marke sichtbar macht – digital und in Print.',
+  },
+  {
+    question: 'Erledigt ihr auch den Druck meiner Unterlagen?',
+    answer:
+      'Ja. Wir gestalten nicht nur, sondern übernehmen auf Wunsch auch die komplette Druckabwicklung – von der Druckdatenerstellung über die Auswahl der Druckerei bis zur Lieferung. Du bekommst fertige Drucksorten, ohne dich mit Papiersorten und Druckdaten beschäftigen zu müssen.',
+  },
+  {
+    question: 'Bekomme ich alle Dateien meines Designs?',
+    answer:
+      'Selbstverständlich. Du erhältst dein Logo und deine Designs in allen gängigen Formaten – für Web, Print und Beschriftung. Die Rechte an deinem Design liegen bei dir.',
+  },
+];
+---
+
+<ServicePage
+  title="Grafikdesign Graz | Corporate Design & Branding – ident-IT"
+  description="Grafikdesign aus Graz: Logo, Corporate Design, Drucksorten & Beschriftungen aus einer Hand. Jetzt kostenloses Erstgespräch vereinbaren!"
+  badge="Grafik & Branding"
+  subtitle="Vom Logo bis zum kompletten Corporate Design – wir geben deiner Marke ein Gesicht, das auffällt und in Erinnerung bleibt. Kreativ, durchdacht und immer mit Liebe zum Detail."
+  crumbs={[{ label: 'Leistungen', href: '/leistungen/' }, { label: 'Grafik' }]}
+  serviceName="Grafikdesign & Branding"
+  intro={[
+    'Der erste Eindruck entsteht in Millisekunden. Ein professionelles Design schafft Vertrauen und macht deine Marke wiedererkennbar – auf der Website genauso wie auf der Visitenkarte oder am Firmenauto. Als Agentur für <strong class="text-white">Grafikdesign in Graz</strong> gestalten wir seit 2018 Marken, die im Kopf bleiben.',
+    'Ob Logo, Corporate Design, Drucksorten oder Fahrzeugbeschriftung: Bei uns kommt alles aus einer Hand und passt zusammen. So tritt dein Unternehmen überall einheitlich auf – von Instagram bis zum Schaufenster in der Grazer Innenstadt.',
+  ]}
+  introHeadline="Grafikdesign aus Graz – Design, das den Unterschied macht"
+  benefits={benefits}
+  benefitsHeadline="Was wir für dich gestalten"
+  faq={faq}
+  faqHeadline="FAQ – Grafikdesign Graz"
+  related={[
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Sichtbarkeit für deine neue Marke' },
+    { label: 'Webdesign Graz', href: '/leistungen/web/webdesign/', desc: 'Dein Corporate Design im Web' },
+    { label: 'Referenzen', href: '/referenzen/', desc: 'Projekte, die für uns sprechen' },
+  ]}
+  ctaTitle="Bereit für ein starkes Markendesign?"
+  ctaText="Lass uns gemeinsam eine visuelle Identität schaffen, die deine Marke unverwechselbar macht."
+>
+  <Fragment slot="h1">Grafikdesign & Branding aus <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Unterseiten der Säule */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Leistungen</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Unsere Grafik-Leistungen im Überblick</h2>
+      </div>
+      <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          subpages.map((service, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 3) * 100}ms`}>
+              <a href={service.href} class="group block h-full">
+                <div class="iIT_neu-clickable h-full rounded-2xl bg-card p-6">
+                  <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                    <Icon name={service.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="mb-2 text-lg font-bold text-white transition-colors group-hover:text-accent">
+                    {service.title}
+                  </h3>
+                  <p class="text-muted/80 mb-4 text-sm leading-relaxed">{service.desc}</p>
+                  <span class="iIT_gradient-text inline-flex items-center gap-2 text-sm font-semibold transition-all group-hover:gap-3">
+                    Mehr erfahren <Icon name="arrow-right" size={14} class="text-accent" />
+                  </span>
+                </div>
+              </a>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* Stats: Warum gutes Design den Unterschied macht */}
+  <section class="relative overflow-hidden bg-section-alt py-20 lg:py-24">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Zahlen & Fakten</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Warum gutes Design den Unterschied macht</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Der erste Eindruck entsteht in Millisekunden. Ein professionelles Design schafft Vertrauen und macht deine Marke wiedererkennbar.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-6 sm:grid-cols-3">
+        {
+          stats.map((stat, i) => (
+            <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_neu-raised h-full rounded-2xl bg-card p-8 text-center">
+                <div class="iIT_gradient-text mb-2 text-4xl font-extrabold sm:text-5xl">{stat.value}</div>
+                <p class="text-muted/80 text-sm leading-relaxed">{stat.label}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</ServicePage>

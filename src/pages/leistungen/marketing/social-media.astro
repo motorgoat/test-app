@@ -1,0 +1,145 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Social Media – portiert aus SocialMediaGraz (Entwurf).
+   KW: social media agentur graz, social media betreuung graz. */
+
+const channels = [
+  {
+    icon: 'camera',
+    title: 'Instagram',
+    desc: 'Visuelles Storytelling für deine Marke – von Feed-Posts über Reels bis Stories.',
+  },
+  {
+    icon: 'users',
+    title: 'Facebook',
+    desc: 'Community-Aufbau und gezielte Werbeanzeigen für deine Zielgruppe.',
+  },
+  {
+    icon: 'share-2',
+    title: 'LinkedIn',
+    desc: 'B2B-Kommunikation und Employer Branding für Unternehmen und Führungskräfte.',
+  },
+  {
+    icon: 'trending-up',
+    title: 'TikTok',
+    desc: 'Kurze, kreative Videos mit enormer Reichweite – besonders bei jüngeren Zielgruppen.',
+  },
+];
+
+const benefits = [
+  {
+    icon: 'calendar',
+    title: 'Content-Planung',
+    desc: 'Wir erstellen einen Redaktionsplan, der zu deiner Marke passt – mit Themen, die deine Zielgruppe interessieren.',
+  },
+  {
+    icon: 'camera',
+    title: 'Content-Erstellung',
+    desc: 'Texte, Bilder und Videos, die auffallen und Interaktion erzeugen.',
+  },
+  {
+    icon: 'megaphone',
+    title: 'Community Management',
+    desc: 'Wir beantworten Kommentare und Nachrichten – damit deine Community wächst.',
+  },
+  {
+    icon: 'bar-chart-3',
+    title: 'Reporting & Analyse',
+    desc: 'Monatliche Berichte mit allen wichtigen Kennzahlen – Reichweite, Engagement, Wachstum.',
+  },
+  {
+    icon: 'heart',
+    title: 'Influencer Marketing',
+    desc: 'Wir finden die passenden Influencer für deine Marke und koordinieren die Zusammenarbeit.',
+  },
+  {
+    icon: 'message-square',
+    title: 'Social Ads',
+    desc: 'Bezahlte Werbeanzeigen auf Instagram, Facebook und Co. – für mehr Reichweite und Conversions.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet Social Media Betreuung?',
+    answer:
+      'Das hängt vom Umfang ab. Für eine professionelle Betreuung mit 3–4 Posts pro Woche, Community Management und monatlichem Reporting starten unsere Pakete ab ca. 500 € pro Monat.',
+  },
+  {
+    question: 'Wie oft sollte ich posten?',
+    answer:
+      'Das kommt auf den Kanal und deine Zielgruppe an. Generell empfehlen wir 3–5 Posts pro Woche auf Instagram und 2–3 auf Facebook oder LinkedIn.',
+  },
+  {
+    question: 'Kann ich auch nur einzelne Leistungen buchen?',
+    answer:
+      'Natürlich. Du brauchst nur Hilfe bei der Content-Erstellung? Oder nur Social Ads? Wir schnüren dir ein Paket, das genau zu deinen Bedürfnissen passt.',
+  },
+  {
+    question: 'Wie messe ich den Erfolg?',
+    answer:
+      'Wir tracken Reichweite, Engagement, Follower-Wachstum und Conversions. In monatlichen Reports siehst du genau, was funktioniert.',
+  },
+];
+---
+
+<ServicePage
+  title="Social Media Agentur Graz | Betreuung – ident-IT"
+  description="Social Media Agentur in Graz: Content-Erstellung, Community Management & Social Ads für Instagram, Facebook & LinkedIn. Jetzt Beratung anfragen!"
+  badge="Social Media Agentur Graz"
+  subtitle="Deine Kunden sind auf Instagram, Facebook und Co. – bist du es auch? Als Social Media Agentur in Graz übernehmen wir die komplette Betreuung deiner Kanäle."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Marketing', href: '/leistungen/marketing/' },
+    { label: 'Social Media' },
+  ]}
+  serviceName="Social Media Marketing"
+  intro={[
+    'Social Media ist mehr als nur Likes und Follower. Es ist der direkteste Weg, mit deinen Kunden in Kontakt zu treten und Vertrauen aufzubauen. Als <strong class="text-white">Social Media Agentur in Graz</strong> entwickeln wir eine Strategie, die zu deinem Unternehmen passt – und setzen sie komplett für dich um.',
+    'Von der Content-Planung über die Erstellung von Texten, Bildern und Videos bis zum Community Management: Du bekommst alles aus einer Hand und siehst in monatlichen Reports genau, was deine Kanäle bringen.',
+  ]}
+  introHeadline="Social Media Betreuung aus Graz – Strategie statt Zufall"
+  benefits={benefits}
+  benefitsHeadline="Was unsere Social Media Betreuung umfasst"
+  faq={faq}
+  faqHeadline="Häufige Fragen zur Social Media Betreuung"
+  related={[
+    { label: 'Videoproduktion Graz', href: '/leistungen/marketing/videoproduktion/', desc: 'Videos, die auf Social Media funktionieren' },
+    { label: 'Google Ads Agentur Graz', href: '/leistungen/marketing/google-ads/', desc: 'Sofort sichtbar bei Google' },
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Alle Marketing-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit für professionelles Social Media?"
+  ctaText="Lass uns gemeinsam eine Social-Media-Strategie entwickeln, die zu dir und deinem Unternehmen passt."
+>
+  <Fragment slot="h1">Social Media Agentur <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Kanäle */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Kanäle</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Die richtigen Kanäle für dein Unternehmen</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Nicht jeder Kanal passt zu jedem Unternehmen. Wir finden heraus, wo deine Zielgruppe unterwegs ist.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          channels.map((channel, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_neu-raised h-full rounded-2xl bg-card p-6 text-center">
+                <div class="iIT_neu-inset mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                  <Icon name={channel.icon} size={24} class="text-accent" />
+                </div>
+                <h3 class="mb-2 text-lg font-bold text-white">{channel.title}</h3>
+                <p class="text-muted/80 text-sm leading-relaxed">{channel.desc}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</ServicePage>

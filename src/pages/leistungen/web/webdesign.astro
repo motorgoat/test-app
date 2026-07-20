@@ -1,0 +1,207 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Webdesign – portiert aus WebdesignGraz (Entwurf).
+   KW: webdesign graz, website erstellen lassen graz, webdesign agentur graz. */
+
+const websiteTypes = [
+  {
+    icon: 'globe',
+    title: 'Business-Websites',
+    desc: 'Professionelle Unternehmenswebsites, die Vertrauen schaffen und Anfragen generieren.',
+  },
+  {
+    icon: 'shopping-cart',
+    title: 'Webshops & E-Commerce',
+    desc: 'Online-Shops mit WooCommerce oder Shopify – für den Verkauf deiner Produkte im Internet.',
+  },
+  {
+    icon: 'layers',
+    title: 'Landing Pages',
+    desc: 'Conversion-optimierte Landingpages für Kampagnen, Produkte oder Dienstleistungen.',
+  },
+  {
+    icon: 'layout-grid',
+    title: 'Web-Applikationen',
+    desc: 'Individuelle Webanwendungen und Portale – maßgeschneidert auf deine Anforderungen.',
+  },
+];
+
+const benefits = [
+  {
+    icon: 'smartphone',
+    title: 'Responsive Design',
+    desc: 'Deine Website sieht auf jedem Gerät perfekt aus – ob Smartphone, Tablet oder Desktop. Mobile-First ist bei uns Standard.',
+  },
+  {
+    icon: 'zap',
+    title: 'Schnelle Ladezeiten',
+    desc: 'Niemand wartet gerne. Wir optimieren deine Seite für maximale Geschwindigkeit und beste Core Web Vitals.',
+  },
+  {
+    icon: 'search',
+    title: 'SEO-optimiert',
+    desc: 'Deine Website wird so gebaut, dass Google sie liebt – für bessere Rankings und mehr organischen Traffic von Anfang an.',
+  },
+  {
+    icon: 'shield-check',
+    title: 'Sicher & DSGVO-konform',
+    desc: 'SSL-Verschlüsselung, Cookie-Banner und Datenschutz – alles nach österreichischem und EU-Recht.',
+  },
+  {
+    icon: 'palette',
+    title: 'Individuelles Design',
+    desc: 'Kein Template von der Stange. Wir gestalten deine Website so, dass sie zu dir, deiner Marke und deiner Zielgruppe passt.',
+  },
+  {
+    icon: 'monitor',
+    title: 'CMS & Selbstverwaltung',
+    desc: 'Mit WordPress oder einem anderen CMS kannst du Inhalte selbst ändern – ganz ohne Programmierkenntnisse.',
+  },
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Erstgespräch',
+    desc: 'Du erzählst Philipp von deinem Projekt: Ziele, Zielgruppe, Wünsche. Danach bekommst du ein klares Angebot mit Fixpreis – kostenlos und unverbindlich.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Konzept & Design',
+    desc: 'Wir entwickeln Struktur, Texte und Design deiner Website. Du gibst Feedback, wir verfeinern – bis alles passt.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Launch',
+    desc: 'Deine Website geht live: technisch sauber, SEO-optimiert und auf allen Geräten getestet. Auf Wunsch betreuen wir sie danach laufend weiter.',
+  },
+];
+
+const prices = [
+  { label: 'Business-Website', price: 'ab 2.000 €' },
+  { label: 'Onlineshop (WooCommerce)', price: 'ab 4.900 €' },
+  { label: 'Individuelle Projekte', price: 'auf Anfrage' },
+];
+
+const faq = [
+  {
+    question: 'Was kostet eine Website?',
+    answer:
+      'Die Kosten für professionelles Webdesign in Graz hängen vom Umfang ab. Eine einfache Business-Website startet bei uns ab ca. 2.000 €. Webshops und komplexere Projekte können je nach Funktionsumfang mehr kosten. Im kostenlosen Erstgespräch erstellen wir dir ein individuelles Angebot.',
+  },
+  {
+    question: 'Wie lange dauert die Erstellung einer Website in Graz?',
+    answer:
+      'Eine typische Business-Website ist in 4–6 Wochen fertig. Webshops und komplexere Projekte benötigen 8–12 Wochen. Den genauen Zeitplan stimmen wir im Erstgespräch mit dir ab.',
+  },
+  {
+    question: 'Wird meine Website für Google optimiert?',
+    answer:
+      'Ja, jede Website von ident-IT wird von Grund auf SEO-optimiert. Das umfasst technisches SEO, saubere URL-Strukturen, schnelle Ladezeiten, Meta-Tags und strukturierte Daten. Für weiterführende SEO-Maßnahmen bieten wir auch laufende Suchmaschinenoptimierung an.',
+  },
+  {
+    question: 'Kann ich meine Website selbst bearbeiten?',
+    answer:
+      'Ja, wir setzen auf Content-Management-Systeme wie WordPress, mit denen du Texte, Bilder und Inhalte selbst ändern kannst – ganz ohne Programmierkenntnisse. Wir schulen dich auch gerne ein.',
+  },
+  {
+    question: 'Erstellt ident-IT auch Webshops?',
+    answer:
+      'Ja, wir erstellen professionelle Webshops mit WooCommerce oder Shopify. Von der Produktpflege über Zahlungsabwicklung bis zur Versandintegration – das erledigen wir komplett für dich.',
+  },
+];
+---
+
+<ServicePage
+  title="Webdesign Graz | Website erstellen lassen – ident-IT"
+  description="Webdesign aus Graz: responsive, SEO-optimiert und ab 2.000 €. Lass dir deine Website von ident-IT erstellen – jetzt kostenloses Erstgespräch sichern!"
+  badge="Webdesign Graz"
+  subtitle="Du brauchst eine neue Website oder einen Webshop? Als Webdesign-Agentur in Graz erstellen wir dir eine Seite, die nicht nur gut aussieht, sondern auch Kunden bringt. Modern, schnell und SEO-optimiert."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Web', href: '/leistungen/web/' },
+    { label: 'Webdesign' },
+  ]}
+  serviceName="Webdesign"
+  intro={[
+    'Eine professionelle Website ist heute das Fundament deines Geschäftserfolgs. Als <strong class="text-white">Webdesign-Agentur in Graz</strong> entwickeln wir Websites, die nicht nur visuell beeindrucken, sondern auch messbare Ergebnisse liefern. Jede Website, die wir erstellen, ist responsive, SEO-optimiert und auf Conversion ausgelegt.',
+    'Ob du eine neue Unternehmenswebsite brauchst, deinen bestehenden Webauftritt modernisieren möchtest oder einen Online-Shop starten willst – wir begleiten dich von der ersten Idee bis zum erfolgreichen Launch und darüber hinaus. Dabei setzen wir auf bewährte Technologien wie WordPress, Shopify oder individuelle Lösungen. Seit 2018 haben wir so über 100 Kunden aus Graz und der Steiermark zu einem starken Webauftritt verholfen.',
+  ]}
+  introHeadline="Webdesign-Agentur in Graz – Websites, die verkaufen"
+  benefits={benefits}
+  benefitsHeadline="Was jede Website von uns mitbringt"
+  benefitsEyebrow="Standards inklusive"
+  process={process}
+  processHeadline="In 3 Schritten zu deiner Website"
+  faq={faq}
+  faqHeadline="FAQ – Webdesign Graz"
+  related={[
+    { label: 'Was kostet eine Website?', href: '/website-kosten/', desc: 'Preise & Beispiele transparent erklärt' },
+    { label: 'Wartung & Hosting', href: '/leistungen/web/wartung/', desc: 'Deine Website sicher betreut ab 14,99 €' },
+    { label: 'SEO Agentur Graz', href: '/leistungen/marketing/seo/', desc: 'Mehr Sichtbarkeit für deine neue Website' },
+  ]}
+  ctaTitle="Bereit für deine neue Website?"
+  ctaText="Erzähl uns von deinem Projekt – das Erstgespräch ist kostenlos und unverbindlich. Als Webdesign-Agentur in Graz freuen wir uns auf deine Anfrage."
+>
+  <Fragment slot="h1">Webdesign Graz – Deine <span class="iIT_gradient-text">professionelle Website</span></Fragment>
+
+  {/* Website-Typen */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Projekte</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Welche Website brauchst du?</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Wir erstellen verschiedene Arten von Websites – immer individuell auf deine Bedürfnisse zugeschnitten.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-6 sm:grid-cols-2">
+        {
+          websiteTypes.map((type, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 2) * 100}ms`}>
+              <div class="iIT_gradient-border iIT_neu-raised h-full rounded-2xl bg-card p-6">
+                <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                  <Icon name={type.icon} size={24} class="text-accent" />
+                </div>
+                <h3 class="mb-2 text-lg font-bold text-white">{type.title}</h3>
+                <p class="text-muted/80 text-sm leading-relaxed">{type.desc}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* Preisindikation */}
+  <section class="relative overflow-hidden bg-section-alt py-20 lg:py-24">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-10 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Preise</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Was kostet eine Website in Graz?</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Transparente Fixpreise statt böser Überraschungen – nach dem Erstgespräch weißt du genau, was dein Projekt kostet.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-6 sm:grid-cols-3">
+        {
+          prices.map((item, i) => (
+            <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_neu-raised h-full rounded-2xl bg-card p-8 text-center">
+                <p class="text-muted/80 mb-2 text-sm font-semibold">{item.label}</p>
+                <p class="iIT_gradient-text text-3xl font-extrabold">{item.price}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+      <p class="iIT_reveal text-muted/80 mt-8 text-center text-sm">
+        Alle Details und Beispiele findest du auf unserer Seite
+        <a href="/website-kosten/" class="text-accent underline">Was kostet eine Website?</a>
+      </p>
+    </div>
+  </section>
+</ServicePage>

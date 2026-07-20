@@ -1,0 +1,186 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/PageHero.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import CtaSection from '../../components/CtaSection.astro';
+import Icon from '../../components/Icon.astro';
+
+/* Leistungen-Übersicht – Inhalte sinngemäß aus Leistungen.tsx (Entwurf).
+   Drei Säulen (Marketing / Grafik / Web) mit allen verlinkten Unterseiten. */
+
+interface PillarCard {
+  icon: string;
+  title: string;
+  desc: string;
+  href: string;
+}
+
+interface Pillar {
+  eyebrow: string;
+  title: string;
+  text: string;
+  href: string;
+  linkLabel: string;
+  cards: PillarCard[];
+}
+
+const pillars: Pillar[] = [
+  {
+    eyebrow: 'SEO, Google Ads & Social Media',
+    title: 'Marketing',
+    text: 'Damit deine Kunden dich finden – nicht die Konkurrenz. Wir bringen dein Unternehmen an die Spitze der Suchergebnisse und auf die Feeds deiner Zielgruppe.',
+    href: '/leistungen/marketing/',
+    linkLabel: 'Alle Marketing-Leistungen',
+    cards: [
+      {
+        icon: 'trending-up',
+        title: 'Online Marketing',
+        desc: 'Strategie, Kampagnenplanung und laufende Betreuung – messbar statt Bauchgefühl.',
+        href: '/leistungen/marketing/online-marketing/',
+      },
+      {
+        icon: 'search',
+        title: 'SEO',
+        desc: 'Bessere Google-Rankings für dein Unternehmen – inklusive Local SEO für Graz.',
+        href: '/leistungen/marketing/seo/',
+      },
+      {
+        icon: 'target',
+        title: 'Google Ads',
+        desc: 'Gezielte Werbeanzeigen, die genau die richtigen Leute erreichen – ab Tag 1.',
+        href: '/leistungen/marketing/google-ads/',
+      },
+      {
+        icon: 'megaphone',
+        title: 'Social Media',
+        desc: 'Wir übernehmen deine Kanäle – von der Strategie bis zum Posting.',
+        href: '/leistungen/marketing/social-media/',
+      },
+      {
+        icon: 'video',
+        title: 'Videoproduktion',
+        desc: 'Imagefilme, Werbespots und Social-Media-Videos – gedreht in Graz.',
+        href: '/leistungen/marketing/videoproduktion/',
+      },
+    ],
+  },
+  {
+    eyebrow: 'Deine visuelle Identität',
+    title: 'Grafik & Branding',
+    text: 'Ein starkes Branding bleibt im Kopf. Wir entwickeln Logos, Visitenkarten, Flyer und alles, was deine Marke unverwechselbar macht.',
+    href: '/leistungen/grafik/',
+    linkLabel: 'Alle Grafik-Leistungen',
+    cards: [
+      {
+        icon: 'sparkles',
+        title: 'Branding',
+        desc: 'Markenstrategie, Logo-Design und Corporate Identity aus einer Hand.',
+        href: '/leistungen/grafik/branding/',
+      },
+      {
+        icon: 'printer',
+        title: 'Drucksorten',
+        desc: 'Visitenkarten, Flyer, Folder und Kataloge – gestaltet und gedruckt.',
+        href: '/leistungen/grafik/drucksorten/',
+      },
+      {
+        icon: 'car',
+        title: 'Beschriftungen',
+        desc: 'Fahrzeugbeschriftung, Autobeklebung und Schaufensterbeschriftung.',
+        href: '/leistungen/grafik/beschriftungen/',
+      },
+    ],
+  },
+  {
+    eyebrow: 'Websites & Webshops',
+    title: 'Web',
+    text: 'Eine Website, die gut aussieht und Kunden bringt. Wir bauen dir eine Seite, die auf jedem Gerät funktioniert und dein Business voranbringt.',
+    href: '/leistungen/web/',
+    linkLabel: 'Alle Web-Leistungen',
+    cards: [
+      {
+        icon: 'monitor',
+        title: 'Webdesign',
+        desc: 'Responsive Websites mit WordPress – schnell, sicher und SEO-optimiert.',
+        href: '/leistungen/web/webdesign/',
+      },
+      {
+        icon: 'shopping-cart',
+        title: 'Onlineshop',
+        desc: 'Webshops mit WooCommerce – inklusive Zahlung, Versand und Schulung.',
+        href: '/leistungen/web/onlineshop/',
+      },
+      {
+        icon: 'shield',
+        title: 'Wartung & Hosting',
+        desc: 'EU-Hosting, tägliche Backups und Updates – deine Website in sicheren Händen.',
+        href: '/leistungen/web/wartung/',
+      },
+    ],
+  },
+];
+---
+
+<Layout
+  title="Leistungen | ident-IT – Werbeagentur Graz"
+  description="Alle Leistungen von ident-IT in Graz: Webdesign, SEO, Google Ads, Social Media & Grafikdesign aus einer Hand. Jetzt kostenloses Erstgespräch vereinbaren!"
+>
+  <PageHero
+    badge="Leistungen"
+    subtitle="Webdesign, Online Marketing oder Grafikdesign – bei uns bekommst du alles aus einer Hand. Kein Fachchinesisch, keine Umwege. Einfach Lösungen, die funktionieren."
+  >
+    <Breadcrumb slot="breadcrumb" items={[{ label: 'Leistungen' }]} />
+    <Fragment slot="title">Was wir für dich <span class="iIT_gradient-text">tun</span></Fragment>
+  </PageHero>
+
+  {
+    pillars.map((pillar, pi) => (
+      <section class={`relative overflow-hidden py-20 lg:py-24 ${pi % 2 === 0 ? 'bg-base' : 'bg-section'}`}>
+        {pi > 0 && <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true" />}
+        <div class="iIT_container">
+          <div class="iIT_reveal mx-auto mb-12 max-w-2xl text-center">
+            <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">
+              {pillar.eyebrow}
+            </span>
+            <h2 class="mb-4 text-3xl font-extrabold text-white sm:text-4xl">{pillar.title}</h2>
+            <p class="text-muted/80 leading-relaxed">{pillar.text}</p>
+          </div>
+          <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {pillar.cards.map((card, i) => (
+              <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 3) * 100}ms`}>
+                <a href={card.href} class="group block h-full">
+                  <div class="iIT_neu-clickable h-full rounded-2xl bg-card p-6">
+                    <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                      <Icon name={card.icon} size={24} class="text-accent" />
+                    </div>
+                    <h3 class="mb-2 text-lg font-bold text-white transition-colors group-hover:text-accent">
+                      {card.title}
+                    </h3>
+                    <p class="text-muted/80 mb-4 text-sm leading-relaxed">{card.desc}</p>
+                    <span class="iIT_gradient-text inline-flex items-center gap-2 text-sm font-semibold transition-all group-hover:gap-3">
+                      Mehr erfahren <Icon name="arrow-right" size={14} class="text-accent" />
+                    </span>
+                  </div>
+                </a>
+              </div>
+            ))}
+          </div>
+          <div class="iIT_reveal mt-10 text-center">
+            <a
+              href={pillar.href}
+              class="iIT_gradient-text inline-flex items-center gap-2 text-sm font-semibold transition-all hover:gap-3"
+            >
+              {pillar.linkLabel}
+              <Icon name="arrow-right" size={16} class="text-accent" />
+            </a>
+          </div>
+        </div>
+      </section>
+    ))
+  }
+
+  <CtaSection
+    title="Welche Leistung brauchst du?"
+    text="Lass uns in einem kostenlosen Erstgespräch herausfinden, welche Lösung am besten zu dir passt."
+  />
+</Layout>

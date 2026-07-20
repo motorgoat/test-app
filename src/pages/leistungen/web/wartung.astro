@@ -1,0 +1,194 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import PriceTable from '../../../components/PriceTable.astro';
+import type { PricePlan } from '../../../components/PriceTable.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Wartung & Hosting – Inhalte 1:1 aus wartung-seite_inhalt-referenz.md
+   (Live-Seite /pakete/website-wartung/), Paketnamen vereinheitlicht auf
+   Solo / Wartung / Standard / Premium, Uptime-Monitoring ab Standard. */
+
+const plans: PricePlan[] = [
+  {
+    name: 'Solo',
+    label: 'Webspace – nur Hosting & Domain',
+    price: '14,99 €',
+    oldPrice: '29,99 €',
+    features: [
+      'EU-Server, DSGVO-konform',
+      'Domain inkl. (.at oder .com)',
+      'Bis 5 E-Mail-Adressen',
+      'SSL-Zertifikat',
+      'Tägliche Backups',
+      '5 GB Website-Speicher',
+      'Persönlicher Ansprechpartner',
+    ],
+    ctaHref: '/kontakt/?paket=solo',
+  },
+  {
+    name: 'Wartung',
+    label: 'Sicherheit – inkl. Hosting & Domain',
+    price: '69 €',
+    features: [
+      'Alles aus Solo',
+      'Monatliche WordPress-Updates',
+      'PHP-Updates',
+      'Backup-Wiederherstellung',
+      'Check & Fix nach Updates',
+      '10 GB Website-Speicher',
+    ],
+    ctaHref: '/kontakt/?paket=wartung',
+  },
+  {
+    name: 'Standard',
+    label: 'Betreuung – inkl. Hosting & Domain',
+    price: '99 €',
+    highlight: true,
+    features: [
+      'Alles aus Wartung',
+      'Cloudflare inklusive',
+      'Uptime-Monitoring',
+      'Fehlerüberwachung',
+      '1 Std. Änderungen pro Monat',
+      'Prioritäts-Support',
+      '20 GB Website-Speicher',
+    ],
+    ctaHref: '/kontakt/?paket=standard',
+  },
+  {
+    name: 'Premium',
+    label: 'Rundum-Schutz – inkl. Hosting & Domain',
+    price: '199 €',
+    features: [
+      'Alles aus Standard',
+      'Malware-Scan & Bereinigung',
+      'Datenschutzlizenz (DSGVO & Cookiebanner)',
+      'Monatliches Reporting',
+      'Quartals-Performance-Check',
+      '2 Std. Änderungen pro Monat',
+      '40 GB Website-Speicher',
+    ],
+    ctaHref: '/kontakt/?paket=premium',
+  },
+];
+
+const addons = [
+  { icon: 'cloud', title: 'Cloudflare CDN', desc: 'DDoS-Schutz, schnelleres Laden weltweit', price: '+4,90 €/Mo.' },
+  { icon: 'scale', title: 'Abmahnschutz', desc: 'Rechtssichere Impressum- & Datenschutzvorlagen', price: '+4,90 €/Mo.' },
+  { icon: 'mail', title: 'Mail Premium', desc: 'Bis 3 Domains, bis 15 Postfächer', price: '+9 €/Mo.' },
+  { icon: 'hard-drive', title: 'Extra Speicher', desc: 'Zusätzliche 10 GB Webspace', price: '+2 €/Mo.' },
+  { icon: 'globe', title: 'Extra Domain + SSL', desc: 'Weitere Domain verwalten & hosten', price: '+3 €/Mo.' },
+  { icon: 'lock', title: 'Datenschutzlizenz', desc: 'DSGVO-Anpassungen & Cookiebanner', price: '+9,90 €/Mo.' },
+];
+
+const trustBadges = ['EU-Server', 'DSGVO-konform', 'E-Mail-Adressen inkl.', 'Persönlicher Support'];
+
+const faq = [
+  {
+    question: 'Was ist der Unterschied zwischen Solo und Wartung?',
+    answer:
+      'Beim Solo-Paket bist du selbst für Updates, Sicherheit und Backups verantwortlich. Beim Wartungs-Paket erledigen wir monatlich alle Updates (z. B. WordPress, Plugins, Themes, Server), machen tägliche Backups und betreuen deine Mailadressen – du musst nichts weiter tun.',
+  },
+  {
+    question: 'Kann ich meinen bestehenden Hoster wechseln?',
+    answer:
+      'Ja, wir übernehmen den kompletten Umzug deiner Website auf unsere Server – inkl. Domain-Transfer, E-Mail-Migration und Test der neuen Umgebung. Der Umzug ist in der Regel kostenfrei bei Abschluss eines Betreuungspakets.',
+  },
+  {
+    question: 'Was passiert, wenn meine Website gehackt wird?',
+    answer:
+      'Ab dem Standard-Paket überwachen wir, ob deine Website erreichbar ist (Uptime-Monitoring), und prüfen zusätzlich auf Fehler. Im Premium-Paket ist außerdem ein regelmäßiger Malware-Scan inkludiert. Bei einem Vorfall stellen wir deine Website aus einem täglichen Backup wieder her.',
+  },
+  {
+    question: 'Wie funktioniert die Abrechnung?',
+    answer:
+      'Alle Pakete haben eine Mindestlaufzeit von 12 Monaten. Der Betrag wird bequem monatlich per SEPA-Lastschrift eingezogen – kein manuelles Überweisen, kein Aufwand.',
+  },
+  {
+    question: 'Was bedeutet „1 Stunde Änderungen pro Monat"?',
+    answer:
+      'Du kannst uns monatlich bis zu 1 Stunde mit kleinen Anpassungen beauftragen – z. B. Texte ändern, Bilder austauschen, neue Seiten anlegen. Nicht genutzte Stunden verfallen. Benötigst du mehr, sprechen wir das gerne individuell ab.',
+  },
+  {
+    question: 'Was ist Cloudflare und warum ist das wichtig?',
+    answer:
+      'Cloudflare ist ein weltweit führendes CDN (Content Delivery Network). Es sorgt dafür, dass deine Website schneller lädt, und schützt vor DDoS-Angriffen. Cloudflare ist auch als optionales Add-on zubuchbar.',
+  },
+];
+---
+
+<ServicePage
+  title="Website-Wartung & Hosting Graz | ident-IT"
+  description="EU-Hosting mit täglichen Backups, monatlichen Updates und persönlichem Ansprechpartner in Graz. Pakete ab 14,99 €/Monat – jetzt unverbindlich anfragen!"
+  badge="Hosting & Betreuung"
+  subtitle="Professionelles Hosting auf EU-Servern mit täglichen Backups, monatlichen Updates und einem persönlichen Ansprechpartner in Graz."
+  crumbs={[{ label: 'Leistungen', href: '/leistungen/' }, { label: 'Web', href: '/leistungen/web/' }, { label: 'Wartung & Hosting' }]}
+  serviceName="Website-Wartung & Hosting"
+  faq={faq}
+  faqHeadline="Häufige Fragen zu Wartung & Hosting"
+  related={[
+    { label: 'Webdesign Graz', href: '/leistungen/web/webdesign/', desc: 'Deine neue Website – schnell & sichtbar' },
+    { label: 'Onlineshop erstellen', href: '/leistungen/web/onlineshop/', desc: 'E-Commerce mit WooCommerce' },
+    { label: 'SEO Agentur Graz', href: '/leistungen/marketing/seo/', desc: 'Bessere Rankings für deine Website' },
+  ]}
+  ctaTitle="Deine Website in sicheren Händen?"
+  ctaText="Sag uns kurz, welches Paket dich interessiert – wir melden uns noch am selben Werktag. Der Umzug von deinem alten Hoster ist meist kostenlos."
+>
+  <Fragment slot="h1">Deine Website. <span class="iIT_gradient-text">Sicher & schnell.</span></Fragment>
+
+  {/* Tarife */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24" id="tarife">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-6 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Tarife</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Wähle dein Paket</h2>
+      </div>
+      <div class="iIT_reveal mb-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+        {
+          trustBadges.map((badge) => (
+            <span class="text-muted/80 flex items-center gap-1.5 text-sm">
+              <Icon name="check-circle-2" size={15} class="text-accent" />
+              {badge}
+            </span>
+          ))
+        }
+      </div>
+      <div class="iIT_reveal">
+        <PriceTable plans={plans} />
+      </div>
+      <p class="text-muted/80 mt-8 text-center text-xs">
+        Alle Preise exkl. 20 % USt. · 12 Monate Mindestlaufzeit · Monatlicher SEPA-Lastschrift-Einzug
+      </p>
+    </div>
+  </section>
+
+  {/* Add-ons */}
+  <section class="relative overflow-hidden bg-section-alt py-20 lg:py-24">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Add-ons</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Extras für dein Paket</h2>
+      </div>
+      <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          addons.map((addon, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 3) * 100}ms`}>
+              <div class="iIT_neu-raised flex h-full flex-col rounded-2xl bg-card p-6">
+                <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                  <Icon name={addon.icon} size={24} class="text-accent" />
+                </div>
+                <h3 class="mb-1 text-lg font-bold text-white">{addon.title}</h3>
+                <p class="text-muted/80 mb-4 flex-1 text-sm leading-relaxed">{addon.desc}</p>
+                <p class="iIT_gradient-text text-lg font-extrabold">{addon.price}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+      <p class="iIT_reveal text-muted/80 mt-10 text-center text-sm">
+        Fragen? Schreib uns oder ruf an: <a href="tel:+436609449688" class="text-accent underline">+43 660 94 49 688</a>
+      </p>
+    </div>
+  </section>
+</ServicePage>

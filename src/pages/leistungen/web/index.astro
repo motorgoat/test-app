@@ -1,0 +1,129 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Pillar „Web" – KW: webagentur graz, website erstellen lassen graz.
+   Verlinkt alle Unterseiten der Säule (Silo-Struktur). */
+
+const services = [
+  {
+    icon: 'monitor',
+    title: 'Webdesign',
+    desc: 'Websites, die gut aussehen und Kunden bringen: responsive, schnell und SEO-optimiert – ab 2.000 €.',
+    href: '/leistungen/web/webdesign/',
+  },
+  {
+    icon: 'shopping-cart',
+    title: 'Onlineshop',
+    desc: 'Verkaufe deine Produkte online: Webshops mit WooCommerce inklusive Zahlung, Versand und Schulung – ab 4.900 €.',
+    href: '/leistungen/web/onlineshop/',
+  },
+  {
+    icon: 'shield',
+    title: 'Wartung & Hosting',
+    desc: 'EU-Hosting, tägliche Backups und monatliche Updates: Deine Website in sicheren Händen – ab 14,99 €/Monat.',
+    href: '/leistungen/web/wartung/',
+  },
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Erstgespräch',
+    desc: 'Du erzählst uns von deinem Projekt, wir hören zu und beraten ehrlich. Danach bekommst du ein klares Angebot mit Fixpreis.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Konzept & Umsetzung',
+    desc: 'Wir entwickeln Struktur, Design und Inhalte deiner Website oder deines Shops – mit Feedbackrunden, bis alles passt.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Launch & Betreuung',
+    desc: 'Deine Seite geht live – technisch sauber und SEO-optimiert. Auf Wunsch betreuen wir sie danach laufend mit Hosting und Wartung.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet eine Website bei einer Webagentur in Graz?',
+    answer:
+      'Eine professionelle Business-Website startet bei uns ab ca. 2.000 €, Onlineshops ab 4.900 €. Der genaue Preis hängt vom Umfang ab – nach dem kostenlosen Erstgespräch bekommst du ein Angebot mit Fixpreis, ohne versteckte Kosten.',
+  },
+  {
+    question: 'Mit welchen Systemen arbeitet ihr?',
+    answer:
+      'Hauptsächlich mit WordPress und WooCommerce – bewährt, flexibel und von dir selbst pflegbar. Für spezielle Anforderungen setzen wir auch auf Shopify oder individuelle Lösungen. Wir empfehlen dir das System, das zu deinem Projekt passt, nicht das teuerste.',
+  },
+  {
+    question: 'Betreut ihr meine Website auch nach dem Launch?',
+    answer:
+      'Ja. Mit unseren Wartungs- und Hosting-Paketen erledigen wir Updates, Backups und Sicherheit laufend für dich – auf EU-Servern, mit persönlichem Ansprechpartner in Graz. So bleibt deine Website schnell und sicher.',
+  },
+  {
+    question: 'Wie lange dauert ein Website-Projekt?',
+    answer:
+      'Eine typische Business-Website ist in 4–6 Wochen online, Onlineshops und größere Projekte brauchen 8–12 Wochen. Den genauen Zeitplan legen wir gemeinsam im Erstgespräch fest.',
+  },
+];
+---
+
+<ServicePage
+  title="Webagentur Graz | Websites, Shops & Wartung – ident-IT"
+  description="Deine Webagentur in Graz: Webdesign, Onlineshops & Wartung aus einer Hand – schnell, sicher und SEO-optimiert. Jetzt Projekt unverbindlich besprechen!"
+  badge="Web"
+  subtitle="Websites, Onlineshops und laufende Betreuung: Wir bauen deinen Webauftritt und halten ihn schnell, sicher und sichtbar – alles aus einer Hand in Graz."
+  crumbs={[{ label: 'Leistungen', href: '/leistungen/' }, { label: 'Web' }]}
+  serviceName="Webdesign & Webentwicklung"
+  intro={[
+    'Du suchst eine <strong class="text-white">Webagentur in Graz</strong>, die dir nicht nur eine schöne Website baut, sondern auch dafür sorgt, dass sie gefunden wird und läuft? Seit 2018 entwickeln wir Websites und Onlineshops für Unternehmen aus Graz und der Steiermark – über 100 Kunden vertrauen mittlerweile auf uns.',
+    'Das Besondere: Bei uns endet die Zusammenarbeit nicht mit dem Launch. Hosting, Wartung, SEO und Marketing kommen aus demselben Haus – du hast einen Ansprechpartner für alles rund um deinen Webauftritt.',
+  ]}
+  introHeadline="Webagentur Graz – von der ersten Idee bis zum laufenden Betrieb"
+  process={process}
+  processHeadline="So läuft dein Web-Projekt ab"
+  faq={faq}
+  faqHeadline="FAQ – Webagentur Graz"
+  related={[
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Sichtbarkeit für deine neue Website' },
+    { label: 'Grafik & Branding', href: '/leistungen/grafik/', desc: 'Ein Auftritt, der im Kopf bleibt' },
+    { label: 'Referenzen', href: '/referenzen/', desc: 'Projekte, die für uns sprechen' },
+  ]}
+  ctaTitle="Bereit für deinen neuen Webauftritt?"
+  ctaText="Erzähl uns von deinem Projekt – das Erstgespräch ist kostenlos und unverbindlich. Wir melden uns noch am selben Werktag."
+>
+  <Fragment slot="h1">Deine Webagentur in <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Unterseiten der Säule */}
+  <section class="relative overflow-hidden bg-section py-20 lg:py-24">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Leistungen</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Unsere Web-Leistungen im Überblick</h2>
+      </div>
+      <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          services.map((service, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 3) * 100}ms`}>
+              <a href={service.href} class="group block h-full">
+                <div class="iIT_neu-clickable h-full rounded-2xl bg-card p-6">
+                  <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                    <Icon name={service.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="mb-2 text-lg font-bold text-white transition-colors group-hover:text-accent">
+                    {service.title}
+                  </h3>
+                  <p class="text-muted/80 mb-4 text-sm leading-relaxed">{service.desc}</p>
+                  <span class="iIT_gradient-text inline-flex items-center gap-2 text-sm font-semibold transition-all group-hover:gap-3">
+                    Mehr erfahren <Icon name="arrow-right" size={14} class="text-accent" />
+                  </span>
+                </div>
+              </a>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</ServicePage>

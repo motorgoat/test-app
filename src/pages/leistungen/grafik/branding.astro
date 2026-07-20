@@ -1,0 +1,192 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Branding – portiert aus BrandingGraz (Entwurf).
+   KW: branding agentur graz, markenentwicklung graz, corporate identity graz. */
+
+const benefits = [
+  {
+    icon: 'target',
+    title: 'Markenstrategie',
+    desc: 'Bevor wir designen, denken wir. Wir analysieren deine Zielgruppe, deinen Wettbewerb und deine Positionierung – und entwickeln eine Strategie, die deine Marke klar differenziert.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Logo-Design',
+    desc: 'Dein Logo ist das Herzstück deiner Marke. Wir entwickeln ein Zeichen, das deine Werte transportiert, auf jedem Medium funktioniert und im Kopf bleibt.',
+  },
+  {
+    icon: 'layers',
+    title: 'Corporate Identity',
+    desc: 'Farben, Schriften, Bildsprache, Tonalität – wir definieren alle Elemente, die deine Marke einheitlich und wiedererkennbar machen. Dokumentiert in einem Brand Manual.',
+  },
+  {
+    icon: 'book-open',
+    title: 'Brand Guidelines',
+    desc: 'Damit deine Marke konsistent bleibt, erstellen wir ein detailliertes Brand Manual mit allen Regeln für die Anwendung deines Corporate Designs.',
+  },
+  {
+    icon: 'eye',
+    title: 'Visuelles Storytelling',
+    desc: 'Bilder sagen mehr als Worte. Wir entwickeln eine visuelle Sprache, die deine Markengeschichte erzählt und Emotionen weckt.',
+  },
+  {
+    icon: 'sparkles',
+    title: 'Rebranding',
+    desc: 'Deine Marke braucht ein Update? Wir modernisieren dein Erscheinungsbild, ohne die Wiedererkennung zu verlieren – behutsam und strategisch.',
+  },
+];
+
+const comparison = [
+  {
+    icon: 'layers',
+    title: 'Branding',
+    points: [
+      'Definiert WER du bist als Marke',
+      'Strategie, Positionierung & Werte',
+      'Langfristige Markenidentität',
+      'Emotionale Verbindung zur Zielgruppe',
+      'Grundlage für alles weitere Design',
+    ],
+  },
+  {
+    icon: 'palette',
+    title: 'Grafikdesign',
+    points: [
+      'Setzt die Marke visuell um',
+      'Konkrete Designs & Drucksorten',
+      'Einzelne Projekte & Materialien',
+      'Visitenkarten, Flyer, Plakate',
+      'Baut auf dem Branding auf',
+    ],
+  },
+];
+
+const process = [
+  {
+    icon: 'search',
+    title: 'Discovery & Analyse',
+    desc: 'Wir tauchen tief in dein Unternehmen ein. Wer bist du? Wer sind deine Kunden? Was macht dich einzigartig? Diese Phase bildet das Fundament für alles, was folgt.',
+  },
+  {
+    icon: 'target',
+    title: 'Strategie & Positionierung',
+    desc: 'Basierend auf der Analyse definieren wir deine Markenpositionierung, deine Kernbotschaften und die emotionale Richtung deiner Marke.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Design & Kreation',
+    desc: 'Jetzt wird es visuell: Logo-Entwürfe, Farbpaletten, Typografie und Bildwelten entstehen. Du bekommst mehrere Konzepte zur Auswahl.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Verfeinerung & Rollout',
+    desc: 'Das gewählte Konzept wird verfeinert und in alle Anwendungen übertragen – von der Visitenkarte bis zur Website. Dazu gibt es ein Brand Manual.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet ein Branding-Projekt?',
+    answer:
+      'Das hängt vom Umfang ab. Ein einfaches Logo-Design startet bei ca. 800 €, ein komplettes Branding-Paket mit Strategie, Logo, Corporate Identity und Brand Manual liegt typischerweise zwischen 2.500 € und 8.000 €. Im kostenlosen Erstgespräch besprechen wir, was du brauchst und was es kostet.',
+  },
+  {
+    question: 'Wie lange dauert ein Branding-Prozess?',
+    answer:
+      'Ein komplettes Branding-Projekt dauert in der Regel 4–8 Wochen. Das hängt von der Komplexität und der Anzahl der Feedbackrunden ab. Ein reines Logo-Design kann auch in 2–3 Wochen fertig sein.',
+  },
+  {
+    question: 'Brauche ich Branding, wenn ich schon ein Logo habe?',
+    answer:
+      'Ein Logo allein ist noch kein Branding. Wenn du das Gefühl hast, dass dein Auftritt nicht einheitlich ist, deine Marke nicht klar kommuniziert oder du dich nicht von der Konkurrenz abhebst, kann ein professionelles Branding den Unterschied machen.',
+  },
+  {
+    question: 'Was ist in einem Brand Manual enthalten?',
+    answer:
+      'Ein Brand Manual dokumentiert alle Regeln für die Anwendung deiner Marke: Logo-Varianten und Schutzzone, Farbpalette mit Farbcodes, Typografie-Regeln, Bildsprache, Tonalität und Anwendungsbeispiele für verschiedene Medien.',
+  },
+  {
+    question: 'Kann ich auch nur ein Rebranding machen lassen?',
+    answer:
+      'Natürlich. Viele unserer Kunden kommen zu uns, weil ihr bestehendes Branding in die Jahre gekommen ist. Wir analysieren, was funktioniert und was nicht, und modernisieren deine Marke behutsam – ohne die Wiedererkennung zu verlieren.',
+  },
+];
+---
+
+<ServicePage
+  title="Branding Agentur Graz | Logo & Corporate Design – ident-IT"
+  description="Branding Agentur in Graz: Markenstrategie, Logo-Design & Corporate Identity, die im Kopf bleibt. Jetzt kostenloses Branding-Gespräch vereinbaren!"
+  badge="Branding Agentur Graz"
+  subtitle="Eine Marke ist mehr als ein Logo. Sie ist das Gefühl, das Menschen mit deinem Unternehmen verbinden. Als Branding Agentur in Graz entwickeln wir Marken, die im Kopf bleiben und Vertrauen schaffen."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Grafik', href: '/leistungen/grafik/' },
+    { label: 'Branding' },
+  ]}
+  serviceName="Branding & Markenentwicklung"
+  intro={[
+    'Branding umfasst alles, was deine Marke ausmacht: vom Logo über die Farbpalette und Typografie bis hin zur Tonalität deiner Kommunikation. Es ist die Summe aller Eindrücke, die Menschen von deinem Unternehmen haben.',
+    'Als <strong class="text-white">Branding Agentur in Graz</strong> helfen wir dir, diese Eindrücke bewusst zu gestalten. Wir entwickeln eine Markenidentität, die authentisch ist, sich von der Konkurrenz abhebt und bei deiner Zielgruppe die richtigen Emotionen weckt.',
+    'Ob du ein neues Unternehmen gründest und eine Marke von Grund auf aufbauen willst, oder ob dein bestehendes Branding ein Update braucht – wir begleiten dich durch den gesamten Prozess.',
+  ]}
+  introHeadline="Mehr als nur ein Logo – deine komplette Markenidentität"
+  benefits={benefits}
+  benefitsHeadline="Branding-Leistungen aus Graz"
+  benefitsEyebrow="Unsere Leistungen"
+  process={process}
+  processHeadline="So entwickeln wir deine Marke"
+  faq={faq}
+  faqHeadline="Häufige Fragen zum Branding"
+  related={[
+    { label: 'Drucksorten Graz', href: '/leistungen/grafik/drucksorten/', desc: 'Deine Marke gedruckt: Visitenkarten & Co.' },
+    { label: 'Grafikdesign Graz', href: '/leistungen/grafik/', desc: 'Alle Grafik-Leistungen im Überblick' },
+    { label: 'Webdesign Graz', href: '/leistungen/web/webdesign/', desc: 'Deine neue Marke im Web' },
+  ]}
+  ctaTitle="Bereit für eine starke Marke?"
+  ctaText="Lass uns gemeinsam eine Markenidentität schaffen, die dein Unternehmen unverwechselbar macht. Das Erstgespräch ist kostenlos."
+>
+  <Fragment slot="h1">Branding Agentur <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Vergleich: Branding vs. Grafikdesign */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Gut zu wissen</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Branding vs. Grafikdesign – was ist der Unterschied?</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Branding und Grafikdesign werden oft verwechselt. Dabei sind sie zwei verschiedene Disziplinen, die sich perfekt ergänzen.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
+        {
+          comparison.map((card, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_gradient-border iIT_neu-raised h-full rounded-2xl bg-card p-8">
+                <div class="mb-5 flex items-center gap-3">
+                  <div class="iIT_neu-inset flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                    <Icon name={card.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="text-xl font-bold text-white">{card.title}</h3>
+                </div>
+                <ul class="space-y-3">
+                  {card.points.map((point) => (
+                    <li class="text-muted/80 flex items-start gap-2.5 text-sm leading-relaxed">
+                      <Icon name="check-circle-2" size={17} class="mt-0.5 shrink-0 text-accent" />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+      <p class="iIT_reveal text-muted/80 mx-auto mt-10 max-w-3xl text-center leading-relaxed">
+        Bei ident-IT bekommst du beides aus einer Hand. Wir entwickeln deine Markenstrategie und setzen sie direkt in
+        ansprechendes Design um – konsistent und durchdacht.
+      </p>
+    </div>
+  </section>
+</ServicePage>

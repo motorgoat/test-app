@@ -1,0 +1,112 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+
+/* Drucksorten – neue Seite. KW: drucksorten graz, visitenkarten graz, flyer graz. */
+
+const benefits = [
+  {
+    icon: 'credit-card',
+    title: 'Visitenkarten & Geschäftsausstattung',
+    desc: 'Visitenkarten, Briefpapier und Kuverts, die deinen ersten Eindruck professionell machen – abgestimmt auf dein Corporate Design.',
+  },
+  {
+    icon: 'file-text',
+    title: 'Flyer & Folder',
+    desc: 'Ob Aktion, Eröffnung oder Produktvorstellung: Flyer und Folder, die Aufmerksamkeit erzeugen und deine Botschaft auf den Punkt bringen.',
+  },
+  {
+    icon: 'book-open',
+    title: 'Kataloge & Broschüren',
+    desc: 'Umfangreiche Print-Projekte mit klarer Struktur: Produktkataloge, Imagebroschüren und Firmenpräsentationen zum Durchblättern.',
+  },
+  {
+    icon: 'newspaper',
+    title: 'Editorial Design',
+    desc: 'Magazine, Zeitungen und Jahresberichte: Wir gestalten Layouts, die auch lange Inhalte angenehm lesbar machen.',
+  },
+  {
+    icon: 'image',
+    title: 'Plakate & Großformate',
+    desc: 'Plakate, Roll-ups und Banner für Events, Messen und Außenwerbung – auffällig gestaltet und druckfertig aufbereitet.',
+  },
+  {
+    icon: 'printer',
+    title: 'Druckabwicklung',
+    desc: 'Papierwahl, Druckdaten, Druckerei, Lieferung: Die komplette Abwicklung erledigen wir für dich – du bekommst das fertige Produkt.',
+  },
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Briefing & Konzept',
+    desc: 'Wir besprechen, was du brauchst: Auflage, Format, Inhalt und Budget. Danach bekommst du ein klares Angebot.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Design & Feinschliff',
+    desc: 'Wir gestalten deine Drucksorten passend zu deiner Marke. Du gibst Feedback, wir verfeinern bis zur Freigabe.',
+  },
+  {
+    icon: 'printer',
+    title: 'Druck & Lieferung',
+    desc: 'Wir bereiten die Druckdaten auf, beauftragen die passende Druckerei und liefern dir das fertige Ergebnis.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kosten Drucksorten in Graz?',
+    answer:
+      'Das hängt von Umfang, Auflage und Veredelung ab: Die Gestaltung von Visitenkarten startet im niedrigen dreistelligen Bereich, Flyer und Folder kalkulieren wir je nach Seitenanzahl, Kataloge und Broschüren projektbezogen. Im kostenlosen Erstgespräch bekommst du ein Angebot mit Fixpreis – inklusive Druckkosten.',
+  },
+  {
+    question: 'Übernehmt ihr auch den Druck?',
+    answer:
+      'Ja. Wir gestalten nicht nur, sondern erledigen auf Wunsch die komplette Druckabwicklung: Druckdaten, Papierempfehlung, Druckerei-Auswahl und Qualitätskontrolle. Du bekommst am Ende fertige Drucksorten geliefert.',
+  },
+  {
+    question: 'Wie schnell sind meine Drucksorten fertig?',
+    answer:
+      'Visitenkarten und Flyer sind je nach Feedbackrunden oft innerhalb von 1–2 Wochen gestaltet und gedruckt. Umfangreiche Kataloge oder Magazine brauchen je nach Seitenumfang mehrere Wochen. Bei dringenden Terminen sag uns Bescheid – Express ist oft möglich.',
+  },
+  {
+    question: 'Ich habe noch kein Logo – geht das trotzdem?',
+    answer:
+      'Klar. Wenn du noch kein Corporate Design hast, entwickeln wir zuerst Logo und Grundgestaltung und bauen deine Drucksorten darauf auf. So passt am Ende alles zusammen – von der Visitenkarte bis zur Website.',
+  },
+];
+---
+
+<ServicePage
+  title="Drucksorten Graz | Visitenkarten, Flyer & Folder – ident-IT"
+  description="Drucksorten aus Graz: Visitenkarten, Flyer, Folder & Kataloge – gestaltet und gedruckt aus einer Hand. Jetzt unverbindliches Angebot anfordern!"
+  badge="Drucksorten Graz"
+  subtitle="Von der Visitenkarte bis zum Katalog: Wir gestalten deine Drucksorten und erledigen auf Wunsch auch die komplette Druckabwicklung."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Grafik', href: '/leistungen/grafik/' },
+    { label: 'Drucksorten' },
+  ]}
+  serviceName="Drucksorten & Printdesign"
+  intro={[
+    'Print wirkt: Eine hochwertige Visitenkarte bleibt in der Hand, ein guter Folder auf dem Schreibtisch. Als Agentur für <strong class="text-white">Drucksorten in Graz</strong> gestalten wir Printprodukte, die sich sehen lassen können – und die zu deinem restlichen Auftritt passen.',
+    'Mit Technik und Logistik musst du dich dabei nicht beschäftigen: Druckdaten, Papierwahl und Druckerei-Abstimmung erledigen wir. Du gibst das Design frei und bekommst das fertige Produkt geliefert – nach Graz, in die Steiermark oder wohin du willst.',
+  ]}
+  introHeadline="Drucksorten aus Graz – Print, der in Erinnerung bleibt"
+  benefits={benefits}
+  benefitsHeadline="Diese Drucksorten gestalten wir für dich"
+  process={process}
+  processHeadline="In 3 Schritten zu deinen Drucksorten"
+  faq={faq}
+  faqHeadline="FAQ – Drucksorten Graz"
+  related={[
+    { label: 'Branding Agentur Graz', href: '/leistungen/grafik/branding/', desc: 'Die Basis für alle deine Drucksorten' },
+    { label: 'Beschriftungen Graz', href: '/leistungen/grafik/beschriftungen/', desc: 'Fahrzeug- & Schaufensterbeschriftung' },
+    { label: 'Grafikdesign Graz', href: '/leistungen/grafik/', desc: 'Alle Grafik-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit für Drucksorten, die wirken?"
+  ctaText="Sag uns, was du brauchst – wir melden uns mit einem klaren Angebot inklusive Druck. Das Erstgespräch ist kostenlos."
+>
+  <Fragment slot="h1">Drucksorten aus <span class="iIT_gradient-text">Graz</span></Fragment>
+</ServicePage>

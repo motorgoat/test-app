@@ -1,0 +1,154 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+
+/* SEO – portiert aus SeoOnlineMarketingGraz (Entwurf).
+   KW: seo agentur graz, suchmaschinenoptimierung graz, online marketing graz. */
+
+const benefits = [
+  {
+    icon: 'search',
+    title: 'Suchmaschinenoptimierung (SEO)',
+    desc: 'Wir bringen deine Website nach oben – mit technischer Optimierung, gutem Content und einer Strategie, die langfristig wirkt. Mehr Sichtbarkeit bei Google bedeutet mehr Kunden.',
+  },
+  {
+    icon: 'target',
+    title: 'Google Ads (SEA)',
+    desc: 'Gezielte Werbeanzeigen, die genau die richtigen Leute erreichen. Du zahlst nur, wenn jemand klickt – für sofortige Sichtbarkeit.',
+  },
+  {
+    icon: 'megaphone',
+    title: 'Social Media Marketing',
+    desc: 'Wir betreuen deine Social-Media-Kanäle – von der Strategie über die Content-Erstellung bis zur Auswertung auf Instagram, Facebook und LinkedIn.',
+  },
+  {
+    icon: 'file-text',
+    title: 'Content Marketing',
+    desc: 'Texte, die deine Zielgruppe ansprechen und gleichzeitig bei Google ranken. Kein Blabla, sondern Mehrwert, der konvertiert.',
+  },
+  {
+    icon: 'globe',
+    title: 'Local SEO für Graz',
+    desc: 'Damit dich Kunden in Graz und Umgebung finden – Google My Business, lokale Keywords und Bewertungsmanagement für maximale lokale Sichtbarkeit.',
+  },
+  {
+    icon: 'bar-chart-3',
+    title: 'Analytics & Reporting',
+    desc: 'Du siehst jederzeit, was funktioniert. Transparente monatliche Berichte und datenbasierte Optimierung für kontinuierliches Wachstum.',
+  },
+];
+
+const process = [
+  {
+    icon: 'eye',
+    title: 'SEO-Audit & Analyse',
+    desc: 'Wir analysieren deine aktuelle Website, identifizieren Schwachstellen und Potenziale. Keyword-Recherche, Wettbewerbsanalyse und technische Überprüfung.',
+  },
+  {
+    icon: 'settings',
+    title: 'Technisches SEO',
+    desc: 'Optimierung der Ladezeiten, Mobile-Friendliness, Crawlability, Seitenstruktur, Schema.org Markup und Core Web Vitals.',
+  },
+  {
+    icon: 'file-text',
+    title: 'Content-Optimierung',
+    desc: 'SEO-optimierte Texte, die sowohl Google als auch deine Zielgruppe überzeugen. Keyword-Integration, Meta-Tags und interne Verlinkung.',
+  },
+  {
+    icon: 'layers',
+    title: 'Offpage SEO & Linkbuilding',
+    desc: 'Aufbau hochwertiger Backlinks, lokale Verzeichniseinträge und Reputation Management für mehr Domain-Autorität.',
+  },
+];
+
+const stats = [
+  { value: '93%', label: 'aller Online-Erfahrungen starten bei Google' },
+  { value: '75%', label: 'klicken nie auf Seite 2 der Suchergebnisse' },
+  { value: '5x', label: 'mehr ROI als klassische Werbung' },
+];
+
+const faq = [
+  {
+    question: 'Was kostet SEO in Graz?',
+    answer:
+      'Die Kosten für SEO hängen vom Umfang und der Wettbewerbssituation ab. Ein einmaliges SEO-Audit startet bei ca. 500 €. Laufende SEO-Betreuung beginnt ab ca. 800 € pro Monat. Im kostenlosen Erstgespräch analysieren wir deine Situation und erstellen ein individuelles Angebot.',
+  },
+  {
+    question: 'Wie lange dauert es, bis SEO Ergebnisse zeigt?',
+    answer:
+      'SEO ist eine langfristige Strategie. Erste Verbesserungen sind oft nach 3–6 Monaten sichtbar, signifikante Ranking-Verbesserungen nach 6–12 Monaten. Die genaue Dauer hängt von der Ausgangssituation, dem Wettbewerb und dem Umfang der Maßnahmen ab.',
+  },
+  {
+    question: 'Was ist der Unterschied zwischen SEO und Google Ads?',
+    answer:
+      'SEO (Suchmaschinenoptimierung) sorgt für langfristige, organische Sichtbarkeit bei Google – du zahlst nicht pro Klick. Google Ads (SEA) sind bezahlte Anzeigen, die sofort sichtbar sind, aber laufende Kosten verursachen. Idealerweise kombiniert man beides für maximale Wirkung.',
+  },
+  {
+    question: 'Bietet ident-IT auch Local SEO für Graz an?',
+    answer:
+      'Ja, Local SEO ist eine unserer Kernkompetenzen. Wir optimieren dein Google Unternehmensprofil, bauen lokale Citations auf und sorgen dafür, dass du bei lokalen Suchanfragen wie „Dienstleistung + Graz" ganz oben erscheinst.',
+  },
+  {
+    question: 'Bekomme ich regelmäßige SEO-Reports?',
+    answer:
+      'Ja, du bekommst monatliche Reports mit allen wichtigen KPIs: Rankings, organischer Traffic, Conversions und durchgeführte Maßnahmen. Volle Transparenz ist für uns selbstverständlich.',
+  },
+];
+---
+
+<ServicePage
+  title="SEO Agentur Graz | Suchmaschinenoptimierung – ident-IT"
+  description="SEO Agentur in Graz: Suchmaschinenoptimierung, Local SEO & Content für bessere Rankings und mehr Kunden. Jetzt kostenlose SEO-Analyse anfordern!"
+  badge="SEO Agentur Graz"
+  subtitle="Deine Kunden suchen bei Google nach dem, was du anbietest – aber finden sie dich? Als SEO Agentur in Graz sorgen wir dafür, dass du ganz oben stehst. Mit Suchmaschinenoptimierung, die langfristig wirkt."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Marketing', href: '/leistungen/marketing/' },
+    { label: 'SEO' },
+  ]}
+  serviceName="Suchmaschinenoptimierung (SEO)"
+  intro={[
+    '93 % aller Online-Erfahrungen beginnen mit einer Suchmaschine. Wenn dein Unternehmen bei Google nicht auf der ersten Seite erscheint, verlierst du täglich potenzielle Kunden an die Konkurrenz. Als <strong class="text-white">SEO Agentur in Graz</strong> helfen wir dir, genau das zu ändern.',
+    'Unsere Suchmaschinenoptimierung umfasst technisches SEO, Content-Optimierung, Linkbuilding und Local SEO – alles abgestimmt auf dein Unternehmen und den österreichischen Markt. Wir arbeiten datenbasiert, transparent und mit dem Ziel, dir langfristig mehr organischen Traffic und damit mehr Kunden zu bringen.',
+  ]}
+  introHeadline="Suchmaschinenoptimierung in Graz – mehr Kunden über Google"
+  benefits={benefits}
+  benefitsHeadline="Unsere Online-Marketing-Leistungen"
+  process={process}
+  processHeadline="Unser SEO-Prozess"
+  faq={faq}
+  faqHeadline="FAQ – SEO Agentur Graz"
+  related={[
+    { label: 'Google Ads Agentur Graz', href: '/leistungen/marketing/google-ads/', desc: 'Sofort sichtbar mit bezahlten Anzeigen' },
+    { label: 'Webdesign Graz', href: '/leistungen/web/webdesign/', desc: 'Die technische Basis für gute Rankings' },
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Alle Marketing-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit, bei Google ganz oben zu stehen?"
+  ctaText="Lass uns herausfinden, wie viel Potenzial in deiner Website steckt – kostenlos und unverbindlich."
+>
+  <Fragment slot="h1">SEO Agentur Graz – Mehr <span class="iIT_gradient-text">Sichtbarkeit</span> für dein Unternehmen</Fragment>
+
+  {/* Stats: Warum SEO wichtig ist */}
+  <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Zahlen & Fakten</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Warum SEO für dein Unternehmen in Graz wichtig ist</h2>
+        <p class="text-muted/80 mt-4 leading-relaxed">
+          Die meisten deiner Kunden starten ihre Suche bei Google. Wenn du dort nicht auftauchst, gehen sie zur Konkurrenz.
+        </p>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-6 sm:grid-cols-3">
+        {
+          stats.map((stat, i) => (
+            <div class="iIT_reveal" style={`--reveal-delay: ${i * 100}ms`}>
+              <div class="iIT_neu-raised h-full rounded-2xl bg-card p-8 text-center">
+                <div class="iIT_gradient-text mb-2 text-4xl font-extrabold sm:text-5xl">{stat.value}</div>
+                <p class="text-muted/80 text-sm leading-relaxed">{stat.label}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</ServicePage>

@@ -1,0 +1,139 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+import Icon from '../../../components/Icon.astro';
+
+/* Pillar „Marketing" – KW: marketing agentur graz / online marketing graz.
+   Verlinkt alle Unterseiten der Säule (Silo-Struktur, BRIEFING.md Abschnitt 7). */
+
+const services = [
+  {
+    icon: 'trending-up',
+    title: 'Online Marketing',
+    desc: 'Strategie, Kampagnenplanung und laufende Betreuung – damit dein Budget dort wirkt, wo deine Kunden sind.',
+    href: '/leistungen/marketing/online-marketing/',
+  },
+  {
+    icon: 'search',
+    title: 'SEO – Suchmaschinenoptimierung',
+    desc: 'Bessere Google-Rankings für dein Unternehmen: von der Keyword-Recherche bis zum Local SEO für Graz.',
+    href: '/leistungen/marketing/seo/',
+  },
+  {
+    icon: 'target',
+    title: 'Google Ads (SEA)',
+    desc: 'Kampagnen, die ab Tag 1 Anfragen bringen – mit sauberem Conversion-Tracking und laufender Optimierung.',
+    href: '/leistungen/marketing/google-ads/',
+  },
+  {
+    icon: 'megaphone',
+    title: 'Social Media',
+    desc: 'Instagram, Facebook & LinkedIn: Content-Erstellung, Redaktionsplanung und Community Management.',
+    href: '/leistungen/marketing/social-media/',
+  },
+  {
+    icon: 'video',
+    title: 'Videoproduktion',
+    desc: 'Werbespots, Imagefilme und Social-Media-Videos – geplant, gedreht und geschnitten in Graz.',
+    href: '/leistungen/marketing/videoproduktion/',
+  },
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Analyse & Ziele',
+    desc: 'Wir schauen uns deine aktuelle Sichtbarkeit, deinen Markt und deine Mitbewerber an und legen gemeinsam messbare Ziele fest.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Strategie & Umsetzung',
+    desc: 'Aus der Analyse entsteht dein Marketing-Mix aus SEO, Google Ads, Social Media oder Video – wir setzen alles aus einer Hand um.',
+  },
+  {
+    icon: 'bar-chart-3',
+    title: 'Messen & Optimieren',
+    desc: 'Du bekommst transparente Reports mit klaren Zahlen. Was funktioniert, bauen wir aus – was nicht, fliegt raus.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet eine Marketing Agentur in Graz?',
+    answer:
+      'Das hängt vom Umfang ab: Eine laufende Betreuung startet bei uns im niedrigen dreistelligen Bereich pro Monat, einzelne Kampagnen kalkulieren wir projektbezogen. Im kostenlosen Erstgespräch bekommst du eine ehrliche Einschätzung, was für dein Budget sinnvoll ist – und was nicht.',
+  },
+  {
+    question: 'Welche Marketing-Leistungen bietet ident-IT an?',
+    answer:
+      'Als Fullservice-Werbeagentur decken wir Online Marketing komplett ab: Suchmaschinenoptimierung (SEO), Google Ads, Social Media Marketing inklusive Content-Erstellung und Videoproduktion. Dazu kommen Grafikdesign und Webdesign aus dem eigenen Haus – du brauchst keinen zweiten Dienstleister.',
+  },
+  {
+    question: 'Wie schnell sehe ich Ergebnisse?',
+    answer:
+      'Google Ads liefern meist schon in den ersten Wochen messbare Anfragen. SEO ist ein Mittel- bis Langfrist-Thema: Erste Verbesserungen siehst du oft nach zwei bis drei Monaten, stabile Top-Rankings brauchen länger. Genau deshalb kombinieren wir beides gerne.',
+  },
+  {
+    question: 'Arbeitet ihr auch mit kleinen Unternehmen?',
+    answer:
+      'Ja – viele unserer Kunden sind Einzelunternehmen und KMU aus Graz und der Steiermark. Wir schneiden die Strategie auf dein Budget zu, statt dir Pakete zu verkaufen, die du nicht brauchst.',
+  },
+];
+---
+
+<ServicePage
+  title="Marketing Agentur Graz | Online Marketing – ident-IT"
+  description="Deine Marketing Agentur in Graz: SEO, Google Ads, Social Media & Videoproduktion aus einer Hand. Messbar mehr Anfragen – jetzt Erstgespräch sichern!"
+  badge="Marketing"
+  subtitle="Mehr Sichtbarkeit, mehr Anfragen, mehr Umsatz: Wir planen und betreuen dein Online Marketing – messbar und ohne Agentur-Blabla."
+  crumbs={[{ label: 'Leistungen', href: '/leistungen/' }, { label: 'Marketing' }]}
+  serviceName="Online Marketing"
+  intro={[
+    'Du suchst eine <strong class="text-white">Marketing Agentur in Graz</strong>, die nicht nur schöne Kampagnen baut, sondern Ergebnisse liefert, die du in deinen Anfragen und Umsätzen siehst? Seit 2018 unterstützen wir Unternehmen aus Graz und der Steiermark dabei, online gefunden zu werden – mit einer Strategie, die zu deinem Budget passt.',
+    'Ob Suchmaschinenoptimierung, Google Ads, Social Media oder Videoproduktion: Bei uns kommt alles aus einer Hand und greift ineinander. Das spart dir Abstimmungsaufwand – und deine Kampagnen profitieren davon, dass Website, Anzeigen und Inhalte aufeinander abgestimmt sind.',
+  ]}
+  introHeadline="Online Marketing aus Graz – messbar statt Bauchgefühl"
+  process={process}
+  processHeadline="So arbeiten wir mit dir"
+  faq={faq}
+  faqHeadline="FAQ – Marketing Agentur Graz"
+  related={[
+    { label: 'Grafik & Branding', href: '/leistungen/grafik/', desc: 'Ein Auftritt, der im Kopf bleibt' },
+    { label: 'Webdesign Graz', href: '/leistungen/web/webdesign/', desc: 'Die Basis für jedes Marketing' },
+    { label: 'Referenzen', href: '/referenzen/', desc: 'Projekte, die für uns sprechen' },
+  ]}
+>
+  <Fragment slot="h1">Marketing Agentur <span class="iIT_gradient-text">Graz</span></Fragment>
+
+  {/* Unterseiten der Säule */}
+  <section class="relative overflow-hidden bg-section py-20 lg:py-24">
+    <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true"></div>
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+        <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Leistungen</span>
+        <h2 class="text-3xl font-extrabold text-white sm:text-4xl">Unsere Marketing-Leistungen im Überblick</h2>
+      </div>
+      <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          services.map((service, i) => (
+            <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 3) * 100}ms`}>
+              <a href={service.href} class="group block h-full">
+                <div class="iIT_neu-clickable h-full rounded-2xl bg-card p-6">
+                  <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                    <Icon name={service.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="mb-2 text-lg font-bold text-white transition-colors group-hover:text-accent">
+                    {service.title}
+                  </h3>
+                  <p class="text-muted/80 mb-4 text-sm leading-relaxed">{service.desc}</p>
+                  <span class="iIT_gradient-text inline-flex items-center gap-2 text-sm font-semibold transition-all group-hover:gap-3">
+                    Mehr erfahren <Icon name="arrow-right" size={14} class="text-accent" />
+                  </span>
+                </div>
+              </a>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</ServicePage>

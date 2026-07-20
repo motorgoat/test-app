@@ -1,0 +1,118 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+
+/* Beschriftungen – neue Seite.
+   KW: fahrzeugbeschriftung graz, autobeklebung graz, schaufensterbeschriftung graz. */
+
+const benefits = [
+  {
+    icon: 'car',
+    title: 'Fahrzeugbeschriftung',
+    desc: 'Dein Firmenauto als fahrende Werbefläche: Logo, Kontakt und Botschaft – gestaltet, produziert und sauber montiert.',
+  },
+  {
+    icon: 'brush',
+    title: 'Autobeklebung & Folierung',
+    desc: 'Von der dezenten Teilbeklebung bis zur auffälligen Vollfolierung: Wir gestalten deine Autobeklebung passend zu deiner Marke.',
+  },
+  {
+    icon: 'store',
+    title: 'Schaufensterbeschriftung',
+    desc: 'Öffnungszeiten, Logo oder großflächige Motive: Schaufensterbeschriftungen, die Passanten in Graz zum Stehenbleiben bringen.',
+  },
+  {
+    icon: 'layout-grid',
+    title: 'Schilder & Firmentafeln',
+    desc: 'Firmenschilder, Leitsysteme und Werbetafeln für Büro, Geschäft oder Baustelle – langlebig und wetterfest.',
+  },
+  {
+    icon: 'truck',
+    title: 'Flottenbeschriftung',
+    desc: 'Mehrere Fahrzeuge, ein einheitlicher Auftritt: Wir beschriften deine gesamte Flotte im selben Look.',
+  },
+  {
+    icon: 'map-pin',
+    title: 'Montage in Graz & Umgebung',
+    desc: 'Produktion und fachgerechte Montage erledigen wir mit unseren Partnern direkt in Graz und der Steiermark.',
+  },
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Beratung & Aufmaß',
+    desc: 'Wir besprechen, was beschriftet werden soll, und nehmen die Maße deines Fahrzeugs oder Schaufensters auf.',
+  },
+  {
+    icon: 'pen-tool',
+    title: 'Design & Freigabe',
+    desc: 'Du bekommst einen Gestaltungsentwurf auf deinem Fahrzeug bzw. deiner Fläche visualisiert – und gibst frei, wenn alles passt.',
+  },
+  {
+    icon: 'badge-check',
+    title: 'Produktion & Montage',
+    desc: 'Die Folien werden produziert und fachgerecht montiert – blasenfrei, passgenau und langlebig.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet eine Fahrzeugbeschriftung in Graz?',
+    answer:
+      'Das hängt von Fahrzeuggröße und Umfang ab: Eine einfache Beschriftung mit Logo und Kontaktdaten startet im niedrigen bis mittleren dreistelligen Bereich, Teil- und Vollfolierungen kosten je nach Fläche und Folienqualität mehr. Nach einem kurzen Aufmaß bekommst du ein Fixpreis-Angebot.',
+  },
+  {
+    question: 'Wie lange hält eine Autobeklebung?',
+    answer:
+      'Hochwertige Folien halten bei normaler Nutzung 5–7 Jahre und länger. Wir verwenden ausschließlich Markenfolien, die UV-beständig und waschstraßentauglich sind.',
+  },
+  {
+    question: 'Beschädigt die Folie den Lack meines Autos?',
+    answer:
+      'Nein – im Gegenteil: Die Folie schützt den Lack sogar vor Steinschlag und Witterung. Bei fachgerechter Entfernung bleibt der Lack unbeschädigt zurück, auch nach Jahren.',
+  },
+  {
+    question: 'Wie lange dauert die Beschriftung?',
+    answer:
+      'Vom Erstgespräch bis zur Montage vergehen meist 1–3 Wochen, je nach Designaufwand und Produktionszeit. Die Montage selbst dauert bei einer einfachen Fahrzeugbeschriftung wenige Stunden, bei Vollfolierungen 1–2 Tage.',
+  },
+  {
+    question: 'Macht ihr auch die Gestaltung, wenn ich schon ein Logo habe?',
+    answer:
+      'Ja. Wir übernehmen dein bestehendes Logo und Corporate Design und entwickeln daraus eine Beschriftung, die auf deinem Fahrzeug oder Schaufenster optimal wirkt. Falls du noch kein Logo hast, gestalten wir zuerst deine Marke.',
+  },
+];
+---
+
+<ServicePage
+  title="Fahrzeugbeschriftung & Beschriftungen Graz – ident-IT"
+  description="Fahrzeugbeschriftung, Autobeklebung & Schaufensterbeschriftung in Graz: Design, Produktion & Montage aus einer Hand. Jetzt unverbindlich anfragen!"
+  badge="Beschriftungen Graz"
+  subtitle="Dein Firmenauto, dein Schaufenster, deine Fassade: Wir gestalten Beschriftungen, die im Grazer Stadtbild auffallen – von der Idee bis zur Montage."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Grafik', href: '/leistungen/grafik/' },
+    { label: 'Beschriftungen' },
+  ]}
+  serviceName="Fahrzeug- & Schaufensterbeschriftung"
+  intro={[
+    'Ein beschriftetes Firmenauto ist rund um die Uhr Werbung – auf der Fahrt zum Kunden, im Stau am Joanneumring, geparkt vor der Baustelle. Mit einer professionellen <strong class="text-white">Fahrzeugbeschriftung in Graz</strong> machst du aus jedem Kilometer einen Werbekontakt, ohne laufende Kosten pro Klick oder Schaltung.',
+    'Auch dein Standort kann mehr: Eine <strong class="text-white">Schaufensterbeschriftung</strong> verwandelt deine Glasfläche in eine Werbefläche, die Passanten anspricht – bei Tag und bei Nacht. Design, Produktion und Montage kommen bei uns aus einer Hand, abgestimmt auf dein Corporate Design.',
+  ]}
+  introHeadline="Fahrzeugbeschriftung & Autobeklebung in Graz – Werbung, die mitfährt"
+  benefits={benefits}
+  benefitsHeadline="Beschriftungen, die wir für dich umsetzen"
+  process={process}
+  processHeadline="In 3 Schritten zu deiner Beschriftung"
+  faq={faq}
+  faqHeadline="FAQ – Beschriftungen Graz"
+  related={[
+    { label: 'Branding Agentur Graz', href: '/leistungen/grafik/branding/', desc: 'Die Marke hinter deiner Beschriftung' },
+    { label: 'Drucksorten Graz', href: '/leistungen/grafik/drucksorten/', desc: 'Visitenkarten, Flyer & Kataloge' },
+    { label: 'Grafikdesign Graz', href: '/leistungen/grafik/', desc: 'Alle Grafik-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit, im Stadtbild aufzufallen?"
+  ctaText="Schick uns ein Foto deines Fahrzeugs oder Schaufensters – wir melden uns mit einem Gestaltungsvorschlag und Fixpreis."
+>
+  <Fragment slot="h1">Fahrzeugbeschriftung & Autobeklebung <span class="iIT_gradient-text">Graz</span></Fragment>
+</ServicePage>

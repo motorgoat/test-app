@@ -1,0 +1,234 @@
+---
+import Layout from './Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import type { Crumb } from '../components/Breadcrumb.astro';
+import Icon from '../components/Icon.astro';
+import FaqAccordion from '../components/FaqAccordion.astro';
+import type { FaqItem } from '../components/FaqAccordion.astro';
+import CtaSection from '../components/CtaSection.astro';
+import { SITE } from '../lib/site';
+
+/*
+ * Daten-getriebenes Template für alle Leistungs- und Pillar-Seiten
+ * (BRIEFING.md, Abschnitt 5): Hero (H1 mit Keyword) → Nutzen/Leistungsumfang
+ * → optionale Custom-Sektionen (Slot) → Ablauf → FAQ → verwandte Leistungen → CTA.
+ * Jede Seite liefert nur noch Inhalte; Struktur, Schema und Verlinkung sind einheitlich.
+ */
+
+export interface BenefitCard {
+  icon: string;
+  title: string;
+  desc: string;
+}
+
+export interface ProcessStep {
+  icon: string;
+  title: string;
+  desc: string;
+}
+
+export interface RelatedLink {
+  label: string;
+  href: string;
+  desc?: string;
+}
+
+interface Props {
+  /** Meta-Title (≤ 60 Zeichen, Muster „{Leistung} Graz | ident-IT") */
+  title: string;
+  /** Meta-Description (≤ 155 Zeichen, mit CTA) */
+  description: string;
+  badge: string;
+  subtitle: string;
+  crumbs: Crumb[];
+  /** Name für das Service-Schema, z. B. „Suchmaschinenoptimierung (SEO)" */
+  serviceName: string;
+  /** SEO-Intro-Absätze direkt nach dem Hero (Keyword-Text) */
+  intro?: string[];
+  introHeadline?: string;
+  /** Karten-Grid: Nutzen bzw. Leistungsumfang */
+  benefits?: BenefitCard[];
+  benefitsHeadline?: string;
+  benefitsEyebrow?: string;
+  /** Ablauf in Schritten */
+  process?: ProcessStep[];
+  processHeadline?: string;
+  /** FAQ (PAA-Fragen) mit FAQPage-Schema */
+  faq?: FaqItem[];
+  faqHeadline?: string;
+  /** Verwandte Leistungen – Pflicht laut interner Verlinkungsregel (2–4 Links) */
+  related: RelatedLink[];
+  ctaTitle?: string;
+  ctaText?: string;
+}
+
+const {
+  title,
+  description,
+  badge,
+  subtitle,
+  crumbs,
+  serviceName,
+  intro,
+  introHeadline,
+  benefits,
+  benefitsHeadline = 'Was du bekommst',
+  benefitsEyebrow = 'Leistungen',
+  process,
+  processHeadline = 'So läuft die Zusammenarbeit ab',
+  faq,
+  faqHeadline = 'Häufige Fragen',
+  related,
+  ctaTitle,
+  ctaText,
+} = Astro.props;
+
+const serviceSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Service',
+  name: serviceName,
+  serviceType: serviceName,
+  url: new URL(Astro.url.pathname, SITE.url).href,
+  areaServed: { '@type': 'City', name: 'Graz' },
+  provider: {
+    '@type': 'ProfessionalService',
+    name: SITE.name,
+    url: SITE.url,
+    telephone: SITE.phoneE164,
+  },
+};
+---
+
+<Layout title={title} description={description}>
+  <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+
+  <PageHero badge={badge} subtitle={subtitle}>
+    <Breadcrumb slot="breadcrumb" items={crumbs} />
+    <Fragment slot="title"><slot name="h1" /></Fragment>
+  </PageHero>
+
+  {
+    intro && (
+      <section class="relative overflow-hidden bg-base pb-4">
+        <div class="iIT_container">
+          <div class="iIT_reveal mx-auto max-w-4xl">
+            {introHeadline && <h2 class="mb-6 text-2xl font-extrabold text-white sm:text-3xl">{introHeadline}</h2>}
+            <div class="text-muted/80 space-y-5 text-lg leading-relaxed">
+              {intro.map((paragraph) => (
+                <p set:html={paragraph} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  {
+    benefits && (
+      <section class="relative overflow-hidden bg-section py-20 lg:py-24">
+        <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true" />
+        <div class="iIT_container">
+          <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+            <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">
+              {benefitsEyebrow}
+            </span>
+            <h2 class="text-3xl font-extrabold text-white sm:text-4xl">{benefitsHeadline}</h2>
+          </div>
+          <div class="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {benefits.map((card, i) => (
+              <div class="iIT_reveal h-full" style={`--reveal-delay: ${(i % 3) * 100}ms`}>
+                <div class="iIT_neu-raised h-full rounded-2xl bg-card p-6">
+                  <div class="iIT_neu-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-base">
+                    <Icon name={card.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="mb-2 text-lg font-bold text-white">{card.title}</h3>
+                  <p class="text-muted/80 text-sm leading-relaxed">{card.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  {/* Custom-Sektionen der jeweiligen Seite (Preise, Referenzen, Vergleiche …) */}
+  <slot />
+
+  {
+    process && (
+      <section class="relative overflow-hidden bg-section py-20 lg:py-24">
+        <div
+          class="absolute top-0 left-1/2 h-[300px] w-[600px] max-w-full -translate-x-1/2 rounded-full bg-gradient-to-b from-accent/[0.03] to-transparent blur-[120px]"
+          aria-hidden="true"
+        />
+        <div class="iIT_container">
+          <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+            <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">Ablauf</span>
+            <h2 class="text-3xl font-extrabold text-white sm:text-4xl">{processHeadline}</h2>
+          </div>
+          <div
+            class={`mx-auto grid max-w-5xl gap-8 ${process.length === 4 ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-3'}`}
+          >
+            {process.map((step, i) => (
+              <div class="iIT_reveal h-full" style={`--reveal-delay: ${i * 150}ms`}>
+                <div class="iIT_gradient-border iIT_neu-raised h-full rounded-2xl bg-card p-8 text-center">
+                  <div class="iIT_gradient-text mb-4 text-5xl font-extrabold opacity-30">
+                    {String(i + 1).padStart(2, '0')}
+                  </div>
+                  <div class="iIT_neu-inset mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-base">
+                    <Icon name={step.icon} size={24} class="text-accent" />
+                  </div>
+                  <h3 class="mb-3 text-xl font-bold text-white">{step.title}</h3>
+                  <p class="text-muted/80 leading-relaxed">{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  {
+    faq && (
+      <section class="relative overflow-hidden bg-base py-20 lg:py-24">
+        <div class="iIT_glow-line absolute top-0 right-0 left-0 h-px opacity-20" aria-hidden="true" />
+        <div class="iIT_container">
+          <div class="iIT_reveal mx-auto mb-14 max-w-2xl text-center">
+            <span class="iIT_gradient-text mb-4 block text-sm font-semibold tracking-widest uppercase">FAQ</span>
+            <h2 class="text-3xl font-extrabold text-white sm:text-4xl">{faqHeadline}</h2>
+          </div>
+          <div class="mx-auto max-w-3xl">
+            <FaqAccordion items={faq} />
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <section class="relative overflow-hidden bg-section py-16 lg:py-20">
+    <div class="iIT_container">
+      <div class="iIT_reveal mx-auto max-w-5xl">
+        <h2 class="mb-8 text-center text-2xl font-extrabold text-white">Das könnte dich auch interessieren</h2>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {
+            related.map((link) => (
+              <a href={link.href} class="iIT_neu-clickable group flex items-center gap-3 rounded-xl bg-card p-4">
+                <Icon name="arrow-right" size={18} class="shrink-0 text-accent transition-transform group-hover:translate-x-1" />
+                <span>
+                  <span class="text-ink block text-sm font-semibold">{link.label}</span>
+                  {link.desc && <span class="text-muted/80 block text-xs">{link.desc}</span>}
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <CtaSection title={ctaTitle} text={ctaText} />
+</Layout>

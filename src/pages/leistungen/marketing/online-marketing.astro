@@ -1,0 +1,117 @@
+---
+import ServicePage from '../../../layouts/ServicePage.astro';
+
+/* Online Marketing – neue Seite. KW: online marketing graz, online marketing agentur graz. */
+
+const benefits = [
+  {
+    icon: 'lightbulb',
+    title: 'Marketing-Strategie',
+    desc: 'Wir analysieren Markt, Mitbewerber und Zielgruppe und entwickeln daraus eine Strategie, die zu deinem Budget passt – statt Maßnahmen nach dem Gießkannenprinzip.',
+  },
+  {
+    icon: 'calendar',
+    title: 'Kampagnenplanung',
+    desc: 'Von der Idee bis zum Zeitplan: Wir planen deine Kampagnen über alle Kanäle hinweg – Google, Social Media, Newsletter und mehr.',
+  },
+  {
+    icon: 'search',
+    title: 'SEO & Content',
+    desc: 'Damit du bei Google gefunden wirst: Suchmaschinenoptimierung und Inhalte, die deine Zielgruppe wirklich interessieren.',
+  },
+  {
+    icon: 'target',
+    title: 'Google Ads & Social Ads',
+    desc: 'Bezahlte Anzeigen, die genau die richtigen Leute erreichen – mit sauberem Tracking, damit kein Euro versickert.',
+  },
+  {
+    icon: 'users',
+    title: 'Laufende Betreuung',
+    desc: 'Marketing ist kein Einmal-Projekt. Wir betreuen deine Kanäle laufend, reagieren auf Entwicklungen und halten dich am Laufenden.',
+  },
+  {
+    icon: 'bar-chart-3',
+    title: 'Reporting & Optimierung',
+    desc: 'Du bekommst monatliche Reports mit klaren Zahlen: Was funktioniert, bauen wir aus – was nicht, fliegt raus.',
+  },
+];
+
+const process = [
+  {
+    icon: 'message-square',
+    title: 'Analyse & Ziele',
+    desc: 'Im kostenlosen Erstgespräch schauen wir uns deine aktuelle Sichtbarkeit an und legen gemeinsam messbare Ziele fest.',
+  },
+  {
+    icon: 'rocket',
+    title: 'Strategie & Umsetzung',
+    desc: 'Aus der Analyse entsteht dein Marketing-Mix aus SEO, Ads, Social Media oder Video – wir setzen alles aus einer Hand um.',
+  },
+  {
+    icon: 'trending-up',
+    title: 'Messen & Optimieren',
+    desc: 'Transparente Reports zeigen dir, was deine Kampagnen bringen. Wir optimieren laufend für bessere Ergebnisse.',
+  },
+];
+
+const faq = [
+  {
+    question: 'Was kostet Online Marketing in Graz?',
+    answer:
+      'Das hängt vom Umfang ab: Eine laufende Betreuung startet bei uns im niedrigen dreistelligen Bereich pro Monat, einzelne Kampagnen kalkulieren wir projektbezogen. Im kostenlosen Erstgespräch bekommst du eine ehrliche Einschätzung, was für dein Budget sinnvoll ist – und was nicht.',
+  },
+  {
+    question: 'Welche Kanäle sind für mein Unternehmen sinnvoll?',
+    answer:
+      'Das finden wir in der Analyse heraus. Ein Handwerksbetrieb aus Graz braucht meist Local SEO und Google Ads, ein B2B-Unternehmen eher LinkedIn und Content Marketing. Wir empfehlen dir nur Kanäle, auf denen deine Zielgruppe wirklich unterwegs ist.',
+  },
+  {
+    question: 'Wie schnell sehe ich Ergebnisse?',
+    answer:
+      'Google Ads und Social Ads liefern meist schon in den ersten Wochen messbare Anfragen. SEO und Content sind Mittel- bis Langfrist-Themen mit ersten Verbesserungen nach zwei bis drei Monaten. Deshalb kombinieren wir in der Strategie kurzfristige und langfristige Maßnahmen.',
+  },
+  {
+    question: 'Gibt es eine Mindestvertragslaufzeit?',
+    answer:
+      'Wir arbeiten mit fairen, überschaubaren Laufzeiten und ohne versteckte Kosten. Die Details besprechen wir im Erstgespräch – du sollst bei uns bleiben, weil die Ergebnisse passen, nicht weil ein Vertrag dich bindet.',
+  },
+  {
+    question: 'Arbeitet ihr auch mit kleinen Unternehmen?',
+    answer:
+      'Ja – viele unserer über 100 Kunden sind Einzelunternehmen und KMU aus Graz und der Steiermark. Wir schneiden die Strategie auf dein Budget zu, statt dir Pakete zu verkaufen, die du nicht brauchst.',
+  },
+];
+---
+
+<ServicePage
+  title="Online Marketing Graz | Strategie & Betreuung – ident-IT"
+  description="Online Marketing aus Graz: Strategie, Kampagnenplanung & laufende Betreuung mit transparentem Reporting. Jetzt kostenloses Erstgespräch sichern!"
+  badge="Online Marketing Graz"
+  subtitle="Mehr Sichtbarkeit, mehr Anfragen, mehr Umsatz: Wir planen, betreuen und optimieren dein Online Marketing – messbar und ohne Agentur-Blabla."
+  crumbs={[
+    { label: 'Leistungen', href: '/leistungen/' },
+    { label: 'Marketing', href: '/leistungen/marketing/' },
+    { label: 'Online Marketing' },
+  ]}
+  serviceName="Online Marketing"
+  intro={[
+    'Du steckst Zeit und Geld ins Marketing, aber weißt nicht genau, was davon wirklich Anfragen bringt? Genau da setzen wir an. Als Agentur für <strong class="text-white">Online Marketing in Graz</strong> entwickeln wir eine Strategie mit klaren Zielen – und machen jeden Schritt messbar.',
+    'SEO, Google Ads, Social Media, Content: Die Kanäle sind nur Werkzeuge. Entscheidend ist, dass sie zusammenspielen und auf deine Kunden ausgerichtet sind. Wir planen deine Kampagnen, setzen sie um und zeigen dir in monatlichen Reports schwarz auf weiß, was sie bringen.',
+  ]}
+  introHeadline="Online Marketing aus Graz – Strategie statt Bauchgefühl"
+  benefits={benefits}
+  benefitsHeadline="Was unsere Online-Marketing-Betreuung umfasst"
+  process={process}
+  processHeadline="So arbeiten wir mit dir"
+  faq={faq}
+  faqHeadline="FAQ – Online Marketing Graz"
+  related={[
+    { label: 'SEO Agentur Graz', href: '/leistungen/marketing/seo/', desc: 'Langfristige Sichtbarkeit bei Google' },
+    { label: 'Google Ads Agentur Graz', href: '/leistungen/marketing/google-ads/', desc: 'Sofort messbare Anfragen' },
+    { label: 'Marketing Agentur Graz', href: '/leistungen/marketing/', desc: 'Alle Marketing-Leistungen im Überblick' },
+  ]}
+  ctaTitle="Bereit für Marketing, das messbar wirkt?"
+  ctaText="Lass uns in einem kostenlosen Erstgespräch herausfinden, welcher Marketing-Mix zu deinem Unternehmen passt."
+>
+  <Fragment slot="h1">Online Marketing <span class="iIT_gradient-text">Graz</span></Fragment>
+</ServicePage>
