@@ -44,5 +44,6 @@ SiteGround Cloud Servers laden. Redirects pflegt `public/.htaccess`.
 - [ ] Card-Mockups & Team-/Bürofoto einsetzen (Platzhalter-Visuals aktiv; Bilder liefert Philipp)
 - [x] OG-Default-Image (1200×630) aus dem Logo erzeugt (`public/og-default.jpg`)
 - [ ] AGB-Text von der bestehenden Website übernehmen
+- [ ] EEAT (KONVENTIONEN.md, Abschnitt 11): Autoren-Bio-Box + Person-Schema beim Blog-Aufbau umsetzen; von Philipp benötigt: LinkedIn-/Fachprofil-URLs, Qualifikationen/Zertifikate, Portrait-Foto
 - [ ] CCM19 + Consent Mode v2 + GTM-Events
 - [ ] Redirect-Map aus Alt-Sitemap vervollständigen (`public/.htaccess`)

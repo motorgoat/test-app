@@ -45,6 +45,23 @@ export const SITE = {
   foundedYear: 2018,
 } as const;
 
+/**
+ * Autor für Blog & Fachinhalte (EEAT, siehe KONVENTIONEN.md Abschnitt 11):
+ * sichtbarer Autor auf jedem Beitrag, Bio-Box, Person-Schema mit sameAs.
+ */
+export const AUTHOR = {
+  name: 'Philipp Golob',
+  shortName: 'Philipp',
+  jobTitle: 'Geschäftsführung',
+  /** Autorenseite – Bio-Boxen und Person-Schema verlinken hierher */
+  url: '/ueber-uns/',
+  bio: `Philipp führt ident-IT seit ${SITE.foundedYear} und setzt Webdesign-, SEO- und Marketing-Projekte für Unternehmen in Graz und der Steiermark um.`,
+  // TODO: LinkedIn-/Fachprofil-URLs von Philipp ergänzen (sameAs im Person-Schema)
+  sameAs: [] as string[],
+  // TODO: Qualifikationen/Zertifikate von Philipp ergänzen (z. B. Google-Zertifizierungen)
+  credentials: [] as string[],
+} as const;
+
 export interface NavChild {
   label: string;
   href: string;

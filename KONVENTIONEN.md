@@ -66,3 +66,24 @@ nicht in Commit-Messages, nicht in Doku oder README.
 
 - Commit-Messages auf Deutsch, präzise, im Imperativ („Ergänze Wartungsseite", nicht „WIP").
 - Regel aus Punkt 3 gilt auch hier.
+
+## 11. EEAT – Autoren-Expertise (Blog & Fachseiten)
+
+Google (und Leser) müssen erkennen können, dass hinter jedem Text eine echte,
+qualifizierte Person steht. Verbindlich für alle Blog-Posts und Fachinhalte:
+
+- **Sichtbarer Autor:** Jeder Beitrag nennt „Philipp Golob" als Autor – nie „admin",
+  „Redaktion" oder anonym. Autor-Daten kommen zentral aus `AUTHOR` in `src/lib/site.ts`.
+- **Autoren-Bio am Artikel:** Kurze Bio-Box direkt am Beitrag (Rolle, Jahre Erfahrung,
+  relevante Qualifikationen/Zertifikate) mit Foto und Link zur Autorenseite.
+- **Autorenseite:** `/ueber-uns/` dient als Autorenprofil (Gründer-Block laut
+  Über-uns-Brief); Blog-Bios verlinken dorthin.
+- **Fachprofile verlinken:** LinkedIn bzw. weitere Fachprofile als `sameAs` im
+  Person-Schema und sichtbar in der Bio (URLs liefert Philipp).
+- **Erst-Hand-Erfahrung statt Allgemeinplätze:** Konkrete Praxisbeispiele schreiben
+  („bei einem Kundenprojekt haben wir X getestet …") – keine austauschbaren Ratgebertexte.
+- **Identity-/Security-Themen:** Besonders hier nachweisbare Fach-Referenzen und
+  Zertifizierungen nennen.
+- **Schema:** `Article` mit `author` → `Person` (Name, jobTitle, url auf /ueber-uns/,
+  sameAs) auf jedem Blog-Post; die Autorenseite bekommt ein eigenes Person-Schema.
+- Es zählt nicht das Meta-Tag, sondern dass die Kompetenz auf der Seite erkennbar ist.
