@@ -130,7 +130,7 @@
 <!-- Startbildschirm -->
 <div id="startPanel" class="panel">
   <h1>ALPENFLUG</h1>
-  <div class="sub">K90 · HILLSIZE 100</div>
+  <div class="sub" id="hillSub">K90 · HILLSIZE 100</div>
   <button id="startBtn">Wettkampf starten</button>
   <div class="menurow">
     <button id="trainBtn" class="secondary">Training</button>
@@ -181,7 +181,9 @@ const CONFIG = {
   pixelLevels: 0,             // Retro-Posterisierung (0 = aus → modernes Flat Design)
   ditherAmount: 0.5,          // Breite der Dither-Übergänge (nur bei pixelLevels > 0)
 
-  // Schanze (K90 / HS100)
+  dailyHill: true,            // jeden Tag weltweit dieselbe, aus dem Datum erzeugte Schanze
+
+  // Schanze (Grundwerte – werden von der Tagesschanze überschrieben)
   kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
   hillSize: 100,              // Hillsize in m
   takeoffHeight: 3.0,         // Höhe der Tischkante über dem Profil-Ursprung (m)
@@ -279,6 +281,58 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 
+// ------------------------------------------------------------------ Tagesschanze
+// Jeder Kalendertag hat dieselbe Schanze: Name, Größe, Profil und Stimmung
+// werden deterministisch aus dem Datum erzeugt. Alle Spieler springen am
+// selben Tag also exakt dieselbe Piste – ideal fürs Gegeneinander.
+const DAILY = (() => {
+  const d = new Date();
+  const day = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  // deterministischer PRNG (FNV-Seed + mulberry32)
+  let h = 2166136261;
+  for (let i = 0; i < day.length; i++) { h ^= day.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let st = h >>> 0;
+  const rnd = () => {
+    st = (st + 0x6D2B79F5) | 0;
+    let t = Math.imul(st ^ (st >>> 15), 1 | st);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const pick = a => a[Math.floor(rnd() * a.length) % a.length];
+  const A = ['Adler', 'Falken', 'Gams', 'Firn', 'Nebel', 'Wolken', 'Raben', 'Silber',
+             'Frost', 'Lärchen', 'Enzian', 'Kristall', 'Donner', 'Morgen', 'Stein', 'Wetter'];
+  const B = ['kanzel', 'schanze', 'sprung', 'bakken', 'horst', 'arena'];
+  const name = pick(A) + pick(B);
+  // Schanzenklasse: meist Normal-, oft Groß-, selten Flugschanze
+  const roll = rnd();
+  const kPoint = Math.round(roll < 0.45 ? 82 + rnd() * 16       // Normalschanze
+                          : roll < 0.88 ? 100 + rnd() * 25      // Großschanze
+                                        : 130 + rnd() * 20);    // Flugschanze
+  const klass = kPoint < 100 ? 'Normalschanze' : kPoint < 130 ? 'Großschanze' : 'Flugschanze';
+  return {
+    day, name, kPoint, klass,
+    hillSize: Math.round(kPoint * (1.09 + rnd() * 0.06)),
+    maxAngle: 34 + rnd() * 4.5,          // Steilheit des Aufsprunghangs
+    takeoffHeight: 2.5 + rnd() * 1.2,    // Höhe der Tischkante
+    tableAngle: 9.8 + rnd() * 1.8,       // Neigung des Schanzentischs
+    dusk: rnd() < 0.3,                   // Abendstimmung
+    id: name.toLowerCase(),
+  };
+})();
+
+if (CONFIG.dailyHill) {
+  const sc = DAILY.kPoint / 90;                       // Profil proportional skalieren
+  CONFIG.kPoint = DAILY.kPoint;
+  CONFIG.hillSize = DAILY.hillSize;
+  CONFIG.takeoffHeight = DAILY.takeoffHeight;
+  CONFIG.tableAngle = DAILY.tableAngle;
+  CONFIG.landing = { startAngle: 10, maxAngle: DAILY.maxAngle,
+                     steepen0: 8 * sc, steepen1: 50 * sc, flat0: 88 * sc, flat1: 135 * sc };
+  // Weitenpunkte wie bei der FIS: kleine Schanzen 2,0 – große 1,8 – Flugschanzen 1,2
+  CONFIG.meterValue = DAILY.kPoint < 100 ? 2.0 : DAILY.kPoint < 130 ? 1.8 : 1.2;
+
+}
+
 // ------------------------------------------------------------------ Hill
 // Weltkoordinaten: Tischkante = (0, 0). +x in Flugrichtung, +y nach oben.
 const Hill = (() => {
@@ -292,7 +346,7 @@ const Hill = (() => {
   }
 
   // Profil integrieren: y(x) und Bogenlänge s(x) (= gemessene Weite)
-  const STEP = 0.5, XMAX = 320;
+  const STEP = 0.5, XMAX = Math.max(320, CONFIG.landing.flat1 * 2.6);
   const prof = [{ x: 0, y: -CONFIG.takeoffHeight, s: 0 }];
   for (let x = STEP; x <= XMAX; x += STEP) {
     const th = landingAngle(x - STEP / 2) * D2R;
@@ -300,7 +354,7 @@ const Hill = (() => {
     prof.push({ x, y: p.y - Math.tan(th) * STEP, s: p.s + STEP / Math.cos(th) });
   }
   function groundAt(x) {
-    x = clamp(x, 0, XMAX - STEP);
+    x = clamp(x || 0, 0, XMAX - STEP);
     const i = Math.floor(x / STEP), t = (x - prof[i].x) / STEP;
     return {
       y: lerp(prof[i].y, prof[i + 1].y, t),
@@ -315,8 +369,9 @@ const Hill = (() => {
   }
 
   // Anlaufspur: vom Tisch rückwärts integriert. inrun[0] = Startpunkt oben.
-  const arcLen = (CONFIG.inrunAngle - CONFIG.tableAngle) * D2R * CONFIG.inrunRadius;
-  const inrunLength = CONFIG.inrunStraight + arcLen + CONFIG.tableLength;
+  // buildInrun() ist aufrufbar, damit die Tagesschanze die Anlauflänge
+  // nachträglich kalibrieren kann.
+  let arcLen = 0, inrunLength = 0;
   function inrunAngleAt(sFromTop) {
     if (sFromTop < CONFIG.inrunStraight) return CONFIG.inrunAngle;
     if (sFromTop < CONFIG.inrunStraight + arcLen)
@@ -324,9 +379,12 @@ const Hill = (() => {
     return CONFIG.tableAngle;
   }
   const inrun = [];
-  {
+  function buildInrun() {
+    arcLen = (CONFIG.inrunAngle - CONFIG.tableAngle) * D2R * CONFIG.inrunRadius;
+    inrunLength = CONFIG.inrunStraight + arcLen + CONFIG.tableLength;
     let x = 0, y = 0;
     const n = Math.ceil(inrunLength / STEP);
+    inrun.length = 0;
     inrun[n] = { x: 0, y: 0, s: inrunLength };
     for (let i = n - 1; i >= 0; i--) {
       const s = i * STEP;
@@ -335,6 +393,7 @@ const Hill = (() => {
       inrun[i] = { x, y, s };
     }
   }
+  buildInrun();
   function inrunAt(s) {
     s = clamp(s, 0, inrunLength - 0.001);
     const i = Math.floor(s / STEP);
@@ -356,7 +415,8 @@ const Hill = (() => {
     return { y: lerp(a.y, b.y, t), s, angle: inrunAngleAt(s) };
   }
 
-  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunAtX, inrunLength, landingAngle };
+  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunAtX, landingAngle, buildInrun,
+           get inrunLength() { return inrunLength; } };
 })();
 
 // ------------------------------------------------------------------ Input
@@ -661,7 +721,7 @@ const Game = {
   skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, spin: 0, alphaCtl: 0,
            poseA: 'crouch', poseB: 'crouch', poseT: 1, poseDur: 0.2, crash: false, standing: false },
 
-  wind: 0, gustPhase: 0,
+  wind: 0, windV: 0, gustPhase: 0, wanderPhase: 0, fricJit: 1, windZones: null,
   takeoff: { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null },
   flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0, stance: false, stanceT: 0, tv: 0, lastErr: null },
   landingTap: { windowOpen: false, tta: 99 },
@@ -685,7 +745,8 @@ const Game = {
     this.round = 1;
     this.roundTotals = [];
     // Stimmung pro Wettkampf: meist Tag, manchmal Abendlicht
-    this.theme = Math.random() < 0.3 ? THEMES.dusk : THEMES.day;
+    this.theme = CONFIG.dailyHill ? (DAILY.dusk ? THEMES.dusk : THEMES.day)
+                                  : (Math.random() < 0.3 ? THEMES.dusk : THEMES.day);
     this.field = [];
     for (let i = 0; i < CONFIG.fieldSize - 1; i++) {
       const skill = 88 + Math.random() * 42;               // Grundstärke des Springers
@@ -1023,7 +1084,7 @@ const Game = {
         const a = CONFIG.gravity * Math.sin(th) - fric * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
         S.v = Math.max(0, S.v + a * dt);
         S.x += S.v * Math.cos(th) * dt;
-        if (S.x > 200) S.v = 0;              // Sicherheitsnetz am Kartenrand
+        if (S.x > CONFIG.landing.flat1 + 65) S.v = 0;              // Sicherheitsnetz am Kartenrand
         const g2 = Hill.groundAt(S.x);
         S.y = g2.y;
         S.body = -g2.angle;
@@ -1277,7 +1338,7 @@ const Game = {
 // Tagesrekord laden: eigener Speicher-Schlüssel pro Kalendertag
 {
   const d = new Date();
-  Game.recordKey = `alpenflug_record_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  Game.recordKey = `alpenflug_record_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}_${DAILY.id}`;
   Game.record = parseFloat(store.get(Game.recordKey) || '0') || 0;
 }
 
@@ -1539,7 +1600,7 @@ function drawHill() {
 
   // Weitenmarken: Linien liegen quer AUF der Schneefläche
   // (die Beschriftungen zeichnet drawHillLabels() scharf aufs HUD)
-  for (let d = 20; d <= 130; d += 10) {
+  for (let d = 20; d <= CONFIG.hillSize + 45; d += 10) {
     const x = Hill.xAtDistance(d);
     if (x < xLo - 3 || x > xHi + 3) continue;
     const g = Hill.groundAt(x);
@@ -1655,7 +1716,7 @@ function drawStartBar(stage) {
 // --- Weitenbeschriftungen (scharf auf dem HUD-Canvas) ---
 function drawHillLabels() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  for (let d = 20; d <= 130; d += 10) {
+  for (let d = 20; d <= CONFIG.hillSize + 45; d += 10) {
     const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
     if (cam.ppm <= 5 && !isK && !isHS) continue;
     const x = Hill.xAtDistance(d);
@@ -1680,7 +1741,7 @@ function drawHillLabels() {
 }
 
 // --- Deko: Bäume, Publikum und Fahnen machen die Szene lebendig ---
-const TREE_XS = [114, 123, 131, 142, 154, 167, 181, 196];
+const TREE_XS = [114, 123, 131, 142, 154, 167, 181, 196].map(x => x * CONFIG.landing.flat1 / 135);
 function drawTrees() {
   for (let i = 0; i < TREE_XS.length; i++) {
     const tx = TREE_XS[i];
@@ -1782,7 +1843,7 @@ function drawCrowd() {
   const comp = Game.mode === 'comp';
   // Jubel: nach einem gestandenen Sprung hüpfen die Fans und schwenken Fahnen
   const cheer = (Game.state === 'OUTRUN' || Game.state === 'RESULT') && Game.result && !Game.result.crashed;
-  const X0 = 98, X1 = 150, BD = 1.02; // Banden-Tiefe (nahe Seite des Auslaufs)
+  const X0 = CONFIG.landing.flat0 + 10, X1 = CONFIG.landing.flat1 + 15, BD = 1.02; // Banden-Tiefe (nahe Seite des Auslaufs)
 
   // --- Werbebanden entlang des Auslaufs ---
   const top = [], bot = [];
@@ -1950,8 +2011,14 @@ function drawShadow() {
 function predictLanding() {
   if (Game.state !== 'FLIGHT') return null;
   const S = Game.skier;
-  let x = S.x, y = S.y, vx = S.vx, vy = S.vy;
-  const alpha = S.alphaCtl; // Annahme: aktueller Anstellwinkel wird gehalten
+  return simFlight(S.x, S.y, S.vx, S.vy, S.alphaCtl, Game.flight.stance);
+}
+
+// Flugbahn vorausrechnen (gleiche Aerodynamik wie im Spiel, Anstellwinkel
+// konstant gehalten). Wird für die Landevorhersage UND für die Kalibrierung
+// der Tagesschanze benutzt.
+function simFlight(x0, y0, vx0, vy0, alpha, stance) {
+  let x = x0, y = y0, vx = vx0, vy = vy0;
   const dt = 1 / 40;
   for (let t = 0; t < 9; t += dt) {
     const wl = Game.windLocalAt(Math.max(x, 0));
@@ -1962,9 +2029,8 @@ function predictLanding() {
     const liftF = Math.exp(-dNorm * dNorm);
     const aPos = Math.max(0, alpha) / 30;
     const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
-    const st = Game.flight.stance;
-    const lift = CONFIG.liftCoefficient * rv * rv * liftF * (st ? CONFIG.stanceLift : 1);
-    const drag = CONFIG.dragCoefficient * rv * rv * dragF * (st ? CONFIG.stanceDrag : 1);
+    const lift = CONFIG.liftCoefficient * rv * rv * liftF * (stance ? CONFIG.stanceLift : 1);
+    const drag = CONFIG.dragCoefficient * rv * rv * dragF * (stance ? CONFIG.stanceDrag : 1);
     const ux = rvx / rv, uy = rvy / rv;
     vx += (-drag * ux - lift * uy) * dt;
     vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
@@ -2413,6 +2479,16 @@ function drawHUD() {
     ctx.font = `700 ${12 * ui}px system-ui`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(on ? `Start: ${Math.max(0, left).toFixed(1).replace('.', ',')} s` : 'Gleich Grün…', pad + 26 * ui, cy2 + 12 * ui + 0.5);
+    // Schanze des Tages
+    if (CONFIG.dailyHill) {
+      const hy = cy2 + 30 * ui;
+      const txt = `${DAILY.name} · K${CONFIG.kPoint}`;
+      ctx.font = `700 ${11.5 * ui}px system-ui`;
+      const hw = ctx.measureText(txt).width + 22 * ui;
+      pillRect(pad, hy, hw, 22 * ui);
+      ctx.fillStyle = '#9be8ff'; ctx.textAlign = 'left';
+      ctx.fillText(txt, pad + 11 * ui, hy + 11 * ui + 0.5);
+    }
   }
 
   // --- Tempo-Pill (zweite Zeile links – kollidiert nie mit der Best-Pill) ---
@@ -2896,6 +2972,11 @@ window.addEventListener('keydown', e => {
   }
 });
 function updateStartPanel() {
+  if (CONFIG.dailyHill) {
+    document.getElementById('hillSub').innerHTML =
+      `${DAILY.name.toUpperCase()} · K${CONFIG.kPoint} · HS${CONFIG.hillSize}` +
+      `<div style="font-size:11px;opacity:.7;margin-top:3px">Schanze des Tages · ${DAILY.klass}</div>`;
+  }
   document.getElementById('startBest').textContent =
     (Game.record > 0
       ? `Schanzenrekord heute: ${Game.record.toFixed(1).replace('.', ',')} m`
@@ -2903,6 +2984,40 @@ function updateStartPanel() {
     (Game.best ? ` · Deine Bestweite: ${Game.best.dist.toFixed(1).replace('.', ',')} m` : '');
 }
 updateStartPanel();
+
+// --- Tagesschanze kalibrieren: Anlauflänge so wählen, dass ein perfekter
+// Sprung knapp über die Hillsize reicht (der Rekord ist dann echte Arbeit).
+if (CONFIG.dailyHill) {
+  const flightDist = (straight) => {
+    CONFIG.inrunStraight = straight;
+    Hill.buildInrun();
+    // Anlauf simulieren
+    let v = 0, s = 0;
+    const dt = 1 / 240, L = Hill.inrunLength;
+    for (let i = 0; i < 60000 && s < L; i++) {
+      const th = Hill.inrunAt(s).angle * D2R;
+      v += (CONFIG.gravity * Math.sin(th) - CONFIG.inrunFriction * CONFIG.gravity * Math.cos(th)
+            - CONFIG.inrunDrag * v * v) * dt;
+      s += v * dt;
+    }
+    // Absprung mit voller Qualität, dann idealer Flug
+    const th = CONFIG.tableAngle * D2R, imp = CONFIG.takeoffImpulse;
+    const r = simFlight(0, 0.02,
+                        v * Math.cos(th) + imp * Math.sin(th),
+                        -v * Math.sin(th) + imp * Math.cos(th),
+                        CONFIG.optimalAngle, false);
+    return r ? r.s : 0;
+  };
+  Game.wind = 0; Game.windV = 0; Game.windZones = null;   // windfrei kalibrieren
+  const target = CONFIG.hillSize * 1.06;   // idealer Flug ≈ 6 % über HS
+  let lo = 12, hi = 260;
+  for (let i = 0; i < 22; i++) {
+    const mid = (lo + hi) / 2;
+    if (flightDist(mid) < target) lo = mid; else hi = mid;
+  }
+  CONFIG.inrunStraight = Math.round((lo + hi) / 2 * 10) / 10;
+  Hill.buildInrun();
+}
 
 // Springer für den Startbildschirm ans Gate setzen
 {
