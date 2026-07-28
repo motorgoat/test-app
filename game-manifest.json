@@ -1,0 +1,25 @@
+{
+  "name": "Powder Rush 3D",
+  "short_name": "Powder Rush",
+  "description": "Endless Downhill – 3D-Snowboardabfahrt fürs Handy",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070b1c",
+  "theme_color": "#0b1026",
+  "icons": [
+    {
+      "src": "game-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "game-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

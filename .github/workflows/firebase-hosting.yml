@@ -1,0 +1,86 @@
+name: Deploy to Firebase Hosting
+
+# Bei jedem Push auf den Standard-Branch wird die Seite live gestellt.
+# Pull Requests bekommen eine Preview-URL, die als Kommentar im PR erscheint.
+#
+# Einmalige Einrichtung (im GitHub-Repo unter Settings → Secrets and variables → Actions):
+#   FIREBASE_PROJECT_ID       – die Projekt-ID, z. B. taskloop-1234a
+#   FIREBASE_SERVICE_ACCOUNT  – Inhalt der Service-Account-JSON-Datei
+#
+# Die JSON-Datei bekommst du mit:
+#   firebase init hosting:github
+# oder manuell in der Google Cloud Console:
+#   IAM & Verwaltung → Dienstkonten → Schlüssel erstellen (JSON).
+# Das Dienstkonto braucht die Rollen "Firebase Hosting Admin" und "API Keys Viewer".
+
+on:
+  push:
+    branches: [main, master, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Prüft die hinterlegten Secrets, ohne ihren Inhalt auszugeben.
+      # Schlägt der Deploy mit "Failed to authenticate" fehl, steht hier warum.
+      - name: Secrets prüfen
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -z "$PID" ]; then echo "::warning::FIREBASE_PROJECT_ID ist leer"; else echo "FIREBASE_PROJECT_ID ist gesetzt"; fi
+          if [ -z "$SA" ]; then echo "::error::FIREBASE_SERVICE_ACCOUNT ist leer"; exit 1; fi
+          echo "FIREBASE_SERVICE_ACCOUNT: ${#SA} Zeichen"
+          python3 - <<'PY'
+          import json, os, sys
+          sa = os.environ["SA"].strip()
+          try:
+              d = json.loads(sa)
+          except Exception as e:
+              print("::error::Secret ist kein gueltiges JSON (%s). Erwartet wird der komplette "
+                    "Inhalt der Service-Account-Schluesseldatei, nicht ein CI-Token und nicht "
+                    "die Web-App-Konfiguration." % e)
+              sys.exit(1)
+          missing = [k for k in ("type", "project_id", "private_key", "client_email") if not d.get(k)]
+          print("type        :", d.get("type"))
+          print("project_id  :", d.get("project_id"))
+          print("client_email:", "vorhanden" if d.get("client_email") else "FEHLT")
+          print("private_key :", "vorhanden" if d.get("private_key") else "FEHLT")
+          if d.get("type") != "service_account":
+              print('::error::"type" ist nicht "service_account" - falsche Datei hinterlegt.')
+              sys.exit(1)
+          if missing:
+              print("::error::Im JSON fehlen: %s" % ", ".join(missing))
+              sys.exit(1)
+          if "\\n" not in d["private_key"]:
+              print("::warning::private_key enthaelt keine Zeilenumbrueche - beim Kopieren "
+                    "vermutlich beschaedigt.")
+          print("Service-Account-JSON sieht vollstaendig aus.")
+          PY
+
+      - name: Live-Deploy
+        if: github.event_name != 'pull_request'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          channelId: live
+
+      - name: Preview-Deploy für Pull Requests
+        if: github.event_name == 'pull_request'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          expires: 7d
