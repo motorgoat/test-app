@@ -52,6 +52,12 @@
     font-size: 13px; font-weight: 800; letter-spacing: 1.6px; opacity: .8;
     font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(20,32,60,.5), 0 3px 12px rgba(20,32,60,.4);
   }
+  #ver {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: calc(env(safe-area-inset-top, 0px) + 38px);
+    font-size: 10px; letter-spacing: 1.6px; font-weight: 700; opacity: .45;
+    font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(20,32,60,.6);
+  }
   #combo {
     position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 78px);
     transform: translate(-50%, -6px) scale(.8); opacity: 0;
@@ -140,6 +146,7 @@
     </div>
   </div>
   <div id="speed">0 km/h</div>
+  <div id="ver"></div>
   <div id="combo"></div>
   <div id="hint">Ziehen = lenken · Tippen = springen &amp; drehen</div>
   <div id="flowWrap"><div id="flowBar"></div></div>
@@ -148,7 +155,7 @@
 
 <div id="start" class="panel">
   <div class="logo">POWDER RUSH</div>
-  <div class="tag">3D Endless Downhill</div>
+  <div class="tag">3D Endless Downhill · <span id="verStart"></span></div>
   <div class="how">
     <div><span class="ic">↔️</span><b>Ziehen</b> = lenken</div>
     <div><span class="ic">👆</span><b>Tippen</b> = springen</div>
@@ -171,13 +178,14 @@
     <div class="cell"><div class="k">Kristalle</div><div class="v" id="fCoins">0</div></div>
   </div>
   <button class="cta" id="btnRetry">Nochmal</button>
-  <div class="foot">Best: <span id="overBest">0</span> Punkte</div>
+  <div class="foot">Best: <span id="overBest">0</span> Punkte · <span id="verOver"></span></div>
 </div>
 
 <div id="fatal">Dieses Gerät unterstützt kein WebGL.<br>Bitte einen aktuellen Browser verwenden.</div>
 
 <script>
 'use strict';
+const VERSION = 'v0.9.0';      // bei jeder veröffentlichten Änderung hochzählen
 /* ==========================================================================
    POWDER RUSH 3D — Endless Downhill, Third-Person, handgeschriebenes WebGL
    ========================================================================== */
@@ -1055,7 +1063,7 @@ const GRAV_AIR = 24;          // m/s^2 – Schwerkraft für den Fahrer
 const P = {
   x: 0, z: 0, y: 0, vx: 0, vz: 14, vy: 0,
   air: false, airT: 0, spin: 0, spinTarget: 0, yaw: 0, roll: 0, pitch: 0,
-  crouch: 0.2, grab: 0, airLift: 0, leanVis: 0, landPulse: 0,
+  crouch: 0.2, grab: 0, airLift: 0, leanVis: 0, landPulse: 0, carveT: 0,
   flailL: 0, flailR: 0, flailX: 0, crashT: 0, down: 0, sepT: 0, contact: true, grind: null,
   crashT: 0, tumble: 0
 };
@@ -1191,16 +1199,15 @@ function actionTap() {
     addCombo('GRIND', 120); sfx.jump(); buzz(8);
     return;
   }
-  if (!P.air) { jump(); return; }
-  /* Kleine Bodenwellen heben einen ständig kurz ab. Ein Tipp dort ist als
-     Absprung gemeint, nicht als Trick — sonst endet er zwangsläufig im Sturz. */
-  const h = P.y - terrainH(P.x, P.z);
-  if (P.contact || h < 0.35) { hop(); return; }   // noch am Schnee: echter Absprung
-  addSpin();
+  /* Absprung nur mit Bodenkontakt. Direkt nach einer Kuppe bleibt ein kurzes
+     Zeitfenster, damit der Absprung dort nicht verschluckt wird. */
+  if (P.contact) { jump(); return; }
+  if (!P.air && P.sepT < 0.12) { jump(); return; }
+  if (P.air) addSpin();
 }
-function hop() {
+function hop() {                                   // Absprung aus der Ablösephase
   P.vy = Math.max(P.vy, 0) + 7.2;
-  P.airT = 0;
+  P.airT = 0; P.contact = false;
   sfx.jump(); buzz(8);
   for (let i = 0; i < 12; i++)
     spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
@@ -1218,7 +1225,8 @@ function addSpin() {
 }
 function jump() {
   if (state !== 'play' || P.air) return;
-  P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 7.2;
+  P.sepT = 0;
+  P.air = true; P.contact = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 7.2;
   sfx.jump(); buzz(8);
   for (let i = 0; i < 16; i++)
     spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
@@ -1285,16 +1293,21 @@ function update(dt) {
     else if (ptrId === null && !keys.ArrowLeft && !keys.ArrowRight) steerTarget = lerp(steerTarget, 0, 1 - Math.pow(0.02, dt));
     steer = lerp(steer, steerTarget, 1 - Math.pow(0.0015, dt));
 
+    /* Carve: volle Kurvenlage muss gehalten werden, dann stellt sich das Board quer */
+    const full = !P.air && Math.abs(steer) > 0.82;
+    P.carveT = clamp(P.carveT + (full ? dt : -dt * 2.2), 0, 1);
+    const carve = sstep(0.30, 0.75, P.carveT);        // 0 = normal, 1 = Drift quer
+
     /* Vorwärts */
     const gz = -slopeZ(P.x, P.z);                         // >0 = bergab
     const accel = 22 * clamp(gz, 0.05, 1.2) + (flowT > 0 ? 6 : 0);
     P.vz += (accel - (accel / maxSpeed) * P.vz) * dt;
-    P.vz -= Math.abs(steer) * P.vz * 0.22 * dt;          // harte Kurven kosten Tempo
+    P.vz -= Math.abs(steer) * P.vz * (0.10 + carve * 0.55) * dt;   // Querstellen bremst deutlich
     P.vz = clamp(P.vz, 6, maxSpeed * 1.15);
 
     /* Seitwärts */
     const grip = P.air ? 0.55 : 1;
-    P.vx += (steer * 56 * grip - P.vx * 3.2 * grip) * dt;
+    P.vx += (steer * (40 + carve * 22) * grip - P.vx * (3.6 - carve * 0.4) * grip) * dt;
     if (!P.air) P.vx += -slopeX(P.x, P.z) * 15 * dt;      // Hangneigung zieht nur am Boden ins Tal
     P.x += P.vx * dt;
     P.z += P.vz * dt;
@@ -1409,7 +1422,7 @@ function update(dt) {
       }
       /* Schneefahne */
       const rel = P.vz / maxSpeed;
-      const nSpray = 1 + (rel * 2 | 0) + (Math.abs(steer) > 0.35 ? 2 : 0);
+      const nSpray = 1 + (rel * 2 | 0) + (Math.abs(steer) > 0.35 ? 2 : 0) + (carve > 0.4 ? 4 : 0);
       for (let i = 0; i < nSpray; i++)
         spawnPart(P.x - steer * 0.30 + (srnd()-0.5)*0.5, P.y + 0.06, P.z - 0.85 + (srnd()-0.5)*0.4,
                   -steer * (2 + srnd()*5) + (srnd()-0.5)*1.5,
@@ -1469,10 +1482,11 @@ function update(dt) {
     P.leanVis = lerp(P.leanVis, clamp(steer * (P.air ? 0.35 : 1), -1, 1), 1 - Math.pow(0.001, dt));
 
     /* Ausrichtung */
-    const targetRoll = clamp(-steer * 0.55 - P.vx / 32, -0.78, 0.78);
+    const targetRoll = clamp(-steer * (0.42 + carve * 0.32) - P.vx / 34, -0.85, 0.85);
     P.roll = lerp(P.roll, P.air ? targetRoll * 0.4 : targetRoll, 1 - Math.pow(0.001, dt));
     P.pitch = lerp(P.pitch, P.air ? clamp(-P.vy / 40, -0.28, 0.28) : Math.atan(slopeZ(P.x, P.z)) * 0.75, 1 - Math.pow(0.004, dt));
-    if (!P.air) P.yaw = lerp(P.yaw, clamp(P.vx / P.vz, -0.6, 0.6) * 0.8, 1 - Math.pow(0.002, dt));
+    if (!P.air) P.yaw = lerp(P.yaw, clamp(P.vx / P.vz, -0.6, 0.6) * 0.8 * (1 - carve) - steer * carve * 1.05,
+                             1 - Math.pow(0.004, dt));
 
   } else if (state === 'dead') {
     P.crashT += dt;
@@ -1850,6 +1864,8 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 };
+['ver', 'verStart', 'verOver'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = VERSION; });
+document.title = 'Powder Rush 3D ' + VERSION;
 best = parseInt(store.get('powderrush3d.best') || '0', 10) || 0;
 el('startBest').textContent = best.toLocaleString('de-DE');
 hudBest.textContent = best.toLocaleString('de-DE');
@@ -1879,7 +1895,7 @@ function resetGame() {
   genZ = -30; genAhead(360); syncKickers(0); syncPipes(0);
   P.x = pathX(0); P.z = 0; P.y = terrainH(P.x, 0); P.vx = 0; P.vz = 15; P.vy = 0;
   P.air = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.yaw = 0; P.roll = 0; P.pitch = 0; P.tumble = 0;
-  P.crouch = 0.2; P.grab = 0; P.airLift = 0; P.leanVis = 0; P.landPulse = 0; P.grind = null;
+  P.crouch = 0.2; P.grab = 0; P.airLift = 0; P.leanVis = 0; P.landPulse = 0; P.grind = null; P.carveT = 0;
   P.flailL = 0; P.flailR = 0; P.flailX = 0; P.crashT = 0; P.down = 0; P.sepT = 0; P.contact = true;
   board.off = false;
   camX = P.x; camY = P.y + 3.2; camZ = P.z - 9;
