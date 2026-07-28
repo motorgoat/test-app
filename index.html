@@ -1485,7 +1485,12 @@ const hudEl = el('hud'), distEl = el('dist'), scoreEl = el('score'), hudBest = e
       speedEl = el('speed'), flowBar = el('flowBar'), flowWrap = el('flowWrap'),
       startPanel = el('start'), overPanel = el('over'), hintEl = el('hint');
 
-best = parseInt(localStorage.getItem('powderrush3d.best') || '0', 10) || 0;
+/* Speicher kann blockiert sein (privater Modus, eingebettete Frames) */
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+best = parseInt(store.get('powderrush3d.best') || '0', 10) || 0;
 el('startBest').textContent = best.toLocaleString('de-DE');
 hudBest.textContent = best.toLocaleString('de-DE');
 
@@ -1538,7 +1543,7 @@ function showOver() {
   el('rank').textContent = rankFor(fin);
   const isBest = fin > best;
   el('newbest').style.display = isBest ? 'block' : 'none';
-  if (isBest) { best = fin; localStorage.setItem('powderrush3d.best', String(best)); }
+  if (isBest) { best = fin; store.set('powderrush3d.best', String(best)); }
   el('overBest').textContent = best.toLocaleString('de-DE');
   hudBest.textContent = best.toLocaleString('de-DE');
   overPanel.classList.remove('hidden');
