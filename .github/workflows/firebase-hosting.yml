@@ -1,0 +1,48 @@
+name: Deploy to Firebase Hosting
+
+# Bei jedem Push auf den Standard-Branch wird die Seite live gestellt.
+# Pull Requests bekommen eine Preview-URL, die als Kommentar im PR erscheint.
+#
+# Einmalige Einrichtung (im GitHub-Repo unter Settings → Secrets and variables → Actions):
+#   FIREBASE_PROJECT_ID       – die Projekt-ID, z. B. taskloop-1234a
+#   FIREBASE_SERVICE_ACCOUNT  – Inhalt der Service-Account-JSON-Datei
+#
+# Die JSON-Datei bekommst du mit:
+#   firebase init hosting:github
+# oder manuell in der Google Cloud Console:
+#   IAM & Verwaltung → Dienstkonten → Schlüssel erstellen (JSON).
+# Das Dienstkonto braucht die Rollen "Firebase Hosting Admin" und "API Keys Viewer".
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Live-Deploy
+        if: github.event_name == 'push'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          channelId: live
+
+      - name: Preview-Deploy für Pull Requests
+        if: github.event_name == 'pull_request'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          expires: 7d

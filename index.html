@@ -3,937 +3,1568 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#87c5f0">
+<meta name="theme-color" content="#0b1026">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Alpenflug K90 – Skisprung</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Powder Rush">
+<meta name="description" content="Endless Downhill – 3D-Snowboardabfahrt fürs Handy">
+<link rel="manifest" href="game-manifest.json">
+<link rel="apple-touch-icon" href="game-icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="game-icon-512.png">
+<title>Powder Rush 3D – Endless Downhill</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; overflow: hidden; background: #87c5f0; }
-  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action: none;
-         -webkit-user-select: none; user-select: none; }
-  #game { display: block; width: 100%; height: 100%; touch-action: none; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; background: #070b1c; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    touch-action: none; -webkit-user-select: none; user-select: none;
+    color: #f2f7ff; overscroll-behavior: none;
+  }
+  #gl { display: block; width: 100vw; height: 100vh; touch-action: none;
+        filter: saturate(1.08) contrast(1.04); }
+  /* weiche Vignette + Farbstich für den filmischen Look */
+  #grade { position: fixed; inset: 0; pointer-events: none; mix-blend-mode: multiply;
+           background: radial-gradient(130% 88% at 50% 44%, rgba(255,255,255,1) 55%, rgba(226,232,244,1) 82%, rgba(176,188,214,1) 100%); }
+  #bloom { position: fixed; inset: 0; pointer-events: none; mix-blend-mode: screen; opacity: 0;
+           background: radial-gradient(85% 55% at 50% 48%, rgba(120,170,255,0) 38%, rgba(130,160,255,.42) 100%);
+           transition: opacity .35s ease; }
+  #bloom.flow { opacity: .5; }
 
-  /* --- HTML-Overlays (Start / Ergebnis) --- */
+  /* ---------------- HUD ---------------- */
+  #hud {
+    position: fixed; inset: 0; pointer-events: none;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) calc(env(safe-area-inset-right, 0px) + 16px)
+             calc(env(safe-area-inset-bottom, 0px) + 14px) calc(env(safe-area-inset-left, 0px) + 16px);
+    opacity: 0; transition: opacity .35s ease;
+  }
+  #hud.on { opacity: 1; }
+  .row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .stat { text-shadow: 0 1px 2px rgba(20,32,60,.55), 0 3px 14px rgba(20,32,60,.45); }
+  .stat .k { font-size: 10px; letter-spacing: 2.4px; text-transform: uppercase; opacity: .68; font-weight: 700; }
+  .stat .v { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .stat.right { text-align: right; }
+  .stat .sub { font-size: 11px; opacity: .6; font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+  #speed {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    font-size: 13px; font-weight: 800; letter-spacing: 1.6px; opacity: .8;
+    font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(20,32,60,.5), 0 3px 12px rgba(20,32,60,.4);
+  }
+  #combo {
+    position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 78px);
+    transform: translate(-50%, -6px) scale(.8); opacity: 0;
+    transition: opacity .18s ease, transform .18s cubic-bezier(.2,1.5,.4,1);
+    font-size: 30px; font-weight: 900; font-style: italic; letter-spacing: -.5px;
+    text-shadow: 0 0 18px rgba(255,190,60,.9), 0 2px 3px rgba(60,40,0,.5), 0 4px 16px rgba(30,40,70,.5);
+    color: #ffd76e; white-space: nowrap;
+  }
+  #combo.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+
+  #flowWrap {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+    width: min(58vw, 260px); height: 7px; border-radius: 99px;
+    background: rgba(255,255,255,.16); overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.4);
+  }
+  #flowBar { height: 100%; width: 0%; border-radius: 99px;
+             background: linear-gradient(90deg, #67e8f9, #a78bfa, #f0abfc); transition: width .12s linear; }
+  #flowWrap.full { box-shadow: 0 0 22px rgba(167,139,250,.95); }
+
+  #snd { pointer-events: auto; position: absolute;
+    right: calc(env(safe-area-inset-right, 0px) + 16px); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,.13); color: #fff; font-size: 17px; backdrop-filter: blur(8px); cursor: pointer; }
+
+  /* Lenk-Hinweis */
+  #hint { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+          transform: translateX(-50%); font-size: 12.5px; letter-spacing: .4px; opacity: .0;
+          text-shadow: 0 1px 2px rgba(20,32,60,.6), 0 2px 10px rgba(20,32,60,.5); transition: opacity .4s ease; white-space: nowrap; }
+  #hint.on { opacity: .75; }
+
+  /* ---------------- Panels ---------------- */
   .panel {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    background: rgba(16, 32, 48, 0.92); color: #eef6ff; border-radius: 18px;
-    padding: 22px 26px; width: min(92vw, 400px); text-align: center;
-    box-shadow: 0 12px 40px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15);
-    backdrop-filter: blur(4px);
+    width: min(90vw, 380px); padding: 26px 24px 22px; text-align: center;
+    border-radius: 26px; border: 1px solid rgba(255,255,255,.16);
+    background: linear-gradient(160deg, rgba(24,32,64,.86), rgba(10,14,34,.93));
+    box-shadow: 0 24px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    animation: pop .34s cubic-bezier(.2,1.3,.4,1);
   }
-  .panel h1 { font-size: 26px; letter-spacing: 1px; margin-bottom: 2px; }
-  .panel h2 { font-size: 20px; margin-bottom: 10px; }
-  .panel .sub { color: #9fc3e0; font-size: 13px; margin-bottom: 14px; }
-  .panel .big { font-size: 44px; font-weight: 800; margin: 6px 0 2px; }
-  .panel .pts { font-size: 15px; color: #cfe6f8; margin-bottom: 10px; line-height: 1.55; }
-  .panel .rating { font-weight: 700; }
-  .panel button {
-    font: inherit; font-weight: 700; font-size: 17px; color: #fff;
-    background: linear-gradient(180deg, #2e9be6, #1670b8); border: none; border-radius: 12px;
-    padding: 13px 26px; margin-top: 8px; cursor: pointer; width: 100%;
-    box-shadow: 0 4px 14px rgba(20,110,180,.5);
-  }
-  .panel button:active { transform: translateY(1px); }
-  .howto { text-align: left; font-size: 13px; color: #cfe6f8; line-height: 1.6;
-           background: rgba(255,255,255,.07); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
-  .howto b { color: #ffe082; }
-  .best { font-size: 13px; color: #ffe082; margin-top: 8px; }
-  .hidden { display: none !important; }
+  @keyframes pop { from { opacity: 0; transform: translate(-50%,-46%) scale(.94); } }
+  .panel.hidden { display: none; }
+  .logo { font-size: 33px; font-weight: 900; font-style: italic; letter-spacing: -1.2px; line-height: 1;
+    background: linear-gradient(100deg, #a5f3fc, #c4b5fd 45%, #fbcfe8);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tag { font-size: 11px; letter-spacing: 3.6px; text-transform: uppercase; opacity: .55; margin-top: 8px; }
+  .how { text-align: left; font-size: 13.5px; line-height: 1.8; margin: 20px 0 4px;
+    background: rgba(255,255,255,.06); border-radius: 16px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.07); }
+  .how b { color: #ffd76e; font-weight: 700; }
+  .how .ic { display: inline-block; width: 24px; }
+  button.cta { font: inherit; font-weight: 800; font-size: 17px; letter-spacing: .3px; color: #08122b;
+    background: linear-gradient(180deg, #b8f0ff, #7dd3fc 55%, #60a5fa);
+    border: none; border-radius: 16px; padding: 15px 22px; margin-top: 18px; width: 100%;
+    cursor: pointer; box-shadow: 0 10px 24px rgba(96,165,250,.35), inset 0 1px 0 rgba(255,255,255,.7); }
+  button.cta:active { transform: translateY(2px); }
+  .scoreBig { font-size: 58px; font-weight: 900; line-height: 1; margin: 14px 0 2px; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 30px rgba(125,211,252,.5); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 18px 0 2px; }
+  .cell { background: rgba(255,255,255,.06); border-radius: 14px; padding: 10px 6px; }
+  .cell .k { font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; opacity: .6; font-weight: 700; }
+  .cell .v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .rank { font-size: 15px; font-weight: 700; color: #ffd76e; margin-top: 12px; }
+  .newbest { font-size: 12px; letter-spacing: 2.4px; text-transform: uppercase; color: #86efac; font-weight: 800; margin-top: 8px; }
+  .foot { font-size: 11.5px; opacity: .45; margin-top: 12px; }
+  #fatal { position: fixed; inset: 0; display: none; place-items: center; padding: 30px; text-align: center;
+           font-size: 15px; line-height: 1.6; background: #0b1026; }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="gl"></canvas>
+<div id="grade"></div>
+<div id="bloom"></div>
 
-<!-- Startbildschirm -->
-<div id="startPanel" class="panel">
-  <h1>⛷ ALPENFLUG</h1>
-  <div class="sub">K90 · Hillsize 100</div>
-  <div class="howto">
-    <b>1. Anlauf:</b> läuft automatisch<br>
-    <b>2. Absprung:</b> am Tischende <b>tippen</b> (Timing!)<br>
-    <b>3. Flug:</b> <b>ziehen / oben-unten halten</b> – Winkel im grünen Korridor halten (Tastatur: ↑ ↓)<br>
-    <b>4. Landung:</b> kurz vor dem Boden <b>tippen</b> = Telemark
+<div id="hud">
+  <div class="row">
+    <div class="stat">
+      <div class="k">Distanz</div>
+      <div class="v"><span id="dist">0</span><span style="font-size:15px;opacity:.6"> m</span></div>
+    </div>
+    <div class="stat right">
+      <div class="k">Punkte</div>
+      <div class="v" id="score">0</div>
+      <div class="sub">Best <span id="hudBest">0</span></div>
+    </div>
   </div>
-  <button id="startBtn">Sprung starten</button>
-  <div class="best" id="startBest"></div>
+  <div id="speed">0 km/h</div>
+  <div id="combo"></div>
+  <div id="hint">Ziehen = lenken · Tippen = springen &amp; drehen</div>
+  <div id="flowWrap"><div id="flowBar"></div></div>
+  <button id="snd" aria-label="Ton">🔊</button>
 </div>
 
-<!-- Ergebnis -->
-<div id="resultPanel" class="panel hidden">
-  <h2 id="resTitle">Sprungweite</h2>
-  <div class="big" id="resDist">–</div>
-  <div class="pts" id="resPts"></div>
-  <button id="nextBtn">Nächster Sprung</button>
-  <div class="best" id="resBest"></div>
+<div id="start" class="panel">
+  <div class="logo">POWDER RUSH</div>
+  <div class="tag">3D Endless Downhill</div>
+  <div class="how">
+    <div><span class="ic">↔️</span><b>Ziehen</b> = lenken</div>
+    <div><span class="ic">👆</span><b>Tippen</b> = springen</div>
+    <div><span class="ic">🔄</span>In der Luft <b>tippen</b> = 360er-Spin</div>
+    <div><span class="ic">🚩</span>Durch <b>Tore</b> fahren, <b>Kristalle</b> sammeln</div>
+    <div><span class="ic">🌲</span>Bäume &amp; Felsen: ausweichen!</div>
+  </div>
+  <button class="cta" id="btnStart">Losfahren</button>
+  <div class="foot">Bestleistung: <span id="startBest">0</span> Punkte</div>
 </div>
+
+<div id="over" class="panel hidden">
+  <div class="tag" id="overTitle">Sturz</div>
+  <div class="scoreBig" id="finalScore">0</div>
+  <div class="rank" id="rank">Schneehase</div>
+  <div class="newbest" id="newbest" style="display:none">Neue Bestleistung!</div>
+  <div class="grid">
+    <div class="cell"><div class="k">Distanz</div><div class="v" id="fDist">0</div></div>
+    <div class="cell"><div class="k">Tricks</div><div class="v" id="fTricks">0</div></div>
+    <div class="cell"><div class="k">Kristalle</div><div class="v" id="fCoins">0</div></div>
+  </div>
+  <button class="cta" id="btnRetry">Nochmal</button>
+  <div class="foot">Best: <span id="overBest">0</span> Punkte</div>
+</div>
+
+<div id="fatal">Dieses Gerät unterstützt kein WebGL.<br>Bitte einen aktuellen Browser verwenden.</div>
 
 <script>
 'use strict';
+/* ==========================================================================
+   POWDER RUSH 3D — Endless Downhill, Third-Person, handgeschriebenes WebGL
+   ========================================================================== */
 
-/* =====================================================================
-   ALPENFLUG K90 – HTML5-Canvas-Skisprung-Prototyp (Vanilla JS)
-   Struktur:
-     CONFIG  – alle Balancing-Parameter
-     Hill    – Anlaufspur + Aufsprungprofil (vorberechnete Punktlisten)
-     Input   – Pointer + Tastatur, vereinheitlicht
-     Game    – State-Machine (READY → INRUN → FLIGHT → OUTRUN → RESULT)
-     Render  – Kamera, Parallax, Schanze, Springer, HUD
-   ===================================================================== */
+const cvs = document.getElementById('gl');
+let gl = cvs.getContext('webgl2', { antialias: true, alpha: false, powerPreference: 'high-performance' });
+let GL2 = !!gl, instExt = null;
+if (!gl) {
+  gl = cvs.getContext('webgl', { antialias: true, alpha: false }) || cvs.getContext('experimental-webgl');
+  if (gl) { instExt = gl.getExtension('ANGLE_instanced_arrays'); }
+}
+if (!gl || (!GL2 && !instExt)) { document.getElementById('fatal').style.display = 'grid'; throw new Error('no webgl'); }
+const vDivisor = GL2 ? (i, d) => gl.vertexAttribDivisor(i, d) : (i, d) => instExt.vertexAttribDivisorANGLE(i, d);
+const drawInst = GL2 ? (m, c, t, o, n) => gl.drawElementsInstanced(m, c, t, o, n)
+                     : (m, c, t, o, n) => instExt.drawElementsInstancedANGLE(m, c, t, o, n);
 
-// ------------------------------------------------------------------ CONFIG
-const CONFIG = {
-  // Allgemein
-  gravity: 9.81,              // m/s²
-  timestep: 1 / 60,           // fixe Physikrate
-
-  // Schanze (K90 / HS100)
-  kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
-  hillSize: 100,              // Hillsize in m
-  takeoffHeight: 3.0,         // Höhe der Tischkante über dem Profil-Ursprung (m)
-  tableAngle: 10.5,           // Neigung des Schanzentischs (Grad, abwärts)
-  tableLength: 6.5,           // Länge des Tischs (m)
-  inrunAngle: 35,             // Neigung des Anlaufhangs (Grad)
-  inrunStraight: 42,          // Länge des geraden Anlaufstücks (m)
-  inrunRadius: 90,            // Übergangsradius Anlauf → Tisch (m)
-  // Aufsprungprofil: Winkelverlauf über horizontale Distanz x
-  landing: { startAngle: 10, maxAngle: 36, steepen0: 8, steepen1: 50, flat0: 88, flat1: 135 },
-
-  // Anlauf
-  inrunFriction: 0.025,       // Gleitreibungskoeffizient Ski/Spur
-  inrunDrag: 0.0011,          // Luftwiderstand in der Hocke (a = k·v²)
-
-  // Absprung
-  takeoffImpulse: 3.2,        // Absprung-Impuls senkrecht zum Tisch (m/s) bei Qualität 1
-  takeoffSpeedBonus: 0.06,    // Qualität skaliert Geschwindigkeit: v·(1-bonus+bonus·q)
-  perfectWindow: 0.040,       // ± Sekunden um die Tischkante = perfekt (~80 ms Fenster)
-  earlyFalloff: 0.50,         // zu früh: Qualität fällt über diese Zeitspanne auf 0
-  lateWindow: 0.18,           // so lange nach der Kante zählt ein Tap noch (stark reduziert)
-
-  // Flug
-  liftCoefficient: 0.0042,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
-  dragCoefficient: 0.0024,    // Grundwiderstand: a = CD · v_rel² · dragFactor(α)
-  dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
-  optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
-  angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
-  angleSpeed: 45,             // Drehrate der Spielersteuerung (Grad/s)
-  pitchDrift: 4,              // aerodynamische Aufdreh-Tendenz (Grad/s) – muss aktiv gehalten werden
-  bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
-
-  // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
-  windStrength: 2.5,          // maximale Windstärke ± m/s (zufällig pro Sprung)
-  windAeroFactor: 2.0,        // Gameplay-Verstärkung der Windwirkung auf die Anströmung
-  gustAmount: 0.25,           // Böen: ±25 % um den Basiswind
-
-  // Landung
-  telemarkWindow: 0.12,       // Tap ≤ 120 ms vor Aufsetzen = Telemark
-  okWindow: 0.28,             // Tap ≤ 280 ms = sichere Landung
-  earlyLimit: 0.55,           // Taps früher als das zählen nicht (Fenster noch zu)
-  crashSpeed: 11.5,           // Aufprall senkrecht zum Hang > x m/s = Sturz
-  outrunFriction: 0.06,       // Bremsreibung im Auslauf
-  crashFriction: 0.30,        // Sturz bremst stark
-
-  // Punkte
-  meterValue: 1.8,            // Weitenpunkte pro Meter (K90-Standard)
-  basePoints: 60,             // Punkte am K-Punkt
-  styleFlightMax: 30,         // Haltungsnote Flug (Zeit im Korridor)
-  styleLandingMax: 30,        // Haltungsnote Landung
-};
-
-// ------------------------------------------------------------------ Utils
-const D2R = Math.PI / 180;
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+/* ------------------------------- Mathe ---------------------------------- */
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
-const smoothstep = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
-// Framerate-unabhängige Glättung (für Kamera)
-const damp = (cur, target, rate, dt) => lerp(cur, target, 1 - Math.exp(-rate * dt));
+const smooth = t => t * t * (3 - 2 * t);
+let seed = 12345;
+function srnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+function hash(n) { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); }
 
-// ------------------------------------------------------------------ Hill
-// Weltkoordinaten: Tischkante = (0, 0). +x in Flugrichtung, +y nach oben.
-const Hill = (() => {
-  const L = CONFIG.landing;
-
-  // Hangneigung (Grad) des Aufsprungprofils bei horizontaler Distanz x
-  function landingAngle(x) {
-    if (x < L.steepen1)
-      return L.startAngle + (L.maxAngle - L.startAngle) * smoothstep((x - L.steepen0) / (L.steepen1 - L.steepen0));
-    if (x < L.flat0) return L.maxAngle;
-    return L.maxAngle * (1 - smoothstep((x - L.flat0) / (L.flat1 - L.flat0)));
+function m4() { return new Float32Array(16); }
+function ident(o) { o.set([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); return o; }
+function persp(o, fovy, asp, n, f) {
+  const t = 1 / Math.tan(fovy / 2);
+  o.set([t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0]);
+  return o;
+}
+function lookAt(o, e, c, up) {
+  let zx = e[0]-c[0], zy = e[1]-c[1], zz = e[2]-c[2];
+  let l = Math.hypot(zx,zy,zz) || 1; zx/=l; zy/=l; zz/=l;
+  let xx = up[1]*zz - up[2]*zy, xy = up[2]*zx - up[0]*zz, xz = up[0]*zy - up[1]*zx;
+  l = Math.hypot(xx,xy,xz) || 1; xx/=l; xy/=l; xz/=l;
+  const yx = zy*xz - zz*xy, yy = zz*xx - zx*xz, yz = zx*xy - zy*xx;
+  o.set([xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
+         -(xx*e[0]+xy*e[1]+xz*e[2]), -(yx*e[0]+yy*e[1]+yz*e[2]), -(zx*e[0]+zy*e[1]+zz*e[2]), 1]);
+  return o;
+}
+function mul(o, a, b) {
+  for (let i = 0; i < 4; i++) {
+    const ai0=a[i], ai1=a[i+4], ai2=a[i+8], ai3=a[i+12];
+    o[i]    = ai0*b[0]  + ai1*b[1]  + ai2*b[2]  + ai3*b[3];
+    o[i+4]  = ai0*b[4]  + ai1*b[5]  + ai2*b[6]  + ai3*b[7];
+    o[i+8]  = ai0*b[8]  + ai1*b[9]  + ai2*b[10] + ai3*b[11];
+    o[i+12] = ai0*b[12] + ai1*b[13] + ai2*b[14] + ai3*b[15];
   }
-
-  // Profil integrieren: y(x) und Bogenlänge s(x) (= gemessene Weite)
-  const STEP = 0.5, XMAX = 320;
-  const prof = [{ x: 0, y: -CONFIG.takeoffHeight, s: 0 }];
-  for (let x = STEP; x <= XMAX; x += STEP) {
-    const th = landingAngle(x - STEP / 2) * D2R;
-    const p = prof[prof.length - 1];
-    prof.push({ x, y: p.y - Math.tan(th) * STEP, s: p.s + STEP / Math.cos(th) });
-  }
-  function groundAt(x) {
-    x = clamp(x, 0, XMAX - STEP);
-    const i = Math.floor(x / STEP), t = (x - prof[i].x) / STEP;
-    return {
-      y: lerp(prof[i].y, prof[i + 1].y, t),
-      s: lerp(prof[i].s, prof[i + 1].s, t),
-      angle: landingAngle(x),
-    };
-  }
-  // x-Position für gegebene Weite s (für K-/HS-Linien)
-  function xAtDistance(s) {
-    for (let i = 1; i < prof.length; i++)
-      if (prof[i].s >= s) return lerp(prof[i - 1].x, prof[i].x, (s - prof[i - 1].s) / (prof[i].s - prof[i - 1].s));
-    return XMAX;
-  }
-
-  // Anlaufspur: vom Tisch rückwärts integriert. inrun[0] = Startpunkt oben.
-  const arcLen = (CONFIG.inrunAngle - CONFIG.tableAngle) * D2R * CONFIG.inrunRadius;
-  const inrunLength = CONFIG.inrunStraight + arcLen + CONFIG.tableLength;
-  function inrunAngleAt(sFromTop) {
-    if (sFromTop < CONFIG.inrunStraight) return CONFIG.inrunAngle;
-    if (sFromTop < CONFIG.inrunStraight + arcLen)
-      return CONFIG.inrunAngle - (sFromTop - CONFIG.inrunStraight) / arcLen * (CONFIG.inrunAngle - CONFIG.tableAngle);
-    return CONFIG.tableAngle;
-  }
-  const inrun = [];
-  {
-    let x = 0, y = 0;
-    const n = Math.ceil(inrunLength / STEP);
-    inrun[n] = { x: 0, y: 0, s: inrunLength };
-    for (let i = n - 1; i >= 0; i--) {
-      const s = i * STEP;
-      const th = inrunAngleAt(s + STEP / 2) * D2R;
-      x -= Math.cos(th) * STEP; y += Math.sin(th) * STEP;
-      inrun[i] = { x, y, s };
-    }
-  }
-  function inrunAt(s) {
-    s = clamp(s, 0, inrunLength - 0.001);
-    const i = Math.floor(s / STEP);
-    const t = (s - inrun[i].s) / (inrun[i + 1].s - inrun[i].s);
-    return {
-      x: lerp(inrun[i].x, inrun[i + 1].x, t),
-      y: lerp(inrun[i].y, inrun[i + 1].y, t),
-      angle: inrunAngleAt(s),
-    };
-  }
-
-  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunLength, landingAngle };
-})();
-
-// ------------------------------------------------------------------ Input
-const Input = (() => {
-  const state = {
-    tap: false,          // in diesem Frame neu getippt (Pointer down / Space)
-    pointerDown: false,
-  };
-  let startY = 0, curY = 0, dragging = false;
-  const keys = {};
-  const canvas = document.getElementById('game');
-
-  canvas.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    state.tap = true;
-    state.pointerDown = true;
-    startY = curY = e.clientY;
-    dragging = false;
-    canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener('pointermove', e => {
-    if (!state.pointerDown) return;
-    curY = e.clientY;
-    if (Math.abs(curY - startY) > 16) dragging = true;
-  });
-  const up = () => { state.pointerDown = false; dragging = false; };
-  canvas.addEventListener('pointerup', up);
-  canvas.addEventListener('pointercancel', up);
-
-  window.addEventListener('keydown', e => {
-    if (e.repeat) return;
-    keys[e.key] = true;
-    if (e.key === ' ' || e.key === 'Enter') state.tap = true;
-    if (e.key === 'd' || e.key === 'D') Game.debug = !Game.debug;
-  });
-  window.addEventListener('keyup', e => { keys[e.key] = false; });
-
-  // Pro Physikframe aufrufen: liefert Steuerwert und setzt Tap zurück
-  function poll() {
-    let a = 0;
-    if (state.pointerDown) {
-      if (dragging) {
-        // Ziehen: Auslenkung vom Startpunkt = Drehrate (nach oben ziehen = aufrichten)
-        a = clamp((startY - curY) / (window.innerHeight * 0.18), -1, 1);
-      } else {
-        // Halten: obere Hälfte = aufrichten, untere = Vorlage
-        a = curY < window.innerHeight / 2 ? 0.8 : -0.8;
-      }
-    }
-    if (keys['ArrowUp'] || keys['w']) a = 1;
-    if (keys['ArrowDown'] || keys['s']) a = -1;
-    const tap = state.tap; state.tap = false;
-    return { tap, angle: a };
-  }
-  return { poll, state };
-})();
-
-// ------------------------------------------------------------------ Game
-const Game = {
-  state: 'READY',   // READY | INRUN | FLIGHT | OUTRUN | RESULT
-  debug: false,
-  time: 0,
-  outrunTimer: 0,
-
-  // Springer
-  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, pose: 'crouch', spin: 0 },
-
-  // Sprungdaten
-  wind: 0, gustPhase: 0,
-  takeoff: { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null },
-  flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 },
-  landingTap: { time: -99, windowOpen: false, tta: 99 },
-  result: null,
-  best: JSON.parse(localStorage.getItem('alpenflug_best') || 'null'),
-
-  message: { text: '', color: '#fff', until: 0 },
-  particles: [],
-
-  showMsg(text, color, dur = 1.4) {
-    this.message = { text, color, until: this.time + dur };
-  },
-
-  newJump() {
-    this.state = 'INRUN';
-    this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
-    this.gustPhase = Math.random() * 100;
-    const start = Hill.inrunAt(0);
-    Object.assign(this.skier, { s: 0, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle, pose: 'crouch', spin: 0 });
-    this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
-    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 };
-    this.landingTap = { time: -99, windowOpen: false, tta: 99 };
-    this.result = null;
-    this.particles.length = 0;
-    hide(startPanel); hide(resultPanel);
-  },
-
-  // aktueller Wind inkl. Böen
-  currentWind() {
-    const gust = Math.sin(this.time * 1.3 + this.gustPhase) * Math.sin(this.time * 0.7);
-    return this.wind * (1 + CONFIG.gustAmount * gust);
-  },
-
-  // ---------------- Physik-Update (fixer Timestep) ----------------
-  update(dt) {
-    this.time += dt;
-    const inp = Input.poll();
-    const S = this.skier;
-
-    if (this.state === 'READY' && inp.tap) this.newJump();
-
-    // ---------- ANLAUF ----------
-    else if (this.state === 'INRUN') {
-      const th = Hill.inrunAt(S.s).angle * D2R;
-      const a = CONFIG.gravity * Math.sin(th)
-              - CONFIG.inrunFriction * CONFIG.gravity * Math.cos(th)
-              - CONFIG.inrunDrag * S.v * S.v;
-      S.v += a * dt;
-      S.s += S.v * dt;
-
-      // Absprung-Tap: Qualität nach Restzeit bis zur Tischkante
-      if (inp.tap && !this.takeoff.tapped) {
-        this.takeoff.tapped = true;
-        const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
-        this.takeoff.tapTTE = tte;
-        this.takeoff.quality = tte <= CONFIG.perfectWindow
-          ? 1
-          : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
-      }
-
-      if (S.s >= Hill.inrunLength) this.startFlight();
-      else {
-        const p = Hill.inrunAt(S.s);
-        S.x = p.x; S.y = p.y; S.body = -p.angle;
-      }
-    }
-
-    // ---------- FLUG ----------
-    else if (this.state === 'FLIGHT') {
-      const F = this.flight, T = this.takeoff;
-
-      // Verspäteter Absprung: Tap kurz nach der Kante zählt noch (reduziert)
-      if (!T.done) {
-        T.lateTimer += dt;
-        if (inp.tap && T.lateTimer <= CONFIG.lateWindow) {
-          T.tapped = true; T.done = true;
-          T.quality = Math.max(0.05, 1 - (T.lateTimer + CONFIG.perfectWindow) / (CONFIG.lateWindow + CONFIG.perfectWindow));
-          this.applyTakeoffImpulse(T.quality, true);
-          this.rateTakeoff(T.quality, 'spät');
-        } else if (T.lateTimer > CONFIG.lateWindow) {
-          T.done = true;
-          this.rateTakeoff(0, 'keiner');
-        }
-      }
-
-      // Fluglagensteuerung + aerodynamischer Drift
-      S.body += inp.angle * CONFIG.angleSpeed * dt + CONFIG.pitchDrift * dt;
-      S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
-
-      // Aerodynamik relativ zur Anströmung (Wind verstärkt via windAeroFactor)
-      const w = this.currentWind() * CONFIG.windAeroFactor;
-      const rvx = S.vx - w, rvy = S.vy;
-      const rv = Math.hypot(rvx, rvy);
-      const velAng = Math.atan2(rvy, rvx) / D2R;
-      const alpha = S.body - velAng;                       // Anstellwinkel
-      const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
-      const liftF = Math.exp(-dNorm * dNorm);              // Gauß-Glocke ums Optimum
-      const aPos = Math.max(0, alpha) / 30;
-      const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
-      const lift = CONFIG.liftCoefficient * rv * rv * liftF;
-      const drag = CONFIG.dragCoefficient * rv * rv * dragF;
-      const ux = rvx / rv, uy = rvy / rv;
-      S.vx += (-drag * ux - lift * uy) * dt;
-      S.vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
-      S.x += S.vx * dt; S.y += S.vy * dt;
-
-      // Haltungsnote: Zeit im Korridor
-      F.time += dt;
-      if (Math.abs(alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance) F.corridorTime += dt;
-      F.alpha = alpha; F.lift = lift; F.drag = drag;
-
-      // Landefenster: geschätzte Zeit bis zum Aufsetzen
-      const g = Hill.groundAt(S.x);
-      const gap = S.y - g.y;
-      const closure = -(S.vy + S.vx * Math.tan(g.angle * D2R)); // Annäherungsrate an den Hang
-      this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
-      const open = this.landingTap.tta < CONFIG.earlyLimit && F.time > 0.5;
-      if (open && !this.landingTap.windowOpen) this.showMsg('LANDEN!', '#ffe082', 0.9);
-      this.landingTap.windowOpen = open;
-      if (inp.tap && open) this.landingTap.time = this.time;
-
-      if (S.y <= g.y && F.time > 0.1) this.touchdown(g);
-    }
-
-    // ---------- AUSLAUF ----------
-    else if (this.state === 'OUTRUN') {
-      const th = Hill.groundAt(S.x).angle * D2R;
-      const fric = this.result.crashed ? CONFIG.crashFriction : CONFIG.outrunFriction;
-      const a = CONFIG.gravity * Math.sin(th) - fric * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
-      S.v = Math.max(0, S.v + a * dt);
-      S.x += S.v * Math.cos(th) * dt;
-      const g2 = Hill.groundAt(S.x);
-      S.y = g2.y;
-      if (this.result.crashed) {
-        S.body += S.spin * dt;
-        S.spin *= 0.97;
-        if (S.v > 2) this.spray(2);
-      } else {
-        S.body = -g2.angle;
-      }
-      this.outrunTimer += dt;
-      if ((S.v < 1.5 || this.outrunTimer > 3.5) && this.outrunTimer > 1.4) this.showResult();
-    }
-
-    // Partikel
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 6 * dt; p.life -= dt;
-      if (p.life <= 0) this.particles.splice(i, 1);
-    }
-  },
-
-  startFlight() {
-    const S = this.skier, T = this.takeoff;
-    const ta = -CONFIG.tableAngle * D2R;
-    const q = T.tapped ? T.quality : 0;
-    // Absprungqualität wirkt auch auf die Abfahrtsgeschwindigkeit
-    const v = S.v * (1 - CONFIG.takeoffSpeedBonus + CONFIG.takeoffSpeedBonus * q);
-    S.x = 0; S.y = 0;
-    S.vx = v * Math.cos(ta); S.vy = v * Math.sin(ta);
-    S.body = -CONFIG.tableAngle + 4;
-    S.pose = 'flight';
-    this.state = 'FLIGHT';
-    if (T.tapped) {
-      T.done = true;
-      this.applyTakeoffImpulse(q, false);
-      this.rateTakeoff(q, T.tapTTE <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
-    }
-    // sonst: lateWindow läuft im FLIGHT-Update weiter
-  },
-
-  applyTakeoffImpulse(q, late) {
-    const S = this.skier, ta = CONFIG.tableAngle * D2R;
-    const imp = CONFIG.takeoffImpulse * q * (late ? 0.8 : 1);
-    S.vx += imp * Math.sin(ta) * 0.25;   // kleiner Vorwärtsanteil
-    S.vy += imp * Math.cos(ta);          // Hauptanteil senkrecht zum Tisch
-  },
-
-  rateTakeoff(q, kind) {
-    if (kind === 'keiner')      this.showMsg('Absprung verschlafen!', '#ff8a80');
-    else if (q >= 0.93)         this.showMsg('PERFEKTER ABSPRUNG!', '#69f0ae');
-    else if (q >= 0.7)          this.showMsg('Guter Absprung', '#b9f6ca');
-    else if (kind === 'spät')   this.showMsg('Zu spät!', '#ffb74d');
-    else                        this.showMsg('Zu früh!', '#ffb74d');
-  },
-
-  touchdown(g) {
-    const S = this.skier;
-    const th = g.angle * D2R;
-    // Aufprallgeschwindigkeit senkrecht zum Hang (Hangnormale n = (sinθ, cosθ))
-    const vNormal = -(S.vx * Math.sin(th) + S.vy * Math.cos(th));
-    // Telemark-Timing
-    const dtTap = this.time - this.landingTap.time;
-    let landing, landingPts, crashed = false;
-    if (dtTap <= CONFIG.telemarkWindow)     { landing = 'Telemark!';        landingPts = CONFIG.styleLandingMax; }
-    else if (dtTap <= CONFIG.okWindow)      { landing = 'Sichere Landung';  landingPts = CONFIG.styleLandingMax * 0.6; }
-    else if (dtTap <= CONFIG.earlyLimit)    { landing = 'Wacklige Landung'; landingPts = CONFIG.styleLandingMax * 0.33; }
-    else                                    { landing = 'STURZ!';           landingPts = 0; crashed = true; }
-    if (vNormal > CONFIG.crashSpeed)        { landing = 'STURZ – zu hart!'; landingPts = 0; crashed = true; }
-
-    const dist = Math.round(g.s * 2) / 2;   // auf 0,5 m gerundet
-    const distPts = Math.max(0, CONFIG.basePoints + (dist - CONFIG.kPoint) * CONFIG.meterValue);
-    const F = this.flight;
-    let flightPts = (F.time > 0 ? F.corridorTime / F.time : 0) * CONFIG.styleFlightMax;
-    if (crashed) flightPts *= 0.25;
-    const total = distPts + flightPts + landingPts;
-
-    this.result = {
-      dist, distPts, flightPts, landingPts, total, landing, crashed,
-      wind: this.wind, takeoffQ: this.takeoff.quality,
-    };
-    // Bestleistung
-    if (!this.best || total > this.best.total) {
-      this.best = { dist, total };
-      try { localStorage.setItem('alpenflug_best', JSON.stringify(this.best)); } catch (e) {}
-    }
-
-    // In den Auslauf übergehen
-    this.state = 'OUTRUN';
-    this.outrunTimer = 0;
-    const vTang = S.vx * Math.cos(th) - S.vy * Math.sin(th);
-    S.v = Math.max(3, vTang);
-    S.y = g.y;
-    S.pose = crashed ? 'crash' : (dtTap <= CONFIG.telemarkWindow ? 'telemark' : 'landed');
-    if (crashed) { S.spin = -540; this.showMsg('STURZ!', '#ff5252', 1.8); }
-    else this.showMsg(landing, dtTap <= CONFIG.telemarkWindow ? '#69f0ae' : '#fff', 1.4);
-    this.spray(crashed ? 40 : 18);
-  },
-
-  spray(n) {
-    const S = this.skier;
-    for (let i = 0; i < n; i++)
-      this.particles.push({
-        x: S.x, y: S.y + 0.2, life: 0.4 + Math.random() * 0.5,
-        vx: -2 - Math.random() * 5, vy: 1 + Math.random() * 4,
-      });
-  },
-
-  showResult() {
-    this.state = 'RESULT';
-    const r = this.result;
-    resTitle.textContent = r.crashed ? '💥 Gestürzt' : '🎿 Sprungweite';
-    resDist.textContent = r.dist.toFixed(1).replace('.', ',') + ' m';
-    resPts.innerHTML =
-      `Weite: <b>${r.distPts.toFixed(1)}</b> · Haltung Flug: <b>${r.flightPts.toFixed(1)}</b> · ` +
-      `Landung (<span class="rating">${r.landing}</span>): <b>${r.landingPts.toFixed(1)}</b><br>` +
-      `Gesamt: <b style="font-size:20px">${r.total.toFixed(1)} Punkte</b><br>` +
-      `<span style="color:#9fc3e0">Wind: ${windLabel(r.wind)}</span>`;
-    resBest.textContent = this.best
-      ? `Bestleistung: ${this.best.dist.toFixed(1).replace('.', ',')} m · ${this.best.total.toFixed(1)} Pkt.` : '';
-    show(resultPanel);
-  },
-};
-
-function windLabel(w) {
-  const abs = Math.abs(w).toFixed(1).replace('.', ',');
-  if (Math.abs(w) < 0.15) return 'windstill';
-  return w < 0 ? `${abs} m/s Gegenwind ✓` : `${abs} m/s Rückenwind ✗`;
+  return o;
+}
+function trs(o, tx, ty, tz, rx, ry, rz, s) {
+  const cx=Math.cos(rx), sx=Math.sin(rx), cy=Math.cos(ry), sy=Math.sin(ry), cz=Math.cos(rz), sz=Math.sin(rz);
+  /* R = Ry * Rx * Rz */
+  const m00 = cy*cz + sy*sx*sz, m01 = -cy*sz + sy*sx*cz, m02 = sy*cx;
+  const m10 = cx*sz,            m11 = cx*cz,             m12 = -sx;
+  const m20 = -sy*cz + cy*sx*sz,m21 = sy*sz + cy*sx*cz,  m22 = cy*cx;
+  o[0]=m00*s; o[1]=m10*s; o[2]=m20*s;  o[3]=0;
+  o[4]=m01*s; o[5]=m11*s; o[6]=m21*s;  o[7]=0;
+  o[8]=m02*s; o[9]=m12*s; o[10]=m22*s; o[11]=0;
+  o[12]=tx;   o[13]=ty;   o[14]=tz;    o[15]=1;
+  return o;
 }
 
-// ------------------------------------------------------------------ Render
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+/* ============================ Geländefunktion ============================
+   Muss exakt mit dem GLSL-Pendant übereinstimmen (siehe TERRAIN_GLSL).      */
+const SLOPE = 0.345;
+const VALLEY = 17.0;
+const MAXKICK = 6;
+const kickBuf = new Float32Array(MAXKICK * 4);   // x, z, höhe, radius
+
+function terrainH(x, z) {
+  let y = -z * SLOPE;
+  y += 1.7 * Math.sin(z * 0.021 + x * 0.004)
+     + 1.0 * Math.sin(z * 0.047 - x * 0.009)
+     + 0.5 * Math.sin(z * 0.110 + x * 0.020);
+  y += 0.006 * x * x;
+  const d = Math.abs(x) - VALLEY;
+  if (d > 0) y += 0.055 * d * d;
+  for (let i = 0; i < MAXKICK; i++) {
+    const r = kickBuf[i*4+3];
+    if (r <= 0) continue;
+    const dx = (x - kickBuf[i*4]) / r, dz = (z - kickBuf[i*4+1]) / (r * 1.6);
+    const e = dx*dx + dz*dz;
+    if (e < 9) y += kickBuf[i*4+2] * Math.exp(-e);
+  }
+  return y;
+}
+function slopeX(x, z) { return (terrainH(x + 0.6, z) - terrainH(x - 0.6, z)) / 1.2; }
+function slopeZ(x, z) { return (terrainH(x, z + 0.6) - terrainH(x, z - 0.6)) / 1.2; }
+
+/* Wanderpfad: garantiert eine befahrbare Linie */
+function pathX(z) { return 9.5 * Math.sin(z * 0.0102) + 5.0 * Math.sin(z * 0.0263 + 1.3); }
+
+/* ============================== Shader =================================== */
+const TERRAIN_GLSL = `
+  uniform vec4 uKick[${MAXKICK}];
+  float H(vec2 p) {
+    float x = p.x, z = p.y;
+    float y = -z * ${SLOPE.toFixed(3)};
+    y += 1.7 * sin(z*0.021 + x*0.004) + 1.0 * sin(z*0.047 - x*0.009) + 0.5 * sin(z*0.110 + x*0.020);
+    y += 0.006 * x * x;
+    float d = abs(x) - ${VALLEY.toFixed(1)};
+    if (d > 0.0) y += 0.055 * d * d;
+    for (int i = 0; i < ${MAXKICK}; i++) {
+      vec4 k = uKick[i];
+      if (k.w > 0.0) {
+        float dx = (x - k.x) / k.w, dz = (z - k.y) / (k.w * 1.6);
+        float e = dx*dx + dz*dz;
+        if (e < 9.0) y += k.z * exp(-e);
+      }
+    }
+    return y;
+  }`;
+
+const V_TERRAIN = `
+  precision highp float;
+  attribute vec2 aGrid;
+  uniform mat4 uVP;
+  uniform vec2 uOrigin;
+  uniform vec3 uCam;
+  ${TERRAIN_GLSL}
+  varying vec3 vN; varying float vFog; varying vec3 vW; varying float vShade;
+  void main() {
+    vec2 w = uOrigin + aGrid;
+    float y = H(w);
+    vec3 p = vec3(w.x, y, w.y);
+    float e = 0.75;
+    float hx = H(w + vec2(e, 0.0)) - H(w - vec2(e, 0.0));
+    float hz = H(w + vec2(0.0, e)) - H(w - vec2(0.0, e));
+    vN = normalize(vec3(-hx, 2.0 * e, -hz));
+    vW = p;
+    vFog = length(p - uCam);
+    /* leichte Facetten-Variation für den Low-Poly-Look */
+    vec2 c = floor(w * 0.25);
+    vShade = fract(sin(dot(c, vec2(12.9898, 78.233))) * 43758.5453);
+    gl_Position = uVP * vec4(p, 1.0);
+  }`;
+
+const F_TERRAIN = `
+  precision highp float;
+  varying vec3 vN; varying float vFog; varying vec3 vW; varying float vShade;
+  uniform vec3 uLight, uSun, uAmb, uFogCol, uSnowLit, uSnowShade;
+  uniform float uFogK, uTrackZ;
+  void main() {
+    vec3 n = normalize(vN);
+    float d = max(dot(n, uLight), 0.0);
+    float up = clamp(n.y, 0.0, 1.0);
+    vec3 base = mix(uSnowShade, uSnowLit, pow(up, 2.2));
+    base *= 0.985 + vShade * 0.03;
+    float det = exp(-vFog * 0.022);
+    float drift = sin(vW.x * 0.85 + sin(vW.z * 0.33) * 1.7) * 0.5 + 0.5;
+    float ripple = sin(vW.z * 1.45 + vW.x * 0.35) * 0.5 + 0.5;
+    base *= 1.0 + (drift * 0.035 + ripple * 0.018 - 0.026) * det;
+    vec3 col = base * (uAmb + uSun * d);
+    /* Sonnen-Glanz auf dem Schnee */
+    col += uSun * pow(d, 24.0) * 0.25;
+    float f = 1.0 - exp(-pow(vFog * uFogK, 2.0));
+    col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+const V_OBJ = `
+  precision highp float;
+  attribute vec3 aPos, aNorm, aCol;
+  attribute vec3 iPos; attribute vec2 iScaleRot; attribute vec4 iTint;
+  uniform mat4 uVP, uModel;
+  uniform vec3 uCam, uRight, uUp;
+  uniform float uBillboard;
+  varying vec3 vN, vC; varying float vFog, vA; varying vec2 vLocal;
+  void main() {
+    vLocal = aPos.xy;
+    vec4 lp = uModel * vec4(aPos, 1.0);
+    vec3 p; vec3 n = mat3(uModel[0].xyz, uModel[1].xyz, uModel[2].xyz) * aNorm;
+    if (uBillboard > 0.5) {
+      p = iPos + (uRight * lp.x + uUp * lp.y) * iScaleRot.x;
+      n = normalize(uCam - p);
+    } else {
+      float c = cos(iScaleRot.y), s = sin(iScaleRot.y);
+      vec3 sp = lp.xyz * iScaleRot.x;
+      p = iPos + vec3(c*sp.x + s*sp.z, sp.y, -s*sp.x + c*sp.z);
+      n = vec3(c*n.x + s*n.z, n.y, -s*n.x + c*n.z);
+    }
+    vN = n; vC = aCol * iTint.rgb; vA = iTint.a;
+    vFog = length(p - uCam);
+    gl_Position = uVP * vec4(p, 1.0);
+  }`;
+
+const F_OBJ = `
+  precision highp float;
+  varying vec3 vN, vC; varying float vFog, vA; varying vec2 vLocal;
+  uniform vec3 uLight, uSun, uAmb, uFogCol;
+  uniform float uFogK, uUnlit, uGlow, uSoft;
+  void main() {
+    vec3 n = normalize(vN);
+    float d = max(dot(n, uLight), 0.0);
+    vec3 col = vC * (uAmb + uSun * d);
+    col = mix(col, vC * (1.0 + uGlow), uUnlit);
+    float f = 1.0 - exp(-pow(vFog * uFogK, 2.0));
+    col = mix(col, uFogCol, clamp(f, 0.0, 1.0) * (1.0 - uUnlit * 0.55));
+    float a = vA;
+    if (uSoft > 0.5) a *= smoothstep(0.5, 0.13, length(vLocal));
+    if (a < 0.01) discard;
+    gl_FragColor = vec4(col, a);
+  }`;
+
+const V_SKY = `
+  precision highp float;
+  attribute vec2 aPos;
+  uniform vec3 uFwd, uRight, uUp;
+  uniform vec2 uFov;              // tan(fov/2)*aspect, tan(fov/2)
+  varying vec3 vRay;
+  void main() {
+    vRay = normalize(uFwd + uRight * aPos.x * uFov.x + uUp * aPos.y * uFov.y);
+    gl_Position = vec4(aPos, 0.999, 1.0);
+  }`;
+
+const F_SKY = `
+  precision highp float;
+  varying vec3 vRay;
+  uniform vec3 uSkyTop, uSkyMid, uSkyBot, uSunCol, uSunDir, uMtnFar, uMtnNear, uFogCol, uSnowLit;
+  uniform float uStars, uAurora, uPhase;
+  float h21(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+  void main() {
+    vec3 r = normalize(vRay);
+    float el = r.y;
+    vec3 col = mix(uSkyMid, uSkyTop, smoothstep(0.02, 0.62, el));
+    col = mix(uSkyBot, col, smoothstep(-0.12, 0.16, el));
+
+    /* Sterne */
+    if (uStars > 0.01) {
+      vec2 sp = floor(r.xz / max(abs(r.y), 0.08) * 26.0);
+      float s = h21(sp);
+      float tw = step(0.985, s) * smoothstep(0.0, 0.25, el);
+      col += vec3(tw) * uStars * (0.6 + 0.4 * h21(sp + 3.7));
+    }
+    /* Polarlicht */
+    if (uAurora > 0.01) {
+      float band = exp(-pow((el - 0.34 - 0.09 * sin(r.x * 5.0 + uPhase * 0.4)) * 7.0, 2.0));
+      float band2 = exp(-pow((el - 0.46 - 0.07 * sin(r.x * 3.3 - uPhase * 0.3)) * 9.0, 2.0));
+      col += (vec3(0.25, 0.95, 0.65) * band + vec3(0.35, 0.55, 1.0) * band2) * uAurora * 0.32
+             * smoothstep(-0.3, 0.4, r.z);
+    }
+    /* Sonne / Mond */
+    float sd = max(dot(r, normalize(uSunDir)), 0.0);
+    col += uSunCol * pow(sd, 900.0) * 3.0;
+    col += uSunCol * pow(sd, 12.0) * 0.35;
+    col += uSunCol * pow(sd, 3.0) * 0.08;
+
+    /* Bergpanorama: drei Kämme rund um den Horizont */
+    float az = atan(r.x, r.z);
+    for (int i = 0; i < 3; i++) {
+      float fi = float(i);
+      float ph = uPhase * (0.00035 + fi * 0.0004);
+      float n = sin(az * (3.0 + fi * 4.0) + ph * 7.0 + fi * 2.1)
+              + 0.55 * sin(az * (7.0 + fi * 6.0) - ph * 5.0 + fi)
+              + 0.30 * sin(az * (17.0 + fi * 9.0) + ph * 11.0);
+      float top = (0.20 - fi * 0.055) * (0.55 + 0.45 * abs(n)) + 0.012;
+      if (el < top) {
+        vec3 rock = mix(uMtnFar, uMtnNear, fi * 0.5);
+        float snowT = smoothstep(top * 0.45, top * 0.92, el);
+        vec3 mc = mix(rock, uSnowLit * 0.92, snowT * 0.85);
+        float haze = smoothstep(top, -0.05, el);
+        mc = mix(mc, uFogCol, 0.25 + 0.45 * (1.0 - fi * 0.3) * haze);
+        col = mix(col, mc, 1.0);
+      }
+    }
+    /* Dunst am Horizont */
+    col = mix(col, uFogCol, smoothstep(0.10, -0.06, el) * 0.85);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+/* ---------------------------- GL-Hilfen ---------------------------------- */
+function sh(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src);
+  return s;
+}
+function prog(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  p.u = {}; p.a = {};
+  const nu = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < nu; i++) { const inf = gl.getActiveUniform(p, i); const nm = inf.name.replace(/\[0\]$/, ''); p.u[nm] = gl.getUniformLocation(p, inf.name); }
+  const na = gl.getProgramParameter(p, gl.ACTIVE_ATTRIBUTES);
+  for (let i = 0; i < na; i++) { const inf = gl.getActiveAttrib(p, i); p.a[inf.name] = gl.getAttribLocation(p, inf.name); }
+  return p;
+}
+const pTerrain = prog(V_TERRAIN, F_TERRAIN);
+const pObj     = prog(V_OBJ, F_OBJ);
+const pSky     = prog(V_SKY, F_SKY);
+
+/* --------------------------- Meshbau (CPU) -------------------------------- */
+function Mesh() { this.v = []; this.i = []; }
+Mesh.prototype.push = function (px, py, pz, nx, ny, nz, c) {
+  this.v.push(px, py, pz, nx, ny, nz, c[0], c[1], c[2]);
+  return this.v.length / 9 - 1;
+};
+Mesh.prototype.tri = function (a, b, c) { this.i.push(a, b, c); };
+Mesh.prototype.quadFace = function (p0, p1, p2, p3, col) {
+  const ux = p1[0]-p0[0], uy = p1[1]-p0[1], uz = p1[2]-p0[2];
+  const vx = p3[0]-p0[0], vy = p3[1]-p0[1], vz = p3[2]-p0[2];
+  let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+  const l = Math.hypot(nx, ny, nz) || 1; nx/=l; ny/=l; nz/=l;
+  const a = this.push(p0[0],p0[1],p0[2], nx,ny,nz, col);
+  const b = this.push(p1[0],p1[1],p1[2], nx,ny,nz, col);
+  const c = this.push(p2[0],p2[1],p2[2], nx,ny,nz, col);
+  const d = this.push(p3[0],p3[1],p3[2], nx,ny,nz, col);
+  this.tri(a,b,c); this.tri(a,c,d);
+};
+Mesh.prototype.box = function (cx, cy, cz, sx, sy, sz, col, shadeTop) {
+  const x0=cx-sx/2, x1=cx+sx/2, y0=cy-sy/2, y1=cy+sy/2, z0=cz-sz/2, z1=cz+sz/2;
+  const t = shadeTop ? [col[0]*1.15, col[1]*1.15, col[2]*1.15] : col;
+  const s = [col[0]*0.78, col[1]*0.78, col[2]*0.80];
+  this.quadFace([x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1], t);   // oben
+  this.quadFace([x0,y0,z1],[x1,y0,z1],[x1,y0,z0],[x0,y0,z0], s);   // unten
+  this.quadFace([x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0], col); // hinten
+  this.quadFace([x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1], col); // vorne
+  this.quadFace([x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1], s);
+  this.quadFace([x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0], s);
+};
+Mesh.prototype.cone = function (cx, cy, cz, r, h, seg, colBot, colTop) {
+  for (let i = 0; i < seg; i++) {
+    const a0 = i / seg * TAU, a1 = (i + 1) / seg * TAU;
+    const p0 = [cx + Math.cos(a0)*r, cy, cz + Math.sin(a0)*r];
+    const p1 = [cx + Math.cos(a1)*r, cy, cz + Math.sin(a1)*r];
+    const tp = [cx, cy + h, cz];
+    let nx = Math.cos((a0+a1)/2), nz = Math.sin((a0+a1)/2);
+    const ny = r / h;
+    const l = Math.hypot(nx, ny, nz);
+    const a = this.push(p0[0],p0[1],p0[2], nx/l,ny/l,nz/l, colBot);
+    const b = this.push(p1[0],p1[1],p1[2], nx/l,ny/l,nz/l, colBot);
+    const c = this.push(tp[0],tp[1],tp[2], nx/l,ny/l,nz/l, colTop);
+    this.tri(a,b,c);
+  }
+};
+/* Glattes Ellipsoid mit korrekten Normalen — Basis für alle Rundformen */
+Mesh.prototype.ellipsoid = function (cx, cy, cz, rx, ry, rz, seg, ring, col, colTop, warp) {
+  const rows = [];
+  for (let j = 0; j <= ring; j++) {
+    const v = j / ring * Math.PI, cv = Math.cos(v), sv = Math.sin(v);
+    const row = [];
+    for (let i = 0; i <= seg; i++) {
+      const u = i / seg * TAU;
+      let ux = Math.cos(u) * sv, uy = cv, uz = Math.sin(u) * sv;
+      let w = 1;
+      if (warp) w = 1 + warp * (Math.sin(u * 3 + v * 2.5) * 0.5 + Math.sin(v * 4 - u * 2) * 0.5);
+      const px = cx + ux * rx * w, py = cy + uy * ry * w, pz = cz + uz * rz * w;
+      let nx = ux / rx, ny = uy / ry, nz = uz / rz;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      const t = (uy + 1) * 0.5;
+      const c = colTop ? [lerp(col[0], colTop[0], t), lerp(col[1], colTop[1], t), lerp(col[2], colTop[2], t)] : col;
+      row.push(this.push(px, py, pz, nx/l, ny/l, nz/l, c));
+    }
+    rows.push(row);
+  }
+  for (let j = 0; j < ring; j++) for (let i = 0; i < seg; i++) {
+    this.tri(rows[j][i], rows[j+1][i], rows[j+1][i+1]);
+    this.tri(rows[j][i], rows[j+1][i+1], rows[j][i+1]);
+  }
+};
+/* Glatte Röhre entlang eines Pfads (Arme, Beine, Schal …) */
+Mesh.prototype.tube = function (pts, rads, seg, col, colEnd) {
+  const rows = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    let tx = b[0]-a[0], ty = b[1]-a[1], tz = b[2]-a[2];
+    let l = Math.hypot(tx, ty, tz) || 1; tx/=l; ty/=l; tz/=l;
+    let ux = 0, uy = 1, uz = 0;
+    if (Math.abs(ty) > 0.94) { ux = 1; uy = 0; }
+    let nx = ty*uz - tz*uy, ny = tz*ux - tx*uz, nz = tx*uy - ty*ux;
+    l = Math.hypot(nx, ny, nz) || 1; nx/=l; ny/=l; nz/=l;
+    const bx = ty*nz - tz*ny, by = tz*nx - tx*nz, bz = tx*ny - ty*nx;
+    const row = [];
+    const t = i / (pts.length - 1);
+    const c = colEnd ? [lerp(col[0], colEnd[0], t), lerp(col[1], colEnd[1], t), lerp(col[2], colEnd[2], t)] : col;
+    for (let s = 0; s <= seg; s++) {
+      const ang = s / seg * TAU, ca = Math.cos(ang), sa = Math.sin(ang);
+      const dx = nx*ca + bx*sa, dy = ny*ca + by*sa, dz = nz*ca + bz*sa;
+      row.push(this.push(p[0] + dx*rads[i], p[1] + dy*rads[i], p[2] + dz*rads[i], dx, dy, dz, c));
+    }
+    rows.push(row);
+  }
+  for (let j = 0; j < rows.length - 1; j++) for (let i = 0; i < seg; i++) {
+    this.tri(rows[j][i], rows[j+1][i], rows[j+1][i+1]);
+    this.tri(rows[j][i], rows[j+1][i+1], rows[j][i+1]);
+  }
+};
+/* Glatter Kegel (geteilte Ringvertices → weiche Schattierung) */
+Mesh.prototype.smoothCone = function (cx, cy, cz, r, h, seg, colBot, colTop) {
+  const ny = r / Math.hypot(r, h);
+  const base = [], apex = [];
+  for (let i = 0; i <= seg; i++) {
+    const a = i / seg * TAU, ca = Math.cos(a), sa = Math.sin(a);
+    const s = Math.hypot(ca, ny, sa);
+    base.push(this.push(cx + ca*r, cy, cz + sa*r, ca/s, ny/s, sa/s, colBot));
+    apex.push(this.push(cx + ca*r*0.02, cy + h, cz + sa*r*0.02, ca/s, ny/s, sa/s, colTop));
+  }
+  for (let i = 0; i < seg; i++) { this.tri(base[i], base[i+1], apex[i+1]); this.tri(base[i], apex[i+1], apex[i]); }
+};
+Mesh.prototype.sphere = function (cx, cy, cz, r, seg, ring, col, squash) {
+  const idx = [];
+  for (let j = 0; j <= ring; j++) {
+    const v = j / ring * Math.PI, sy = Math.cos(v), sr = Math.sin(v);
+    const row = [];
+    for (let i = 0; i <= seg; i++) {
+      const u = i / seg * TAU;
+      const nx = Math.cos(u) * sr, ny = sy, nz = Math.sin(u) * sr;
+      const jitter = 0.82 + hash(i * 3.1 + j * 7.7) * 0.36;
+      const rr = r * jitter;
+      const c2 = [col[0]*(0.85+hash(i+j*5)*0.3), col[1]*(0.85+hash(i+j*5)*0.3), col[2]*(0.85+hash(i+j*5)*0.3)];
+      row.push(this.push(cx + nx*rr, cy + ny*rr*(squash||1), cz + nz*rr, nx, ny, nz, c2));
+    }
+    idx.push(row);
+  }
+  for (let j = 0; j < ring; j++) for (let i = 0; i < seg; i++) {
+    this.tri(idx[j][i], idx[j+1][i], idx[j+1][i+1]);
+    this.tri(idx[j][i], idx[j+1][i+1], idx[j][i+1]);
+  }
+};
+Mesh.prototype.octa = function (cx, cy, cz, r, h, col, colTop) {
+  const top = [cx, cy + h, cz], bot = [cx, cy - h, cz];
+  for (let i = 0; i < 4; i++) {
+    const a0 = i / 4 * TAU + 0.4, a1 = (i + 1) / 4 * TAU + 0.4;
+    const p0 = [cx + Math.cos(a0)*r, cy, cz + Math.sin(a0)*r];
+    const p1 = [cx + Math.cos(a1)*r, cy, cz + Math.sin(a1)*r];
+    this.triFace(p0, p1, top, colTop);
+    this.triFace(p1, p0, bot, col);
+  }
+};
+Mesh.prototype.triFace = function (p0, p1, p2, col) {
+  const ux=p1[0]-p0[0], uy=p1[1]-p0[1], uz=p1[2]-p0[2];
+  const vx=p2[0]-p0[0], vy=p2[1]-p0[1], vz=p2[2]-p0[2];
+  let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+  const l=Math.hypot(nx,ny,nz)||1; nx/=l; ny/=l; nz/=l;
+  const a=this.push(p0[0],p0[1],p0[2],nx,ny,nz,col);
+  const b=this.push(p1[0],p1[1],p1[2],nx,ny,nz,col);
+  const c=this.push(p2[0],p2[1],p2[2],nx,ny,nz,col);
+  this.tri(a,b,c);
+};
+
+function upload(mesh) {
+  const vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.v), gl.STATIC_DRAW);
+  const ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  const big = mesh.v.length / 9 > 65535;
+  const arr = big ? new Uint32Array(mesh.i) : new Uint16Array(mesh.i);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+  return { vb, ib, n: mesh.i.length, type: big ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+           inst: gl.createBuffer(), cap: 0 };
+}
+
+/* --------------------------- Modelle -------------------------------------- */
+const GREEN_D = [0.07, 0.20, 0.17], GREEN_M = [0.11, 0.31, 0.25], GREEN_L = [0.18, 0.44, 0.34];
+const treeMesh = (() => {
+  const m = new Mesh();
+  m.tube([[0,0,0],[0,1.15,0]], [0.19, 0.11], 7, [0.19, 0.13, 0.11], [0.26, 0.18, 0.14]);
+  m.smoothCone(0, 0.85, 0, 1.45, 2.6, 10, GREEN_D, GREEN_M);
+  m.smoothCone(0, 2.15, 0, 1.10, 2.3, 10, GREEN_M, GREEN_L);
+  m.smoothCone(0, 3.35, 0, 0.74, 2.2, 10, GREEN_L, [0.80, 0.90, 1.0]);
+  return upload(m);
+})();
+const rockMesh = (() => {
+  const m = new Mesh();
+  m.ellipsoid(0, 0.5, 0, 1.05, 0.72, 0.95, 11, 7, [0.30, 0.33, 0.42], [0.45, 0.48, 0.58], 0.06);
+  m.ellipsoid(0.06, 0.86, 0.04, 0.86, 0.34, 0.78, 11, 6, [0.86, 0.91, 1.0], [1.0, 1.0, 1.0], 0.05);
+  return upload(m);
+})();
+const crystalMesh = (() => {
+  const m = new Mesh();
+  m.octa(0, 0, 0, 0.19, 0.36, [0.30, 0.72, 1.0], [0.86, 0.99, 1.0]);
+  return upload(m);
+})();
+const flagMesh = (() => {
+  const m = new Mesh();
+  m.tube([[0,0,0],[0,1.6,0],[0,3.0,0]], [0.075, 0.06, 0.05], 8, [0.92, 0.94, 1.0], [1, 1, 1]);
+  /* leicht gewelltes Fahnentuch */
+  for (let k = 0; k < 2; k++) {
+    const y0 = 2.55 - k * 0.72, col = k ? [1.0, 0.82, 0.28] : [0.98, 0.24, 0.34];
+    for (let i = 0; i < 6; i++) {
+      const t0 = i / 6, t1 = (i + 1) / 6;
+      const w0 = Math.sin(t0 * 3.4) * 0.12, w1 = Math.sin(t1 * 3.4) * 0.12;
+      m.quadFace([0.05 + t0 * 1.05, y0 + 0.32, w0], [0.05 + t1 * 1.05, y0 + 0.32, w1],
+                 [0.05 + t1 * 1.05, y0 - 0.30, w1], [0.05 + t0 * 1.05, y0 - 0.30, w0], col);
+      m.quadFace([0.05 + t1 * 1.05, y0 + 0.32, w1], [0.05 + t0 * 1.05, y0 + 0.32, w0],
+                 [0.05 + t0 * 1.05, y0 - 0.30, w0], [0.05 + t1 * 1.05, y0 - 0.30, w1],
+                 [col[0]*0.7, col[1]*0.7, col[2]*0.7]);
+    }
+  }
+  return upload(m);
+})();
+const quadMesh = (() => {
+  const m = new Mesh();
+  m.quadFace([-0.5,-0.5,0], [0.5,-0.5,0], [0.5,0.5,0], [-0.5,0.5,0], [1,1,1]);
+  return upload(m);
+})();
+/* flach auf den Boden gelegt, quer schmal und längs gestreckt */
+const TRACK_M = new Float32Array([0.62,0,0,0,  0,0,2.1,0,  0,1,0,0,  0,0,0,1]);
+const riderMesh = (() => {
+  const m = new Mesh();
+  const BOARD = [0.86, 0.12, 0.26], BOARD_T = [1.0, 0.42, 0.30];
+  const JACKET = [0.13, 0.34, 0.88], JACKET_T = [0.32, 0.58, 1.0];
+  const PANTS = [0.11, 0.13, 0.24], PANTS_T = [0.20, 0.23, 0.38];
+  const HELM = [0.16, 0.19, 0.30], SCARF = [1.0, 0.76, 0.26], PACK = [0.50, 0.17, 0.20];
+  const SKIN = [0.93, 0.74, 0.58];
+  /* Board: flaches, rundes Ellipsoid mit hochgezogenen Enden */
+  m.ellipsoid(0, 0.07, 0, 0.20, 0.045, 0.82, 18, 8, BOARD, BOARD_T);
+  m.ellipsoid(0, 0.11, 0.70, 0.15, 0.04, 0.18, 12, 6, BOARD_T, BOARD_T);
+  m.ellipsoid(0, 0.11, -0.70, 0.15, 0.04, 0.18, 12, 6, BOARD_T, BOARD_T);
+  /* Boots + Bindungen */
+  m.ellipsoid(-0.02, 0.20, -0.26, 0.14, 0.11, 0.16, 12, 7, [0.08,0.09,0.16], [0.18,0.20,0.30]);
+  m.ellipsoid( 0.02, 0.20,  0.26, 0.14, 0.11, 0.16, 12, 7, [0.08,0.09,0.16], [0.18,0.20,0.30]);
+  /* Beine als weiche Röhren, in Snowboard-Stance gebeugt */
+  m.tube([[-0.02,0.24,-0.26], [-0.14,0.48,-0.20], [-0.10,0.74,-0.09]], [0.115, 0.125, 0.13], 12, PANTS, PANTS_T);
+  m.tube([[ 0.02,0.24, 0.26], [ 0.14,0.48, 0.20], [ 0.10,0.74, 0.09]], [0.115, 0.125, 0.13], 12, PANTS, PANTS_T);
+  /* Hüfte + Torso als weiche Silhouette */
+  m.ellipsoid(0, 0.80, 0, 0.21, 0.15, 0.20, 16, 9, PANTS, PANTS_T);
+  m.ellipsoid(0, 1.06, -0.01, 0.235, 0.30, 0.20, 18, 11, JACKET, JACKET_T);
+  m.ellipsoid(0, 1.28, -0.01, 0.20, 0.11, 0.17, 16, 8, JACKET_T, JACKET_T);
+  /* Rucksack, kompakt */
+  m.ellipsoid(0, 1.03, -0.16, 0.105, 0.15, 0.075, 14, 8, PACK, [0.72,0.28,0.26]);
+  /* Arme, ausgestreckt zum Balancieren */
+  m.tube([[-0.20,1.20,0.02], [-0.42,1.12,0.14], [-0.60,0.96,0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
+  m.tube([[ 0.20,1.20,-0.02], [ 0.44,1.20,-0.14], [ 0.62,1.30,-0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
+  m.ellipsoid(-0.62, 0.93, 0.26, 0.075, 0.075, 0.075, 10, 6, [0.10,0.12,0.22], [0.2,0.22,0.34]);
+  m.ellipsoid( 0.64, 1.32,-0.26, 0.075, 0.075, 0.075, 10, 6, [0.10,0.12,0.22], [0.2,0.22,0.34]);
+  /* Hals + Kopf + Helm */
+  m.ellipsoid(0, 1.36, 0, 0.085, 0.07, 0.085, 10, 6, SKIN, SKIN);
+  m.ellipsoid(0, 1.50, 0.01, 0.125, 0.135, 0.125, 16, 10, SKIN, SKIN);
+  m.ellipsoid(0, 1.545, 0, 0.155, 0.155, 0.16, 18, 11, HELM, [0.34, 0.40, 0.58]);
+  /* Brille (dunkles Band um den Helm) */
+  m.ellipsoid(0, 1.53, 0.06, 0.148, 0.05, 0.13, 16, 6, [0.06,0.08,0.16], [0.16,0.30,0.50]);
+  /* Kragen statt Schal — ruhigere Silhouette */
+  m.ellipsoid(0, 1.31, -0.01, 0.155, 0.075, 0.14, 14, 7, SCARF, [1.0, 0.90, 0.55]);
+  return upload(m);
+})();
+
+/* Gelände-Gitter: statisch in lokalen Koordinaten, Höhe im Vertexshader */
+const GX = 44, GZ = 86;                 // Spalten / Reihen
+const terrainGrid = (() => {
+  const v = [], idx = [];
+  for (let j = 0; j < GZ; j++) {
+    const tz = j / (GZ - 1);
+    const z = -30 + Math.pow(tz, 1.55) * 285;
+    for (let i = 0; i < GX; i++) {
+      const ti = (i / (GX - 1)) * 2 - 1;
+      const x = Math.sign(ti) * Math.pow(Math.abs(ti), 1.5) * 62;
+      v.push(x, z);
+    }
+  }
+  for (let j = 0; j < GZ - 1; j++) for (let i = 0; i < GX - 1; i++) {
+    const a = j * GX + i, b = a + 1, c = a + GX, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+  const ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(idx), gl.STATIC_DRAW);
+  return { vb, ib, n: idx.length, type: gl.UNSIGNED_INT };
+})();
+if (!GL2) {   /* WebGL1: 32-Bit-Indizes brauchen eine Extension */
+  const e = gl.getExtension('OES_element_index_uint');
+  if (!e) { document.getElementById('fatal').style.display = 'grid'; throw new Error('no uint idx'); }
+}
+
+const skyQuad = (() => {
+  const b = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  return b;
+})();
+
+/* --------------------- Instanzen zeichnen -------------------------------- */
+const INST = 9;   // x,y,z, scale, rotY, r,g,b,a
+const identM = ident(m4());
+function drawMesh(mesh, data, count, opt) {
+  if (!count) return;
+  const o = opt || {};
+  gl.useProgram(pObj);
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vb);
+  const stride = 9 * 4;
+  gl.enableVertexAttribArray(pObj.a.aPos);  gl.vertexAttribPointer(pObj.a.aPos, 3, gl.FLOAT, false, stride, 0);
+  gl.enableVertexAttribArray(pObj.a.aNorm); gl.vertexAttribPointer(pObj.a.aNorm, 3, gl.FLOAT, false, stride, 12);
+  gl.enableVertexAttribArray(pObj.a.aCol);  gl.vertexAttribPointer(pObj.a.aCol, 3, gl.FLOAT, false, stride, 24);
+  vDivisor(pObj.a.aPos, 0); vDivisor(pObj.a.aNorm, 0); vDivisor(pObj.a.aCol, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.inst);
+  if (mesh.cap < count) { gl.bufferData(gl.ARRAY_BUFFER, data.byteLength, gl.DYNAMIC_DRAW); mesh.cap = data.length / INST; }
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, count * INST));
+  const is = INST * 4;
+  gl.enableVertexAttribArray(pObj.a.iPos);      gl.vertexAttribPointer(pObj.a.iPos, 3, gl.FLOAT, false, is, 0);
+  gl.enableVertexAttribArray(pObj.a.iScaleRot); gl.vertexAttribPointer(pObj.a.iScaleRot, 2, gl.FLOAT, false, is, 12);
+  gl.enableVertexAttribArray(pObj.a.iTint);     gl.vertexAttribPointer(pObj.a.iTint, 4, gl.FLOAT, false, is, 20);
+  vDivisor(pObj.a.iPos, 1); vDivisor(pObj.a.iScaleRot, 1); vDivisor(pObj.a.iTint, 1);
+
+  gl.uniformMatrix4fv(pObj.u.uModel, false, o.model || identM);
+  gl.uniform1f(pObj.u.uBillboard, o.billboard ? 1 : 0);
+  gl.uniform1f(pObj.u.uUnlit, o.unlit ? 1 : 0);
+  gl.uniform1f(pObj.u.uGlow, o.glow || 0);
+  gl.uniform1f(pObj.u.uSoft, o.soft ? 1 : 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
+  drawInst(gl.TRIANGLES, mesh.n, mesh.type, 0, count);
+}
+
+/* ============================ Farbwelten ================================= */
+function rgb(h) { return [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255]; }
+const RAW = [
+  { n:'Morgen', top:'#1b56c8', mid:'#7fa8f0', bot:'#ffd0a4', sun:'#fff6e2', sunUp:0.38,
+    fog:'#dbe6fb', far:'#6b82c4', near:'#4a5c9c', lit:'#fffaf2', shade:'#b9d0f8', amb:'#8296c0', sunI:'#fff0d8',
+    stars:0.06, aur:0.0 },
+  { n:'Tag',    top:'#1470de', mid:'#59aef4', bot:'#d8f0ff', sun:'#ffffff', sunUp:0.80,
+    fog:'#e2f0ff', far:'#8fb8e2', near:'#6a95cc', lit:'#ffffff', shade:'#c6dcfa', amb:'#93a8c8', sunI:'#fffdf4',
+    stars:0.0, aur:0.0 },
+  { n:'Abend',  top:'#361a63', mid:'#c2527f', bot:'#ffb066', sun:'#ffe6b8', sunUp:0.14,
+    fog:'#e6c0ae', far:'#7d4a86', near:'#54306b', lit:'#fff6ec', shade:'#c2b0d8', amb:'#8a7099', sunI:'#ffc39a',
+    stars:0.18, aur:0.0 },
+  { n:'Nacht',  top:'#04081f', mid:'#0d1846', bot:'#24377e', sun:'#e8f1ff', sunUp:0.66,
+    fog:'#3b4f92', far:'#222d64', near:'#161d48', lit:'#dbe7ff', shade:'#8497d8', amb:'#495a9a', sunI:'#a8c6ff',
+    stars:1.0, aur:0.9 }
+];
+const PALS = RAW.map(p => ({
+  n: p.n, top: rgb(p.top), mid: rgb(p.mid), bot: rgb(p.bot), sun: rgb(p.sun), sunUp: p.sunUp,
+  fog: rgb(p.fog), far: rgb(p.far), near: rgb(p.near), lit: rgb(p.lit), shade: rgb(p.shade),
+  amb: rgb(p.amb), sunI: rgb(p.sunI), stars: p.stars, aur: p.aur
+}));
+const CYCLE = 2600;          // Meter pro Tageszeit
+const PAL = { top:[0,0,0], mid:[0,0,0], bot:[0,0,0], sun:[0,0,0], fog:[0,0,0], far:[0,0,0], near:[0,0,0],
+              lit:[0,0,0], shade:[0,0,0], amb:[0,0,0], sunI:[0,0,0], stars:0, aur:0, sunUp:0.5, name:'' };
+function mixInto(o, a, b, t) { for (let i = 0; i < 3; i++) o[i] = lerp(a[i], b[i], t); }
+function updatePalette(dist) {
+  const t = Math.max(0, dist) / CYCLE;
+  const i = ((Math.floor(t) % PALS.length) + PALS.length) % PALS.length, j = (i + 1) % PALS.length;
+  const f = smooth(clamp(((t - Math.floor(t)) - 0.62) / 0.38, 0, 1));
+  const a = PALS[i], b = PALS[j];
+  ['top','mid','bot','sun','fog','far','near','lit','shade','amb','sunI'].forEach(k => mixInto(PAL[k], a[k], b[k], f));
+  PAL.stars = lerp(a.stars, b.stars, f); PAL.aur = lerp(a.aur, b.aur, f);
+  PAL.sunUp = lerp(a.sunUp, b.sunUp, f); PAL.name = f > 0.5 ? b.n : a.n;
+}
+
+/* ============================== Welt ===================================== */
+const trees = [], rocks = [], crystals = [], gates = [], kickers = [];
+let genZ = 0;
+
+function addTree(x, z, s) { trees.push({ x, z, y: 0, s, r: srnd() * TAU, tint: 0.75 + srnd() * 0.45 }); }
+
+function genAhead(toZ) {
+  while (genZ < toZ) {
+    const z = genZ;
+    const px = pathX(z);
+    const m = z;                       // Meter
+
+    /* Waldränder */
+    for (let side = -1; side <= 1; side += 2) {
+      const n = 2 + (srnd() * 2 | 0);
+      for (let i = 0; i < n; i++) {
+        const x = side * (VALLEY + 1.5 + srnd() * 26);
+        addTree(x, z + srnd() * 9, 0.75 + srnd() * 0.8);
+      }
+    }
+    /* Hindernisse auf der Piste */
+    const density = clamp(0.5 + m / 3200, 0, 1.7);
+    const lane = Math.max(2.9, 4.8 - m / 2600);       // freier Korridor wird enger
+    if (m > 80 && srnd() < density) {
+      const n = 1 + (srnd() * 3 | 0);
+      for (let i = 0; i < n; i++) {
+        let x = (srnd() * 2 - 1) * (VALLEY - 1.5);
+        const zz = z + srnd() * 9;
+        if (Math.abs(x - pathX(zz)) < lane) continue;
+        if (srnd() < 0.55) addTree(x, zz, 0.6 + srnd() * 0.5);
+        else rocks.push({ x, z: zz, y: 0, s: 0.7 + srnd() * 0.7, r: srnd() * TAU });
+      }
+    }
+    /* Kristalle entlang der Ideallinie */
+    if (srnd() < 0.32) {
+      const n = 3 + (srnd() * 3 | 0);
+      const zz = z + srnd() * 4;
+      for (let i = 0; i < n; i++) {
+        const cz = zz + i * 4.5;
+        crystals.push({ x: pathX(cz) + (srnd() - 0.5) * 2.5, z: cz, got: false, ph: srnd() * TAU });
+      }
+    }
+    /* Tore */
+    if (m > 60 && srnd() < 0.4) {
+      const zz = z + srnd() * 8;
+      gates.push({ x: pathX(zz), z: zz, w: 3.4, passed: false });
+    }
+    /* Schanzen */
+    if (m > 120 && srnd() < 0.30 && (kickers.length === 0 || z - kickers[kickers.length-1].z > 95)) {
+      const zz = z + 6;
+      kickers.push({ x: pathX(zz), z: zz, h: 3.0 + srnd() * 1.8, r: 7 + srnd() * 3 });
+      /* Kristallbogen hinter der Schanze */
+      for (let i = 0; i < 5; i++) {
+        const cz = zz + 14 + i * 6;
+        crystals.push({ x: pathX(cz), z: cz, got: false, ph: 0, air: 2.5 + 2.2 * Math.sin(i / 4 * Math.PI) });
+      }
+    }
+    genZ += 22;
+  }
+}
+function pruneWorld(z) {
+  const cut = z - 40;
+  for (const arr of [trees, rocks, crystals, gates, kickers]) {
+    let k = 0;
+    for (let i = 0; i < arr.length; i++) if (arr[i].z > cut) arr[k++] = arr[i];
+    arr.length = k;
+  }
+}
+/* aktive Schanzen ins Shader-Array spiegeln (max MAXKICK) */
+function syncKickers(z) {
+  kickBuf.fill(0);
+  let n = 0;
+  for (let i = 0; i < kickers.length && n < MAXKICK; i++) {
+    const k = kickers[i];
+    if (k.z > z - 30 && k.z < z + 190) {
+      kickBuf[n*4] = k.x; kickBuf[n*4+1] = k.z; kickBuf[n*4+2] = k.h; kickBuf[n*4+3] = k.r; n++;
+    }
+  }
+}
+
+/* ============================ Spielzustand =============================== */
+const P = {
+  x: 0, z: 0, y: 0, vx: 0, vz: 14, vy: 0,
+  air: false, airT: 0, spin: 0, spinTarget: 0, yaw: 0, roll: 0, pitch: 0,
+  crashT: 0, tumble: 0
+};
+let state = 'menu';
+let steer = 0, steerTarget = 0, holding = false;
+let score = 0, tricks = 0, gotCrystals = 0, best = 0, combo = 0, comboT = 0, comboScore = 0;
+let flow = 0, flowT = 0, maxSpeed = 26, shake = 0, timeScale = 1, tGlobal = 0, deathReason = 'Sturz';
+let camX = 0, camY = 0, camZ = 0, camShakeX = 0, camShakeY = 0, fovBoost = 0;
+
+const parts = [];   // Partikel: x,y,z,vx,vy,vz,l,L,s,col,kind
+function spawnPart(x, y, z, vx, vy, vz, life, size, col, kind) {
+  if (parts.length > 500) return;
+  parts.push({ x, y, z, vx, vy, vz, l: life, L: life, s: size, c: col, k: kind || 0 });
+}
+/* Board-Spur: flache, weiche Flecken, die im Schnee zurückbleiben */
+const tracks = [];
+let trackAcc = 0;
+function layTrack(dt) {
+  trackAcc += P.vz * dt;
+  while (trackAcc > 0.30) {
+    trackAcc -= 0.30;
+    tracks.push({ x: P.x, z: P.z - 0.5, y: terrainH(P.x, P.z - 0.5), l: 3.4, rot: -P.vx / Math.max(P.vz, 1) });
+    if (tracks.length > 340) tracks.shift();
+  }
+}
+
+const flakes = [];
+for (let i = 0; i < 260; i++)
+  flakes.push({ x: (Math.random()*2-1)*46, y: Math.random()*34, z: Math.random()*150 - 20, ph: Math.random()*TAU });
+
+/* ============================== Audio ==================================== */
+let AC = null, master = null, windG = null, carveG = null, muted = false, noiseBuf = null;
+function initAudio() {
+  if (AC) return;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return;
+  AC = new Ctor();
+  master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
+  const len = AC.sampleRate * 2;
+  noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const mkLoop = (freq, q) => {
+    const s = AC.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = AC.createGain(); g.gain.value = 0;
+    s.connect(f); f.connect(g); g.connect(master); s.start();
+    return { g, f };
+  };
+  windG = mkLoop(560, 0.7); carveG = mkLoop(1900, 1.1);
+}
+function resumeAudio() { if (AC && AC.state === 'suspended') AC.resume(); }
+function envl(node, peak, atk, dec) {
+  const t = AC.currentTime;
+  node.gain.cancelScheduledValues(t);
+  node.gain.setValueAtTime(0.0001, t);
+  node.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + atk);
+  node.gain.exponentialRampToValueAtTime(0.0001, t + atk + dec);
+}
+function tone(f0, f1, dur, type, vol) {
+  if (!AC || muted) return;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(f0, AC.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), AC.currentTime + dur);
+  o.connect(g); g.connect(master); envl(g, vol == null ? 0.22 : vol, 0.008, dur);
+  o.start(); o.stop(AC.currentTime + dur + 0.05);
+}
+function noise(dur, freq, q, vol, type) {
+  if (!AC || muted) return;
+  const s = AC.createBufferSource(); s.buffer = noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = type || 'bandpass'; f.frequency.value = freq; f.Q.value = q || 1;
+  const g = AC.createGain();
+  s.connect(f); f.connect(g); g.connect(master); envl(g, vol == null ? 0.28 : vol, 0.005, dur);
+  s.start(); s.stop(AC.currentTime + dur + 0.05);
+}
+const sfx = {
+  jump()   { tone(230, 600, 0.15, 'triangle', 0.2); noise(0.12, 1300, 1.4, 0.14); },
+  land(q)  { tone(170, 62, 0.2, 'sine', 0.28); noise(0.2, 640, 0.9, 0.18 + q * 0.12); },
+  crystal(n){ const s = [0,2,4,7,9,12,14,16][Math.min(n,7)]; tone(880*Math.pow(2,s/12), 1300*Math.pow(2,s/12), 0.13, 'sine', 0.18); },
+  gate()   { tone(520, 780, 0.14, 'square', 0.10); tone(780, 1170, 0.16, 'sine', 0.12); },
+  trick(n) { tone(400 + n*90, 880 + n*140, 0.2, 'triangle', 0.18); },
+  perfect(){ [0,4,7,12].forEach((s,i) => setTimeout(() => tone(660*Math.pow(2,s/12), 660*Math.pow(2,s/12), 0.16, 'sine', 0.14), i*45)); },
+  flow()   { [0,7,12,16,19].forEach((s,i) => setTimeout(() => tone(440*Math.pow(2,s/12), 440*Math.pow(2,s/12)*1.01, 0.5, 'triangle', 0.12), i*70)); },
+  crash()  { noise(0.55, 240, 0.5, 0.45, 'lowpass'); tone(150, 40, 0.5, 'sawtooth', 0.16); }
+};
+function buzz(p) { if (!muted && navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} } }
+
+/* ============================== Eingabe ================================== */
+let ptrId = null, ptrX = 0, ptrT = 0, ptrMoved = 0;
+function onDown(e) {
+  initAudio(); resumeAudio();
+  if (state !== 'play') return;
+  if (ptrId !== null) { actionTap(); return; }      // zweiter Finger = Aktion, Lenken bleibt aktiv
+  ptrId = e.pointerId; ptrX = e.clientX; ptrT = performance.now(); ptrMoved = 0;
+  holding = true;
+}
+function onMove(e) {
+  if (e.pointerId !== ptrId || state !== 'play') return;
+  const dx = e.clientX - ptrX;
+  ptrMoved = Math.max(ptrMoved, Math.abs(dx));
+  const span = Math.max(70, window.innerWidth * 0.20);
+  steerTarget = clamp(dx / span, -1, 1);
+  /* Referenzpunkt nachziehen, damit man beliebig weit lenken kann */
+  if (Math.abs(steerTarget) >= 1) ptrX = e.clientX - Math.sign(dx) * span;
+}
+function onUp(e) {
+  if (e.pointerId !== ptrId) return;
+  const dt = performance.now() - ptrT;
+  if (state === 'play' && dt < 240 && ptrMoved < 16) actionTap();
+  ptrId = null; holding = false; steerTarget = 0;
+}
+cvs.addEventListener('pointerdown', e => { e.preventDefault(); onDown(e); }, { passive: false });
+window.addEventListener('pointermove', onMove);
+window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) actionTap(); holding = true; }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') holding = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { holding = false; steerTarget = 0; } });
+
+function actionTap() {
+  if (state !== 'play') return;
+  if (P.air) addSpin(); else jump();
+}
+function addSpin() {
+  if (P.spinTarget - P.spin > 5.0) return;          // maximal eine Drehung vorreihen
+  P.spinTarget += TAU;
+  sfx.trick(1); buzz(6);
+}
+function jump() {
+  if (state !== 'play' || P.air) return;
+  P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 10.6;
+  sfx.jump(); buzz(8);
+  for (let i = 0; i < 16; i++)
+    spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
+              (srnd()-0.5)*3, srnd()*2.5, -srnd()*3 - P.vz*0.15, 0.55, 0.35 + srnd()*0.4, 0);
+}
+
+/* ============================ Combo / Flow =============================== */
+const comboEl = document.getElementById('combo');
+function addCombo(label, pts) {
+  combo = Math.min(combo + 1, 12); comboT = 2.2;
+  const gain = Math.round(pts * combo);
+  comboScore += gain;
+  comboEl.textContent = label + (combo > 1 ? '  ×' + combo : '');
+  comboEl.classList.add('on');
+}
+function bankCombo() { if (comboScore > 0) { score += comboScore; comboScore = 0; } combo = 0; comboEl.classList.remove('on'); }
+function addFlow(v) {
+  if (flowT > 0) return;
+  flow = clamp(flow + v, 0, 1);
+  if (flow >= 1) {
+    flowT = 6; sfx.flow(); buzz([12, 40, 12]);
+    comboEl.textContent = 'FLOW!'; comboEl.classList.add('on');
+    for (let i = 0; i < 60; i++)
+      spawnPart(P.x, P.y + 1, P.z, (srnd()-0.5)*9, srnd()*7, (srnd()-0.5)*9, 0.9, 0.4, 1);
+  }
+}
+
+/* ============================== Tod ====================================== */
+function die(reason) {
+  if (state !== 'play') return;
+  state = 'dead'; deathReason = reason;
+  comboScore = 0; combo = 0; comboEl.classList.remove('on');
+  shake = 1.4; timeScale = 0.35; flowT = 0; flow = 0;
+  P.tumble = (srnd() - 0.5) * 10;
+  sfx.crash(); buzz([40, 50, 90]);
+  for (let i = 0; i < 60; i++)
+    spawnPart(P.x, P.y + 0.7, P.z, (srnd()-0.5)*10, srnd()*8, (srnd()-0.5)*10 - P.vz*0.3, 0.9, 0.5 + srnd()*0.6, 0);
+  if (windG) { windG.g.gain.value = 0; carveG.g.gain.value = 0; }
+  setTimeout(showOver, 1000);
+}
+
+/* ============================== Update =================================== */
+function update(dt) {
+  tGlobal += dt;
+  updatePalette(P.z);
+
+  if (state === 'play') {
+    genAhead(P.z + 320);
+    syncKickers(P.z);
+    if (((tGlobal * 4) | 0) % 7 === 0) pruneWorld(P.z);
+
+    maxSpeed = 26 + Math.min(P.z / 260, 15) + (flowT > 0 ? 9 : 0);
+
+    /* Lenken */
+    if (keys.ArrowLeft || keys.KeyA) steerTarget = -1;
+    else if (keys.ArrowRight || keys.KeyD) steerTarget = 1;
+    else if (ptrId === null && !keys.ArrowLeft && !keys.ArrowRight) steerTarget = lerp(steerTarget, 0, 1 - Math.pow(0.02, dt));
+    steer = lerp(steer, steerTarget, 1 - Math.pow(0.0015, dt));
+
+    /* Vorwärts */
+    const gz = -slopeZ(P.x, P.z);                         // >0 = bergab
+    const accel = 22 * clamp(gz, 0.05, 1.2) + (flowT > 0 ? 6 : 0);
+    P.vz += (accel - (accel / maxSpeed) * P.vz) * dt;
+    P.vz = clamp(P.vz, 6, maxSpeed * 1.15);
+
+    /* Seitwärts */
+    const grip = P.air ? 0.35 : 1;
+    P.vx += (steer * 30 * grip - P.vx * 3.4 * grip) * dt;
+    P.vx += -slopeX(P.x, P.z) * 26 * dt;                  // Hangneigung zieht ins Tal
+    P.x += P.vx * dt;
+    P.z += P.vz * dt;
+    P.x = clamp(P.x, -34, 34);
+
+    const gy = terrainH(P.x, P.z);
+
+    if (P.air) {
+      P.airT += dt;
+      P.vy -= 21 * dt;
+      P.y += P.vy * dt;
+            /* Spin läuft bis zur vollen Drehung durch und stoppt dann exakt */
+      if (P.spin < P.spinTarget) {
+        const st = Math.min(8.2 * dt, P.spinTarget - P.spin);
+        P.spin += st; P.yaw += st;
+      }
+      if (P.airT > 0.1 && srnd() < 0.3)
+        spawnPart(P.x, P.y + 0.2, P.z, (srnd()-0.5)*1.5, srnd()*0.6, -srnd()*2, 0.6, 0.22, 0);
+
+      if (P.y <= gy) {
+        /* Landung */
+        P.y = gy;
+        const spins = Math.floor(P.spin / TAU + 0.001);
+        const rest = P.spinTarget - P.spin;
+        if (rest > 0.45 && P.airT > 0.25) { P.air = false; die('Spin nicht vollendet'); return; }
+        P.air = false;
+        P.yaw = 0;
+        const impact = clamp(-P.vy / 14, 0, 1);
+        if (P.airT > 0.35) {
+          if (spins > 0) {
+            tricks += spins;
+            addCombo(spins > 1 ? spins * 360 + '° SPIN' : '360° SPIN', 170 * spins);
+            addFlow(0.17 * spins); sfx.perfect();
+          } else if (P.airT > 0.85) { addCombo('BIG AIR', 80); addFlow(0.07); }
+          score += Math.round(P.airT * 26);
+        }
+        P.spin = 0; P.spinTarget = 0;
+        P.vy = 0;
+        shake = Math.max(shake, 0.25 + impact * 0.5);
+        sfx.land(impact); buzz(Math.round(6 + impact * 16));
+        for (let i = 0; i < 14 + impact * 26; i++)
+          spawnPart(P.x + (srnd()-0.5)*1.2, P.y + 0.1, P.z + (srnd()-0.5)*1.2,
+                    (srnd()-0.5)*6, srnd()*4*(0.4+impact), -srnd()*4 - P.vz*0.1, 0.7, 0.3 + srnd()*0.5, 0);
+      }
+    } else {
+      /* Am Boden: Höhe folgen, natürliche Absprünge an Kanten */
+      const prevY = P.y;
+      P.y = gy;
+      const climb = (P.y - prevY) / dt;
+      if (climb < -12 - P.vz * 0.35) {           // Boden fällt schneller weg als man folgen kann
+        P.air = true; P.airT = 0; P.spin = 0; P.vy = 0;
+      }
+      /* Schneefahne */
+      const rel = P.vz / maxSpeed;
+      const nSpray = 1 + (rel * 2 | 0) + (Math.abs(steer) > 0.35 ? 2 : 0);
+      for (let i = 0; i < nSpray; i++)
+        spawnPart(P.x - steer * 0.35 + (srnd()-0.5)*0.5, P.y + 0.08, P.z - 0.4 + (srnd()-0.5)*0.4,
+                  -steer * (2 + srnd()*5) + (srnd()-0.5)*1.5,
+                  1.0 + srnd() * 2.4 * (0.4 + Math.abs(steer)),
+                  -2 - srnd() * 5, 0.45 + srnd()*0.35, 0.22 + srnd()*0.35, 0);
+      layTrack(dt);
+      score += P.vz * dt * 0.9;
+      if (comboT > 0) { comboT -= dt; if (comboT <= 0) bankCombo(); }
+    }
+
+    /* Kollisionen */
+    const near = 3.0;
+    if (P.y - terrainH(P.x, P.z) < 1.6) {
+      for (let i = 0; i < trees.length; i++) {
+        const t = trees[i];
+        if (Math.abs(t.z - P.z) > near) continue;
+        if (Math.abs(t.x - P.x) < 0.55 + t.s * 0.55) { die('Baum getroffen'); return; }
+      }
+      for (let i = 0; i < rocks.length; i++) {
+        const r = rocks[i];
+        if (Math.abs(r.z - P.z) > near) continue;
+        if (Math.abs(r.x - P.x) < 0.5 + r.s * 0.9) { die('Felsen getroffen'); return; }
+      }
+    }
+    /* Tore */
+    for (let i = 0; i < gates.length; i++) {
+      const g = gates[i];
+      if (g.passed || g.z > P.z) continue;
+      g.passed = true;
+      if (Math.abs(P.x - g.x) < g.w) { addCombo('TOR', 60); addFlow(0.07); sfx.gate(); }
+    }
+    /* Kristalle */
+    for (let i = 0; i < crystals.length; i++) {
+      const c = crystals[i];
+      if (c.got) continue;
+      const cy = terrainH(c.x, c.z) + (c.air || 1.2);
+      if (Math.abs(c.z - P.z) < 1.8 && Math.abs(c.x - P.x) < 1.6 && Math.abs(cy - (P.y + 0.9)) < 2.0) {
+        c.got = true; gotCrystals++;
+        score += 25 * Math.max(1, combo);
+        addFlow(0.05); sfx.crystal(gotCrystals % 8); buzz(6);
+        for (let k = 0; k < 12; k++)
+          spawnPart(c.x, cy, c.z, (srnd()-0.5)*5, srnd()*4, (srnd()-0.5)*5, 0.6, 0.28, 1);
+      }
+    }
+
+    if (flowT > 0) { flowT -= dt; flow = clamp(flowT / 6, 0, 1); if (flowT <= 0) { flow = 0; comboEl.classList.remove('on'); } }
+
+    /* Ausrichtung */
+    const targetRoll = clamp(-steer * 0.26 - P.vx / 60, -0.34, 0.34);
+    P.roll = lerp(P.roll, P.air ? targetRoll * 0.4 : targetRoll, 1 - Math.pow(0.001, dt));
+    P.pitch = lerp(P.pitch, P.air ? clamp(-P.vy / 40, -0.28, 0.28) : Math.atan(slopeZ(P.x, P.z)) * 0.75, 1 - Math.pow(0.004, dt));
+    if (!P.air) P.yaw = lerp(P.yaw, clamp(P.vx / P.vz, -0.6, 0.6) * 0.8, 1 - Math.pow(0.002, dt));
+
+  } else if (state === 'dead') {
+    P.z += P.vz * dt; P.x += P.vx * dt;
+    P.vz *= (1 - 1.1 * dt); P.vx *= (1 - 1.1 * dt);
+    P.vy -= 21 * dt; P.y += P.vy * dt;
+    P.roll += P.tumble * dt; P.pitch += P.tumble * 0.6 * dt;
+    const gy = terrainH(P.x, P.z);
+    if (P.y < gy) { P.y = gy; P.vy *= -0.3; P.tumble *= 0.5;
+      if (Math.abs(P.vy) > 2) for (let i = 0; i < 10; i++)
+        spawnPart(P.x, P.y, P.z, (srnd()-0.5)*4, srnd()*3, (srnd()-0.5)*4, 0.6, 0.35, 0); }
+    timeScale = lerp(timeScale, 1, dt * 1.5);
+    syncKickers(P.z);
+  } else {
+    /* Menü: langsam den Hang hinunter gleiten */
+    P.z += 7 * dt;
+    P.x = pathX(P.z);
+    P.y = terrainH(P.x, P.z);
+    P.yaw = 0; P.roll = 0; P.pitch = Math.atan(slopeZ(P.x, P.z));
+    genAhead(P.z + 320); syncKickers(P.z);
+    if (((tGlobal * 4) | 0) % 7 === 0) pruneWorld(P.z);
+  }
+
+  /* Kamera: dicht hinter dem Fahrer, Blick den Hang hinunter */
+  const back = 8.4 + P.vz * 0.075;
+  const up = 4.1 + (P.air ? 0.9 : 0);
+  const tx = P.x - P.vx * 0.045;
+  const tz = P.z - back;
+  /* Kamera immer deutlich über dem Boden an IHRER Position (der Hang steigt nach hinten an) */
+  const ty = Math.max(P.y + up, terrainH(P.x, tz) + 3.4);
+  const k = 1 - Math.pow(0.0004, dt);
+  camX = lerp(camX, tx, k); camY = lerp(camY, ty, 1 - Math.pow(0.0009, dt)); camZ = lerp(camZ, tz, k);
+  shake *= Math.pow(0.015, dt);
+  camShakeX = (srnd() - 0.5) * shake; camShakeY = (srnd() - 0.5) * shake;
+  fovBoost = lerp(fovBoost, clamp((P.vz - 20) / 26, 0, 1) * 0.16 + (flowT > 0 ? 0.07 : 0), 1 - Math.pow(0.05, dt));
+
+  /* Partikel */
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.l -= dt;
+    if (p.l <= 0 || p.z < camZ - 12) { parts.splice(i, 1); continue; }
+    p.vy -= (p.k === 1 ? 2 : 7) * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    p.vx *= (1 - 1.6 * dt); p.vz *= (1 - 1.6 * dt);
+  }
+
+  /* Umgebungs-Schneefall (kamerarelativ) */
+  for (const f of flakes) {
+    f.y -= (2.5 + f.ph % 1.5) * dt;
+    f.z -= 3 * dt;
+    if (f.y < camY - 6) { f.y = camY + 26 + Math.random() * 8; }
+    if (f.z < camZ - 6) { f.z = camZ + 90 + Math.random() * 40; f.x = camX + (Math.random()*2-1)*46; }
+    if (Math.abs(f.x - camX) > 50) f.x = camX + (Math.random()*2-1)*46;
+  }
+
+  /* Audio */
+  if (AC && !muted) {
+    const rel = clamp(P.vz / maxSpeed, 0, 1.2);
+    const w = state === 'play' ? 0.04 + rel * 0.15 : 0.01;
+    const c = (state === 'play' && !P.air) ? 0.02 + rel * 0.10 + Math.abs(steer) * 0.08 : 0;
+    windG.g.gain.value = lerp(windG.g.gain.value, w, 0.08);
+    carveG.g.gain.value = lerp(carveG.g.gain.value, c, 0.14);
+    windG.f.frequency.value = 380 + rel * 700;
+  } else if (AC) { windG.g.gain.value = 0; carveG.g.gain.value = 0; }
+}
+
+/* ============================== Rendern ================================== */
+const VP = m4(), PROJ = m4(), VIEW = m4();
+const instData = new Float32Array(3000 * INST);
 let W = 0, H = 0, DPR = 1;
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth; H = window.innerHeight;
-  canvas.width = Math.round(W * DPR);
-  canvas.height = Math.round(H * DPR);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+  cvs.style.width = W + 'px'; cvs.style.height = H + 'px';
+  gl.viewport(0, 0, cvs.width, cvs.height);
 }
 window.addEventListener('resize', resize);
-resize();
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 
-// Kamera: Weltkoordinaten (m) → Bildschirm (CSS-px)
-const cam = { x: -30, y: -10, ppm: 10 };
-function worldToScreen(wx, wy) {
-  return { x: (wx - cam.x) * cam.ppm + W * 0.5, y: H * 0.48 - (wy - cam.y) * cam.ppm };
+function pushInst(arr, n, x, y, z, s, rot, r, g, b, a) {
+  const o = n * INST;
+  arr[o]=x; arr[o+1]=y; arr[o+2]=z; arr[o+3]=s; arr[o+4]=rot;
+  arr[o+5]=r; arr[o+6]=g; arr[o+7]=b; arr[o+8]=a;
+  return n + 1;
 }
 
-function updateCamera(dt) {
-  const S = Game.skier;
-  let targetX, targetY, view;
-  if (Game.state === 'READY' || Game.state === 'INRUN') {
-    view = 42;
-    targetX = S.x + 8; targetY = S.y - 6;
-  } else if (Game.state === 'FLIGHT') {
-    const hAbove = S.y - Hill.groundAt(S.x).y;
-    view = clamp(hAbove * 2.0 + 24, 42, 95);
-    targetX = S.x + S.vx * 0.45; targetY = S.y - hAbove * 0.45;
-  } else {
-    view = 46; targetX = S.x + 6; targetY = S.y + 4;
+function render() {
+  const asp = W / H;
+  const fov = 1.12 + fovBoost;
+  persp(PROJ, fov, asp, 0.4, 420);
+  const ex = camX + camShakeX, ey = camY + camShakeY, ez = camZ;
+  /* Blickziel: dem Hang folgen, Fahrer bleibt mittig */
+  const aheadZ = P.z + 36;
+  const airLift = P.air ? (P.y - terrainH(P.x, P.z)) * 0.55 : 0;
+  const tx = P.x, ty = terrainH(P.x, aheadZ) + 3.5 + airLift, tz = aheadZ;
+  lookAt(VIEW, [ex, ey, ez], [tx, ty, tz], [0, 1, 0]);
+  mul(VP, PROJ, VIEW);
+
+  /* Kamerabasis für Himmel & Billboards */
+  const fwd = [tx - ex, ty - ey, tz - ez];
+  let fl = Math.hypot(fwd[0], fwd[1], fwd[2]) || 1; fwd[0]/=fl; fwd[1]/=fl; fwd[2]/=fl;
+  let right = [fwd[2], 0, -fwd[0]];
+  let rl = Math.hypot(right[0], right[1], right[2]) || 1; right[0]/=rl; right[1]/=rl; right[2]/=rl;
+  const upv = [right[1]*fwd[2]-right[2]*fwd[1], right[2]*fwd[0]-right[0]*fwd[2], right[0]*fwd[1]-right[1]*fwd[0]];
+
+  /* Sonnenrichtung aus der Tageszeit */
+  const sunAng = (P.z / CYCLE) * TAU;
+  const sunDir = [Math.cos(sunAng) * 0.55, PAL.sunUp, 0.45 + Math.sin(sunAng) * 0.3];
+  const sl = Math.hypot(sunDir[0], sunDir[1], sunDir[2]);
+  sunDir[0]/=sl; sunDir[1]/=sl; sunDir[2]/=sl;
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.enable(gl.CULL_FACE);
+  gl.clearColor(PAL.fog[0], PAL.fog[1], PAL.fog[2], 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  /* ---- Himmel ---- */
+  gl.disable(gl.CULL_FACE);
+  gl.depthMask(false);
+  gl.useProgram(pSky);
+  gl.bindBuffer(gl.ARRAY_BUFFER, skyQuad);
+  gl.enableVertexAttribArray(pSky.a.aPos);
+  gl.vertexAttribPointer(pSky.a.aPos, 2, gl.FLOAT, false, 0, 0);
+  vDivisor(pSky.a.aPos, 0);
+  gl.uniform3fv(pSky.u.uFwd, fwd); gl.uniform3fv(pSky.u.uRight, right); gl.uniform3fv(pSky.u.uUp, upv);
+  const tanF = Math.tan(fov / 2);
+  gl.uniform2f(pSky.u.uFov, tanF * asp, tanF);
+  gl.uniform3fv(pSky.u.uSkyTop, PAL.top); gl.uniform3fv(pSky.u.uSkyMid, PAL.mid); gl.uniform3fv(pSky.u.uSkyBot, PAL.bot);
+  gl.uniform3fv(pSky.u.uSunCol, PAL.sun); gl.uniform3fv(pSky.u.uSunDir, sunDir);
+  gl.uniform3fv(pSky.u.uMtnFar, PAL.far); gl.uniform3fv(pSky.u.uMtnNear, PAL.near);
+  gl.uniform3fv(pSky.u.uFogCol, PAL.fog); gl.uniform3fv(pSky.u.uSnowLit, PAL.lit);
+  gl.uniform1f(pSky.u.uStars, PAL.stars); gl.uniform1f(pSky.u.uAurora, PAL.aur);
+  gl.uniform1f(pSky.u.uPhase, P.z);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+
+  /* ---- Gelände ---- */
+  gl.useProgram(pTerrain);
+  gl.bindBuffer(gl.ARRAY_BUFFER, terrainGrid.vb);
+  gl.enableVertexAttribArray(pTerrain.a.aGrid);
+  gl.vertexAttribPointer(pTerrain.a.aGrid, 2, gl.FLOAT, false, 0, 0);
+  vDivisor(pTerrain.a.aGrid, 0);
+  gl.uniformMatrix4fv(pTerrain.u.uVP, false, VP);
+  gl.uniform2f(pTerrain.u.uOrigin, Math.round(P.x * 2) / 2, Math.round(P.z * 2) / 2);
+  gl.uniform3f(pTerrain.u.uCam, ex, ey, ez);
+  gl.uniform4fv(pTerrain.u.uKick, kickBuf);
+  gl.uniform3fv(pTerrain.u.uLight, sunDir);
+  gl.uniform3fv(pTerrain.u.uSun, PAL.sunI);
+  gl.uniform3fv(pTerrain.u.uAmb, PAL.amb);
+  gl.uniform3fv(pTerrain.u.uFogCol, PAL.fog);
+  gl.uniform3fv(pTerrain.u.uSnowLit, PAL.lit);
+  gl.uniform3fv(pTerrain.u.uSnowShade, PAL.shade);
+  gl.uniform1f(pTerrain.u.uFogK, 0.0044);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, terrainGrid.ib);
+  gl.drawElements(gl.TRIANGLES, terrainGrid.n, terrainGrid.type, 0);
+
+  /* ---- Objekte ---- */
+  gl.useProgram(pObj);
+  gl.uniformMatrix4fv(pObj.u.uVP, false, VP);
+  gl.uniform3f(pObj.u.uCam, ex, ey, ez);
+  gl.uniform3fv(pObj.u.uRight, right); gl.uniform3fv(pObj.u.uUp, upv);
+  gl.uniform3fv(pObj.u.uLight, sunDir);
+  gl.uniform3fv(pObj.u.uSun, PAL.sunI);
+  gl.uniform3fv(pObj.u.uAmb, PAL.amb);
+  gl.uniform3fv(pObj.u.uFogCol, PAL.fog);
+  gl.uniform1f(pObj.u.uFogK, 0.0044);
+
+  const zMin = camZ - 20, zMax = camZ + 260;
+
+  let n = 0;
+  for (let i = 0; i < trees.length && n < 520; i++) {
+    const t = trees[i];
+    if (t.z < zMin || t.z > zMax) continue;
+    const d = t.z - camZ;
+    if (d > 110 && (i & 1)) continue;          // ferne Bäume ausdünnen
+    if (d > 180 && (i & 3)) continue;
+    n = pushInst(instData, n, t.x, terrainH(t.x, t.z) - 0.2, t.z, t.s, t.r, t.tint, t.tint, t.tint, 1);
   }
-  const targetPpm = Math.min(H / view, W / (view * 1.15));
-  cam.ppm = damp(cam.ppm, targetPpm, 2.5, dt);
-  cam.x = damp(cam.x, targetX, 4, dt);
-  cam.y = damp(cam.y, targetY, 4, dt);
-}
+  drawMesh(treeMesh, instData, n);
 
-// --- Hintergrund: Himmel + Parallax-Bergketten ---
-function ridgeY(x, seed) { // deterministische Silhouette
-  return Math.sin(x * 0.011 + seed) * 14 + Math.sin(x * 0.031 + seed * 2.3) * 6 + Math.sin(x * 0.005 + seed * 0.7) * 20;
-}
-function drawBackground() {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#6fb4e8'); sky.addColorStop(0.6, '#a8d4f2'); sky.addColorStop(1, '#e8f4fc');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  n = 0;
+  for (let i = 0; i < rocks.length && n < 120; i++) {
+    const r = rocks[i];
+    if (r.z < zMin || r.z > camZ + 170) continue;
+    n = pushInst(instData, n, r.x, terrainH(r.x, r.z) - 0.15, r.z, r.s, r.r, 1, 1, 1, 1);
+  }
+  drawMesh(rockMesh, instData, n);
 
-  // Sonne
-  ctx.fillStyle = 'rgba(255,245,200,0.9)';
-  ctx.beginPath(); ctx.arc(W * 0.78, H * 0.14, Math.min(W, H) * 0.05, 0, 7); ctx.fill();
+  n = 0;
+  for (let i = 0; i < gates.length && n < 120; i++) {
+    const g = gates[i];
+    if (g.z < zMin || g.z > zMax) continue;
+    n = pushInst(instData, n, g.x - g.w, terrainH(g.x - g.w, g.z) - 0.1, g.z, 1, 0, 1, 1, 1, 1);
+    n = pushInst(instData, n, g.x + g.w, terrainH(g.x + g.w, g.z) - 0.1, g.z, 1, Math.PI, 1, 1, 1, 1);
+  }
+  drawMesh(flagMesh, instData, n);
 
-  // zwei Bergketten mit Parallax
-  const layers = [
-    { par: 0.10, base: 0.42, color: '#9db8cc', seed: 3 },
-    { par: 0.22, base: 0.55, color: '#b9cfe0', seed: 8 },
-  ];
-  for (const l of layers) {
-    ctx.fillStyle = l.color;
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    for (let sx = 0; sx <= W; sx += 12) {
-      const wx = sx + cam.x * cam.ppm * l.par;
-      ctx.lineTo(sx, H * l.base - ridgeY(wx, l.seed) - cam.y * cam.ppm * l.par * 0.3);
+  n = 0;
+  for (let i = 0; i < crystals.length && n < 300; i++) {
+    const c = crystals[i];
+    if (c.got || c.z < zMin || c.z > zMax) continue;
+    const y = terrainH(c.x, c.z) + (c.air || 1.2) + Math.sin(tGlobal * 2.4 + c.ph) * 0.18;
+    n = pushInst(instData, n, c.x, y, c.z, 1, tGlobal * 1.6 + c.ph, 1, 1, 1, 1);
+  }
+  drawMesh(crystalMesh, instData, n, { glow: 0.35 });
+
+  /* ---- Fahrer ---- */
+  {
+    const M = m4();
+    trs(M, 0, 0, 0, P.pitch, P.yaw, P.roll, 1);
+    const n2 = pushInst(instData, 0, P.x, P.y, P.z, 1, 0, 1, 1, 1, 1);
+    drawMesh(riderMesh, instData, n2, { model: M });
+  }
+
+  /* ---- Fahrspur + Schatten (weiche Bodenquads) ---- */
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);
+  {
+    let nt = 0;
+    for (let i = 0; i < tracks.length && nt < 340; i++) {
+      const t = tracks[i];
+      if (t.z < camZ - 6 || t.z > camZ + 90) continue;
+      const a = clamp(t.l / 3.4, 0, 1) * 0.55;
+      nt = pushInst(instData, nt, t.x + t.rot * 0.3, t.y + 0.06, t.z, 1.0, 0, 0.42, 0.57, 0.88, a);
     }
-    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+    drawMesh(quadMesh, instData, nt, { model: TRACK_M, unlit: true, soft: true });
   }
+  {
+    const gy = terrainH(P.x, P.z);
+    const h = Math.max(0, P.y - gy);
+    const a = clamp(0.34 - h * 0.02, 0.05, 0.34);
+    const s = 2.4 + h * 0.10;
+    const SM = m4(); trs(SM, 0, 0, 0, -Math.PI / 2, 0, 0, 1);
+    const ns = pushInst(instData, 0, P.x, gy + 0.06 + h * 0.001, P.z, s, 0, 0.05, 0.09, 0.22, a);
+    drawMesh(quadMesh, instData, ns, { model: SM, unlit: true, soft: true });
+  }
+
+  /* ---- Partikel + Schneefall ---- */
+  n = 0;
+  for (let i = 0; i < parts.length && n < 600; i++) {
+    const p = parts[i];
+    const a = clamp(p.l / p.L, 0, 1);
+    const col = p.k === 1 ? [0.72, 0.65, 1.0] : [1, 1, 1];
+    n = pushInst(instData, n, p.x, p.y, p.z, p.s * (0.5 + a * 0.8), 0, col[0], col[1], col[2], a * 0.85);
+  }
+  for (let i = 0; i < flakes.length && n < 900; i++) {
+    const f = flakes[i];
+    n = pushInst(instData, n, f.x, f.y, f.z, 0.10, 0, 1, 1, 1, 0.55);
+  }
+  drawMesh(quadMesh, instData, n, { billboard: true, unlit: true, soft: true, glow: 0.15 });
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+  gl.enable(gl.CULL_FACE);
 }
 
-function drawHill() {
-  // --- Aufsprunghang ---
-  const first = worldToScreen(Hill.prof[0].x, Hill.prof[0].y);
-  const last = worldToScreen(Hill.prof[Hill.prof.length - 1].x, Hill.prof[Hill.prof.length - 1].y);
-  ctx.beginPath();
-  ctx.moveTo(first.x, first.y);
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.lineTo(last.x, H + 50); ctx.lineTo(first.x, H + 50); ctx.closePath();
-  const snow = ctx.createLinearGradient(0, 0, 0, H);
-  snow.addColorStop(0, '#ffffff'); snow.addColorStop(1, '#dcebf7');
-  ctx.fillStyle = snow; ctx.fill();
-  ctx.strokeStyle = '#c4d9ea'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.stroke();
+/* ============================== HUD ====================================== */
+const el = id => document.getElementById(id);
+const hudEl = el('hud'), distEl = el('dist'), scoreEl = el('score'), hudBest = el('hudBest'),
+      speedEl = el('speed'), flowBar = el('flowBar'), flowWrap = el('flowWrap'),
+      startPanel = el('start'), overPanel = el('over'), hintEl = el('hint');
 
-  // Weitenmarkierungen alle 10 m + K- und HS-Linie
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  for (let d = 20; d <= 130; d += 10) {
-    const x = Hill.xAtDistance(d);
-    const g = Hill.groundAt(x);
-    const a = worldToScreen(x, g.y), th = g.angle * D2R;
-    const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
-    const len = (isK || isHS ? 2.4 : 1.4) * cam.ppm;
-    ctx.strokeStyle = isK ? '#e53935' : isHS ? '#1e88e5' : '#90a4ae';
-    ctx.lineWidth = isK || isHS ? 3 : 1.5;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(a.x + Math.sin(th) * len * 0.4, a.y + Math.cos(th) * len * 0.4);
-    ctx.stroke();
-    if (cam.ppm > 4.5 || isK || isHS) {
-      ctx.fillStyle = isK ? '#e53935' : isHS ? '#1e88e5' : '#78909c';
-      ctx.font = `${isK || isHS ? 'bold ' : ''}${Math.max(10, cam.ppm * 1.1)}px system-ui`;
-      ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, a.x + Math.sin(th) * len * 0.4 + 4, a.y + Math.cos(th) * len * 0.4 + 4);
-    }
-  }
+best = parseInt(localStorage.getItem('powderrush3d.best') || '0', 10) || 0;
+el('startBest').textContent = best.toLocaleString('de-DE');
+hudBest.textContent = best.toLocaleString('de-DE');
 
-  // --- Anlauf + Turm ---
-  const ir = Hill.inrun;
-  const top = worldToScreen(ir[0].x, ir[0].y);
-  const edge = worldToScreen(0, 0);
-  // Turmstruktur unter dem Anlauf
-  ctx.fillStyle = '#37474f';
-  ctx.beginPath();
-  ctx.moveTo(top.x, top.y);
-  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.lineTo(edge.x, edge.y + 4.5 * cam.ppm);
-  ctx.lineTo(top.x, Math.min(H + 40, top.y + 60 * cam.ppm));
-  ctx.closePath(); ctx.fill();
-  // Anlaufspur
-  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = Math.max(2, cam.ppm * 0.35);
-  ctx.beginPath();
-  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.stroke();
-  // Tischkanten-Markierung
-  ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(edge.x, edge.y - 2); ctx.lineTo(edge.x, edge.y + 0.9 * cam.ppm); ctx.stroke();
+let hudAcc = 0;
+function updateHUD(dt) {
+  hudAcc += dt;
+  if (hudAcc < 0.07) return;
+  hudAcc = 0;
+  distEl.textContent = Math.max(0, Math.round(P.z));
+  scoreEl.textContent = Math.round(score + comboScore).toLocaleString('de-DE');
+  speedEl.textContent = Math.round(P.vz * 3.6) + ' km/h';
+  flowBar.style.width = (flow * 100).toFixed(0) + '%';
+  flowWrap.classList.toggle('full', flowT > 0);
+  document.getElementById('bloom').classList.toggle('flow', flowT > 0);
 }
 
-// --- Springer (stilisierte Figur, Anstellwinkel sichtbar) ---
-function drawSkier() {
-  const S = Game.skier;
-  const p = worldToScreen(S.x, S.y);
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.rotate(-S.body * D2R);
-  ctx.scale(cam.ppm, cam.ppm);
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+const RANKS = [[0,'Schneehase'],[2500,'Pistenfloh'],[8000,'Carver'],[20000,'Powder-Jäger'],
+               [45000,'Freerider'],[90000,'Spin-Baron'],[160000,'Legende des Tals']];
+function rankFor(s) { let r = RANKS[0][1]; for (const [t, nm] of RANKS) if (s >= t) r = nm; return r; }
 
-  const head = (hx, hy) => {
-    ctx.fillStyle = '#fafafa';
-    ctx.beginPath(); ctx.arc(hx, hy, 0.17, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#455a64'; ctx.lineWidth = 0.05; ctx.stroke();
-    ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 0.19; // Anzugfarbe zurücksetzen
-  };
-
-  // Ski (2 Stück, leicht versetzt → V-Andeutung im Flug)
-  const skiV = S.pose === 'flight' ? 0.07 : 0;
-  ctx.strokeStyle = '#fdd835'; ctx.lineWidth = 0.16;
-  ctx.beginPath(); ctx.moveTo(-1.1, 0.02); ctx.lineTo(1.35, 0.02 - skiV * 2.2); ctx.stroke();
-  ctx.strokeStyle = '#f9a825';
-  ctx.beginPath(); ctx.moveTo(-1.15, 0.14); ctx.lineTo(1.3, 0.14 + skiV * 1.2); ctx.stroke();
-
-  ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 0.19;
-  if (S.pose === 'crouch') {
-    // Anlaufhocke
-    ctx.beginPath(); ctx.moveTo(0.05, 0); ctx.lineTo(-0.15, -0.45); ctx.lineTo(0.55, -0.75); ctx.stroke(); // Beine + Rücken
-    ctx.beginPath(); ctx.moveTo(0.55, -0.75); ctx.lineTo(0.85, -0.35); ctx.stroke();                        // Arme
-    head(0.78, -0.88);
-  } else if (S.pose === 'flight') {
-    // Gestreckte Flughaltung: Körper flach nach hinten über den Ski
-    ctx.beginPath(); ctx.moveTo(0.0, 0); ctx.lineTo(-0.25, -0.35); ctx.lineTo(-1.15, -0.62); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-1.0, -0.58); ctx.lineTo(-1.25, -0.25); ctx.stroke();                       // Arm angelegt
-    head(-1.33, -0.75);
-  } else if (S.pose === 'telemark') {
-    ctx.beginPath(); ctx.moveTo(0.35, 0); ctx.lineTo(0.15, -0.55); ctx.lineTo(0.05, -1.05); ctx.stroke();  // vorderes Bein + Torso
-    ctx.beginPath(); ctx.moveTo(-0.45, 0); ctx.lineTo(-0.25, -0.3); ctx.lineTo(0.15, -0.55); ctx.stroke(); // hinteres Bein gebeugt
-    ctx.beginPath(); ctx.moveTo(0.05, -1.0); ctx.lineTo(0.55, -0.8); ctx.stroke();                          // Arme ausgestellt
-    ctx.beginPath(); ctx.moveTo(0.05, -1.0); ctx.lineTo(-0.45, -0.85); ctx.stroke();
-    head(0.12, -1.24);
-  } else if (S.pose === 'landed') {
-    ctx.beginPath(); ctx.moveTo(0.1, 0); ctx.lineTo(-0.05, -0.6); ctx.lineTo(0.2, -1.1); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.2, -1.05); ctx.lineTo(0.5, -0.7); ctx.stroke();
-    head(0.28, -1.3);
-  } else { // crash: Wackel-/Trudelfigur
-    const wob = Math.sin(Game.time * 30) * 0.15;
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-0.3 + wob, -0.5); ctx.lineTo(0.4, -0.8 - wob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.4, -0.8); ctx.lineTo(0.9, -0.5 + wob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.4, -0.8); ctx.lineTo(-0.1, -1.1 - wob); ctx.stroke();
-    head(0.62, -1.0);
-  }
-  ctx.restore();
+function resetGame() {
+  seed = (Math.random() * 1e9) >>> 0;
+  trees.length = 0; rocks.length = 0; crystals.length = 0; gates.length = 0; kickers.length = 0;
+  parts.length = 0; tracks.length = 0; trackAcc = 0;
+  genZ = -30; genAhead(360); syncKickers(0);
+  P.x = pathX(0); P.z = 0; P.y = terrainH(P.x, 0); P.vx = 0; P.vz = 15; P.vy = 0;
+  P.air = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.yaw = 0; P.roll = 0; P.pitch = 0; P.tumble = 0;
+  camX = P.x; camY = P.y + 3.2; camZ = P.z - 9;
+  score = 0; tricks = 0; gotCrystals = 0; combo = 0; comboT = 0; comboScore = 0;
+  flow = 0; flowT = 0; shake = 0; timeScale = 1; steer = 0; steerTarget = 0; holding = false;
+  deathReason = 'Sturz';
+  updatePalette(0);
 }
-
-function drawParticles() {
-  for (const p of Game.particles) {
-    const s = worldToScreen(p.x, p.y);
-    ctx.globalAlpha = clamp(p.life * 2, 0, 0.9);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1.5, cam.ppm * 0.12), 0, 7); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+function startGame() {
+  resetGame();
+  state = 'play';
+  startPanel.classList.add('hidden'); overPanel.classList.add('hidden');
+  hudEl.classList.add('on');
+  hintEl.classList.add('on');
+  setTimeout(() => hintEl.classList.remove('on'), 4200);
+  initAudio(); resumeAudio();
 }
-
-// --- HUD ---
-function drawHUD() {
-  const S = Game.skier;
-  const uiScale = clamp(Math.min(W, H) / 420, 0.85, 1.5);
-
-  // Windfahne + Windwert (oben links)
-  const w = Game.currentWind();
-  const wx = 14 * uiScale, wy = 18 * uiScale;
-  ctx.save();
-  ctx.translate(wx + 10 * uiScale, wy + 16 * uiScale);
-  ctx.strokeStyle = '#37474f'; ctx.lineWidth = 3;                    // Mast
-  ctx.beginPath(); ctx.moveTo(0, 18 * uiScale); ctx.lineTo(0, -12 * uiScale); ctx.stroke();
-  // Fahne: Richtung = Windrichtung, Länge = Stärke
-  const flagLen = (8 + Math.abs(w) / CONFIG.windStrength * 26) * uiScale * Math.sign(w || 1);
-  const flap = Math.sin(Game.time * 6) * 3 * uiScale;
-  ctx.fillStyle = Math.abs(w) < 0.15 ? '#90a4ae' : (w < 0 ? '#43a047' : '#e53935');
-  ctx.beginPath();
-  ctx.moveTo(0, -12 * uiScale);
-  ctx.lineTo(flagLen, -8 * uiScale + flap);
-  ctx.lineTo(0, -3 * uiScale);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-  ctx.fillStyle = 'rgba(16,32,48,0.65)';
-  roundRect(wx + 30 * uiScale, wy, 140 * uiScale, 26 * uiScale, 8);
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${13 * uiScale}px system-ui`;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(windLabel(w), wx + 38 * uiScale, wy + 13 * uiScale);
-
-  // Bestweite (oben rechts)
-  if (Game.best) {
-    const bw = 118 * uiScale;
-    ctx.fillStyle = 'rgba(16,32,48,0.65)';
-    roundRect(W - bw - 14, wy, bw, 26 * uiScale, 8);
-    ctx.fillStyle = '#ffe082';
-    ctx.textAlign = 'right';
-    ctx.fillText(`Best: ${Game.best.dist.toFixed(1).replace('.', ',')} m`, W - 22, wy + 13 * uiScale);
-  }
-
-  // Zentrale Meldung
-  if (Game.time < Game.message.until) {
-    ctx.globalAlpha = clamp((Game.message.until - Game.time) / 0.3, 0, 1);
-    ctx.font = `800 ${30 * uiScale}px system-ui`;
-    ctx.textAlign = 'center';
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 4;
-    ctx.strokeText(Game.message.text, W / 2, H * 0.24);
-    ctx.fillStyle = Game.message.color;
-    ctx.fillText(Game.message.text, W / 2, H * 0.24);
-    ctx.globalAlpha = 1;
-  }
-
-  // --- Absprung-Timing-Balken (Anlauf) ---
-  if (Game.state === 'INRUN') {
-    const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
-    const SHOW = 1.4; // Balken zeigt die letzten 1,4 s vor der Kante
-    if (tte < SHOW * 1.3) {
-      const bw = Math.min(W * 0.72, 430), bh = 26 * uiScale;
-      const bx = (W - bw) / 2, by = H - bh - Math.max(24, H * 0.06);
-      ctx.fillStyle = 'rgba(16,32,48,0.7)';
-      roundRect(bx - 4, by - 4, bw + 8, bh + 8, 10);
-      // Zonen: grau → gelb (gut) → grün (perfekt); Tischkante = rechtes Ende
-      const posOf = t => bx + bw * clamp(1 - t / SHOW, 0, 1);
-      ctx.fillStyle = '#546e7a'; ctx.fillRect(bx, by, bw, bh);
-      const goodX = posOf(0.16);
-      ctx.fillStyle = '#f9a825'; ctx.fillRect(goodX, by, bx + bw - goodX, bh);
-      const perfX = posOf(CONFIG.perfectWindow);
-      ctx.fillStyle = '#43a047'; ctx.fillRect(perfX, by, bx + bw - perfX, bh);
-      // Marker
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(posOf(tte) - 2.5, by - 7, 5, bh + 14);
-      if (!Game.takeoff.tapped) {
-        ctx.font = `bold ${14 * uiScale}px system-ui`;
-        ctx.textAlign = 'center';
-        ctx.fillText('TIPPEN im grünen Bereich!', W / 2, by - 14 * uiScale);
-      }
-    }
-  }
-
-  // --- Fluglagen-Anzeige (Winkel-Korridor, rechts) ---
-  if (Game.state === 'FLIGHT') {
-    const gw = 22 * uiScale, gh = Math.min(H * 0.38, 240);
-    const gx = W - gw - 16, gy = (H - gh) / 2;
-    const mapA = a => gy + gh * (1 - (a + 15) / 50);     // Skala: -15° … +35°
-    ctx.fillStyle = 'rgba(16,32,48,0.55)';
-    roundRect(gx - 5, gy - 10, gw + 10, gh + 20, 8);
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.fillRect(gx, gy, gw, gh);
-    // grüner Korridor
-    const c0 = mapA(CONFIG.optimalAngle - CONFIG.angleTolerance);
-    const c1 = mapA(CONFIG.optimalAngle + CONFIG.angleTolerance);
-    ctx.fillStyle = 'rgba(67,160,71,0.85)';
-    ctx.fillRect(gx, c1, gw, c0 - c1);
-    // Nadel = aktueller Anstellwinkel
-    const inCorr = Math.abs(Game.flight.alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance;
-    const ny = clamp(mapA(Game.flight.alpha), gy - 6, gy + gh + 6);
-    ctx.fillStyle = inCorr ? '#69f0ae' : '#ff8a80';
-    ctx.fillRect(gx - 3, ny - 2.5, gw + 6, 5);
-    // Landefenster-Hinweis
-    if (Game.landingTap.windowOpen) {
-      ctx.globalAlpha = 0.5 + Math.sin(Game.time * 18) * 0.5;
-      ctx.fillStyle = '#ffe082';
-      ctx.font = `800 ${24 * uiScale}px system-ui`;
-      ctx.textAlign = 'center';
-      ctx.fillText('JETZT TIPPEN – TELEMARK!', W / 2, H * 0.68);
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  // --- Debug-Overlay (Taste D) ---
-  if (Game.debug) {
-    const g = Hill.groundAt(S.x);
-    const spd = Game.state === 'FLIGHT' ? Math.hypot(S.vx, S.vy) : S.v;
-    const lines = [
-      `state: ${Game.state}`,
-      `v: ${spd.toFixed(1)} m/s (${(spd * 3.6).toFixed(0)} km/h)`,
-      `pos: ${S.x.toFixed(1)} / ${S.y.toFixed(1)}   h: ${(S.y - g.y).toFixed(1)} m`,
-      `alpha: ${Game.flight.alpha.toFixed(1)}°   body: ${S.body.toFixed(1)}°`,
-      `lift: ${Game.flight.lift.toFixed(2)}   drag: ${Game.flight.drag.toFixed(2)}`,
-      `wind: ${Game.currentWind().toFixed(2)} m/s   tta: ${Game.landingTap.tta.toFixed(2)} s`,
-      `korridor: ${(Game.flight.time ? Game.flight.corridorTime / Game.flight.time * 100 : 0).toFixed(0)} %`,
-    ];
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    roundRect(10, H - 26 - lines.length * 16, 310, lines.length * 16 + 12, 6);
-    ctx.fillStyle = '#b2ff59';
-    ctx.font = '12px ui-monospace, monospace';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    lines.forEach((l, i) => ctx.fillText(l, 18, H - 20 - (lines.length - 1 - i) * 16));
-  }
-  ctx.textBaseline = 'alphabetic';
+function showOver() {
+  const fin = Math.round(score);
+  el('overTitle').textContent = deathReason;
+  el('finalScore').textContent = fin.toLocaleString('de-DE');
+  el('fDist').textContent = Math.round(P.z) + ' m';
+  el('fTricks').textContent = tricks;
+  el('fCoins').textContent = gotCrystals;
+  el('rank').textContent = rankFor(fin);
+  const isBest = fin > best;
+  el('newbest').style.display = isBest ? 'block' : 'none';
+  if (isBest) { best = fin; localStorage.setItem('powderrush3d.best', String(best)); }
+  el('overBest').textContent = best.toLocaleString('de-DE');
+  hudBest.textContent = best.toLocaleString('de-DE');
+  overPanel.classList.remove('hidden');
+  hudEl.classList.remove('on');
 }
-
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath(); ctx.fill();
-}
-
-// ------------------------------------------------------------------ Loop
-let last = performance.now(), acc = 0;
-function frame(now) {
-  requestAnimationFrame(frame);
-  let dt = (now - last) / 1000; last = now;
-  dt = Math.min(dt, 0.25);            // Tab-Wechsel/Aussetzer abfangen
-  acc += dt;
-  while (acc >= CONFIG.timestep) {    // fixer Physik-Timestep
-    Game.update(CONFIG.timestep);
-    acc -= CONFIG.timestep;
-  }
-  updateCamera(dt);
-  drawBackground();
-  drawHill();
-  drawParticles();
-  drawSkier();
-  drawHUD();
-}
-
-// ------------------------------------------------------------------ UI-Verdrahtung
-const startPanel = document.getElementById('startPanel');
-const resultPanel = document.getElementById('resultPanel');
-const resTitle = document.getElementById('resTitle');
-const resDist = document.getElementById('resDist');
-const resPts = document.getElementById('resPts');
-const resBest = document.getElementById('resBest');
-const show = el => el.classList.remove('hidden');
-const hide = el => el.classList.add('hidden');
-
-document.getElementById('startBtn').addEventListener('click', () => Game.newJump());
-document.getElementById('nextBtn').addEventListener('click', () => Game.newJump());
-window.addEventListener('keydown', e => {
-  if ((e.key === ' ' || e.key === 'Enter') && (Game.state === 'READY' || Game.state === 'RESULT')) {
-    e.preventDefault();
-    Game.newJump();
-  }
+el('btnStart').addEventListener('click', e => { e.stopPropagation(); startGame(); });
+el('btnRetry').addEventListener('click', e => { e.stopPropagation(); startGame(); });
+el('snd').addEventListener('click', e => {
+  e.stopPropagation(); muted = !muted;
+  el('snd').textContent = muted ? '🔇' : '🔊';
+  if (master) master.gain.value = muted ? 0 : 0.5;
 });
-if (Game.best)
-  document.getElementById('startBest').textContent =
-    `Bestleistung: ${Game.best.dist.toFixed(1).replace('.', ',')} m · ${Game.best.total.toFixed(1)} Pkt.`;
 
-// Springer für den Startbildschirm oben an den Anlauf setzen
-{
-  const start = Hill.inrunAt(0);
-  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle, pose: 'crouch' });
-  cam.x = start.x + 8; cam.y = start.y - 6; cam.ppm = Math.min(H / 42, W / 48);
+/* ============================== Loop ===================================== */
+let last = performance.now();
+function frame(now) {
+  let dt = (now - last) / 1000; last = now;
+  dt = clamp(dt, 0, 0.05);
+  update(dt * timeScale);
+  render();
+  updateHUD(dt);
+  requestAnimationFrame(frame);
 }
-
-// Alten Service-Worker (aus früherem Projekt auf dieser Domain) entfernen,
-// damit keine gecachte Fremd-Version ausgeliefert wird.
-if ('serviceWorker' in navigator)
-  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
-
+resize();
+resetGame();
+state = 'menu';
 requestAnimationFrame(frame);
 </script>
 </body>
