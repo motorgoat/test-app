@@ -230,6 +230,18 @@ function mul(o, a, b) {
   }
   return o;
 }
+/* wie trs, aber mit getrennter Skalierung pro Achse (Squash & Stretch) */
+function trsS(o, tx, ty, tz, rx, ry, rz, sx, sy, sz) {
+  const cx=Math.cos(rx), sx_=Math.sin(rx), cy=Math.cos(ry), sy_=Math.sin(ry), cz=Math.cos(rz), sz_=Math.sin(rz);
+  const m00 = cy*cz + sy_*sx_*sz_, m01 = -cy*sz_ + sy_*sx_*cz, m02 = sy_*cx;
+  const m10 = cx*sz_,              m11 = cx*cz,                m12 = -sx_;
+  const m20 = -sy_*cz + cy*sx_*sz_,m21 = sy_*sz_ + cy*sx_*cz,  m22 = cy*cx;
+  o[0]=m00*sx; o[1]=m10*sx; o[2]=m20*sx;  o[3]=0;
+  o[4]=m01*sy; o[5]=m11*sy; o[6]=m21*sy;  o[7]=0;
+  o[8]=m02*sz; o[9]=m12*sz; o[10]=m22*sz; o[11]=0;
+  o[12]=tx;    o[13]=ty;    o[14]=tz;     o[15]=1;
+  return o;
+}
 function trs(o, tx, ty, tz, rx, ry, rz, s) {
   const cx=Math.cos(rx), sx=Math.sin(rx), cy=Math.cos(ry), sy=Math.sin(ry), cz=Math.cos(rz), sz=Math.sin(rz);
   /* R = Ry * Rx * Rz */
@@ -257,7 +269,8 @@ function terrainH(x, z) {
      + 0.5 * Math.sin(z * 0.110 + x * 0.020);
   y += 0.006 * x * x;
   const d = Math.abs(x) - VALLEY;
-  if (d > 0) y += 0.055 * d * d;
+  if (d > 0) y += 0.055 * d * d + Math.sin(x * 0.52 + z * 0.31) * Math.min(d, 9) * 0.26
+                               + Math.sin(z * 0.17 - x * 0.23) * Math.min(d, 14) * 0.20;
   for (let i = 0; i < MAXKICK; i++) {
     const r = kickBuf[i*4+3];
     if (r <= 0) continue;
@@ -282,7 +295,8 @@ const TERRAIN_GLSL = `
     y += 1.7 * sin(z*0.021 + x*0.004) + 1.0 * sin(z*0.047 - x*0.009) + 0.5 * sin(z*0.110 + x*0.020);
     y += 0.006 * x * x;
     float d = abs(x) - ${VALLEY.toFixed(1)};
-    if (d > 0.0) y += 0.055 * d * d;
+    if (d > 0.0) y += 0.055 * d * d + sin(x * 0.52 + z * 0.31) * min(d, 9.0) * 0.26
+                                    + sin(z * 0.17 - x * 0.23) * min(d, 14.0) * 0.20;
     for (int i = 0; i < ${MAXKICK}; i++) {
       vec4 k = uKick[i];
       if (k.w > 0.0) {
@@ -322,7 +336,7 @@ const F_TERRAIN = `
   precision highp float;
   varying vec3 vN; varying float vFog; varying vec3 vW; varying float vShade;
   uniform vec3 uLight, uSun, uAmb, uFogCol, uSnowLit, uSnowShade;
-  uniform float uFogK, uTrackZ;
+  uniform float uFogK, uTime;
   void main() {
     vec3 n = normalize(vN);
     float d = max(dot(n, uLight), 0.0);
@@ -336,6 +350,14 @@ const F_TERRAIN = `
     vec3 col = base * (uAmb + uSun * d);
     /* Sonnen-Glanz auf dem Schnee */
     col += uSun * pow(d, 24.0) * 0.25;
+    /* Eiskristalle blitzen kurz auf, nur im Nahbereich */
+    float near = exp(-vFog * 0.030);
+    if (near > 0.02) {
+      vec2 gid = floor(vW.xz * 2.6);
+      float hs = fract(sin(dot(gid, vec2(12.9898, 78.233))) * 43758.5453);
+      float tw = pow(max(sin(hs * 71.0 + uTime * 1.9), 0.0), 120.0);
+      col += uSun * tw * near * up * 1.6;
+    }
     float f = 1.0 - exp(-pow(vFog * uFogK, 2.0));
     col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
@@ -347,7 +369,7 @@ const V_OBJ = `
   attribute vec3 iPos; attribute vec2 iScaleRot; attribute vec4 iTint;
   uniform mat4 uVP, uModel;
   uniform vec3 uCam, uRight, uUp;
-  uniform float uBillboard;
+  uniform float uBillboard, uSway, uTime;
   varying vec3 vN, vC; varying float vFog, vA; varying vec2 vLocal;
   void main() {
     vLocal = aPos.xy;
@@ -361,6 +383,12 @@ const V_OBJ = `
       vec3 sp = lp.xyz * iScaleRot.x;
       p = iPos + vec3(c*sp.x + s*sp.z, sp.y, -s*sp.x + c*sp.z);
       n = vec3(c*n.x + s*n.z, n.y, -s*n.x + c*n.z);
+      if (uSway > 0.0) {                       // Wind: Wipfel schwingen, Stamm steht
+        float ph = iPos.x * 0.42 + iPos.z * 0.27;
+        float h = max(sp.y, 0.0);
+        p.x += sin(uTime * 1.15 + ph) * 0.030 * h * uSway;
+        p.z += cos(uTime * 0.87 + ph * 1.4) * 0.022 * h * uSway;
+      }
     }
     vN = n; vC = aCol * iTint.rgb; vA = iTint.a;
     vFog = length(p - uCam);
@@ -428,6 +456,16 @@ const F_SKY = `
     col += uSunCol * pow(sd, 12.0) * 0.35;
     col += uSunCol * pow(sd, 3.0) * 0.08;
 
+    /* Wolkenband hoch über dem Tal */
+    if (r.y > 0.035) {
+      vec2 cp = r.xz / r.y;
+      float t = uPhase * 0.004;
+      float c = sin(cp.x * 0.55 + t) * 0.5 + 0.5;
+      c *= sin(cp.y * 0.31 - t * 0.6 + cp.x * 0.2) * 0.5 + 0.5;
+      c *= sin(cp.x * 1.31 + cp.y * 0.8 + t * 1.7) * 0.35 + 0.65;
+      float fade = smoothstep(0.035, 0.30, r.y) * smoothstep(1.0, 0.45, r.y);
+      col = mix(col, mix(uFogCol, uSunCol, 0.35), pow(c, 2.2) * fade * 0.55);
+    }
     /* Bergpanorama: drei Kämme rund um den Horizont */
     float az = atan(r.x, r.z);
     for (int i = 0; i < 3; i++) {
@@ -538,8 +576,8 @@ Mesh.prototype.ellipsoid = function (cx, cy, cz, rx, ry, rz, seg, ring, col, col
     rows.push(row);
   }
   for (let j = 0; j < ring; j++) for (let i = 0; i < seg; i++) {
-    this.tri(rows[j][i], rows[j+1][i], rows[j+1][i+1]);
-    this.tri(rows[j][i], rows[j+1][i+1], rows[j][i+1]);
+    this.tri(rows[j][i], rows[j+1][i+1], rows[j+1][i]);
+    this.tri(rows[j][i], rows[j][i+1], rows[j+1][i+1]);
   }
 };
 /* Glatte Röhre entlang eines Pfads (Arme, Beine, Schal …) */
@@ -681,43 +719,57 @@ const quadMesh = (() => {
   return upload(m);
 })();
 /* flach auf den Boden gelegt, quer schmal und längs gestreckt */
-const TRACK_M = new Float32Array([0.62,0,0,0,  0,0,2.1,0,  0,1,0,0,  0,0,0,1]);
-const riderMesh = (() => {
+const TRACK_M = new Float32Array([0.32,0,0,0,  0,0,1.55,0,  0,1,0,0,  0,0,0,1]);
+/* ---- Fahrer als Rig: jedes Teil hat sein Gelenk im Ursprung, damit es
+   einzeln animiert werden kann (Ducken, Kurvenlage, Grab, Landung). ---- */
+const BOARD = [0.86, 0.12, 0.26], BOARD_T = [1.0, 0.42, 0.30];
+const JACKET = [0.13, 0.34, 0.88], JACKET_T = [0.32, 0.58, 1.0];
+const PANTS = [0.11, 0.13, 0.24], PANTS_T = [0.20, 0.23, 0.38];
+const HELM = [0.16, 0.19, 0.30], SCARF = [1.0, 0.76, 0.26], PACK = [0.50, 0.17, 0.20];
+const SKIN = [0.93, 0.74, 0.58], BOOT = [0.08, 0.09, 0.16], BOOT_T = [0.18, 0.20, 0.30];
+
+const rigBoard = (() => {          // Gelenk: Boardmitte auf Schneehöhe
   const m = new Mesh();
-  const BOARD = [0.86, 0.12, 0.26], BOARD_T = [1.0, 0.42, 0.30];
-  const JACKET = [0.13, 0.34, 0.88], JACKET_T = [0.32, 0.58, 1.0];
-  const PANTS = [0.11, 0.13, 0.24], PANTS_T = [0.20, 0.23, 0.38];
-  const HELM = [0.16, 0.19, 0.30], SCARF = [1.0, 0.76, 0.26], PACK = [0.50, 0.17, 0.20];
-  const SKIN = [0.93, 0.74, 0.58];
-  /* Board: flaches, rundes Ellipsoid mit hochgezogenen Enden */
   m.ellipsoid(0, 0.07, 0, 0.20, 0.045, 0.82, 18, 8, BOARD, BOARD_T);
   m.ellipsoid(0, 0.11, 0.70, 0.15, 0.04, 0.18, 12, 6, BOARD_T, BOARD_T);
   m.ellipsoid(0, 0.11, -0.70, 0.15, 0.04, 0.18, 12, 6, BOARD_T, BOARD_T);
-  /* Boots + Bindungen */
-  m.ellipsoid(-0.02, 0.20, -0.26, 0.14, 0.11, 0.16, 12, 7, [0.08,0.09,0.16], [0.18,0.20,0.30]);
-  m.ellipsoid( 0.02, 0.20,  0.26, 0.14, 0.11, 0.16, 12, 7, [0.08,0.09,0.16], [0.18,0.20,0.30]);
-  /* Beine als weiche Röhren, in Snowboard-Stance gebeugt */
-  m.tube([[-0.02,0.24,-0.26], [-0.14,0.48,-0.20], [-0.10,0.74,-0.09]], [0.115, 0.125, 0.13], 12, PANTS, PANTS_T);
-  m.tube([[ 0.02,0.24, 0.26], [ 0.14,0.48, 0.20], [ 0.10,0.74, 0.09]], [0.115, 0.125, 0.13], 12, PANTS, PANTS_T);
-  /* Hüfte + Torso als weiche Silhouette */
-  m.ellipsoid(0, 0.80, 0, 0.21, 0.15, 0.20, 16, 9, PANTS, PANTS_T);
-  m.ellipsoid(0, 1.06, -0.01, 0.235, 0.30, 0.20, 18, 11, JACKET, JACKET_T);
-  m.ellipsoid(0, 1.28, -0.01, 0.20, 0.11, 0.17, 16, 8, JACKET_T, JACKET_T);
-  /* Rucksack, kompakt */
-  m.ellipsoid(0, 1.03, -0.16, 0.105, 0.15, 0.075, 14, 8, PACK, [0.72,0.28,0.26]);
-  /* Arme, ausgestreckt zum Balancieren */
-  m.tube([[-0.20,1.20,0.02], [-0.42,1.12,0.14], [-0.60,0.96,0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
-  m.tube([[ 0.20,1.20,-0.02], [ 0.44,1.20,-0.14], [ 0.62,1.30,-0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
-  m.ellipsoid(-0.62, 0.93, 0.26, 0.075, 0.075, 0.075, 10, 6, [0.10,0.12,0.22], [0.2,0.22,0.34]);
-  m.ellipsoid( 0.64, 1.32,-0.26, 0.075, 0.075, 0.075, 10, 6, [0.10,0.12,0.22], [0.2,0.22,0.34]);
-  /* Hals + Kopf + Helm */
-  m.ellipsoid(0, 1.36, 0, 0.085, 0.07, 0.085, 10, 6, SKIN, SKIN);
-  m.ellipsoid(0, 1.50, 0.01, 0.125, 0.135, 0.125, 16, 10, SKIN, SKIN);
-  m.ellipsoid(0, 1.545, 0, 0.155, 0.155, 0.16, 18, 11, HELM, [0.34, 0.40, 0.58]);
-  /* Brille (dunkles Band um den Helm) */
-  m.ellipsoid(0, 1.53, 0.06, 0.148, 0.05, 0.13, 16, 6, [0.06,0.08,0.16], [0.16,0.30,0.50]);
-  /* Kragen statt Schal — ruhigere Silhouette */
-  m.ellipsoid(0, 1.31, -0.01, 0.155, 0.075, 0.14, 14, 7, SCARF, [1.0, 0.90, 0.55]);
+  m.ellipsoid(-0.02, 0.20, -0.26, 0.14, 0.11, 0.16, 12, 7, BOOT, BOOT_T);
+  m.ellipsoid( 0.02, 0.20,  0.26, 0.14, 0.11, 0.16, 12, 7, BOOT, BOOT_T);
+  return upload(m);
+})();
+const rigLegs = (() => {           // Gelenk: Fußhöhe (0, 0.18, 0)
+  const m = new Mesh();
+  m.tube([[-0.02,0.06,-0.26], [-0.14,0.30,-0.20], [-0.10,0.56,-0.09]], [0.115, 0.125, 0.13], 12, PANTS, PANTS_T);
+  m.tube([[ 0.02,0.06, 0.26], [ 0.14,0.30, 0.20], [ 0.10,0.56, 0.09]], [0.115, 0.125, 0.13], 12, PANTS, PANTS_T);
+  m.ellipsoid(0, 0.62, 0, 0.21, 0.15, 0.20, 16, 9, PANTS, PANTS_T);
+  return upload(m);
+})();
+const rigTorso = (() => {          // Gelenk: Hüfte (0, 0.80, 0)
+  const m = new Mesh();
+  m.ellipsoid(0, 0.27, -0.01, 0.200, 0.31, 0.175, 18, 11, JACKET, JACKET_T);
+  m.ellipsoid(0, 0.50, -0.01, 0.185, 0.10, 0.155, 16, 8, JACKET_T, JACKET_T);
+  m.ellipsoid(0, 0.25, -0.145, 0.09, 0.13, 0.065, 14, 8, PACK, [0.72,0.28,0.26]);
+  m.ellipsoid(0, 0.545, -0.01, 0.135, 0.06, 0.12, 14, 7, SCARF, [1.0, 0.90, 0.55]);
+  return upload(m);
+})();
+const rigArmL = (() => {           // Gelenk: linke Schulter (-0.20, 1.20, 0)
+  const m = new Mesh();
+  m.tube([[0,0,0.02], [-0.22,-0.08,0.14], [-0.40,-0.24,0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
+  m.ellipsoid(-0.42, -0.27, 0.26, 0.075, 0.075, 0.075, 10, 6, BOOT, BOOT_T);
+  return upload(m);
+})();
+const rigArmR = (() => {           // Gelenk: rechte Schulter (0.20, 1.20, 0)
+  const m = new Mesh();
+  m.tube([[0,0,-0.02], [0.24,0.00,-0.14], [0.42,0.10,-0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
+  m.ellipsoid(0.44, 0.12, -0.26, 0.075, 0.075, 0.075, 10, 6, BOOT, BOOT_T);
+  return upload(m);
+})();
+const rigHead = (() => {           // Gelenk: Hals (0, 1.36, 0)
+  const m = new Mesh();
+  m.ellipsoid(0, 0, 0, 0.085, 0.07, 0.085, 10, 6, SKIN, SKIN);          // Hals
+  m.ellipsoid(0, 0.15, 0.03, 0.105, 0.115, 0.11, 14, 9, SKIN, SKIN);    // Gesicht, nach vorn versetzt
+  m.ellipsoid(0, 0.17, -0.01, 0.155, 0.165, 0.165, 18, 11, HELM, [0.30, 0.36, 0.54]);  // Helm umschliesst
+  m.ellipsoid(0, 0.155, 0.10, 0.115, 0.045, 0.075, 14, 6, [0.05,0.07,0.14], [0.20,0.42,0.72]); // Brille vorn
   return upload(m);
 })();
 
@@ -785,6 +837,7 @@ function drawMesh(mesh, data, count, opt) {
   gl.uniform1f(pObj.u.uUnlit, o.unlit ? 1 : 0);
   gl.uniform1f(pObj.u.uGlow, o.glow || 0);
   gl.uniform1f(pObj.u.uSoft, o.soft ? 1 : 0);
+  gl.uniform1f(pObj.u.uSway, o.sway || 0);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
   drawInst(gl.TRIANGLES, mesh.n, mesh.type, 0, count);
 }
@@ -838,10 +891,11 @@ function genAhead(toZ) {
 
     /* Waldränder */
     for (let side = -1; side <= 1; side += 2) {
-      const n = 2 + (srnd() * 2 | 0);
+      const n = 4 + (srnd() * 4 | 0);
       for (let i = 0; i < n; i++) {
-        const x = side * (VALLEY + 1.5 + srnd() * 26);
-        addTree(x, z + srnd() * 9, 0.75 + srnd() * 0.8);
+        const t = srnd();
+        const x = side * (VALLEY + 1.0 + t * t * 34);        // dicht an der Kante, ausduennend nach oben
+        addTree(x, z + srnd() * 11, 0.6 + srnd() * 1.05);
       }
     }
     /* Hindernisse auf der Piste */
@@ -908,6 +962,7 @@ function syncKickers(z) {
 const P = {
   x: 0, z: 0, y: 0, vx: 0, vz: 14, vy: 0,
   air: false, airT: 0, spin: 0, spinTarget: 0, yaw: 0, roll: 0, pitch: 0,
+  crouch: 0.2, grab: 0, airLift: 0, leanVis: 0, landPulse: 0,
   crashT: 0, tumble: 0
 };
 let state = 'menu';
@@ -926,10 +981,10 @@ const tracks = [];
 let trackAcc = 0;
 function layTrack(dt) {
   trackAcc += P.vz * dt;
-  while (trackAcc > 0.30) {
-    trackAcc -= 0.30;
+  while (trackAcc > 0.20) {
+    trackAcc -= 0.20;
     tracks.push({ x: P.x, z: P.z - 0.5, y: terrainH(P.x, P.z - 0.5), l: 3.4, rot: -P.vx / Math.max(P.vz, 1) });
-    if (tracks.length > 340) tracks.shift();
+    if (tracks.length > 420) tracks.shift();
   }
 }
 
@@ -1009,7 +1064,7 @@ function onMove(e) {
   const dx = e.clientX - ptrX;
   ptrMoved = Math.max(ptrMoved, Math.abs(dx));
   const span = Math.max(70, window.innerWidth * 0.20);
-  steerTarget = clamp(dx / span, -1, 1);
+  steerTarget = clamp(-dx / span, -1, 1);   // Welt-X zeigt im Bild nach links
   /* Referenzpunkt nachziehen, damit man beliebig weit lenken kann */
   if (Math.abs(steerTarget) >= 1) ptrX = e.clientX - Math.sign(dx) * span;
 }
@@ -1098,8 +1153,8 @@ function update(dt) {
     maxSpeed = 26 + Math.min(P.z / 260, 15) + (flowT > 0 ? 9 : 0);
 
     /* Lenken */
-    if (keys.ArrowLeft || keys.KeyA) steerTarget = -1;
-    else if (keys.ArrowRight || keys.KeyD) steerTarget = 1;
+    if (keys.ArrowLeft || keys.KeyA) steerTarget = 1;
+    else if (keys.ArrowRight || keys.KeyD) steerTarget = -1;
     else if (ptrId === null && !keys.ArrowLeft && !keys.ArrowRight) steerTarget = lerp(steerTarget, 0, 1 - Math.pow(0.02, dt));
     steer = lerp(steer, steerTarget, 1 - Math.pow(0.0015, dt));
 
@@ -1149,6 +1204,7 @@ function update(dt) {
           score += Math.round(P.airT * 26);
         }
         P.spin = 0; P.spinTarget = 0;
+        P.landPulse = Math.min(1, 0.45 + impact);
         P.vy = 0;
         shake = Math.max(shake, 0.25 + impact * 0.5);
         sfx.land(impact); buzz(Math.round(6 + impact * 16));
@@ -1213,6 +1269,17 @@ function update(dt) {
     }
 
     if (flowT > 0) { flowT -= dt; flow = clamp(flowT / 6, 0, 1); if (flowT <= 0) { flow = 0; comboEl.classList.remove('on'); } }
+
+    /* Pose: Ducken, Grab, Kurvenlage */
+    P.landPulse = Math.max(0, P.landPulse - dt * 3.2);
+    const speedRel = clamp(P.vz / maxSpeed, 0, 1);
+    const crouchTarget = P.air
+      ? 0.60 + P.grab * 0.25                                 // Beine anziehen
+      : 0.10 + speedRel * 0.34 + Math.abs(steer) * 0.22 + P.landPulse * 0.85;
+    P.crouch = lerp(P.crouch, clamp(crouchTarget, 0, 1), 1 - Math.pow(P.air ? 0.004 : 0.0006, dt));
+    P.grab = lerp(P.grab, P.air && P.airT > 0.18 ? 1 : 0, 1 - Math.pow(0.002, dt));
+    P.airLift = lerp(P.airLift, P.air ? clamp(P.vy / 9, -1, 1) : 0, 1 - Math.pow(0.004, dt));
+    P.leanVis = lerp(P.leanVis, clamp(steer * (P.air ? 0.35 : 1), -1, 1), 1 - Math.pow(0.001, dt));
 
     /* Ausrichtung */
     const targetRoll = clamp(-steer * 0.26 - P.vx / 60, -0.34, 0.34);
@@ -1299,6 +1366,45 @@ function resize() {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 
+/* ---- Fahrer-Rig: Kette aus Gelenkmatrizen, jedes Teil eigener Draw ---- */
+const RIG = { base: m4(), t: m4(), out: m4(), torso: m4(), tmp: m4() };
+function drawRider() {
+  const cr = P.crouch, gb = P.grab, st = clamp(P.leanVis, -1, 1);
+  const inst = pushInst(instData, 0, P.x, P.y, P.z, 1, 0, 1, 1, 1, 1);
+  const base = trs(RIG.base, 0, 0, 0, P.pitch, P.yaw, P.roll, 1);
+  const bob = P.air ? 0 : Math.sin(tGlobal * 9) * 0.012 * clamp(P.vz / 30, 0, 1);
+
+  /* Board kantet in die Kurve */
+  trsS(RIG.t, 0, bob, 0, 0, 0, st * 0.42, 1, 1, 1);
+  drawMesh(rigBoard, instData, inst, { model: mul(RIG.out, base, RIG.t) });
+
+  /* Beine stauchen beim Ducken und Landen */
+  const legScale = 1 - cr * 0.30;
+  trsS(RIG.t, 0, 0.18 + bob, 0, 0, 0, st * 0.26, 1, legScale, 1);
+  drawMesh(rigLegs, instData, inst, { model: mul(RIG.out, base, RIG.t) });
+
+  /* Oberkörper: tiefer bei Tempo, dreht in die Kurve */
+  const hip = 0.18 + 0.62 * legScale + bob;
+  trsS(RIG.t, 0, hip, 0, cr * 0.42, -st * 0.30, st * 0.14, 1, 1, 1);
+  const torso = mul(RIG.torso, base, RIG.t);
+  drawMesh(rigTorso, instData, inst, { model: torso });
+
+  /* Arme balancieren, in der Luft Grab zum Board */
+  const swing = Math.sin(tGlobal * 4.5) * 0.10 * (P.air ? 0.2 : 1);
+  trsS(RIG.t, -0.19, 0.42, 0, gb * 0.55 + swing, gb * 0.5, st * 0.5 + gb * 1.15 - P.airLift * 0.35, 1, 1, 1);
+  mul(RIG.tmp, torso, RIG.t);
+  drawMesh(rigArmL, instData, inst, { model: RIG.tmp });
+
+  trsS(RIG.t, 0.19, 0.42, 0, -gb * 0.25 - swing, 0, st * 0.4 - gb * 0.55 - P.airLift * 0.6, 1, 1, 1);
+  mul(RIG.tmp, torso, RIG.t);
+  drawMesh(rigArmR, instData, inst, { model: RIG.tmp });
+
+  /* Kopf schaut in die Kurve, bleibt beim Ducken aufrecht */
+  trsS(RIG.t, 0, 0.56, 0, -cr * 0.30, -st * 0.40, 0, 1, 1, 1);
+  mul(RIG.tmp, torso, RIG.t);
+  drawMesh(rigHead, instData, inst, { model: RIG.tmp });
+}
+
 function pushInst(arr, n, x, y, z, s, rot, r, g, b, a) {
   const o = n * INST;
   arr[o]=x; arr[o+1]=y; arr[o+2]=z; arr[o+3]=s; arr[o+4]=rot;
@@ -1315,7 +1421,8 @@ function render() {
   const aheadZ = P.z + 36;
   const airLift = P.air ? (P.y - terrainH(P.x, P.z)) * 0.55 : 0;
   const tx = P.x, ty = terrainH(P.x, aheadZ) + 3.5 + airLift, tz = aheadZ;
-  lookAt(VIEW, [ex, ey, ez], [tx, ty, tz], [0, 1, 0]);
+  const camRoll = P.leanVis * 0.055;
+  lookAt(VIEW, [ex, ey - P.landPulse * 0.45, ez], [tx, ty, tz], [Math.sin(camRoll), Math.cos(camRoll), 0]);
   mul(VP, PROJ, VIEW);
 
   /* Kamerabasis für Himmel & Billboards */
@@ -1375,6 +1482,7 @@ function render() {
   gl.uniform3fv(pTerrain.u.uSnowLit, PAL.lit);
   gl.uniform3fv(pTerrain.u.uSnowShade, PAL.shade);
   gl.uniform1f(pTerrain.u.uFogK, 0.0044);
+  gl.uniform1f(pTerrain.u.uTime, tGlobal);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, terrainGrid.ib);
   gl.drawElements(gl.TRIANGLES, terrainGrid.n, terrainGrid.type, 0);
 
@@ -1388,11 +1496,12 @@ function render() {
   gl.uniform3fv(pObj.u.uAmb, PAL.amb);
   gl.uniform3fv(pObj.u.uFogCol, PAL.fog);
   gl.uniform1f(pObj.u.uFogK, 0.0044);
+  gl.uniform1f(pObj.u.uTime, tGlobal);
 
   const zMin = camZ - 20, zMax = camZ + 260;
 
   let n = 0;
-  for (let i = 0; i < trees.length && n < 520; i++) {
+  for (let i = 0; i < trees.length && n < 680; i++) {
     const t = trees[i];
     if (t.z < zMin || t.z > zMax) continue;
     const d = t.z - camZ;
@@ -1400,7 +1509,7 @@ function render() {
     if (d > 180 && (i & 3)) continue;
     n = pushInst(instData, n, t.x, terrainH(t.x, t.z) - 0.2, t.z, t.s, t.r, t.tint, t.tint, t.tint, 1);
   }
-  drawMesh(treeMesh, instData, n);
+  drawMesh(treeMesh, instData, n, { sway: 1 });
 
   n = 0;
   for (let i = 0; i < rocks.length && n < 120; i++) {
@@ -1428,13 +1537,8 @@ function render() {
   }
   drawMesh(crystalMesh, instData, n, { glow: 0.35 });
 
-  /* ---- Fahrer ---- */
-  {
-    const M = m4();
-    trs(M, 0, 0, 0, P.pitch, P.yaw, P.roll, 1);
-    const n2 = pushInst(instData, 0, P.x, P.y, P.z, 1, 0, 1, 1, 1, 1);
-    drawMesh(riderMesh, instData, n2, { model: M });
-  }
+  /* ---- Fahrer (animiertes Rig) ---- */
+  drawRider();
 
   /* ---- Fahrspur + Schatten (weiche Bodenquads) ---- */
   gl.enable(gl.BLEND);
@@ -1443,13 +1547,29 @@ function render() {
   gl.disable(gl.CULL_FACE);
   {
     let nt = 0;
-    for (let i = 0; i < tracks.length && nt < 340; i++) {
+    for (let i = 0; i < tracks.length && nt < 420; i++) {
       const t = tracks[i];
       if (t.z < camZ - 6 || t.z > camZ + 90) continue;
-      const a = clamp(t.l / 3.4, 0, 1) * 0.55;
-      nt = pushInst(instData, nt, t.x + t.rot * 0.3, t.y + 0.06, t.z, 1.0, 0, 0.42, 0.57, 0.88, a);
+      const a = clamp(t.l / 3.4, 0, 1) * 0.42;
+      nt = pushInst(instData, nt, t.x, t.y + 0.06, t.z, 1.0, 0, 0.44, 0.58, 0.88, a);
     }
     drawMesh(quadMesh, instData, nt, { model: TRACK_M, unlit: true, soft: true });
+  }
+  {
+    /* Kontaktschatten der Umgebung */
+    const SH = m4(); trs(SH, 0, 0, 0, -Math.PI / 2, 0, 0, 1);
+    let ns2 = 0;
+    for (let i = 0; i < trees.length && ns2 < 200; i++) {
+      const t = trees[i];
+      if (t.z < camZ - 4 || t.z > camZ + 105) continue;
+      ns2 = pushInst(instData, ns2, t.x, terrainH(t.x, t.z) + 0.05, t.z, 1.5 * t.s, 0, 0.16, 0.22, 0.42, 0.30);
+    }
+    for (let i = 0; i < rocks.length && ns2 < 260; i++) {
+      const r = rocks[i];
+      if (r.z < camZ - 4 || r.z > camZ + 105) continue;
+      ns2 = pushInst(instData, ns2, r.x, terrainH(r.x, r.z) + 0.05, r.z, 1.9 * r.s, 0, 0.16, 0.22, 0.42, 0.32);
+    }
+    drawMesh(quadMesh, instData, ns2, { model: SH, unlit: true, soft: true });
   }
   {
     const gy = terrainH(P.x, P.z);
@@ -1518,6 +1638,7 @@ function resetGame() {
   genZ = -30; genAhead(360); syncKickers(0);
   P.x = pathX(0); P.z = 0; P.y = terrainH(P.x, 0); P.vx = 0; P.vz = 15; P.vy = 0;
   P.air = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.yaw = 0; P.roll = 0; P.pitch = 0; P.tumble = 0;
+  P.crouch = 0.2; P.grab = 0; P.airLift = 0; P.leanVis = 0; P.landPulse = 0;
   camX = P.x; camY = P.y + 3.2; camZ = P.z - 9;
   score = 0; tricks = 0; gotCrystals = 0; combo = 0; comboT = 0; comboScore = 0;
   flow = 0; flowT = 0; shake = 0; timeScale = 1; steer = 0; steerTarget = 0; holding = false;
