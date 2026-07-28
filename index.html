@@ -752,16 +752,18 @@ const rigTorso = (() => {          // Gelenk: Hüfte (0, 0.80, 0)
   m.ellipsoid(0, 0.545, -0.01, 0.135, 0.06, 0.12, 14, 7, SCARF, [1.0, 0.90, 0.55]);
   return upload(m);
 })();
-const rigArmL = (() => {           // Gelenk: linke Schulter (-0.20, 1.20, 0)
+const rigArmL = (() => {           // Gelenk: linke Schulter; Ellbogen gebeugt, Hand nach vorn
   const m = new Mesh();
-  m.tube([[0,0,0.02], [-0.22,-0.08,0.14], [-0.40,-0.24,0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
-  m.ellipsoid(-0.42, -0.27, 0.26, 0.075, 0.075, 0.075, 10, 6, BOOT, BOOT_T);
+  m.tube([[0,0,0.01], [-0.13,-0.19,0.06], [-0.15,-0.31,0.22], [-0.13,-0.33,0.34]],
+         [0.082, 0.072, 0.062, 0.055], 10, JACKET, JACKET_T);
+  m.ellipsoid(-0.13, -0.34, 0.39, 0.068, 0.062, 0.072, 10, 6, BOOT, BOOT_T);
   return upload(m);
 })();
-const rigArmR = (() => {           // Gelenk: rechte Schulter (0.20, 1.20, 0)
+const rigArmR = (() => {           // Gelenk: rechte Schulter, leicht andere Haltung
   const m = new Mesh();
-  m.tube([[0,0,-0.02], [0.24,0.00,-0.14], [0.42,0.10,-0.24]], [0.085, 0.075, 0.062], 10, JACKET, JACKET_T);
-  m.ellipsoid(0.44, 0.12, -0.26, 0.075, 0.075, 0.075, 10, 6, BOOT, BOOT_T);
+  m.tube([[0,0,-0.01], [0.14,-0.17,-0.04], [0.17,-0.30,0.10], [0.15,-0.34,0.24]],
+         [0.082, 0.072, 0.062, 0.055], 10, JACKET, JACKET_T);
+  m.ellipsoid(0.15, -0.35, 0.29, 0.068, 0.062, 0.072, 10, 6, BOOT, BOOT_T);
   return upload(m);
 })();
 const rigHead = (() => {           // Gelenk: Hals (0, 1.36, 0)
@@ -898,8 +900,25 @@ function genAhead(toZ) {
         addTree(x, z + srnd() * 11, 0.6 + srnd() * 1.05);
       }
     }
-    /* Hindernisse auf der Piste */
-    const density = clamp(0.5 + m / 3200, 0, 1.7);
+    /* Hindernisreihe quer übers Tal mit genau einer Lücke — der eigentliche Anspruch.
+       Die Lücke liegt nahe der Ideallinie, der Kristallpfad führt hindurch. */
+    const rowChance = clamp(0.22 + m / 5200, 0, 0.72);
+    if (m > 110 && srnd() < rowChance) {
+      const zz = z + srnd() * 6;
+      const gapW = Math.max(3.2, 5.6 - m / 2800);
+      const gapX = clamp(pathX(zz) + (srnd() - 0.5) * 7, -VALLEY + 4.5, VALLEY - 4.5);
+      for (let x = -VALLEY + 1; x <= VALLEY - 1; x += 2.4 + srnd() * 1.5) {
+        if (Math.abs(x - gapX) < gapW) continue;
+        const ox = x + (srnd() - 0.5) * 0.8, oz = zz + srnd() * 2.5;
+        if (srnd() < 0.55) addTree(ox, oz, 0.55 + srnd() * 0.45);
+        else rocks.push({ x: ox, z: oz, y: 0, s: 0.7 + srnd() * 0.6, r: srnd() * TAU });
+      }
+      for (let i = 0; i < 3; i++)                    // Kristalle markieren die Durchfahrt
+        crystals.push({ x: gapX, z: zz - 6 + i * 6, got: false, ph: srnd() * TAU });
+    }
+
+    /* verstreute Einzelhindernisse */
+    const density = clamp(0.35 + m / 4200, 0, 1.1);
     const lane = Math.max(2.9, 4.8 - m / 2600);       // freier Korridor wird enger
     if (m > 80 && srnd() < density) {
       const n = 1 + (srnd() * 3 | 0);
@@ -928,7 +947,7 @@ function genAhead(toZ) {
     /* Schanzen */
     if (m > 120 && srnd() < 0.30 && (kickers.length === 0 || z - kickers[kickers.length-1].z > 95)) {
       const zz = z + 6;
-      kickers.push({ x: pathX(zz), z: zz, h: 3.0 + srnd() * 1.8, r: 7 + srnd() * 3 });
+      kickers.push({ x: pathX(zz), z: zz, h: 2.1 + srnd() * 1.2, r: 8 + srnd() * 3.5 });
       /* Kristallbogen hinter der Schanze */
       for (let i = 0; i < 5; i++) {
         const cz = zz + 14 + i * 6;
@@ -959,10 +978,12 @@ function syncKickers(z) {
 }
 
 /* ============================ Spielzustand =============================== */
+const GRAV_AIR = 24;          // m/s^2 – Schwerkraft für den Fahrer
 const P = {
   x: 0, z: 0, y: 0, vx: 0, vz: 14, vy: 0,
   air: false, airT: 0, spin: 0, spinTarget: 0, yaw: 0, roll: 0, pitch: 0,
   crouch: 0.2, grab: 0, airLift: 0, leanVis: 0, landPulse: 0,
+  flailL: 0, flailR: 0, flailX: 0, crashT: 0, down: 0,
   crashT: 0, tumble: 0
 };
 let state = 'menu';
@@ -971,6 +992,7 @@ let score = 0, tricks = 0, gotCrystals = 0, best = 0, combo = 0, comboT = 0, com
 let flow = 0, flowT = 0, maxSpeed = 26, shake = 0, timeScale = 1, tGlobal = 0, deathReason = 'Sturz';
 let camX = 0, camY = 0, camZ = 0, camShakeX = 0, camShakeY = 0, fovBoost = 0;
 
+const board = { off: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, sx: 0, sy: 0, sz: 0 };
 const parts = [];   // Partikel: x,y,z,vx,vy,vz,l,L,s,col,kind
 function spawnPart(x, y, z, vx, vy, vz, life, size, col, kind) {
   if (parts.length > 500) return;
@@ -1087,18 +1109,37 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') holding = false; });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { holding = false; steerTarget = 0; } });
 
+const SPIN_RATE = 11.5;                              // rad/s
 function actionTap() {
   if (state !== 'play') return;
-  if (P.air) addSpin(); else jump();
+  if (!P.air) { jump(); return; }
+  /* Kleine Bodenwellen heben einen ständig kurz ab. Ein Tipp dort ist als
+     Absprung gemeint, nicht als Trick — sonst endet er zwangsläufig im Sturz. */
+  const h = P.y - terrainH(P.x, P.z);
+  if (P.airT < 0.20 && h < 0.9) { hop(); return; }
+  addSpin();
+}
+function hop() {
+  P.vy = Math.max(P.vy, 0) + 7.2;
+  P.airT = 0;
+  sfx.jump(); buzz(8);
+  for (let i = 0; i < 12; i++)
+    spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
+              (srnd()-0.5)*3, srnd()*2.2, -srnd()*3 - P.vz*0.12, 0.5, 0.32 + srnd()*0.3, 0);
 }
 function addSpin() {
   if (P.spinTarget - P.spin > 5.0) return;          // maximal eine Drehung vorreihen
+  /* Nur starten, wenn die Restflugzeit für die Drehung reicht */
+  const h = Math.max(0, P.y - terrainH(P.x, P.z));
+  const tRest = (P.vy + Math.sqrt(Math.max(0, P.vy * P.vy + 2 * GRAV_AIR * h))) / GRAV_AIR;
+  const need = (P.spinTarget - P.spin + TAU) / SPIN_RATE;
+  if (tRest < need * 1.30) { hop(); return; }        // zu wenig Luft: lieber abspringen
   P.spinTarget += TAU;
   sfx.trick(1); buzz(6);
 }
 function jump() {
   if (state !== 'play' || P.air) return;
-  P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 10.6;
+  P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 7.2;
   sfx.jump(); buzz(8);
   for (let i = 0; i < 16; i++)
     spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
@@ -1133,6 +1174,13 @@ function die(reason) {
   comboScore = 0; combo = 0; comboEl.classList.remove('on');
   shake = 1.4; timeScale = 0.35; flowT = 0; flow = 0;
   P.tumble = (srnd() - 0.5) * 10;
+  P.crashT = 0; P.down = 0;
+  /* Board reißt sich los und schlittert davon */
+  board.off = true;
+  board.x = P.x; board.y = P.y + 0.1; board.z = P.z;
+  board.vx = P.vx + (srnd() - 0.5) * 7; board.vy = 2.2 + srnd() * 3.4; board.vz = P.vz * 0.8;
+  board.rx = P.pitch; board.ry = P.yaw; board.rz = P.roll;
+  board.sx = (srnd() - 0.5) * 14; board.sy = (srnd() - 0.5) * 9; board.sz = (srnd() - 0.5) * 16;
   sfx.crash(); buzz([40, 50, 90]);
   for (let i = 0; i < 60; i++)
     spawnPart(P.x, P.y + 0.7, P.z, (srnd()-0.5)*10, srnd()*8, (srnd()-0.5)*10 - P.vz*0.3, 0.9, 0.5 + srnd()*0.6, 0);
@@ -1176,11 +1224,11 @@ function update(dt) {
 
     if (P.air) {
       P.airT += dt;
-      P.vy -= 21 * dt;
+      P.vy -= GRAV_AIR * (flowT > 0 ? 0.94 : 1) * dt;
       P.y += P.vy * dt;
             /* Spin läuft bis zur vollen Drehung durch und stoppt dann exakt */
       if (P.spin < P.spinTarget) {
-        const st = Math.min(8.2 * dt, P.spinTarget - P.spin);
+        const st = Math.min(SPIN_RATE * dt, P.spinTarget - P.spin);
         P.spin += st; P.yaw += st;
       }
       if (P.airT > 0.1 && srnd() < 0.3)
@@ -1191,7 +1239,8 @@ function update(dt) {
         P.y = gy;
         const spins = Math.floor(P.spin / TAU + 0.001);
         const rest = P.spinTarget - P.spin;
-        if (rest > 0.45 && P.airT > 0.25) { P.air = false; die('Spin nicht vollendet'); return; }
+        if (rest > 1.6 && P.airT > 0.25) { P.air = false; die('Spin nicht vollendet'); return; }
+        if (rest > 0.0) { P.spin = P.spinTarget; }        // knapp: Drehung wird durchgezogen
         P.air = false;
         P.yaw = 0;
         const impact = clamp(-P.vy / 14, 0, 1);
@@ -1206,28 +1255,34 @@ function update(dt) {
         P.spin = 0; P.spinTarget = 0;
         P.landPulse = Math.min(1, 0.45 + impact);
         P.vy = 0;
-        shake = Math.max(shake, 0.25 + impact * 0.5);
-        sfx.land(impact); buzz(Math.round(6 + impact * 16));
+        if (P.airT > 0.12 || impact > 0.25) {
+          shake = Math.max(shake, 0.25 + impact * 0.5);
+          sfx.land(impact); buzz(Math.round(6 + impact * 16));
+        }
         for (let i = 0; i < 14 + impact * 26; i++)
           spawnPart(P.x + (srnd()-0.5)*1.2, P.y + 0.1, P.z + (srnd()-0.5)*1.2,
                     (srnd()-0.5)*6, srnd()*4*(0.4+impact), -srnd()*4 - P.vz*0.1, 0.7, 0.3 + srnd()*0.5, 0);
       }
     } else {
-      /* Am Boden: Höhe folgen, natürliche Absprünge an Kanten */
-      const prevY = P.y;
-      P.y = gy;
-      const climb = (P.y - prevY) / dt;
-      if (climb < -12 - P.vz * 0.35) {           // Boden fällt schneller weg als man folgen kann
-        P.air = true; P.airT = 0; P.spin = 0; P.vy = 0;
+      /* Am Boden vertikal integrieren: wer schnell über eine Kuppe fährt,
+         hebt ab, weil die Schwerkraft ihn nicht schnell genug nachzieht. */
+      P.vy -= GRAV_AIR * dt;
+      P.y += P.vy * dt;
+      if (P.y > gy + 0.05) {
+        P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0;
+      } else {
+        P.y = gy;
+        /* Sinkrate, mit der das Gelände unter dem Board wegläuft */
+        P.vy = slopeZ(P.x, P.z) * P.vz + slopeX(P.x, P.z) * P.vx;
       }
       /* Schneefahne */
       const rel = P.vz / maxSpeed;
       const nSpray = 1 + (rel * 2 | 0) + (Math.abs(steer) > 0.35 ? 2 : 0);
       for (let i = 0; i < nSpray; i++)
-        spawnPart(P.x - steer * 0.35 + (srnd()-0.5)*0.5, P.y + 0.08, P.z - 0.4 + (srnd()-0.5)*0.4,
+        spawnPart(P.x - steer * 0.30 + (srnd()-0.5)*0.5, P.y + 0.06, P.z - 0.85 + (srnd()-0.5)*0.4,
                   -steer * (2 + srnd()*5) + (srnd()-0.5)*1.5,
-                  1.0 + srnd() * 2.4 * (0.4 + Math.abs(steer)),
-                  -2 - srnd() * 5, 0.45 + srnd()*0.35, 0.22 + srnd()*0.35, 0);
+                  0.8 + srnd() * 1.9 * (0.4 + Math.abs(steer)),
+                  -3 - srnd() * 5, 0.34 + srnd()*0.28, 0.15 + srnd()*0.24, 0);
       layTrack(dt);
       score += P.vz * dt * 0.9;
       if (comboT > 0) { comboT -= dt; if (comboT <= 0) bankCombo(); }
@@ -1235,17 +1290,17 @@ function update(dt) {
 
     /* Kollisionen */
     const near = 3.0;
-    if (P.y - terrainH(P.x, P.z) < 1.6) {
-      for (let i = 0; i < trees.length; i++) {
-        const t = trees[i];
-        if (Math.abs(t.z - P.z) > near) continue;
-        if (Math.abs(t.x - P.x) < 0.55 + t.s * 0.55) { die('Baum getroffen'); return; }
-      }
-      for (let i = 0; i < rocks.length; i++) {
-        const r = rocks[i];
-        if (Math.abs(r.z - P.z) > near) continue;
-        if (Math.abs(r.x - P.x) < 0.5 + r.s * 0.9) { die('Felsen getroffen'); return; }
-      }
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i];
+      if (Math.abs(t.z - P.z) > near) continue;
+      if (Math.abs(t.x - P.x) > 0.55 + t.s * 0.55) continue;
+      if (P.y < terrainH(t.x, t.z) + 4.2 * t.s) { die('Baum getroffen'); return; }
+    }
+    for (let i = 0; i < rocks.length; i++) {
+      const r = rocks[i];
+      if (Math.abs(r.z - P.z) > near) continue;
+      if (Math.abs(r.x - P.x) > 0.5 + r.s * 0.9) continue;
+      if (P.y < terrainH(r.x, r.z) + 1.5 * r.s) { die('Felsen getroffen'); return; }
     }
     /* Tore */
     for (let i = 0; i < gates.length; i++) {
@@ -1288,16 +1343,51 @@ function update(dt) {
     if (!P.air) P.yaw = lerp(P.yaw, clamp(P.vx / P.vz, -0.6, 0.6) * 0.8, 1 - Math.pow(0.002, dt));
 
   } else if (state === 'dead') {
+    P.crashT += dt;
     P.z += P.vz * dt; P.x += P.vx * dt;
-    P.vz *= (1 - 1.1 * dt); P.vx *= (1 - 1.1 * dt);
-    P.vy -= 21 * dt; P.y += P.vy * dt;
-    P.roll += P.tumble * dt; P.pitch += P.tumble * 0.6 * dt;
+    const drag = P.down > 0.5 ? 2.6 : 1.0;                 // am Boden bremst der Körper stark
+    P.vz *= (1 - drag * dt); P.vx *= (1 - drag * dt);
+    P.vy -= GRAV_AIR * dt; P.y += P.vy * dt;
+    P.roll += P.tumble * dt; P.pitch += P.tumble * 0.55 * dt;
     const gy = terrainH(P.x, P.z);
-    if (P.y < gy) { P.y = gy; P.vy *= -0.3; P.tumble *= 0.5;
-      if (Math.abs(P.vy) > 2) for (let i = 0; i < 10; i++)
-        spawnPart(P.x, P.y, P.z, (srnd()-0.5)*4, srnd()*3, (srnd()-0.5)*4, 0.6, 0.35, 0); }
+    if (P.y < gy) {
+      P.y = gy; P.vy *= -0.22; P.tumble *= 0.45;
+      P.down = Math.min(1, P.down + 0.5);
+      if (Math.abs(P.vy) > 1.5)
+        for (let i = 0; i < 16; i++)
+          spawnPart(P.x, P.y + 0.2, P.z, (srnd()-0.5)*7, srnd()*4.5, (srnd()-0.5)*7 - P.vz*0.2,
+                    0.8, 0.35 + srnd()*0.5, 0);
+    }
+    /* liegen bleiben statt endlos rollen */
+    if (P.down > 0.5) {
+      P.tumble *= Math.pow(0.06, dt);
+      P.pitch = lerp(P.pitch, 1.35, 1 - Math.pow(0.06, dt));
+      P.roll = lerp(P.roll, 0.35, 1 - Math.pow(0.2, dt));
+    }
+    /* Gliedmaßen schlagen aus und beruhigen sich */
+    const fl = Math.exp(-P.crashT * 1.5);
+    P.flailL = Math.sin(P.crashT * 17.0) * 1.15 * fl + 0.55 * (1 - fl) * 0.6;
+    P.flailR = Math.sin(P.crashT * 13.5 + 2.1) * 1.05 * fl - 0.5 * (1 - fl) * 0.6;
+    P.flailX = Math.sin(P.crashT * 15.0 + 1.0) * 0.85 * fl;
+    P.crouch = lerp(P.crouch, 0.05, 1 - Math.pow(0.1, dt));
+    P.grab = lerp(P.grab, 0, 1 - Math.pow(0.1, dt));
     timeScale = lerp(timeScale, 1, dt * 1.5);
     syncKickers(P.z);
+  }
+  /* losgerissenes Board */
+  if (board.off) {
+    board.vy -= GRAV_AIR * dt;
+    board.x += board.vx * dt; board.y += board.vy * dt; board.z += board.vz * dt;
+    board.rx += board.sx * dt; board.ry += board.sy * dt; board.rz += board.sz * dt;
+    const by = terrainH(board.x, board.z);
+    if (board.y < by + 0.06) {
+      board.y = by + 0.06; board.vy *= -0.32;
+      board.vx *= 0.82; board.vz *= 0.9;
+      board.sx *= 0.4; board.sy *= 0.6; board.sz *= 0.4;
+      if (Math.abs(board.vy) > 1.2)
+        for (let i = 0; i < 6; i++)
+          spawnPart(board.x, board.y, board.z, (srnd()-0.5)*3, srnd()*2.5, (srnd()-0.5)*3, 0.5, 0.25, 0);
+    }
   } else {
     /* Menü: langsam den Hang hinunter gleiten */
     P.z += 7 * dt;
@@ -1374,9 +1464,16 @@ function drawRider() {
   const base = trs(RIG.base, 0, 0, 0, P.pitch, P.yaw, P.roll, 1);
   const bob = P.air ? 0 : Math.sin(tGlobal * 9) * 0.012 * clamp(P.vz / 30, 0, 1);
 
-  /* Board kantet in die Kurve */
-  trsS(RIG.t, 0, bob, 0, 0, 0, st * 0.42, 1, 1, 1);
-  drawMesh(rigBoard, instData, inst, { model: mul(RIG.out, base, RIG.t) });
+  /* Board kantet in die Kurve — nach einem Sturz fliegt es allein weiter */
+  if (board.off) {
+    const bi = pushInst(instData, 0, board.x, board.y, board.z, 1, 0, 1, 1, 1, 1);
+    trs(RIG.t, 0, 0, 0, board.rx, board.ry, board.rz, 1);
+    drawMesh(rigBoard, instData, bi, { model: RIG.t });
+    pushInst(instData, 0, P.x, P.y, P.z, 1, 0, 1, 1, 1, 1);   // Slot für den Körper zurücksetzen
+  } else {
+    trsS(RIG.t, 0, bob, 0, 0, 0, st * 0.42, 1, 1, 1);
+    drawMesh(rigBoard, instData, inst, { model: mul(RIG.out, base, RIG.t) });
+  }
 
   /* Beine stauchen beim Ducken und Landen */
   const legScale = 1 - cr * 0.30;
@@ -1390,12 +1487,12 @@ function drawRider() {
   drawMesh(rigTorso, instData, inst, { model: torso });
 
   /* Arme balancieren, in der Luft Grab zum Board */
-  const swing = Math.sin(tGlobal * 4.5) * 0.10 * (P.air ? 0.2 : 1);
-  trsS(RIG.t, -0.19, 0.42, 0, gb * 0.55 + swing, gb * 0.5, st * 0.5 + gb * 1.15 - P.airLift * 0.35, 1, 1, 1);
+  const swing = Math.sin(tGlobal * 4.5) * 0.07 * (P.air ? 0.2 : 1) + P.flailX;
+  trsS(RIG.t, -0.19, 0.42, 0, gb * 0.35 + swing, gb * 0.45, st * 0.22 + gb * 0.95 - P.airLift * 0.22 + P.flailL, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
   drawMesh(rigArmL, instData, inst, { model: RIG.tmp });
 
-  trsS(RIG.t, 0.19, 0.42, 0, -gb * 0.25 - swing, 0, st * 0.4 - gb * 0.55 - P.airLift * 0.6, 1, 1, 1);
+  trsS(RIG.t, 0.19, 0.42, 0, -gb * 0.18 - swing, 0, st * 0.18 - gb * 0.35 - P.airLift * 0.30 + P.flailR, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
   drawMesh(rigArmR, instData, inst, { model: RIG.tmp });
 
@@ -1639,6 +1736,8 @@ function resetGame() {
   P.x = pathX(0); P.z = 0; P.y = terrainH(P.x, 0); P.vx = 0; P.vz = 15; P.vy = 0;
   P.air = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.yaw = 0; P.roll = 0; P.pitch = 0; P.tumble = 0;
   P.crouch = 0.2; P.grab = 0; P.airLift = 0; P.leanVis = 0; P.landPulse = 0;
+  P.flailL = 0; P.flailR = 0; P.flailX = 0; P.crashT = 0; P.down = 0;
+  board.off = false;
   camX = P.x; camY = P.y + 3.2; camZ = P.z - 9;
   score = 0; tricks = 0; gotCrystals = 0; combo = 0; comboT = 0; comboScore = 0;
   flow = 0; flowT = 0; shake = 0; timeScale = 1; steer = 0; steerTarget = 0; holding = false;
