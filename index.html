@@ -266,7 +266,8 @@ function terrainH(x, z) {
   let y = -z * SLOPE;
   y += 1.7 * Math.sin(z * 0.021 + x * 0.004)
      + 1.0 * Math.sin(z * 0.047 - x * 0.009)
-     + 0.5 * Math.sin(z * 0.110 + x * 0.020);
+     + 0.5 * Math.sin(z * 0.110 + x * 0.020)
+     + 0.16 * Math.sin(z * 0.215 - x * 0.031);
   y += 0.006 * x * x;
   const d = Math.abs(x) - VALLEY;
   if (d > 0) y += 0.055 * d * d + Math.sin(x * 0.52 + z * 0.31) * Math.min(d, 9) * 0.26
@@ -274,7 +275,7 @@ function terrainH(x, z) {
   for (let i = 0; i < MAXKICK; i++) {
     const r = kickBuf[i*4+3];
     if (r <= 0) continue;
-    const dx = (x - kickBuf[i*4]) / r, dz = (z - kickBuf[i*4+1]) / (r * 1.6);
+    const dx = (x - kickBuf[i*4]) / (r * 2.0), dz = (z - kickBuf[i*4+1]) / (r * 1.45);
     const e = dx*dx + dz*dz;
     if (e < 9) y += kickBuf[i*4+2] * Math.exp(-e);
   }
@@ -292,7 +293,8 @@ const TERRAIN_GLSL = `
   float H(vec2 p) {
     float x = p.x, z = p.y;
     float y = -z * ${SLOPE.toFixed(3)};
-    y += 1.7 * sin(z*0.021 + x*0.004) + 1.0 * sin(z*0.047 - x*0.009) + 0.5 * sin(z*0.110 + x*0.020);
+    y += 1.7 * sin(z*0.021 + x*0.004) + 1.0 * sin(z*0.047 - x*0.009) + 0.5 * sin(z*0.110 + x*0.020)
+       + 0.16 * sin(z*0.215 - x*0.031);
     y += 0.006 * x * x;
     float d = abs(x) - ${VALLEY.toFixed(1)};
     if (d > 0.0) y += 0.055 * d * d + sin(x * 0.52 + z * 0.31) * min(d, 9.0) * 0.26
@@ -300,7 +302,7 @@ const TERRAIN_GLSL = `
     for (int i = 0; i < ${MAXKICK}; i++) {
       vec4 k = uKick[i];
       if (k.w > 0.0) {
-        float dx = (x - k.x) / k.w, dz = (z - k.y) / (k.w * 1.6);
+        float dx = (x - k.x) / (k.w * 2.0), dz = (z - k.y) / (k.w * 1.45);
         float e = dx*dx + dz*dz;
         if (e < 9.0) y += k.z * exp(-e);
       }
@@ -902,10 +904,10 @@ function genAhead(toZ) {
     }
     /* Hindernisreihe quer übers Tal mit genau einer Lücke — der eigentliche Anspruch.
        Die Lücke liegt nahe der Ideallinie, der Kristallpfad führt hindurch. */
-    const rowChance = clamp(0.22 + m / 5200, 0, 0.72);
-    if (m > 110 && srnd() < rowChance) {
+    const rowChance = clamp(0.10 + m / 9000, 0, 0.45);
+    if (m > 260 && srnd() < rowChance) {
       const zz = z + srnd() * 6;
-      const gapW = Math.max(3.2, 5.6 - m / 2800);
+      const gapW = Math.max(4.4, 7.2 - m / 3600);
       const gapX = clamp(pathX(zz) + (srnd() - 0.5) * 7, -VALLEY + 4.5, VALLEY - 4.5);
       for (let x = -VALLEY + 1; x <= VALLEY - 1; x += 2.4 + srnd() * 1.5) {
         if (Math.abs(x - gapX) < gapW) continue;
@@ -918,8 +920,8 @@ function genAhead(toZ) {
     }
 
     /* verstreute Einzelhindernisse */
-    const density = clamp(0.35 + m / 4200, 0, 1.1);
-    const lane = Math.max(2.9, 4.8 - m / 2600);       // freier Korridor wird enger
+    const density = clamp(0.22 + m / 7000, 0, 0.85);
+    const lane = Math.max(3.6, 5.4 - m / 3400);       // freier Korridor wird enger
     if (m > 80 && srnd() < density) {
       const n = 1 + (srnd() * 3 | 0);
       for (let i = 0; i < n; i++) {
@@ -947,7 +949,7 @@ function genAhead(toZ) {
     /* Schanzen */
     if (m > 120 && srnd() < 0.30 && (kickers.length === 0 || z - kickers[kickers.length-1].z > 95)) {
       const zz = z + 6;
-      kickers.push({ x: pathX(zz), z: zz, h: 2.1 + srnd() * 1.2, r: 8 + srnd() * 3.5 });
+      kickers.push({ x: pathX(zz), z: zz, h: 1.5 + srnd() * 0.9, r: 5.0 + srnd() * 2.0 });
       /* Kristallbogen hinter der Schanze */
       for (let i = 0; i < 5; i++) {
         const cz = zz + 14 + i * 6;
@@ -983,7 +985,7 @@ const P = {
   x: 0, z: 0, y: 0, vx: 0, vz: 14, vy: 0,
   air: false, airT: 0, spin: 0, spinTarget: 0, yaw: 0, roll: 0, pitch: 0,
   crouch: 0.2, grab: 0, airLift: 0, leanVis: 0, landPulse: 0,
-  flailL: 0, flailR: 0, flailX: 0, crashT: 0, down: 0,
+  flailL: 0, flailR: 0, flailX: 0, crashT: 0, down: 0, sepT: 0, contact: true,
   crashT: 0, tumble: 0
 };
 let state = 'menu';
@@ -1198,7 +1200,7 @@ function update(dt) {
     syncKickers(P.z);
     if (((tGlobal * 4) | 0) % 7 === 0) pruneWorld(P.z);
 
-    maxSpeed = 26 + Math.min(P.z / 260, 15) + (flowT > 0 ? 9 : 0);
+    maxSpeed = 25 + Math.min(P.z / 420, 14) + (flowT > 0 ? 9 : 0);
 
     /* Lenken */
     if (keys.ArrowLeft || keys.KeyA) steerTarget = 1;
@@ -1213,9 +1215,9 @@ function update(dt) {
     P.vz = clamp(P.vz, 6, maxSpeed * 1.15);
 
     /* Seitwärts */
-    const grip = P.air ? 0.35 : 1;
+    const grip = P.air ? 0.55 : 1;
     P.vx += (steer * 30 * grip - P.vx * 3.4 * grip) * dt;
-    P.vx += -slopeX(P.x, P.z) * 26 * dt;                  // Hangneigung zieht ins Tal
+    if (!P.air) P.vx += -slopeX(P.x, P.z) * 15 * dt;      // Hangneigung zieht nur am Boden ins Tal
     P.x += P.vx * dt;
     P.z += P.vz * dt;
     P.x = clamp(P.x, -34, 34);
@@ -1241,7 +1243,7 @@ function update(dt) {
         const rest = P.spinTarget - P.spin;
         if (rest > 1.6 && P.airT > 0.25) { P.air = false; die('Spin nicht vollendet'); return; }
         if (rest > 0.0) { P.spin = P.spinTarget; }        // knapp: Drehung wird durchgezogen
-        P.air = false;
+        P.air = false; P.contact = true;
         P.yaw = 0;
         const impact = clamp(-P.vy / 14, 0, 1);
         if (P.airT > 0.35) {
@@ -1266,14 +1268,32 @@ function update(dt) {
     } else {
       /* Am Boden vertikal integrieren: wer schnell über eine Kuppe fährt,
          hebt ab, weil die Schwerkraft ihn nicht schnell genug nachzieht. */
-      P.vy -= GRAV_AIR * dt;
-      P.y += P.vy * dt;
-      if (P.y > gy + 0.05) {
-        P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0;
+      /* Kontakt endet genau dann, wenn der Boden schneller nach unten
+         wegbeschleunigt, als die Schwerkraft den Fahrer nachziehen kann.
+         Abtastung über eine feste Strecke, damit es nicht von der Bildrate abhängt. */
+      if (P.contact) {
+        const st = 0.7 / Math.max(P.vz, 4);
+        const h1 = terrainH(P.x + P.vx * st, P.z + P.vz * st);
+        const h2 = terrainH(P.x + 2 * P.vx * st, P.z + 2 * P.vz * st);
+        const groundAcc = (h2 - 2 * h1 + gy) / (st * st);
+        const followRate = (h1 - gy) / st;
+        if (groundAcc < -GRAV_AIR) {
+          P.contact = false; P.sepT = 0;
+          P.vy = followRate + 1.2;                // Geländerate plus etwas Pop
+        } else {
+          P.y = gy;
+          P.vy = followRate;
+        }
       } else {
-        P.y = gy;
-        /* Sinkrate, mit der das Gelände unter dem Board wegläuft */
-        P.vy = slopeZ(P.x, P.z) * P.vz + slopeX(P.x, P.z) * P.vx;
+        /* abgelöst, aber noch kein Flug: erst deutliche Höhe zählt als Sprung,
+           sonst wäre der Fahrer auf jeder Bodenwelle in Trickpose */
+        P.vy -= GRAV_AIR * dt;
+        P.y += P.vy * dt;
+        P.sepT += dt;
+        if (P.y <= gy) { P.y = gy; P.contact = true; }
+        else if (P.y - gy > 0.22 || P.sepT > 0.16) {
+          P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0;
+        }
       }
       /* Schneefahne */
       const rel = P.vz / maxSpeed;
@@ -1373,8 +1393,17 @@ function update(dt) {
     P.grab = lerp(P.grab, 0, 1 - Math.pow(0.1, dt));
     timeScale = lerp(timeScale, 1, dt * 1.5);
     syncKickers(P.z);
+  } else {
+    /* Menü: langsam den Hang hinunter gleiten */
+    P.z += 7 * dt;
+    P.x = pathX(P.z);
+    P.y = terrainH(P.x, P.z);
+    P.yaw = 0; P.roll = 0; P.pitch = Math.atan(slopeZ(P.x, P.z));
+    genAhead(P.z + 320); syncKickers(P.z);
+    if (((tGlobal * 4) | 0) % 7 === 0) pruneWorld(P.z);
   }
-  /* losgerissenes Board */
+
+  /* losgerissenes Board fliegt nach einem Sturz eigenständig weiter */
   if (board.off) {
     board.vy -= GRAV_AIR * dt;
     board.x += board.vx * dt; board.y += board.vy * dt; board.z += board.vz * dt;
@@ -1388,14 +1417,6 @@ function update(dt) {
         for (let i = 0; i < 6; i++)
           spawnPart(board.x, board.y, board.z, (srnd()-0.5)*3, srnd()*2.5, (srnd()-0.5)*3, 0.5, 0.25, 0);
     }
-  } else {
-    /* Menü: langsam den Hang hinunter gleiten */
-    P.z += 7 * dt;
-    P.x = pathX(P.z);
-    P.y = terrainH(P.x, P.z);
-    P.yaw = 0; P.roll = 0; P.pitch = Math.atan(slopeZ(P.x, P.z));
-    genAhead(P.z + 320); syncKickers(P.z);
-    if (((tGlobal * 4) | 0) % 7 === 0) pruneWorld(P.z);
   }
 
   /* Kamera: dicht hinter dem Fahrer, Blick den Hang hinunter */
@@ -1736,7 +1757,7 @@ function resetGame() {
   P.x = pathX(0); P.z = 0; P.y = terrainH(P.x, 0); P.vx = 0; P.vz = 15; P.vy = 0;
   P.air = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.yaw = 0; P.roll = 0; P.pitch = 0; P.tumble = 0;
   P.crouch = 0.2; P.grab = 0; P.airLift = 0; P.leanVis = 0; P.landPulse = 0;
-  P.flailL = 0; P.flailR = 0; P.flailX = 0; P.crashT = 0; P.down = 0;
+  P.flailL = 0; P.flailR = 0; P.flailX = 0; P.crashT = 0; P.down = 0; P.sepT = 0; P.contact = true;
   board.off = false;
   camX = P.x; camY = P.y + 3.2; camZ = P.z - 9;
   score = 0; tricks = 0; gotCrystals = 0; combo = 0; comboT = 0; comboScore = 0;
