@@ -21,8 +21,7 @@
     touch-action: none; -webkit-user-select: none; user-select: none;
     color: #f2f7ff; overscroll-behavior: none;
   }
-  #gl { display: block; width: 100vw; height: 100vh; touch-action: none;
-        filter: saturate(1.08) contrast(1.04); }
+  #gl { display: block; width: 100vw; height: 100vh; touch-action: none; }
   /* weiche Vignette + Farbstich für den filmischen Look */
   #grade { position: fixed; inset: 0; pointer-events: none; mix-blend-mode: multiply;
            background: radial-gradient(130% 88% at 50% 44%, rgba(255,255,255,1) 55%, rgba(226,232,244,1) 82%, rgba(176,188,214,1) 100%); }
@@ -130,8 +129,7 @@
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div id="grade"></div>
-<div id="bloom"></div>
+
 
 <div id="hud">
   <div class="row">
@@ -185,7 +183,7 @@
 
 <script>
 'use strict';
-const VERSION = 'v0.9.2';      // bei jeder veröffentlichten Änderung hochzählen
+const VERSION = 'v0.10.0';      // bei jeder veröffentlichten Änderung hochzählen
 /* ==========================================================================
    POWDER RUSH 3D — Endless Downhill, Third-Person, handgeschriebenes WebGL
    ========================================================================== */
@@ -266,7 +264,7 @@ function trs(o, tx, ty, tz, rx, ry, rz, s) {
 /* ============================ Geländefunktion ============================
    Muss exakt mit dem GLSL-Pendant übereinstimmen (siehe TERRAIN_GLSL).      */
 const SLOPE = 0.345;
-const VALLEY = 17.0;
+const VALLEY = 20.5;      // Referenzwert; die tatsächliche Breite liefert valleyHalf(z)
 const MAXKICK = 6;
 const kickBuf = new Float32Array(MAXKICK * 4);   // x, z, höhe, radius
 const MAXPIPE = 2;
@@ -274,16 +272,37 @@ const pipeBuf = new Float32Array(MAXPIPE * 4);   // mitte x, z start, z ende, ha
 const PIPE_H = 5.2;                              // Wandhöhe der Halfpipe
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
+/* ---- Bergprofil: alles langsam über z variierend, damit der Hang
+   endlos wirkt und trotzdem Charakter hat ---- */
+const SL0 = 0.30, SLA = 0.095, SLW = 0.00082, SLB = 0.042, SLWB = 0.0023;
+/* mittlere Falllinie = Integral der Steigung (analytisch, damit stetig) */
+function terrainBase(z) {
+  return -(SL0 * z - (SLA / SLW) * Math.cos(SLW * z) - (SLB / SLWB) * Math.cos(SLWB * z + 1.7));
+}
+/* halbe Talbreite: mal enge Rinne, mal weites Feld */
+function valleyHalf(z) {
+  return 20.5 + 9.5 * Math.sin(z * 0.00126) + 5.5 * Math.sin(z * 0.00058 + 2.1);
+}
+/* Steilheit der Flanken: sanfte Hügel bis Felswand */
+function wallK(z) { return 0.030 + 0.026 * (0.5 + 0.5 * Math.sin(z * 0.00094 + 1.3)); }
+/* Öffnung: 0 = enge Schlucht mit hohen Wänden, 1 = offener Hang */
+function openness(z) { return 0.5 + 0.5 * Math.sin(z * 0.00071 + 0.7); }
+
 function terrainH(x, z) {
-  let y = -z * SLOPE;
-  y += 1.7 * Math.sin(z * 0.021 + x * 0.004)
-     + 1.0 * Math.sin(z * 0.047 - x * 0.009)
+  let y = terrainBase(z);
+  y += 1.9 * Math.sin(z * 0.021 + x * 0.004)
+     + 1.1 * Math.sin(z * 0.047 - x * 0.009)
      + 0.5 * Math.sin(z * 0.110 + x * 0.020)
      + 0.16 * Math.sin(z * 0.215 - x * 0.031);
-  y += 0.006 * x * x;
-  const d = Math.abs(x) - VALLEY;
-  if (d > 0) y += 0.055 * d * d + Math.sin(x * 0.52 + z * 0.31) * Math.min(d, 9) * 0.26
-                               + Math.sin(z * 0.17 - x * 0.23) * Math.min(d, 14) * 0.20;
+  const vh = valleyHalf(z), op = openness(z);
+  y += (0.0075 - op * 0.005) * x * x * 0.8;          // Wannenform, im offenen Gelände flacher
+  const d = Math.abs(x) - vh;
+  if (d > 0) {
+    const k = wallK(z) * (1.25 - op * 0.55);
+    y += k * d * d
+       + Math.sin(x * 0.21 + z * 0.13) * Math.min(d, 12) * 0.42
+       + Math.sin(z * 0.078 - x * 0.11) * Math.min(d, 20) * 0.34;
+  }
   for (let i = 0; i < MAXPIPE; i++) {
     const w = pipeBuf[i*4+3];
     if (w <= 0) continue;
@@ -308,22 +327,35 @@ function slopeZ(x, z) { return (terrainH(x, z + 0.6) - terrainH(x, z - 0.6)) / 1
 
 function railTopY(r, z) { return terrainH(r.x, clamp(z, r.z0, r.z1)) + r.h; }
 
+/* Zonen: Waldanteil und Präparierungsgrad wandern langsam über den Berg */
+function forestDensity(z) { return clamp(0.55 + 0.85 * Math.sin(z * 0.00058 + 1.2) + 0.35 * Math.sin(z * 0.0013), 0, 1.3); }
+function pisteGrade(z) { return clamp(0.5 + 0.85 * Math.sin(z * 0.00042 - 0.6), 0, 1); }
+
 /* Wanderpfad: garantiert eine befahrbare Linie */
-function pathX(z) { return 9.5 * Math.sin(z * 0.0102) + 5.0 * Math.sin(z * 0.0263 + 1.3); }
+function pathX(z) {
+  const room = Math.max(4, valleyHalf(z) - 7);
+  return clamp(0.55 * room * Math.sin(z * 0.0102) + 0.3 * room * Math.sin(z * 0.0263 + 1.3), -room, room);
+}
 
 /* ============================== Shader =================================== */
 const TERRAIN_GLSL = `
   uniform vec4 uKick[${MAXKICK}];
   uniform vec4 uPipe[${MAXPIPE}];
-  float H(vec2 p) {
+  float H(vec2 p, float lod) {
     float x = p.x, z = p.y;
-    float y = -z * ${SLOPE.toFixed(3)};
-    y += 1.7 * sin(z*0.021 + x*0.004) + 1.0 * sin(z*0.047 - x*0.009) + 0.5 * sin(z*0.110 + x*0.020)
-       + 0.16 * sin(z*0.215 - x*0.031);
-    y += 0.006 * x * x;
-    float d = abs(x) - ${VALLEY.toFixed(1)};
-    if (d > 0.0) y += 0.055 * d * d + sin(x * 0.52 + z * 0.31) * min(d, 9.0) * 0.26
-                                    + sin(z * 0.17 - x * 0.23) * min(d, 14.0) * 0.20;
+    float y = -(${SL0} * z - (${SLA} / ${SLW}) * cos(${SLW} * z) - (${SLB} / ${SLWB}) * cos(${SLWB} * z + 1.7));
+    y += 1.9 * sin(z*0.021 + x*0.004) + 1.1 * sin(z*0.047 - x*0.009)
+       + (0.5 * sin(z*0.110 + x*0.020) + 0.16 * sin(z*0.215 - x*0.031)) * lod;
+    float vh = 20.5 + 9.5 * sin(z * 0.00126) + 5.5 * sin(z * 0.00058 + 2.1);
+    float op = 0.5 + 0.5 * sin(z * 0.00071 + 0.7);
+    y += (0.0075 - op * 0.005) * x * x * 0.8;
+    float d = abs(x) - vh;
+    if (d > 0.0) {
+      float k = (0.030 + 0.026 * (0.5 + 0.5 * sin(z * 0.00094 + 1.3))) * (1.25 - op * 0.55);
+      y += k * d * d
+         + sin(x * 0.21 + z * 0.13) * min(d, 12.0) * 0.42 * lod
+         + sin(z * 0.078 - x * 0.11) * min(d, 20.0) * 0.34;
+    }
     for (int i = 0; i < ${MAXPIPE}; i++) {
       vec4 pp = uPipe[i];
       if (pp.w > 0.0 && z > pp.y - 14.0 && z < pp.z + 14.0) {
@@ -353,11 +385,15 @@ const V_TERRAIN = `
   varying vec3 vN; varying float vFog; varying vec3 vW; varying float vShade;
   void main() {
     vec2 w = uOrigin + aGrid;
-    float y = H(w);
+    /* Feindetails mit der Entfernung ausblenden: das Gitter wird nach hinten
+       grob, ohne LOD entsteht sichtbares Flimmern auf den Flanken. */
+    float dist = length(vec3(w.x, 0.0, w.y) - vec3(uCam.x, 0.0, uCam.z));
+    float lod = 1.0 - smoothstep(60.0, 280.0, dist);
+    float y = H(w, lod);
     vec3 p = vec3(w.x, y, w.y);
-    float e = 0.75;
-    float hx = H(w + vec2(e, 0.0)) - H(w - vec2(e, 0.0));
-    float hz = H(w + vec2(0.0, e)) - H(w - vec2(0.0, e));
+    float e = 0.75 + dist * 0.012;
+    float hx = H(w + vec2(e, 0.0), lod) - H(w - vec2(e, 0.0), lod);
+    float hz = H(w + vec2(0.0, e), lod) - H(w - vec2(0.0, e), lod);
     vN = normalize(vec3(-hx, 2.0 * e, -hz));
     vW = p;
     vFog = length(p - uCam);
@@ -372,28 +408,65 @@ const F_TERRAIN = `
   varying vec3 vN; varying float vFog; varying vec3 vW; varying float vShade;
   uniform vec3 uLight, uSun, uAmb, uFogCol, uSnowLit, uSnowShade;
   uniform float uFogK, uTime;
+  uniform vec3 uCam;
+
+  float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  /* weiches Value-Noise: Grundlage für Verwehungen und Körnung */
+  float vnoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), f.x),
+               mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    return 0.55 * vnoise(p) + 0.28 * vnoise(p * 2.7) + 0.17 * vnoise(p * 6.1);
+  }
+
   void main() {
     vec3 n = normalize(vN);
-    float d = max(dot(n, uLight), 0.0);
+    vec3 viewDir = normalize(uCam - vW);
+    float dist = vFog;
+    float near = 1.0 - smoothstep(20.0, 150.0, dist);      // Detailgrad nach Entfernung
+
+    /* --- Materialstruktur: Windverwehungen, Körnung, Pistenspur --- */
+    float drift = fbm(vW.xz * vec2(0.09, 0.055) + vec2(0.0, 0.0));
+    float ripple = fbm(vW.xz * vec2(0.85, 0.30)) * near;
+    float grain = vnoise(vW.xz * 5.5) * near;
+
+    /* präparierte Piste entlang der Talmitte: glatter, leicht heller */
+    float lane = 1.0 - smoothstep(6.0, 15.0, abs(vW.x - (0.55 * 13.0 * sin(vW.z * 0.0102))));
+    float groom = lane * (0.5 + 0.5 * sin(vW.x * 1.6)) * near * 0.5;
+
     float up = clamp(n.y, 0.0, 1.0);
-    vec3 base = mix(uSnowShade, uSnowLit, pow(up, 2.2));
-    base *= 0.985 + vShade * 0.03;
-    float det = exp(-vFog * 0.022);
-    float drift = sin(vW.x * 0.85 + sin(vW.z * 0.33) * 1.7) * 0.5 + 0.5;
-    float ripple = sin(vW.z * 1.45 + vW.x * 0.35) * 0.5 + 0.5;
-    base *= 1.0 + (drift * 0.035 + ripple * 0.018 - 0.026) * det;
-    vec3 col = base * (uAmb + uSun * d);
-    /* Sonnen-Glanz auf dem Schnee */
-    col += uSun * pow(d, 24.0) * 0.25;
-    /* Eiskristalle blitzen kurz auf, nur im Nahbereich */
-    float near = exp(-vFog * 0.030);
-    if (near > 0.02) {
-      vec2 gid = floor(vW.xz * 2.6);
-      float hs = fract(sin(dot(gid, vec2(12.9898, 78.233))) * 43758.5453);
-      float tw = pow(max(sin(hs * 71.0 + uTime * 1.9), 0.0), 120.0);
-      col += uSun * tw * near * up * 1.6;
+    float steep = 1.0 - up;
+
+    /* Basisfarbe: Schnee, in steilen Flanken bläulicher und leicht felsig */
+    vec3 base = mix(uSnowShade, uSnowLit, pow(up, 2.0));
+    base *= 0.93 + drift * 0.14 + ripple * 0.075 + grain * 0.05 - groom * 0.05;
+    vec3 rock = vec3(0.36, 0.36, 0.42) * (0.75 + drift * 0.5);
+    base = mix(base, rock, smoothstep(0.62, 0.86, steep) * 0.75);
+
+    /* --- Licht: Halblambert + Himmelslicht + Rim + Glanz --- */
+    float d = dot(n, uLight);
+    float half_ = d * 0.5 + 0.5;
+    vec3 col = base * (uAmb * (0.34 + 0.26 * up) + uSun * (half_ * half_) * 0.72);
+
+    vec3 hv = normalize(uLight + viewDir);
+    float spec = pow(max(dot(n, hv), 0.0), 46.0);
+    col += uSun * spec * 0.22 * (0.4 + 0.6 * up);
+
+    float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 3.2);
+    col += uSun * rim * 0.07;
+
+    /* feines Funkeln, nur im Nahbereich und sehr kurz aufblitzend */
+    if (near > 0.05) {
+      vec2 gid = floor(vW.xz * 26.0);
+      float hs = h2(gid);
+      float tw = pow(max(sin(hs * 97.0 + uTime * 2.6), 0.0), 260.0);
+      col += uSun * tw * near * up * 0.7;
     }
-    float f = 1.0 - exp(-pow(vFog * uFogK, 2.0));
+
+    float f = 1.0 - exp(-pow(dist * uFogK, 2.0));
     col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
   }`;
@@ -438,7 +511,8 @@ const F_OBJ = `
   void main() {
     vec3 n = normalize(vN);
     float d = max(dot(n, uLight), 0.0);
-    vec3 col = vC * (uAmb + uSun * d);
+    float half_ = d * 0.5 + 0.5;
+    vec3 col = vC * (uAmb * 0.62 + uSun * (half_ * half_) * 0.95);
     col = mix(col, vC * (1.0 + uGlow), uUnlit);
     float f = 1.0 - exp(-pow(vFog * uFogK, 2.0));
     col = mix(col, uFogCol, clamp(f, 0.0, 1.0) * (1.0 - uUnlit * 0.55));
@@ -446,6 +520,69 @@ const F_OBJ = `
     if (uSoft > 0.5) a *= smoothstep(0.5, 0.13, length(vLocal));
     if (a < 0.01) discard;
     gl_FragColor = vec4(col, a);
+  }`;
+
+const V_POST = `
+  precision highp float;
+  attribute vec2 aPos;
+  varying vec2 vUv;
+  void main() { vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+/* helle Bereiche isolieren */
+const F_BRIGHT = `
+  precision highp float;
+  varying vec2 vUv;
+  uniform sampler2D uTex;
+  uniform float uThresh;
+  void main() {
+    vec3 c = texture2D(uTex, vUv).rgb;
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    float k = max(l - uThresh, 0.0) / max(l, 0.0001);
+    gl_FragColor = vec4(c * k, 1.0);
+  }`;
+
+/* separierbarer Gauss */
+const F_BLUR = `
+  precision highp float;
+  varying vec2 vUv;
+  uniform sampler2D uTex;
+  uniform vec2 uDir;
+  void main() {
+    vec3 c = texture2D(uTex, vUv).rgb * 0.227027;
+    c += (texture2D(uTex, vUv + uDir * 1.3846).rgb + texture2D(uTex, vUv - uDir * 1.3846).rgb) * 0.316216;
+    c += (texture2D(uTex, vUv + uDir * 3.2308).rgb + texture2D(uTex, vUv - uDir * 3.2308).rgb) * 0.070270;
+    gl_FragColor = vec4(c, 1.0);
+  }`;
+
+/* Zusammensetzen inklusive Vignette und Farbgradierung */
+const F_COMPOSITE = `
+  precision highp float;
+  varying vec2 vUv;
+  uniform sampler2D uScene, uBloom;
+  uniform float uBloomAmt, uFlow, uTime, uCrash;
+  void main() {
+    vec3 c = texture2D(uScene, vUv).rgb;
+    vec3 b = texture2D(uBloom, vUv).rgb;
+    c += b * uBloomAmt;
+
+    /* Flow-Zustand färbt das Bild leicht ein */
+    if (uFlow > 0.001) {
+      float edge = length(vUv - 0.5) * 1.42;
+      c += vec3(0.20, 0.32, 0.75) * uFlow * edge * (0.55 + 0.45 * sin(uTime * 7.0));
+    }
+    c = mix(c, vec3(0.95, 0.25, 0.25), uCrash * 0.22);
+
+    /* Gradierung: leichter Kontrast- und Sättigungsschub */
+    c = (c - 0.5) * 1.055 + 0.5;
+    float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(lum), c, 1.10);
+
+    /* Vignette */
+    vec2 q = vUv - 0.5;
+    float vig = 1.0 - dot(q, q) * 0.42;
+    c *= vig;
+
+    gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
   }`;
 
 const V_SKY = `
@@ -509,13 +646,13 @@ const F_SKY = `
       float n = sin(az * (3.0 + fi * 4.0) + ph * 7.0 + fi * 2.1)
               + 0.55 * sin(az * (7.0 + fi * 6.0) - ph * 5.0 + fi)
               + 0.30 * sin(az * (17.0 + fi * 9.0) + ph * 11.0);
-      float top = (0.20 - fi * 0.055) * (0.55 + 0.45 * abs(n)) + 0.012;
+      float top = (0.34 - fi * 0.085) * (0.42 + 0.58 * abs(n)) + 0.015;
       if (el < top) {
         vec3 rock = mix(uMtnFar, uMtnNear, fi * 0.5);
-        float snowT = smoothstep(top * 0.45, top * 0.92, el);
-        vec3 mc = mix(rock, uSnowLit * 0.92, snowT * 0.85);
+        float snowT = smoothstep(top * 0.35, top * 0.88, el);
+        vec3 mc = mix(rock, uSnowLit * 0.95, snowT * 0.9);
         float haze = smoothstep(top, -0.05, el);
-        mc = mix(mc, uFogCol, 0.25 + 0.45 * (1.0 - fi * 0.3) * haze);
+        mc = mix(mc, uFogCol, 0.18 + 0.42 * (1.0 - fi * 0.3) * haze);
         col = mix(col, mc, 1.0);
       }
     }
@@ -545,6 +682,55 @@ function prog(vs, fs) {
 const pTerrain = prog(V_TERRAIN, F_TERRAIN);
 const pObj     = prog(V_OBJ, F_OBJ);
 const pSky     = prog(V_SKY, F_SKY);
+const pBright  = prog(V_POST, F_BRIGHT);
+const pBlur    = prog(V_POST, F_BLUR);
+const pComp    = prog(V_POST, F_COMPOSITE);
+
+/* ---- Offscreen-Ziele für Bloom ---- */
+const FB = { scene: null, a: null, b: null, w: 0, h: 0, ok: true };
+function makeTarget(w, h, depth) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  let rb = null;
+  if (depth) {
+    rb = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+  }
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { fb, tex, rb, w, h, ok };
+}
+function buildTargets(w, h) {
+  for (const k of ['scene', 'a', 'b']) {
+    const t = FB[k];
+    if (t) { gl.deleteFramebuffer(t.fb); gl.deleteTexture(t.tex); if (t.rb) gl.deleteRenderbuffer(t.rb); }
+  }
+  const bw = Math.max(1, w >> 2), bh = Math.max(1, h >> 2);
+  FB.scene = makeTarget(w, h, true);
+  FB.a = makeTarget(bw, bh, false);
+  FB.b = makeTarget(bw, bh, false);
+  FB.w = w; FB.h = h;
+  FB.ok = FB.scene.ok && FB.a.ok && FB.b.ok;
+}
+function drawFullscreen(prog2, setup) {
+  gl.useProgram(prog2);
+  gl.bindBuffer(gl.ARRAY_BUFFER, skyQuad);
+  gl.enableVertexAttribArray(prog2.a.aPos);
+  gl.vertexAttribPointer(prog2.a.aPos, 2, gl.FLOAT, false, 0, 0);
+  vDivisor(prog2.a.aPos, 0);
+  if (setup) setup(prog2);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
 
 /* --------------------------- Meshbau (CPU) -------------------------------- */
 function Mesh() { this.v = []; this.i = []; }
@@ -748,6 +934,27 @@ const flagMesh = (() => {
   }
   return upload(m);
 })();
+const hutMesh = (() => {
+  const m = new Mesh();
+  const WOOD = [0.34, 0.21, 0.14], WOOD_T = [0.48, 0.31, 0.20];
+  const SNOW = [0.95, 0.97, 1.0], WARM = [1.0, 0.80, 0.42];
+  m.box(0, 1.35, 0, 4.6, 2.7, 3.8, WOOD, false);                 // Wände
+  m.box(0, 0.15, 0, 4.9, 0.4, 4.1, [0.24, 0.16, 0.12], true);    // Sockel
+  /* Satteldach aus zwei geneigten Flächen mit Schneeauflage */
+  for (const sgn of [-1, 1]) {
+    m.quadFace([sgn*0.05, 4.15, -2.3], [sgn*2.9, 2.55, -2.3], [sgn*2.9, 2.55, 2.3], [sgn*0.05, 4.15, 2.3], SNOW);
+    m.quadFace([sgn*0.05, 4.02, 2.3], [sgn*2.85, 2.42, 2.3], [sgn*2.85, 2.42, -2.3], [sgn*0.05, 4.02, -2.3], [0.30,0.18,0.13]);
+  }
+  m.box(0, 1.5, 1.95, 1.0, 1.0, 0.12, WARM, true);               // leuchtendes Fenster
+  m.box(-1.5, 1.2, 1.95, 0.7, 1.5, 0.12, [0.22, 0.14, 0.10], true);
+  return upload(m);
+})();
+const poleMesh = (() => {                                        // Pistenstange
+  const m = new Mesh();
+  m.tube([[0,0,0],[0,1.7,0]], [0.055, 0.045], 6, [0.95, 0.45, 0.10], [1.0, 0.62, 0.18]);
+  m.tube([[0,1.25,0],[0,1.55,0]], [0.075, 0.075], 6, [0.10, 0.12, 0.20], [0.16,0.18,0.28]);
+  return upload(m);
+})();
 const RAIL_LEN = 18;
 const railMesh = (() => {
   const m = new Mesh();
@@ -824,15 +1031,15 @@ const rigHead = (() => {           // Gelenk: Hals (0, 1.36, 0)
 })();
 
 /* Gelände-Gitter: statisch in lokalen Koordinaten, Höhe im Vertexshader */
-const GX = 44, GZ = 86;                 // Spalten / Reihen
+const GX = 52, GZ = 104;                // Spalten / Reihen
 const terrainGrid = (() => {
   const v = [], idx = [];
   for (let j = 0; j < GZ; j++) {
     const tz = j / (GZ - 1);
-    const z = -30 + Math.pow(tz, 1.55) * 285;
+    const z = -34 + Math.pow(tz, 1.62) * 440;
     for (let i = 0; i < GX; i++) {
       const ti = (i / (GX - 1)) * 2 - 1;
-      const x = Math.sign(ti) * Math.pow(Math.abs(ti), 1.5) * 62;
+      const x = Math.sign(ti) * Math.pow(Math.abs(ti), 1.5) * 78;
       v.push(x, z);
     }
   }
@@ -928,7 +1135,7 @@ function updatePalette(dist) {
 }
 
 /* ============================== Welt ===================================== */
-const trees = [], rocks = [], crystals = [], gates = [], kickers = [], pipes = [], rails = [];
+const trees = [], rocks = [], crystals = [], gates = [], kickers = [], pipes = [], rails = [], huts = [], poles = [];
 let genZ = 0;
 
 function addTree(x, z, s) { trees.push({ x, z, y: 0, s, r: srnd() * TAU, tint: 0.75 + srnd() * 0.45 }); }
@@ -936,17 +1143,51 @@ function addTree(x, z, s) { trees.push({ x, z, y: 0, s, r: srnd() * TAU, tint: 0
 function genAhead(toZ) {
   while (genZ < toZ) {
     const z = genZ;
+    const startFrei = z < 130;
     const px = pathX(z);
     const m = z;                       // Meter
 
-    /* Waldränder */
+    /* Bewuchs nach Zone: dichter Wald, offenes Feld oder präparierte Piste */
+    const fd = forestDensity(z), pg = pisteGrade(z), vh = valleyHalf(z);
     for (let side = -1; side <= 1; side += 2) {
-      const n = 4 + (srnd() * 4 | 0);
+      const n = Math.round((1 + fd * 5) * (0.6 + srnd() * 0.8));
       for (let i = 0; i < n; i++) {
         const t = srnd();
-        const x = side * (VALLEY + 1.0 + t * t * 34);        // dicht an der Kante, ausduennend nach oben
+        const x = side * (vh + 3.0 + t * t * 34);
         addTree(x, z + srnd() * 11, 0.6 + srnd() * 1.05);
       }
+    }
+    /* Waldstücke, die in die Piste hineinragen */
+    if (!startFrei && fd > 0.85 && srnd() < (fd - 0.75) * 1.6) {
+      const cx = clamp(pathX(z) + (srnd() - 0.5) * vh * 1.4, -vh + 2, vh - 2);
+      const n = 2 + (srnd() * 4 | 0);
+      for (let i = 0; i < n; i++)
+        if (Math.abs(cx + (srnd() - 0.5) * 9 - pathX(z)) > 7.5)
+          addTree(cx + (srnd() - 0.5) * 9, z + srnd() * 12, 0.7 + srnd() * 0.7);
+    }
+    /* offenes Gelände: Findlinge statt Bäume */
+    if (fd < 0.4 && srnd() < 0.5) {
+      const n = 1 + (srnd() * 3 | 0);
+      for (let i = 0; i < n; i++) {
+        const rx = (srnd() * 2 - 1) * (vh + 12);
+        if (Math.abs(rx - pathX(z)) > 7)
+          rocks.push({ x: rx, z: z + srnd() * 12, y: 0, s: 0.9 + srnd() * 1.3, r: srnd() * TAU });
+      }
+    }
+    /* präparierte Piste: Randstangen */
+    if (pg > 0.55) {
+      const w = Math.min(vh - 2, 9 + pg * 4);
+      for (let side = -1; side <= 1; side += 2)
+        for (let i = 0; i < 2; i++) {
+          const pz = z + i * 11 + srnd() * 3;
+          poles.push({ x: pathX(pz) + side * w, z: pz, s: 0.9 + srnd() * 0.25 });
+        }
+    }
+    /* Hütten am Pistenrand */
+    if (pg > 0.45 && srnd() < 0.05 && (huts.length === 0 || z - huts[huts.length - 1].z > 260)) {
+      const side = srnd() < 0.5 ? -1 : 1;
+      const hz = z + srnd() * 10;
+      huts.push({ x: pathX(hz) + side * (12 + srnd() * 8), z: hz, r: srnd() * 0.6 - 0.3 + (side < 0 ? 0.4 : -0.4) });
     }
     /* Halfpipe: lange Rinne, in der man die Wände hochfährt */
     if (m > 400 && srnd() < 0.05 && (pipes.length === 0 || z - pipes[pipes.length-1].z1 > 380)) {
@@ -962,7 +1203,8 @@ function genAhead(toZ) {
 
     /* Rail zum Grinden */
     if (m > 180 && srnd() < 0.16 && (rails.length === 0 || z - rails[rails.length-1].z1 > 130)) {
-      const rx = clamp(pathX(z + 30) + (srnd() - 0.5) * 5, -VALLEY + 5, VALLEY - 5);
+      const vh0 = valleyHalf(z + 30);
+      const rx = clamp(pathX(z + 30) + (srnd() - 0.5) * 5, -vh0 + 5, vh0 - 5);
       const z0 = z + 14;
       rails.push({ x: rx, z: z0, z0, z1: z0 + RAIL_LEN, h: 0.75 + srnd() * 0.2 });
       /* kleine Anfahrtsschanze davor */
@@ -974,11 +1216,12 @@ function genAhead(toZ) {
     /* Hindernisreihe quer übers Tal mit genau einer Lücke — der eigentliche Anspruch.
        Die Lücke liegt nahe der Ideallinie, der Kristallpfad führt hindurch. */
     const rowChance = clamp(0.10 + m / 9000, 0, 0.45);
-    if (m > 260 && srnd() < rowChance) {
+    if (!startFrei && m > 300 && srnd() < rowChance) {
       const zz = z + srnd() * 6;
       const gapW = Math.max(4.4, 7.2 - m / 3600);
-      const gapX = clamp(pathX(zz) + (srnd() - 0.5) * 7, -VALLEY + 4.5, VALLEY - 4.5);
-      for (let x = -VALLEY + 1; x <= VALLEY - 1; x += 2.4 + srnd() * 1.5) {
+      const vh1 = valleyHalf(zz);
+      const gapX = clamp(pathX(zz) + (srnd() - 0.5) * 7, -vh1 + 4.5, vh1 - 4.5);
+      for (let x = -vh1 + 1; x <= vh1 - 1; x += 2.4 + srnd() * 1.5) {
         if (Math.abs(x - gapX) < gapW) continue;
         const ox = x + (srnd() - 0.5) * 0.8, oz = zz + srnd() * 2.5;
         if (srnd() < 0.55) addTree(ox, oz, 0.55 + srnd() * 0.45);
@@ -991,10 +1234,10 @@ function genAhead(toZ) {
     /* verstreute Einzelhindernisse */
     const density = clamp(0.22 + m / 7000, 0, 0.85);
     const lane = Math.max(3.6, 5.4 - m / 3400);       // freier Korridor wird enger
-    if (m > 80 && srnd() < density) {
+    if (!startFrei && m > 120 && srnd() < density) {
       const n = 1 + (srnd() * 3 | 0);
       for (let i = 0; i < n; i++) {
-        let x = (srnd() * 2 - 1) * (VALLEY - 1.5);
+        let x = (srnd() * 2 - 1) * (valleyHalf(z) - 1.5);
         const zz = z + srnd() * 9;
         if (Math.abs(x - pathX(zz)) < lane) continue;
         if (srnd() < 0.55) addTree(x, zz, 0.6 + srnd() * 0.5);
@@ -1030,7 +1273,7 @@ function genAhead(toZ) {
 }
 function pruneWorld(z) {
   const cut = z - 40;
-  for (const arr of [trees, rocks, crystals, gates, kickers, pipes, rails]) {
+  for (const arr of [trees, rocks, crystals, gates, kickers, pipes, rails, huts, poles]) {
     let k = 0;
     for (let i = 0; i < arr.length; i++) if ((arr[i].z1 !== undefined ? arr[i].z1 : arr[i].z) > cut) arr[k++] = arr[i];
     arr.length = k;
@@ -1328,7 +1571,7 @@ function update(dt) {
     if (!P.air) P.vx += -slopeX(P.x, P.z) * 15 * dt;      // Hangneigung zieht nur am Boden ins Tal
     P.x += P.vx * dt;
     P.z += P.vz * dt;
-    P.x = clamp(P.x, -34, 34);
+    P.x = clamp(P.x, -valleyHalf(P.z) - 12, valleyHalf(P.z) + 12);
 
     const gy = terrainH(P.x, P.z);
 
@@ -1465,6 +1708,11 @@ function update(dt) {
       if (Math.abs(t.z - P.z) > near) continue;
       if (Math.abs(t.x - P.x) > 0.55 + t.s * 0.55) continue;
       if (P.y < terrainH(t.x, t.z) + 4.2 * t.s) { die('Baum getroffen'); return; }
+    }
+    for (let i = 0; i < huts.length; i++) {
+      const h = huts[i];
+      if (Math.abs(h.z - P.z) > near + 2.2) continue;
+      if (Math.abs(h.x - P.x) < 2.8 && P.y < terrainH(h.x, h.z) + 4.2) { die('Hütte gerammt'); return; }
     }
     for (let i = 0; i < rocks.length; i++) {
       const r = rocks[i];
@@ -1627,6 +1875,7 @@ function resize() {
   cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
   cvs.style.width = W + 'px'; cvs.style.height = H + 'px';
   gl.viewport(0, 0, cvs.width, cvs.height);
+  buildTargets(cvs.width, cvs.height);
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 150));
@@ -1689,7 +1938,7 @@ function pushInst(arr, n, x, y, z, s, rot, r, g, b, a) {
 function render() {
   const asp = W / H;
   const fov = 1.12 + fovBoost;
-  persp(PROJ, fov, asp, 0.4, 420);
+  persp(PROJ, fov, asp, 0.4, 620);
   const ex = camX + camShakeX, ey = camY + camShakeY, ez = camZ;
   /* Blickziel: dem Hang folgen, Fahrer bleibt mittig */
   const aheadZ = P.z + 36;
@@ -1712,6 +1961,7 @@ function render() {
   const sl = Math.hypot(sunDir[0], sunDir[1], sunDir[2]);
   sunDir[0]/=sl; sunDir[1]/=sl; sunDir[2]/=sl;
 
+  if (FB.ok) { gl.bindFramebuffer(gl.FRAMEBUFFER, FB.scene.fb); gl.viewport(0, 0, FB.scene.w, FB.scene.h); }
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
   gl.enable(gl.CULL_FACE);
@@ -1756,7 +2006,7 @@ function render() {
   gl.uniform3fv(pTerrain.u.uFogCol, PAL.fog);
   gl.uniform3fv(pTerrain.u.uSnowLit, PAL.lit);
   gl.uniform3fv(pTerrain.u.uSnowShade, PAL.shade);
-  gl.uniform1f(pTerrain.u.uFogK, 0.0044);
+  gl.uniform1f(pTerrain.u.uFogK, 0.0036);
   gl.uniform1f(pTerrain.u.uTime, tGlobal);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, terrainGrid.ib);
   gl.drawElements(gl.TRIANGLES, terrainGrid.n, terrainGrid.type, 0);
@@ -1770,7 +2020,7 @@ function render() {
   gl.uniform3fv(pObj.u.uSun, PAL.sunI);
   gl.uniform3fv(pObj.u.uAmb, PAL.amb);
   gl.uniform3fv(pObj.u.uFogCol, PAL.fog);
-  gl.uniform1f(pObj.u.uFogK, 0.0044);
+  gl.uniform1f(pObj.u.uFogK, 0.0036);
   gl.uniform1f(pObj.u.uTime, tGlobal);
 
   const zMin = camZ - 20, zMax = camZ + 260;
@@ -1802,6 +2052,22 @@ function render() {
     n = pushInst(instData, n, g.x + g.w, terrainH(g.x + g.w, g.z) - 0.1, g.z, 1, Math.PI, 1, 1, 1, 1);
   }
   drawMesh(flagMesh, instData, n);
+
+  n = 0;
+  for (let i = 0; i < huts.length && n < 12; i++) {
+    const h = huts[i];
+    if (h.z < zMin || h.z > zMax) continue;
+    n = pushInst(instData, n, h.x, terrainH(h.x, h.z) - 0.35, h.z, 1, h.r, 1, 1, 1, 1);
+  }
+  drawMesh(hutMesh, instData, n);
+
+  n = 0;
+  for (let i = 0; i < poles.length && n < 160; i++) {
+    const q = poles[i];
+    if (q.z < zMin || q.z > camZ + 190) continue;
+    n = pushInst(instData, n, q.x, terrainH(q.x, q.z) - 0.1, q.z, q.s, 0, 1, 1, 1, 1);
+  }
+  drawMesh(poleMesh, instData, n);
 
   n = 0;
   for (let i = 0; i < rails.length && n < 40; i++) {
@@ -1881,6 +2147,54 @@ function render() {
   gl.depthMask(true);
   gl.disable(gl.BLEND);
   gl.enable(gl.CULL_FACE);
+
+  if (!FB.ok) return;
+
+  /* ---------- Post: helle Stellen isolieren, weichzeichnen, zusammensetzen ---------- */
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, FB.a.fb);
+  gl.viewport(0, 0, FB.a.w, FB.a.h);
+  drawFullscreen(pBright, pr => {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, FB.scene.tex);
+    gl.uniform1i(pr.u.uTex, 0);
+    gl.uniform1f(pr.u.uThresh, 0.93);
+  });
+
+  for (let pass = 0; pass < 2; pass++) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, FB.b.fb);
+    drawFullscreen(pBlur, pr => {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, FB.a.tex);
+      gl.uniform1i(pr.u.uTex, 0);
+      gl.uniform2f(pr.u.uDir, 1.0 / FB.a.w, 0);
+    });
+    gl.bindFramebuffer(gl.FRAMEBUFFER, FB.a.fb);
+    drawFullscreen(pBlur, pr => {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, FB.b.tex);
+      gl.uniform1i(pr.u.uTex, 0);
+      gl.uniform2f(pr.u.uDir, 0, 1.0 / FB.a.h);
+    });
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, cvs.width, cvs.height);
+  drawFullscreen(pComp, pr => {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, FB.scene.tex);
+    gl.uniform1i(pr.u.uScene, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, FB.a.tex);
+    gl.uniform1i(pr.u.uBloom, 1);
+    gl.uniform1f(pr.u.uBloomAmt, 0.26 + (flowT > 0 ? 0.22 : 0));
+    gl.uniform1f(pr.u.uFlow, flowT > 0 ? 0.5 : 0);
+    gl.uniform1f(pr.u.uTime, tGlobal);
+    gl.uniform1f(pr.u.uCrash, state === 'dead' ? clamp(1 - timeScale, 0, 1) : 0);
+  });
+  gl.activeTexture(gl.TEXTURE0);
 }
 
 /* ============================== HUD ====================================== */
@@ -1910,7 +2224,7 @@ function updateHUD(dt) {
   speedEl.textContent = Math.round(P.vz * 3.6) + ' km/h';
   flowBar.style.width = (flow * 100).toFixed(0) + '%';
   flowWrap.classList.toggle('full', flowT > 0);
-  document.getElementById('bloom').classList.toggle('flow', flowT > 0);
+
 }
 
 const RANKS = [[0,'Schneehase'],[2500,'Pistenfloh'],[8000,'Carver'],[20000,'Powder-Jäger'],
@@ -1920,7 +2234,7 @@ function rankFor(s) { let r = RANKS[0][1]; for (const [t, nm] of RANKS) if (s >=
 function resetGame() {
   seed = (Math.random() * 1e9) >>> 0;
   trees.length = 0; rocks.length = 0; crystals.length = 0; gates.length = 0; kickers.length = 0;
-  pipes.length = 0; rails.length = 0;
+  pipes.length = 0; rails.length = 0; huts.length = 0; poles.length = 0;
   parts.length = 0; tracks.length = 0; trackAcc = 0;
   genZ = -30; genAhead(360); syncKickers(0); syncPipes(0);
   P.x = pathX(0); P.z = 0; P.y = terrainH(P.x, 0); P.vx = 0; P.vz = 15; P.vy = 0;
