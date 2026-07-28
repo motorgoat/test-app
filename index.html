@@ -185,7 +185,7 @@
 
 <script>
 'use strict';
-const VERSION = 'v0.9.0';      // bei jeder veröffentlichten Änderung hochzählen
+const VERSION = 'v0.9.1';      // bei jeder veröffentlichten Änderung hochzählen
 /* ==========================================================================
    POWDER RUSH 3D — Endless Downhill, Third-Person, handgeschriebenes WebGL
    ========================================================================== */
@@ -757,7 +757,7 @@ const railMesh = (() => {
   m.tube(pts, rad, 8, STEEL, STEEL_T);
   for (let i = 0; i <= 3; i++) {
     const z = -RAIL_LEN/2 + RAIL_LEN * i / 3;
-    m.tube([[0, -1.25, z], [0, 0, z]], [0.075, 0.06], 6, [0.30, 0.33, 0.42], STEEL);
+    m.tube([[0, -0.85, z], [0, 0, z]], [0.075, 0.06], 6, [0.30, 0.33, 0.42], STEEL);
   }
   return upload(m);
 })();
@@ -964,9 +964,9 @@ function genAhead(toZ) {
     if (m > 180 && srnd() < 0.16 && (rails.length === 0 || z - rails[rails.length-1].z1 > 130)) {
       const rx = clamp(pathX(z + 30) + (srnd() - 0.5) * 5, -VALLEY + 5, VALLEY - 5);
       const z0 = z + 14;
-      rails.push({ x: rx, z: z0, z0, z1: z0 + RAIL_LEN, h: 1.15 + srnd() * 0.35 });
+      rails.push({ x: rx, z: z0, z0, z1: z0 + RAIL_LEN, h: 0.75 + srnd() * 0.2 });
       /* kleine Anfahrtsschanze davor */
-      kickers.push({ x: rx, z: z0 - 9, h: 1.5, r: 5.0 });
+      kickers.push({ x: rx, z: z0 - 7, h: 2.2, r: 4.6 });
       for (let i = 0; i < 4; i++)
         crystals.push({ x: rx, z: z0 + 2 + i * 4.5, got: false, ph: 0, air: 2.0 });
     }
@@ -1155,17 +1155,20 @@ function buzz(p) { if (!muted && navigator.vibrate) { try { navigator.vibrate(p)
 
 /* ============================== Eingabe ================================== */
 let ptrId = null, ptrX = 0, ptrT = 0, ptrMoved = 0;
+let charging = false, chargeT = 0;
 function onDown(e) {
   initAudio(); resumeAudio();
   if (state !== 'play') return;
   if (ptrId !== null) { actionTap(); return; }      // zweiter Finger = Aktion, Lenken bleibt aktiv
   ptrId = e.pointerId; ptrX = e.clientX; ptrT = performance.now(); ptrMoved = 0;
   holding = true;
+  if (P.contact && !P.grind) { charging = true; chargeT = 0; }   // in die Hocke gehen
 }
 function onMove(e) {
   if (e.pointerId !== ptrId || state !== 'play') return;
   const dx = e.clientX - ptrX;
   ptrMoved = Math.max(ptrMoved, Math.abs(dx));
+  if (ptrMoved > 16) charging = false;              // wer lenkt, lädt keinen Sprung
   const span = Math.max(70, window.innerWidth * 0.20);
   steerTarget = clamp(-dx / span, -1, 1);   // Welt-X zeigt im Bild nach links
   /* Referenzpunkt nachziehen, damit man beliebig weit lenken kann */
@@ -1174,7 +1177,9 @@ function onMove(e) {
 function onUp(e) {
   if (e.pointerId !== ptrId) return;
   const dt = performance.now() - ptrT;
-  if (state === 'play' && dt < 240 && ptrMoved < 16) actionTap();
+  if (state === 'play' && charging) releaseJump();   // Absprung beim Loslassen
+  else if (state === 'play' && dt < 240 && ptrMoved < 16) actionTap();
+  charging = false;
   ptrId = null; holding = false; steerTarget = 0;
 }
 cvs.addEventListener('pointerdown', e => { e.preventDefault(); onDown(e); }, { passive: false });
@@ -1185,9 +1190,13 @@ window.addEventListener('pointercancel', onUp);
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) actionTap(); holding = true; }
+  if (e.code === 'Space') { e.preventDefault();
+    if (!e.repeat && P.contact && !P.grind) { charging = true; chargeT = 0; }
+    else if (!e.repeat) actionTap();
+    holding = true; }
 });
-window.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') holding = false; });
+window.addEventListener('keyup', e => { keys[e.code] = false;
+  if (e.code === 'Space') { if (charging) releaseJump(); holding = false; } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { holding = false; steerTarget = 0; } });
 
 const SPIN_RATE = 13.0;                              // rad/s
@@ -1195,7 +1204,7 @@ function actionTap() {
   if (state !== 'play') return;
   if (P.grind) {                                   // vom Rail abspringen
     const r = P.grind; P.grind = null;
-    P.air = true; P.airT = 0; P.vy = 7.4;
+    P.air = true; P.airT = 0; P.vy = 6.0;
     addCombo('GRIND', 120); sfx.jump(); buzz(8);
     return;
   }
@@ -1206,7 +1215,7 @@ function actionTap() {
   if (P.air) addSpin();
 }
 function hop() {                                   // Absprung aus der Ablösephase
-  P.vy = Math.max(P.vy, 0) + 7.2;
+  P.vy = Math.max(P.vy, 0) + 5.2;
   P.airT = 0; P.contact = false;
   sfx.jump(); buzz(8);
   for (let i = 0; i < 12; i++)
@@ -1223,10 +1232,16 @@ function addSpin() {
   P.spinTarget += TAU;
   sfx.trick(1); buzz(6);
 }
-function jump() {
+function releaseJump() {
+  charging = false;
+  if (state !== 'play' || P.air || P.grind) return;
+  jump(4.4 + 3.0 * clamp(chargeT / 0.42, 0, 1));     // je länger geduckt, desto höher
+}
+function jump(power) {
   if (state !== 'play' || P.air) return;
   P.sepT = 0;
-  P.air = true; P.contact = false; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 7.2;
+  P.air = true; P.contact = false; P.airT = 0; P.spin = 0; P.spinTarget = 0;
+  P.vy = power || 5.2;
   sfx.jump(); buzz(8);
   for (let i = 0; i < 16; i++)
     spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
@@ -1332,13 +1347,13 @@ function update(dt) {
         P.grind = null; P.air = true; P.airT = 0; P.spin = 0; P.spinTarget = 0; P.vy = 1.5;
         addCombo('GRIND', 120); sfx.perfect();
       }
-    } else if (P.air && P.vy < 1) {
+    } else if ((P.air || !P.contact) && P.vy < 2) {
       for (let i = 0; i < rails.length; i++) {
         const r = rails[i];
-        if (P.z < r.z0 - 1 || P.z > r.z1 - 2) continue;
-        if (Math.abs(P.x - r.x) > 1.2) continue;
+        if (P.z < r.z0 - 2 || P.z > r.z1 - 2) continue;
+        if (Math.abs(P.x - r.x) > 2.0) continue;
         const ry = railTopY(r, P.z);
-        if (P.y > ry - 0.35 && P.y < ry + 1.1) {
+        if (P.y > ry - 1.2 && P.y < ry + 2.0) {
           P.grind = r; P.air = false; P.contact = false;
           P.y = ry; P.vy = 0; P.spin = 0; P.spinTarget = 0;
           sfx.gate(); buzz(10);
@@ -1470,12 +1485,15 @@ function update(dt) {
 
     if (flowT > 0) { flowT -= dt; flow = clamp(flowT / 6, 0, 1); if (flowT <= 0) { flow = 0; comboEl.classList.remove('on'); } }
 
+    if (charging) { chargeT += dt; if (P.air || P.grind) charging = false; }
+
     /* Pose: Ducken, Grab, Kurvenlage */
     P.landPulse = Math.max(0, P.landPulse - dt * 3.2);
     const speedRel = clamp(P.vz / maxSpeed, 0, 1);
     const crouchTarget = P.air
       ? 0.60 + P.grab * 0.25                                 // Beine anziehen
-      : 0.10 + speedRel * 0.34 + Math.abs(steer) * 0.22 + P.landPulse * 0.85;
+      : 0.10 + speedRel * 0.30 + Math.abs(steer) * 0.20 + P.landPulse * 0.85
+        + (charging ? 0.42 + 0.28 * clamp(chargeT / 0.42, 0, 1) : 0);
     P.crouch = lerp(P.crouch, clamp(crouchTarget, 0, 1), 1 - Math.pow(P.air ? 0.004 : 0.0006, dt));
     P.grab = lerp(P.grab, P.air && P.airT > 0.18 ? 1 : 0, 1 - Math.pow(0.002, dt));
     P.airLift = lerp(P.airLift, P.air ? clamp(P.vy / 9, -1, 1) : 0, 1 - Math.pow(0.004, dt));
@@ -1629,22 +1647,24 @@ function drawRider() {
 
   /* Oberkörper: tiefer bei Tempo, dreht in die Kurve */
   const hip = 0.18 + 0.62 * legScale + bob;
-  trsS(RIG.t, 0, hip, 0, cr * 0.42, -st * 0.30, st * 0.14, 1, 1, 1);
+  trsS(RIG.t, 0, hip, 0, -0.16 - cr * 0.45, -st * 0.30, st * 0.14, 1, 1, 1);
   const torso = mul(RIG.torso, base, RIG.t);
   drawMesh(rigTorso, instData, inst, { model: torso });
 
-  /* Arme balancieren, in der Luft Grab zum Board */
+  /* Arme balancieren; die Vorlage des Torsos wird an der Schulter ausgeglichen,
+     damit die Hände unten bleiben statt mitzuschwingen */
+  const lean = 0.16 + cr * 0.45;
   const swing = Math.sin(tGlobal * 4.5) * 0.07 * (P.air ? 0.2 : 1) + P.flailX;
-  trsS(RIG.t, -0.19, 0.42, 0, gb * 0.35 + swing, gb * 0.45, st * 0.22 + gb * 0.95 - P.airLift * 0.22 + P.flailL, 1, 1, 1);
+  trsS(RIG.t, -0.19, 0.42, 0, lean * 0.85 + gb * 0.35 + swing, gb * 0.45, st * 0.22 + gb * 0.95 - P.airLift * 0.22 + P.flailL, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
   drawMesh(rigArmL, instData, inst, { model: RIG.tmp });
 
-  trsS(RIG.t, 0.19, 0.42, 0, -gb * 0.18 - swing, 0, st * 0.18 - gb * 0.35 - P.airLift * 0.30 + P.flailR, 1, 1, 1);
+  trsS(RIG.t, 0.19, 0.42, 0, lean * 0.85 - gb * 0.18 - swing, 0, st * 0.18 - gb * 0.35 - P.airLift * 0.30 + P.flailR, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
   drawMesh(rigArmR, instData, inst, { model: RIG.tmp });
 
   /* Kopf schaut in die Kurve, bleibt beim Ducken aufrecht */
-  trsS(RIG.t, 0, 0.56, 0, -cr * 0.30, -st * 0.40, 0, 1, 1, 1);
+  trsS(RIG.t, 0, 0.56, 0, 0.20 + cr * 0.34, -st * 0.40, 0, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
   drawMesh(rigHead, instData, inst, { model: RIG.tmp });
 }
@@ -1901,6 +1921,7 @@ function resetGame() {
   camX = P.x; camY = P.y + 3.2; camZ = P.z - 9;
   score = 0; tricks = 0; gotCrystals = 0; combo = 0; comboT = 0; comboScore = 0;
   flow = 0; flowT = 0; shake = 0; timeScale = 1; steer = 0; steerTarget = 0; holding = false;
+  charging = false; chargeT = 0;
   deathReason = 'Sturz';
   updatePalette(0);
 }
