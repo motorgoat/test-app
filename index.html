@@ -185,7 +185,7 @@
 
 <script>
 'use strict';
-const VERSION = 'v0.9.1';      // bei jeder veröffentlichten Änderung hochzählen
+const VERSION = 'v0.9.2';      // bei jeder veröffentlichten Änderung hochzählen
 /* ==========================================================================
    POWDER RUSH 3D — Endless Downhill, Third-Person, handgeschriebenes WebGL
    ========================================================================== */
@@ -1162,13 +1162,13 @@ function onDown(e) {
   if (ptrId !== null) { actionTap(); return; }      // zweiter Finger = Aktion, Lenken bleibt aktiv
   ptrId = e.pointerId; ptrX = e.clientX; ptrT = performance.now(); ptrMoved = 0;
   holding = true;
-  if (P.contact && !P.grind) { charging = true; chargeT = 0; }   // in die Hocke gehen
+  if (!P.air && !P.grind) { charging = true; chargeT = 0; }      // in die Hocke gehen
 }
 function onMove(e) {
   if (e.pointerId !== ptrId || state !== 'play') return;
   const dx = e.clientX - ptrX;
   ptrMoved = Math.max(ptrMoved, Math.abs(dx));
-  if (ptrMoved > 16) charging = false;              // wer lenkt, lädt keinen Sprung
+  if (ptrMoved > 34) charging = false;              // erst deutliches Lenken bricht das Laden ab
   const span = Math.max(70, window.innerWidth * 0.20);
   steerTarget = clamp(-dx / span, -1, 1);   // Welt-X zeigt im Bild nach links
   /* Referenzpunkt nachziehen, damit man beliebig weit lenken kann */
@@ -1191,7 +1191,7 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') { e.preventDefault();
-    if (!e.repeat && P.contact && !P.grind) { charging = true; chargeT = 0; }
+    if (!e.repeat && !P.air && !P.grind) { charging = true; chargeT = 0; }
     else if (!e.repeat) actionTap();
     holding = true; }
 });
@@ -1234,7 +1234,9 @@ function addSpin() {
 }
 function releaseJump() {
   charging = false;
-  if (state !== 'play' || P.air || P.grind) return;
+  if (state !== 'play' || P.grind) return;
+  if (P.air) return;
+  P.contact = true;                                  // aus der Ablösephase heraus zählt es als Absprung
   jump(4.4 + 3.0 * clamp(chargeT / 0.42, 0, 1));     // je länger geduckt, desto höher
 }
 function jump(power) {
@@ -1420,6 +1422,14 @@ function update(dt) {
         if (groundAcc < -GRAV_AIR) {
           P.contact = false; P.sepT = 0;
           P.vy = followRate + 1.2;                // Geländerate plus etwas Pop
+          if (charging) {                         // geduckt über die Kante: abziehen
+            P.vy += 4.4 + 3.0 * clamp(chargeT / 0.42, 0, 1);
+            charging = false;
+            sfx.jump(); buzz(8);
+            for (let i = 0; i < 12; i++)
+              spawnPart(P.x + (srnd()-0.5)*0.8, P.y + 0.1, P.z + (srnd()-0.5)*0.8,
+                        (srnd()-0.5)*3, srnd()*2.2, -srnd()*3 - P.vz*0.12, 0.5, 0.3, 0);
+          }
         } else {
           P.y = gy;
           P.vy = followRate;
@@ -1647,13 +1657,13 @@ function drawRider() {
 
   /* Oberkörper: tiefer bei Tempo, dreht in die Kurve */
   const hip = 0.18 + 0.62 * legScale + bob;
-  trsS(RIG.t, 0, hip, 0, -0.16 - cr * 0.45, -st * 0.30, st * 0.14, 1, 1, 1);
+  trsS(RIG.t, 0, hip, 0, 0.20 + cr * 0.50, -st * 0.30, st * 0.14, 1, 1, 1);
   const torso = mul(RIG.torso, base, RIG.t);
   drawMesh(rigTorso, instData, inst, { model: torso });
 
   /* Arme balancieren; die Vorlage des Torsos wird an der Schulter ausgeglichen,
      damit die Hände unten bleiben statt mitzuschwingen */
-  const lean = 0.16 + cr * 0.45;
+  const lean = -(0.20 + cr * 0.50);
   const swing = Math.sin(tGlobal * 4.5) * 0.07 * (P.air ? 0.2 : 1) + P.flailX;
   trsS(RIG.t, -0.19, 0.42, 0, lean * 0.85 + gb * 0.35 + swing, gb * 0.45, st * 0.22 + gb * 0.95 - P.airLift * 0.22 + P.flailL, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
@@ -1664,7 +1674,7 @@ function drawRider() {
   drawMesh(rigArmR, instData, inst, { model: RIG.tmp });
 
   /* Kopf schaut in die Kurve, bleibt beim Ducken aufrecht */
-  trsS(RIG.t, 0, 0.56, 0, 0.20 + cr * 0.34, -st * 0.40, 0, 1, 1, 1);
+  trsS(RIG.t, 0, 0.56, 0, -0.14 - cr * 0.34, -st * 0.40, 0, 1, 1, 1);
   mul(RIG.tmp, torso, RIG.t);
   drawMesh(rigHead, instData, inst, { model: RIG.tmp });
 }
