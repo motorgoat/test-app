@@ -1,0 +1,368 @@
+/* =========================================================================
+   ELFMETER ROULETTE — stylesheet
+   -------------------------------------------------------------------------
+   Everything inside the pitch is drawn on <canvas>; this file styles the
+   chrome around it (HUD, overlays, buttons) and makes the whole thing
+   behave on phones as well as desktops.
+   ========================================================================= */
+
+/* ---------- Reset -------------------------------------------------------- */
+*,
+*::before,
+*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Palette — tweak these to re-skin the whole UI at once. */
+  --pitch-dark:   #05341f;
+  --pitch-mid:    #0a5f34;
+  --night:        #071018;
+  --night-2:      #0d1b26;
+  --gold:         #ffc94a;
+  --gold-deep:    #e09b12;
+  --cash:         #6ddc8b;
+  --danger:       #ff5468;
+  --ink:          #f4f8ff;
+  --ink-dim:      #93a6b8;
+
+  --shadow-hard:  0 6px 0 rgba(0, 0, 0, .45);
+  --radius:       16px;
+
+  /* Logical canvas aspect ratio — must match VIEW in script.js (960x600). */
+  --stage-aspect: 16 / 10;
+}
+
+/* ---------- Page shell --------------------------------------------------- */
+html, body { height: 100%; }
+
+body {
+  background:
+    radial-gradient(120% 80% at 50% 0%, #14303f 0%, var(--night) 60%, #03080c 100%);
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  touch-action: manipulation;          /* kill the 300ms tap delay / dbl-tap zoom */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;                      /* dodges the mobile browser chrome */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  gap: 6px;
+}
+
+/* ---------- Top bar / HUD ------------------------------------------------ */
+#topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px clamp(10px, 3vw, 22px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(0, 0, 0, .25));
+  border-bottom: 2px solid rgba(255, 201, 74, .25);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+
+.brand-ball {
+  font-size: clamp(16px, 4vw, 22px);
+  animation: spin 6s linear infinite;
+}
+
+.brand-text {
+  font-size: clamp(12px, 3.4vw, 18px);
+  color: var(--gold);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .6);
+}
+.brand-text em {
+  font-style: normal;
+  color: var(--ink);
+  margin-left: .35em;
+}
+
+.stats {
+  display: flex;
+  gap: clamp(8px, 3vw, 22px);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.05;
+}
+
+.stat-label {
+  font-size: clamp(8px, 2.2vw, 10px);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.stat-value {
+  font-size: clamp(14px, 4.2vw, 22px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Score "pop" — script.js toggles this class whenever points are awarded. */
+.stat-value.bump { animation: bump .35s ease-out; color: var(--gold); }
+
+/* ---------- Stage / canvas ---------------------------------------------- */
+#stage {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;                       /* lets the flex child actually shrink */
+  padding: 4px;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  max-width: calc(100% - 0px);
+  aspect-ratio: var(--stage-aspect);
+  border-radius: var(--radius);
+  background: #0b2b3d;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .55), 0 0 0 2px rgba(255, 255, 255, .06) inset;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* ---------- Overlay panels ---------------------------------------------- */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(3, 10, 16, .72);
+  backdrop-filter: blur(3px);
+  border-radius: var(--radius);
+  z-index: 5;
+}
+.overlay.hidden { display: none; }
+
+.panel {
+  width: min(92%, 440px);
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: center;
+  padding: clamp(14px, 3.5vw, 26px);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #123044, #08161f);
+  border: 2px solid rgba(255, 201, 74, .35);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+  animation: rise .28s ease-out;
+}
+.panel.hidden { display: none; }
+
+.panel-title {
+  font-size: clamp(22px, 7vw, 38px);
+  line-height: .95;
+  letter-spacing: .05em;
+  color: var(--gold);
+  text-shadow: 0 3px 0 var(--gold-deep), 0 6px 12px rgba(0, 0, 0, .6);
+}
+.panel-title span { color: var(--ink); }
+.panel-title.small { font-size: clamp(18px, 5vw, 26px); }
+
+.panel-sub {
+  margin-top: 8px;
+  font-size: clamp(11px, 3vw, 14px);
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.rules {
+  margin: 14px auto;
+  padding: 12px;
+  max-width: 340px;
+  list-style: none;
+  text-align: left;
+  font-size: clamp(11px, 2.9vw, 13px);
+  line-height: 1.6;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .05);
+  border-radius: 10px;
+}
+.rules b { color: var(--gold); }
+
+.payouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.pay {
+  font-size: clamp(9px, 2.4vw, 11px);
+  font-weight: 700;
+  letter-spacing: .08em;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #04121a;
+}
+.pay-goal { background: var(--cash); }
+.pay-top  { background: #7fd7ff; }
+.pay-head { background: var(--gold); }
+
+/* ---------- Game over specifics ------------------------------------------ */
+.final-score {
+  font-size: clamp(44px, 15vw, 76px);
+  font-weight: 700;
+  line-height: 1;
+  margin: 10px 0 2px;
+  color: var(--cash);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, .5);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank {
+  font-size: clamp(12px, 3.4vw, 16px);
+  font-style: italic;
+  color: var(--gold);
+  margin-bottom: 14px;
+}
+
+.breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  gap: 6px;
+  margin-bottom: 18px;
+  font-size: clamp(9px, 2.4vw, 11px);
+}
+.breakdown div {
+  padding: 7px 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .06);
+}
+.breakdown b {
+  display: block;
+  font-size: clamp(14px, 4vw, 18px);
+  color: var(--ink);
+}
+.breakdown span {
+  color: var(--ink-dim);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+/* ---------- Buttons ------------------------------------------------------ */
+.btn {
+  display: inline-block;
+  width: 100%;
+  max-width: 260px;
+  padding: 13px 20px;
+  font: inherit;
+  font-size: clamp(13px, 3.6vw, 17px);
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: #04121a;
+  background: linear-gradient(180deg, #ffd971, var(--gold-deep));
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--shadow-hard);
+  cursor: pointer;
+  transition: transform .08s ease, box-shadow .08s ease, filter .15s ease;
+}
+.btn:hover  { filter: brightness(1.07); }
+.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0, 0, 0, .45); }
+.btn:focus-visible { outline: 3px solid var(--cash); outline-offset: 3px; }
+
+/* ---------- Footer hint -------------------------------------------------- */
+#hint {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 10px 10px;
+  font-size: clamp(9px, 2.6vw, 12px);
+  color: var(--ink-dim);
+  text-align: center;
+}
+.hint-key { color: var(--ink); white-space: nowrap; }
+.hint-text { font-style: italic; }
+
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: .95em;
+  color: #04121a;
+  background: #dfe8f2;
+  border-radius: 5px;
+  box-shadow: 0 2px 0 #8f9dab;
+}
+
+/* ---------- Animations --------------------------------------------------- */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes bump {
+  0%   { transform: scale(1);    }
+  40%  { transform: scale(1.45); }
+  100% { transform: scale(1);    }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px) scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-ball { animation: none; }
+  .panel { animation: none; }
+}
+
+/* ---------- Landscape phones: shrink the chrome, keep the pitch ---------- */
+@media (max-height: 460px) and (orientation: landscape) {
+  #topbar { padding: 4px 12px; }
+  .stat-label { display: none; }
+  #hint { padding: 2px 8px 6px; }
+  .hint-text { display: none; }
+}
+
+/* ---------- Portrait phones ----------------------------------------------
+   The pitch is a fixed 16:10 canvas, so a portrait phone would render it as
+   a thin strip with most of the screen wasted. Rotating the whole app a
+   quarter turn lets it fill the display; the sideways image is the standard,
+   self-explanatory cue to turn the device. As soon as the device really is
+   landscape this media query stops applying and everything is upright again.
+   Only tap detection is used, so no input coordinates need remapping.       */
+@media (orientation: portrait) and (max-width: 860px) {
+  #app {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    width: 100dvh;
+    height: 100vw;
+    height: 100dvw;
+    transform: rotate(90deg) translateY(-100%);
+    transform-origin: top left;
+    padding: 0;
+  }
+  #topbar { padding: 4px 14px; }
+  #hint { padding: 2px 8px 6px; }
+}
