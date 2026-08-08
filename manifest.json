@@ -1,11 +1,11 @@
 {
-  "name": "TaskLoop",
-  "short_name": "TaskLoop",
-  "description": "Wiederkehrende Aufgaben im Blick behalten",
+  "name": "RUNG – Die höchste Leiter der Welt",
+  "short_name": "RUNG",
+  "description": "Halte. Klettere. Balanciere. Wie hoch kommst du, bevor Gerald dich erwischt?",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f1a",
-  "theme_color": "#1a1a2e",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
   "orientation": "portrait",
   "icons": [
     {
