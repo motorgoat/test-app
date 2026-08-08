@@ -27,7 +27,7 @@
   #topbar .chip { background: rgba(10,16,34,.55); border: 1px solid rgba(255,255,255,.14);
                   border-radius: 20px; padding: 4px 10px; font-size: 13px; font-weight: 700; backdrop-filter: blur(3px); }
   #btns { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 6; }
-  .iconbtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+  .iconbtn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
              background: rgba(10,16,34,.55); color: #fff; font-size: 19px; backdrop-filter: blur(3px);
              display: flex; align-items: center; justify-content: center; }
   .iconbtn:active { transform: scale(.92); }
@@ -95,6 +95,7 @@
     <button id="btnReplay">🎬 Sturz ansehen</button>
     <button id="btnShare" class="primary">📤 Teilen</button>
   </div>
+  <div class="row"><button id="btnShareImg">🖼️ Bild teilen</button></div>
   <div class="tapline">Tippen zum Weiterklettern</div>
 </div>
 
@@ -146,7 +147,7 @@ const CFG = {
   flagPlant: 2.0,           // s eingefroren beim Pflanzen
   dailyTarget: 60,
   dailyTries: 5,
-  maxRecFrames: 30*150,     // 150 s Aufnahme-Limit (30 Hz)
+  maxRecFrames: 30*240,     // 240 s Aufnahme-Limit (30 Hz)
 };
 const LANDMARKS = { 25:'DÄCHER', 50:'WOLKEN', 75:'JETSTREAM', 100:'WELTRAUM' };
 const UNLOCKS = [
@@ -252,7 +253,11 @@ const Input = {
     return this.keyDown ? this.keyLean : 0;
   },
   brace(){
-    if (this.touching) return (this.y - this.startY) > CFG.braceDy;
+    if (this.touching){
+      // Nur bei klar dominanter Abwärtsbewegung, sonst greift es beim Quer-Lenken
+      const dy = this.y - this.startY;
+      return dy > CFG.braceDy && dy > Math.abs(this.x - this.startX) * 0.7;
+    }
     return this.keyDown && this.keyBrace;
   },
   held(){ return this.touching || this.keyDown; },
@@ -265,7 +270,16 @@ function onDown(x, y, id){
   AudioEngine.init(); AudioEngine.resume();
   Game.onPress();
 }
-function onMove(x, y, id){ if (Input.touching && id === Input.id){ Input.x = x; Input.y = y; } }
+function onMove(x, y, id){
+  if (!Input.touching || id !== Input.id) return;
+  Input.x = x; Input.y = y;
+  // Driftender Anker: am Bildschirmrand bleibt voller Ausschlag erreichbar,
+  // Richtungswechsel wirken sofort
+  if (x - Input.startX > CFG.dragRange) Input.startX = x - CFG.dragRange;
+  else if (x - Input.startX < -CFG.dragRange) Input.startX = x + CFG.dragRange;
+  if (y - Input.startY > CFG.braceDy*3) Input.startY = y - CFG.braceDy*3;
+  else if (y - Input.startY < -CFG.braceDy) Input.startY = y + CFG.braceDy;
+}
 function onUp(id){ if (Input.touching && id === Input.id){ Input.touching = false; Input.id = null; } }
 cvs.addEventListener('pointerdown', e => { e.preventDefault(); onDown(e.clientX, e.clientY, e.pointerId); }, {passive:false});
 window.addEventListener('pointermove', e => onMove(e.clientX, e.clientY, e.pointerId), {passive:true});
@@ -287,7 +301,8 @@ window.addEventListener('keyup', e => {
 
 // ------------------------------------------------ Sim ----
 /* Deterministischer Kern. Input pro 2 Frames (30 Hz) als Byte:
-   Bits 0-5: Lean quantisiert (0..62, 31 = neutral), Bit 6: gehalten, Bit 7: Abstützen.
+   Bits 0-3: Lean quantisiert (0..14, 7 = neutral), Bit 4: gehalten, Bit 5: Abstützen.
+   Grobe Quantisierung => RLE komprimiert gut => kurze Ghost-URLs.
    Player-Sim zeichnet auf, Ghost-Sim spielt ab. */
 class Sim {
   constructor(seed, opts = {}){
@@ -311,6 +326,7 @@ class Sim {
     this.gerald = null; this.nextGeraldAt = 20 + this.rng()*14; this.geraldWasRecent = 0;
     // Flaggen
     this.flagsPlanted = []; this.planting = 0; this.braceT = 0; this.flagBand = null; this.lastBand = null;
+    this.braceEdgeInBand = false; this.idleWarned = false; this.capH = null;
     // abgeleitete Werte für Renderer / Events für Sound
     this.curU = 0; this.curHeld = false; this.curBrace = false;
     this.events = [];
@@ -322,9 +338,9 @@ class Sim {
     return null;
   }
   inputByte(){
-    if (this.playback) return (this.frame>>1) < this.playback.length ? this.playback[this.frame>>1] : 31;
-    const q = clamp(Math.round(Input.lean()*31)+31, 0, 62);
-    return q | (Input.held()?64:0) | (Input.brace()?128:0);
+    if (this.playback) return (this.frame>>1) < this.playback.length ? this.playback[this.frame>>1] : 7;
+    const q = clamp(Math.round(Input.lean()*7)+7, 0, 14);
+    return q | (Input.held()?16:0) | (Input.brace()?32:0);
   }
   step(){
     const dt = CFG.dt;
@@ -332,10 +348,17 @@ class Sim {
     // Input nur jeden 2. Frame neu lesen (30 Hz, deterministisch, quantisiert)
     if (this.frame % 2 === 0){
       const b = this.inputByte();
-      if (this.record && this.track.length < CFG.maxRecFrames) this.track.push(b);
-      this.curU = ((b & 63) - 31) / 31;
-      this.curHeld = !!(b & 64);
-      this.curBrace = !!(b & 128);
+      if (this.record){
+        if (this.track.length < CFG.maxRecFrames) this.track.push(b);
+        else if (this.capH === null) this.capH = this.h; // Ghost endet hier
+      }
+      const nb = !!(b & 32);
+      // Flagge nur nach FRISCHEM Runterziehen im Band (kein verschleppter Brace)
+      if (nb && !this.curBrace) this.braceEdgeInBand = this.landmarkAt(this.h) !== null;
+      else if (!nb) this.braceEdgeInBand = false;
+      this.curU = ((b & 15) - 7) / 7;
+      this.curHeld = !!(b & 16);
+      this.curBrace = nb;
     }
     this.frame++; this.time += dt;
     const h = this.h, held = this.curHeld;
@@ -353,8 +376,15 @@ class Sim {
     // --- Stillstands-Ratchet ("der Wind findet dich")
     if (!climbing && !planting){
       this.idleT += dt;
-      if (this.idleT > 0.6) this.idleAmp = Math.min(CFG.idleMax, this.idleAmp + CFG.idleRatchet*dt);
-    } else { this.idleT = 0; this.idleAmp = Math.max(0, this.idleAmp - 2.5*dt); }
+      if (this.idleT > 0.6){
+        // wächst nach dem Cap langsam weiter: Dauer-Campen kippt IMMER irgendwann
+        this.idleAmp = this.idleAmp < CFG.idleMax
+          ? Math.min(CFG.idleMax, this.idleAmp + CFG.idleRatchet*dt)
+          : this.idleAmp + 0.08*dt;
+        if (!this.idleWarned && this.idleAmp > 0.5){ this.idleWarned = true; this.events.push({t:'idlewarn'}); }
+      }
+    } else { this.idleT = 0; this.idleAmp = Math.max(0, this.idleAmp - 2.5*dt);
+      if (this.idleAmp === 0) this.idleWarned = false; }
 
     // --- Wind: Ambient + Turbulenz + geplante Böen (alles aus dem Seed)
     this.windAmb = Math.sin(this.time*0.7 + this.seed%10) * (0.05 + h*0.0016);
@@ -413,7 +443,7 @@ class Sim {
         this.flagsPlanted.push(this.lastBand);
         this.events.push({t:'flagDone', at: this.lastBand});
       }
-    } else if (bandFree && brace){
+    } else if (bandFree && brace && this.braceEdgeInBand){
       this.braceT += dt;
       if (this.braceT >= CFG.flagHold){
         this.planting = CFG.flagPlant; this.lastBand = this.flagBand;
@@ -442,6 +472,7 @@ class Sim {
       this.alive = false;
       this.deathCause = planting ? 'flag'
         : this.geraldWasRecent > 0 ? 'gerald'
+        : this.idleAmp > 1 ? 'idle'
         : (this.gust || this.warned) ? 'wind' : 'balance';
       this.events.push({t:'fall'});
     }
@@ -452,7 +483,9 @@ class Sim {
 // ------------------------------------------------ Ghost-Link ----
 function encodeGhost(d){
   const rle = rleEnc(d.track);
-  const h10 = Math.round(d.h*10);
+  // Bei gekappter Aufnahme nur die tatsächlich replaybare Höhe versprechen
+  const hEff = (d.capH !== null && d.capH !== undefined) ? Math.min(d.h, d.capH) : d.h;
+  const h10 = Math.round(hEff*10);
   const bytes = [1, d.mode === 'daily' ? 1 : 0,
     d.seed & 255, (d.seed>>>8)&255, (d.seed>>>16)&255, (d.seed>>>24)&255,
     h10 & 255, (h10>>>8)&255,
@@ -526,16 +559,22 @@ const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 
 // Kamera: ppm = Pixel pro Meter, cy = Welthöhe in Bildschirmmitte
 const cam = { ppm: 60, cy: 2, shake: 0 };
+let skyCache = { key: '', grad: null };
 function worldToScreen(wx, wy){
   return [ W/2 + wx*cam.ppm, H*0.62 - (wy - cam.cy)*cam.ppm ];
 }
 
 function drawScene(sim, ghost, t){
   const h = sim.h;
-  const [top, bot] = skyColors(h);
-  const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
-  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  // Gradient nur bei Höhen-/Größenänderung neu bauen (Per-Frame-Allokation sparen)
+  const skyKey = ((h*2)|0) + '_' + H;
+  if (skyCache.key !== skyKey){
+    const [top, bot] = skyColors(h);
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+    skyCache = { key: skyKey, grad: g };
+  }
+  ctx.fillStyle = skyCache.grad; ctx.fillRect(0,0,W,H);
 
   // Sterne (ab 70 m einblenden)
   if (h > 70){
@@ -644,16 +683,18 @@ function drawLadderClimber(sim, t, style){
     const [bx,by] = worldToScreen(sin*ladderTop + cos*off + gxOff, cos*ladderTop - sin*off);
     ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
   }
-  // Sprossen (nur sichtbarer Bereich)
+  // Sprossen (nur sichtbarer Bereich, EIN Pfad für alle -> ein stroke-Call)
   ctx.lineWidth = Math.max(1.5, cam.ppm*0.045);
   const halfSpan = H/cam.ppm;
   const visBottom = Math.max(0, cam.cy - halfSpan);
   const visTop = Math.min(ladderTop, cam.cy + halfSpan);
+  ctx.beginPath();
   for (let s = Math.ceil(visBottom*2)/2; s <= visTop; s += 0.5){
     const [x1,y1] = worldToScreen(sin*s + cos*railOff + gxOff, cos*s - sin*railOff);
     const [x2,y2] = worldToScreen(sin*s - cos*railOff + gxOff, cos*s + sin*railOff);
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
   }
+  ctx.stroke();
   // Gepflanzte Flaggen
   ctx.font = `${Math.max(14, cam.ppm*0.4)|0}px system-ui`;
   ctx.textAlign = 'left';
@@ -777,7 +818,16 @@ const DEATH_TEXTS = {
   gerald:  { stamp: 'ERLEDIGT VON GERALD', emo: '🕊️' },
   balance: { stamp: 'GLEICHGEWICHT VERLOREN', emo: '🌀' },
   flag:    { stamp: 'FLAGGEN-GIER', emo: '🚩' },
+  idle:    { stamp: 'ZU LANGE GEZÖGERT', emo: '⏳' },
 };
+// Serie gilt nur als aktiv, wenn sie nicht bereits gerissen ist
+function effectiveStreak(){
+  const lw = SAVE.lastDailyWin;
+  if (!lw || SAVE.streak === 0) return 0;
+  if (lw === todayKey() || lw === todayKey(1)) return SAVE.streak;
+  if (lw === todayKey(2) && new Date().getHours() < 12) return SAVE.streak; // Saver-Fenster
+  return 0;
+}
 
 const Game = {
   state: 'attract',   // attract | run | topple | dead | replayfall
@@ -789,20 +839,27 @@ const Game = {
   newUnlock: null, time: 0,
 
   assistLevel(){
-    // Einsteiger-Hilfe: erste Sessions weicher, verschwindet mit steigendem PB
-    const a = 1 - Math.max(Math.min(SAVE.sessions,4)/4, Math.min(SAVE.pb/40, 1));
-    return clamp(a, 0, 1) * 0.8;
+    // Einsteiger-Hilfe: primär ans Können (PB) gekoppelt, Routine reduziert nur einen Teil
+    const pbTerm = 1 - Math.min(SAVE.pb/40, 1);
+    const sessTerm = SAVE.sessions <= 3 ? 1 : 0.7;
+    return clamp(pbTerm * sessTerm, 0, 1) * 0.8;
   },
   newRun(){
-    let seed;
+    // Backstop: ein fertiges Daily startet nie erneut mit dem bekannten Seed
+    if (this.mode === 'daily' && this.dailyState().done){ this.mode = 'endless'; this.dailySeedKey = null; }
+    let seed, assist;
     if (this.mode === 'daily'){
       this.dailySeedKey = this.dailySeedKey || todayKey();
       seed = hashStr('RUNG-DAILY-' + this.dailySeedKey);
+      assist = 0.25; // fix für ALLE: gleicher Wind, gleiche Physik, fairer Vergleich
     } else {
       seed = (Math.random()*0xFFFFFFFF)>>>0;
+      // aufs Ghost-Wire-Format quantisiert, damit Replay bit-identisch rechnet
+      assist = Math.round(this.assistLevel()*100)/100;
     }
-    this.sim = new Sim(seed, { assist: this.assistLevel() });
+    this.sim = new Sim(seed, { assist });
     this.sim.mode = this.mode;
+    this.sim.dailyKey = this.dailySeedKey;
     if (this.ghostData){
       const gs = new Sim(this.ghostData.seed, { playback: this.ghostData.track, assist: this.ghostData.assist });
       this.ghost = { sim: gs, visible: true, done: false };
@@ -816,12 +873,15 @@ const Game = {
   },
   onPress(){
     if (this.state === 'attract'){ this.newRun(); return; }
-    if (this.state === 'dead'){ this.newRun(); return; }
+    if (this.state === 'dead'){
+      if (this.time - this.deathShownAt < 0.45) return; // Rage-Tap-Schutz: Panel erst lesen
+      this.newRun(); return;
+    }
     if (this.state === 'replayfall'){ this.timeScale = 1; }
   },
   onFall(){
     const sim = this.sim;
-    this.state = 'topple'; this.toppleT = 0; this.timeScale = 0.28;
+    this.state = 'topple'; this.toppleT = 0; this.timeScale = 0.28; this.toppleAcc = 0;
     this.toppleSnap = { theta: sim.theta, omega: sim.omega, h: sim.h };
     AudioEngine.fall(); vibrate([60, 40, 120]);
     cam.shake = 8;
@@ -829,24 +889,31 @@ const Game = {
   finishRun(){
     const sim = this.sim, h = sim.h;
     const cause = sim.deathCause || 'balance';
-    this.lastDeath = { h, cause, track: sim.track.slice(), seed: sim.seed, assist: sim.assist, mode: this.mode };
     let feathers = 0;
     for (const f of sim.flagsPlanted){ feathers += Math.max(5, (f/5)|0); SAVE.flags[f] = (SAVE.flags[f]||0)+1; }
     SAVE.feathers += feathers;
     if (cause === 'gerald') SAVE.geraldKills++;
     const newBest = h > SAVE.pb;
     if (newBest){ SAVE.pb = Math.round(h*10)/10; AudioEngine.newBest(); }
+    // Entscheidend ist der Modus des GELAUFENEN Sims, nicht der UI-Zustand
+    this.lastDeath = { h, cause, track: sim.track.slice(), seed: sim.seed, assist: sim.assist,
+      mode: sim.mode, capH: sim.capH, newBest, feathers };
     this.newUnlock = null;
     for (const u of UNLOCKS){
       if (!SAVE.unlocked[u.id] && SAVE.feathers >= u.at){ SAVE.unlocked[u.id] = true; this.newUnlock = u.label; }
     }
-    if (this.mode === 'daily') this.recordDailyAttempt(h);
+    if (sim.mode === 'daily') this.recordDailyAttempt(h, cause, sim.dailyKey);
     save();
-    this.showDeathPanel(newBest, feathers);
+    // Share-Card vorab rendern, damit der Teilen-Tap seine User-Activation behält
+    this.cardBlob = null;
+    this.renderShareCard().then(b => { this.cardBlob = b; }).catch(()=>{});
+    this.showDeathPanel();
   },
-  showDeathPanel(newBest=false, feathers=0){
+  showDeathPanel(){
     const d = this.lastDeath; if (!d) return;
+    const newBest = !!d.newBest, feathers = d.feathers || 0;
     this.state = 'dead';
+    this.deathShownAt = this.time;
     const t = DEATH_TEXTS[d.cause] || DEATH_TEXTS.balance;
     els.deathStamp.textContent = t.emo + ' ' + t.stamp;
     els.deathH.textContent = d.h.toFixed(1) + ' m';
@@ -856,17 +923,18 @@ const Game = {
     if (feathers) sub += `🪶 +${feathers} Federn gebankt · `;
     sub += `🕊️ Gerald hat dich ${SAVE.geraldKills}× erwischt.`;
     if (this.ghostData) sub += `<br>👻 Ghost: ${this.ghostData.height.toFixed(0)} m ${d.h > this.ghostData.height ? '— GESCHLAGEN! 💪' : '— noch nicht geschlagen.'}`;
-    if (this.mode === 'daily'){
+    if (d.mode === 'daily'){
       const st = this.dailyState();
       sub += `<br>📅 Daily: Versuch ${st.tries.length}/${CFG.dailyTries}`;
     }
     els.deathSub.innerHTML = sub;
     els.deathPanel.classList.remove('hidden');
-    this.updateChips();
-    if (this.mode === 'daily'){
-      const st = this.dailyState();
-      if (st.done) setTimeout(()=> { if (this.state === 'dead') this.openDaily(); }, 1200);
+    if (d.mode === 'daily' && this.dailyState().done){
+      // Fertiges Daily: Ergebnis-Panel zeigen, Tap-Restart geht in Endless weiter
+      setTimeout(()=> { if (this.state === 'dead') this.openDaily(); }, 1200);
+      this.mode = 'endless'; this.dailySeedKey = null;
     }
+    this.updateChips();
   },
   // ---------------- Replay des Sturzes
   startReplayFall(){
@@ -874,12 +942,12 @@ const Game = {
     els.deathPanel.classList.add('hidden');
     const s = this.toppleSnap;
     this.sim.theta = s.theta; this.sim.omega = s.omega; this.sim.h = s.h;
-    this.state = 'replayfall'; this.toppleT = 0; this.timeScale = 0.28;
+    this.state = 'replayfall'; this.toppleT = 0; this.timeScale = 0.28; this.toppleAcc = 0;
     cam.shake = 6;
   },
   // ---------------- Daily
-  dailyState(){
-    const key = this.dailySeedKey || todayKey();
+  dailyState(key){
+    key = key || this.dailySeedKey || todayKey();
     if (key === todayKey()){
       if (!SAVE.daily || SAVE.daily.key !== key) SAVE.daily = { key, tries: [], done: false, success: false };
       return SAVE.daily;
@@ -887,10 +955,10 @@ const Game = {
     if (!SAVE.dailyAlt || SAVE.dailyAlt.key !== key) SAVE.dailyAlt = { key, tries: [], done: false, success: false };
     return SAVE.dailyAlt;
   },
-  recordDailyAttempt(h){
-    const st = this.dailyState();
+  recordDailyAttempt(h, cause, key){
+    const st = this.dailyState(key);
     if (st.done) return;
-    st.tries.push(Math.round(h*10)/10);
+    st.tries.push({ h: Math.round(h*10)/10, c: cause || 'balance' });
     if (h >= CFG.dailyTarget){
       st.done = true; st.success = true;
       this.onDailyWin(st.key);
@@ -898,18 +966,24 @@ const Game = {
     save();
   },
   onDailyWin(key){
-    // Serie: gestern gewonnen -> +1; Streak-Saver: gestern nachgeholt zählt weiter
+    // Serie: gestern gewonnen -> +1; Streak-Saver: gestern nachgeholt zählt weiter;
+    // Kulanz: heute vor 12 Uhr gewonnen, während der Saver noch offen war
     const yesterday = todayKey(1);
     if (SAVE.lastDailyWin === yesterday) SAVE.streak++;
     else if (key === yesterday && SAVE.lastDailyWin === todayKey(2)) SAVE.streak++;
+    else if (key === todayKey() && SAVE.lastDailyWin === todayKey(2) && new Date().getHours() < 12) SAVE.streak++;
     else if (SAVE.lastDailyWin !== key) SAVE.streak = 1;
     if (key > (SAVE.lastDailyWin||'')) SAVE.lastDailyWin = key;
     save();
   },
   dailyEmoji(st){
-    const out = [];
-    for (const h of st.tries) out.push(h >= CFG.dailyTarget ? '✅' : h >= 40 ? '🟨' : h >= 20 ? '🟧' : '🟥');
-    return out.join('');
+    // Höhen-Band + Todesursache pro Versuch, z.B. "🟧💨 🟥🕊️ ✅"
+    return st.tries.map(t => {
+      const h = typeof t === 'number' ? t : t.h;
+      const band = h >= CFG.dailyTarget ? '✅' : h >= 40 ? '🟨' : h >= 20 ? '🟧' : '🟥';
+      const cause = (typeof t === 'object' && h < CFG.dailyTarget && DEATH_TEXTS[t.c]) ? DEATH_TEXTS[t.c].emo : '';
+      return band + cause;
+    }).join(' ');
   },
   openDaily(){
     this.mode = 'daily';
@@ -920,45 +994,54 @@ const Game = {
     els.dailyInfo.textContent = st.done
       ? (st.success ? `Geschafft in ${st.tries.length} Leiter${st.tries.length>1?'n':''}! Morgen weht neuer Wind.` : 'Heute nicht geschafft – morgen neuer Versuch!')
       : `RUNG #${dailyNum(todayKey())} · gleicher Wind für alle · ${CFG.dailyTries - st.tries.length} Versuch${CFG.dailyTries-st.tries.length===1?'':'e'} übrig`;
-    els.dailyStreak.textContent = SAVE.streak > 0 ? `🔥 Serie: ${SAVE.streak} Tag${SAVE.streak>1?'e':''}` : '';
+    const eff = effectiveStreak();
+    els.dailyStreak.textContent = eff > 0 ? `🔥 Serie: ${eff} Tag${eff>1?'e':''}` : '';
     $('btnDailyPlay').classList.toggle('hidden', st.done);
     // Streak-Saver: gestern verpasst, heute vor 12 Uhr, gestern noch nicht nachgeholt
     const canSave = SAVE.lastDailyWin === todayKey(2) && new Date().getHours() < 12
       && !(SAVE.dailyAlt && SAVE.dailyAlt.key === todayKey(1) && SAVE.dailyAlt.done);
     $('btnStreakSave').classList.toggle('hidden', !canSave);
+    if (canSave && !st.done) els.dailyStreak.textContent = '⚠️ Serie in Gefahr – rette zuerst gestern!';
     els.deathPanel.classList.add('hidden');
     els.dailyPanel.classList.remove('hidden');
   },
   // ---------------- Teilen
-  shareText(){
+  shareText(forceDaily){
     const d = this.lastDeath;
     const url = location.origin + location.pathname;
-    if (this.mode === 'daily'){
+    if (forceDaily || (d && d.mode === 'daily')){
       const st = this.dailyState();
       const n = dailyNum(st.key);
-      const gerald = SAVE.geraldKills > 0 ? ` · 🕊️×${SAVE.geraldKills}` : '';
-      const streak = SAVE.streak > 0 ? ` · 🔥${SAVE.streak}` : '';
-      return `RUNG #${n} ${this.dailyEmoji(st) || '·'} ${st.success ? st.tries.length + ' Leiter' + (st.tries.length>1?'n':'') : 'X'}${gerald}${streak}\n${url}`;
+      const eff = effectiveStreak();
+      const streak = eff > 0 ? ` · 🔥${eff}` : '';
+      return `RUNG #${n} ${this.dailyEmoji(st) || '·'} ${st.success ? st.tries.length + ' Leiter' + (st.tries.length>1?'n':'') : 'X'}${streak}\n${url}`;
     }
     if (!d) return `🪜 RUNG – die höchste Leiter der Welt.\n${url}`;
     const ghost = '#g=' + encodeGhost(d);
     return `🪜 RUNG – ich bin ${d.h.toFixed(1)} m hochgekommen. Kletter gegen meinen Geist! 👻\n${url}${ghost}`;
   },
-  async share(){
-    const text = this.shareText();
+  // Primärer Share: NUR Text — der Ghost-Link ist die virale Fracht und darf
+  // nicht von Datei-Shares verschluckt werden (iOS lässt text bei files fallen)
+  async share(forceDaily){
+    const text = this.shareText(forceDaily);
     try {
-      if (navigator.share){
-        const blob = this.mode !== 'daily' ? await this.renderShareCard() : null;
-        if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob],'rung.png',{type:'image/png'})] })){
-          await navigator.share({ text, files: [new File([blob],'rung.png',{type:'image/png'})] });
-          return;
-        }
-        await navigator.share({ text });
-        return;
-      }
+      if (navigator.share){ await navigator.share({ text }); return; }
     } catch(e){ if (e && e.name === 'AbortError') return; }
     try { await navigator.clipboard.writeText(text); toast('📋 In Zwischenablage kopiert!'); }
     catch(e){ toast('Teilen nicht verfügbar'); }
+  },
+  // Sekundär: Bild-Share (Card trägt die URL selbst im Bild)
+  async shareImage(){
+    const blob = this.cardBlob || await this.renderShareCard().catch(()=>null);
+    const text = this.shareText();
+    try {
+      if (blob && navigator.share && navigator.canShare
+          && navigator.canShare({ files: [new File([blob],'rung.png',{type:'image/png'})] })){
+        await navigator.share({ text, files: [new File([blob],'rung.png',{type:'image/png'})] });
+        return;
+      }
+    } catch(e){ if (e && e.name === 'AbortError') return; }
+    this.share();
   },
   renderShareCard(){
     return new Promise(res => {
@@ -987,16 +1070,18 @@ const Game = {
       c.font = '700 56px system-ui'; c.fillStyle = '#fff';
       c.fillText(t.emo + ' ' + t.stamp, cw/2, ch/2 + 110);
       c.font = '600 44px system-ui'; c.fillStyle = 'rgba(255,255,255,0.85)';
-      c.fillText('Die höchste Leiter der Welt.', cw/2, ch - 160);
-      c.fillText('Schaffst du mehr?', cw/2, ch - 100);
+      c.fillText('Die höchste Leiter der Welt. Schaffst du mehr?', cw/2, ch - 160);
+      c.font = '700 40px system-ui'; c.fillStyle = '#ffd76a';
+      c.fillText(location.host + location.pathname, cw/2, ch - 96);
       drawGerald(c, cw/2 + 320, 300, -1, 'landed', 0, 5);
       oc.toBlob(res, 'image/png');
     });
   },
   updateChips(){
-    els.chipStreak.textContent = '🔥 ' + SAVE.streak;
+    const eff = effectiveStreak();
+    els.chipStreak.textContent = '🔥 ' + eff;
     els.chipFeather.textContent = '🪶 ' + SAVE.feathers;
-    els.chipStreak.classList.toggle('hidden', SAVE.streak === 0);
+    els.chipStreak.classList.toggle('hidden', eff === 0);
     els.chipFeather.classList.toggle('hidden', SAVE.feathers === 0);
     if (this.ghostData){ els.chipGhost.textContent = '👻 ' + this.ghostData.height.toFixed(0) + ' m'; els.chipGhost.classList.remove('hidden'); }
     else els.chipGhost.classList.add('hidden');
@@ -1015,7 +1100,10 @@ $('btnSound').addEventListener('click', e => {
 $('btnSound').textContent = AudioEngine.muted ? '🔇' : '🔊';
 for (const id of ['btnSound','btnDaily'])
   $(id).addEventListener('pointerdown', e => e.stopPropagation());
-$('btnDaily').addEventListener('click', e => { e.stopPropagation(); Game.openDaily(); });
+$('btnDaily').addEventListener('click', e => { e.stopPropagation();
+  // Mitten im Lauf kein Moduswechsel — das würde den Run als Daily werten
+  if (Game.state === 'run' || Game.state === 'topple' || Game.state === 'replayfall') return;
+  Game.openDaily(); });
 $('btnDailyPlay').addEventListener('click', () => {
   const st = Game.dailyState();
   if (st.done) return;
@@ -1039,6 +1127,7 @@ $('btnStreakSave').addEventListener('click', () => {
 });
 $('btnReplay').addEventListener('click', e => { e.stopPropagation(); Game.startReplayFall(); });
 $('btnShare').addEventListener('click', e => { e.stopPropagation(); Game.share(); });
+$('btnShareImg').addEventListener('click', e => { e.stopPropagation(); Game.shareImage(); });
 for (const id of ['deathPanel','dailyPanel'])
   $(id).addEventListener('pointerdown', e => e.stopPropagation());
 
@@ -1076,7 +1165,7 @@ function frame(now){
       sim.step();
       if (Game.ghost && !Game.ghost.done){
         Game.ghost.sim.step();
-        if (!Game.ghost.sim.alive) Game.ghost.done = true;
+        if (!Game.ghost.sim.alive){ Game.ghost.done = true; Game.ghost.visible = false; }
       }
       acc -= CFG.dt; steps++;
       if (!sim.alive){ Game.onFall(); break; }
@@ -1089,6 +1178,7 @@ function frame(now){
       else if (ev.t === 'geraldIn'){ AudioEngine.coo(); AudioEngine.flap(); }
       else if (ev.t === 'geraldLand'){ AudioEngine.coo(); vibrate(20); toast('🕊️ GERALD! Gegenlehnen!', 1400); }
       else if (ev.t === 'geraldOut'){ AudioEngine.flap(); toast('🕊️ Gerald zieht ab!', 1000); }
+      else if (ev.t === 'idlewarn'){ toast('💨 Der Wind findet dich – weiterklettern!', 1800); vibrate(25); }
       else if (ev.t === 'flagStart'){ AudioEngine.flagStart(); toast('🚩 Flagge wird gepflanzt – durchhalten!', 1500); }
       else if (ev.t === 'flagDone'){
         AudioEngine.flagDone(); vibrate([30,30,60]);
@@ -1110,14 +1200,17 @@ function frame(now){
     }
   }
   else if ((st === 'topple' || st === 'replayfall') && sim){
-    // Zeitlupen-Sturz: Pendel ohne Kontrolle bis ~90°, dann Panel
+    // Zeitlupen-Sturz: Pendel ohne Kontrolle bis ~90°, dann Panel.
+    // Accumulator mit skalierter Echtzeit -> gleiche Zeitlupe auf 60/120 Hz.
     Game.toppleT += dtReal;
-    const sdt = CFG.dt * Game.timeScale;
+    Game.toppleAcc = (Game.toppleAcc || 0) + dtReal * Game.timeScale * 2;
     if (Math.abs(sim.theta) < Math.PI/2 - 0.05){
-      for (let i=0;i<2;i++){
+      let guard = 0;
+      while (Game.toppleAcc >= CFG.dt && guard++ < 8 && Math.abs(sim.theta) < Math.PI/2 - 0.05){
+        Game.toppleAcc -= CFG.dt;
         const L = CFG.baseLen + sim.h;
-        sim.omega += (CFG.grav/L)*Math.sin(sim.theta)*1.2 * sdt;
-        sim.theta += sim.omega * sdt;
+        sim.omega += (CFG.grav/L)*Math.sin(sim.theta)*1.2 * CFG.dt;
+        sim.theta += sim.omega * CFG.dt;
       }
       if (Math.abs(sim.theta) >= Math.PI/2 - 0.05){
         AudioEngine.thud(); cam.shake = 14; vibrate([80,50,80]);
@@ -1166,15 +1259,20 @@ function frame(now){
     ctx.fillStyle = 'rgba(255,215,106,0.95)'; ctx.font = '800 16px system-ui'; ctx.textAlign='center';
     ctx.fillText('🚩 ' + (LANDMARKS[sim.flagBand]||sim.flagBand+' m') + ': Daumen runterziehen = Flagge banken!', W/2, H*0.42);
   }
+  // Sichtbarer Idle-Ratchet: Windstreifen ziehen quer, je länger man zögert
+  if (st === 'run' && sim && sim.idleAmp > 0.3 && Math.random() < sim.idleAmp*0.35){
+    const dir = Math.sin(t*5.3) >= 0 ? 1 : -1;
+    spawnP(dir > 0 ? -12 : W+12, Math.random()*H*0.7, dir*(240+Math.random()*180), (Math.random()-0.5)*40,
+      0.7, 2.5, 'rgba(255,255,255,0.85)');
+  }
   stepDrawParticles(dtReal);
   drawLeanMeter(st === 'run' ? sim : null);
 
-  // HUD
-  if (sim && st !== 'attract'){
-    els.alt.innerHTML = sim.h.toFixed(sim.h < 100 ? 1 : 0) + '<small>m</small>';
-  } else {
-    els.alt.innerHTML = '<small style="font-size:28px;letter-spacing:2px;font-weight:800">🪜 RUNG</small>';
-  }
+  // HUD (DOM nur bei Änderung anfassen)
+  const altHTML = (sim && st !== 'attract')
+    ? sim.h.toFixed(sim.h < 100 ? 1 : 0) + '<small>m</small>'
+    : '<small style="font-size:28px;letter-spacing:2px;font-weight:800">🪜 RUNG</small>';
+  if (altHTML !== Game.lastAltHTML){ els.alt.innerHTML = altHTML; Game.lastAltHTML = altHTML; }
   window.__RUNG_FRAME = (window.__RUNG_FRAME||0)+1;
 }
 requestAnimationFrame(frame);
