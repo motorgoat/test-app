@@ -346,13 +346,14 @@ const AudioEngine = {
   // Anschwellende Hüllkurve: Höhepunkt am ENDE (für Warn-Riser)
   envRise(g, t, peak, rise, rel){
     if (!(peak > 0.0002)){ g.gain.setValueAtTime(0, t); return; }
+    rise = Math.max(0.001, rise); rel = Math.max(0.02, rel);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + rise);
     g.gain.exponentialRampToValueAtTime(0.0001, t + rise + rel);
     g.gain.setValueAtTime(0, t + rise + rel + 0.005);
   },
   shape(g, t, o){
-    if (o.rise) this.envRise(g, t, o.gain, o.rise, Math.max(0.02, o.dur - o.rise));
+    if (o.rise) this.envRise(g, t, o.gain, Math.min(o.rise, o.dur*0.9), Math.max(0.02, o.dur - Math.min(o.rise, o.dur*0.9)));
     else this.env(g, t, o.gain, o.attack || 0.006, o.dur);
   },
   // Panner kostet 3 dB Leistung -> Vorverstärkung gleicht das aus
@@ -432,7 +433,11 @@ const AudioEngine = {
     const i = this.rungStep++;
     const center = Math.min(9, (h/12)|0);
     if (this.rungDeg === null) this.rungDeg = center;
-    this.rungDeg = clamp(this.rungDeg + (Math.random() < 0.5 ? -1 : 1), center-2, center+3);
+    // Am Fensterrand spiegeln statt klemmen: Klemmen erzeugt Tonwiederholungen
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    let next = this.rungDeg + dir;
+    if (next < center-2 || next > center+3) next = this.rungDeg - dir;
+    this.rungDeg = clamp(next, center-2, center+3);
     const deg = this.rungDeg;
     const semi = this.PENTA[((deg%5)+5)%5] + 12*Math.floor(deg/5);
     const f = 196 * Math.pow(2, semi/12) * (1 + (Math.random()-0.5)*0.03);
@@ -453,8 +458,8 @@ const AudioEngine = {
       gain: 0.026, filter: 'lowpass', fc: 1100, p: dir*0.6, prio: 1 });
   },
   gust(dir = 1){
-    this.noise({ dur: 0.7, filter: 'bandpass', fc: 1100, fcTo: 300, q: 0.8, gain: 0.09,
-      attack: 0.05, p: dir*0.7, prio: 1 });
+    this.noise({ dur: 0.7, filter: 'bandpass', fc: 1100, fcTo: 300, q: 0.8, gain: 0.075,
+      attack: 0.09, p: dir*0.55, prio: 1 });
   },
   // Holzknarzen: im Mittenband, wo es auf jedem Gerät zu hören ist
   creak(){
@@ -494,15 +499,17 @@ const AudioEngine = {
   },
   // Herzschlag "lub-dub": Dreieck statt Sinus, damit Obertöne auf dem
   // Handylautsprecher ankommen, plus perkussiver Mitten-Knock
-  heartbeat(){
-    this.duck(0.25, 0.15);
+  heartbeat(period = 0.62){
+    this.duck(0.55, 0.15);
     const beat = (d, g0) => {
       this.tone({ freq: 110, to: 58, dur: 0.16, type: 'triangle', gain: g0, attack: 0.006,
         delay: d, filter: 'lowpass', fc: 460, prio: 1 });
-      this.noise({ dur: 0.08, filter: 'bandpass', fc: 400, fcTo: 230, q: 1.2,
-        gain: g0*0.42, attack: 0.004, delay: d, prio: 1 });
+      // Der Knock ist der einzige Teil, der einen Handylautsprecher erreicht
+      this.noise({ dur: 0.08, filter: 'bandpass', fc: 700, fcTo: 420, q: 1.2,
+        gain: g0*1.2, attack: 0.004, delay: d, prio: 1 });
     };
-    beat(0, 0.105); beat(0.19, 0.076);
+    // Systole rückt mit steigendem Puls näher, wie bei einem echten Herzschlag
+    beat(0, 0.105); beat(Math.min(0.19, period*0.42), 0.076);
   },
   // "Der Wind findet dich": anschwellende Warnung beim Zögern
   idleWarn(){
@@ -511,7 +518,11 @@ const AudioEngine = {
     this.tone({ freq: 210, to: 158, dur: 0.8, type: 'triangle', gain: 0.05, attack: 0.06,
       filter: 'lowpass', fc: 700, vib: 5, vibRate: 4.5 });
   },
-  grab(){ this.noise({ dur: 0.09, fc: 1300, q: 1.2, gain: 0.16 }); },
+  grab(){
+    this.noise({ dur: 0.09, fc: 1300, q: 1.2, gain: 0.235 });
+    this.tone({ freq: 150, to: 95, dur: 0.12, type: 'triangle', gain: 0.05, attack: 0.004,
+      filter: 'lowpass', fc: 600 });
+  },
   fall(){
     this.duck(0.6, 0.9);
     this.tone({ freq: 520, to: 120, dur: 1.1, type: 'triangle', gain: 0.072, attack: 0.02,
@@ -536,6 +547,7 @@ const AudioEngine = {
   },
   // Ragdoll landet: dumpfer Aufprall mit Comic-Boing
   bodyThud(){
+    this.duck(0.45, 0.25);
     this.tone({ freq: 130, to: 62, dur: 0.22, type: 'triangle', gain: 0.16, attack: 0.004,
       filter: 'lowpass', fc: 520, prio: 1 });
     this.noise({ dur: 0.14, filter: 'bandpass', fc: 380, fcTo: 180, q: 0.8, gain: 0.12, attack: 0.003 });
@@ -562,7 +574,9 @@ const AudioEngine = {
   // Wind-Ambience geglättet setzen; nur bei relevanter Änderung neu automatisieren
   setWind(intensity, h){
     if (!this.windGain) return;
-    const target = this.muted ? 0 : Math.min(0.28, 0.03 + intensity*0.34);
+    // Deckel bewusst niedrig: bei 0.28 hielt die Ambience allein den Limiter
+    // dauerhaft in Regelung und verdeckte jedes Spielsignal.
+    const target = this.muted ? 0 : Math.min(0.12, 0.03 + intensity*0.34);
     if (Math.abs(target - this.wTarget) < 0.004 && Math.abs(h - this.wHeight) < 2) return;
     this.wTarget = target; this.wHeight = h;
     const t = this.ctx.currentTime;
@@ -631,7 +645,7 @@ window.addEventListener('pointerup', e => onUp(e.pointerId));
 window.addEventListener('pointercancel', e => onUp(e.pointerId));
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
-  if (e.code === 'Space' || e.code === 'ArrowUp'){ Input.keyDown = true; AudioEngine.init(); Game.onPress(); }
+  if (e.code === 'Space' || e.code === 'ArrowUp'){ Input.keyDown = true; AudioEngine.init(); AudioEngine.resume(); Game.onPress(); }
   if (e.code === 'ArrowLeft') Input.keyLean = -1;
   if (e.code === 'ArrowRight') Input.keyLean = 1;
   if (e.code === 'ArrowDown') Input.keyBrace = true;
@@ -1650,6 +1664,7 @@ const Game = {
     const s = this.toppleSnap;
     this.sim.theta = s.theta; this.sim.omega = s.omega; this.sim.h = s.h;
     RAG.spawn(this.sim);
+    AudioEngine.fall();
     this.state = 'replayfall'; this.toppleT = 0; this.timeScale = 0.28; this.toppleAcc = 0;
     cam.shake = 6;
   },
@@ -1916,9 +1931,10 @@ function frame(now){
     if (sim.alive && Math.abs(sim.theta) > 0.3 && Game.creakT <= 0){ AudioEngine.creak(); Game.creakT = 0.4 + Math.random()*0.4; }
     Game.heartbeatT -= dtReal;
     if (sim.alive && Math.abs(sim.theta) > 0.45 && Game.heartbeatT <= 0){
-      AudioEngine.heartbeat(); vibrate(15);
       // Puls beschleunigt, je näher der Sturz rückt (~97 bis ~214 bpm)
-      Game.heartbeatT = clamp(0.62 - (Math.abs(sim.theta) - 0.45)*2.0, 0.28, 0.62);
+      const period = clamp(0.62 - (Math.abs(sim.theta) - 0.45)*2.0, 0.28, 0.62);
+      AudioEngine.heartbeat(period); vibrate(15);
+      Game.heartbeatT = period;
     }
   }
   else if ((st === 'topple' || st === 'replayfall') && sim){
