@@ -42,10 +42,10 @@
            text-shadow: 0 2px 10px rgba(0,0,0,.6); opacity: 0; transition: opacity .25s; }
 
   .panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-           background: rgba(13,19,40,.94); color: #eef2ff; border-radius: 20px;
-           padding: 20px 22px; width: min(92vw, 380px); text-align: center; z-index: 20;
-           box-shadow: 0 14px 50px rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.14);
-           backdrop-filter: blur(6px); }
+           background: linear-gradient(165deg, rgba(24,32,66,.96), rgba(10,14,32,.97)); color: #eef2ff;
+           border-radius: 22px; padding: 20px 22px; width: min(92vw, 380px); text-align: center; z-index: 20;
+           box-shadow: 0 18px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+           border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(6px); }
   .panel h1 { font-size: 28px; letter-spacing: 1px; }
   .panel .stamp { display: inline-block; margin: 8px 0 2px; padding: 5px 14px; border: 2px solid #ff5470;
                   color: #ff8299; border-radius: 8px; font-weight: 800; font-size: 15px; letter-spacing: 1px;
@@ -55,8 +55,9 @@
   .panel .sub { color: #9fb0d8; font-size: 13px; margin: 6px 0 12px; line-height: 1.5; }
   .panel .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
   .panel button { border: 0; border-radius: 12px; padding: 11px 14px; font-size: 15px; font-weight: 700;
-                  background: #26335f; color: #fff; min-width: 96px; }
-  .panel button.primary { background: #ffd76a; color: #241d00; }
+                  background: linear-gradient(180deg, #33427a, #232f5c); color: #fff; min-width: 96px;
+                  box-shadow: 0 3px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.14); }
+  .panel button.primary { background: linear-gradient(180deg, #ffe08a, #f7c94b); color: #241d00; }
   .panel button:active { transform: scale(.95); }
   .panel .tapline { margin-top: 12px; font-size: 12px; color: #7f8fb8; }
   .panel .unlock { color: #7dffb2; font-weight: 800; font-size: 14px; min-height: 18px; margin-top: 2px; }
@@ -536,18 +537,37 @@ function stepDrawParticles(dt){
 
 // Deko (Gebäude, Wolken, Sterne) – rein visuell, eigener RNG
 const visRng = mulberry32(1337);
-const buildings = Array.from({length:14}, (_,i)=>({ x:(i-7)*70 + visRng()*40, w:40+visRng()*50, h:20+visRng()*70, c:visRng() }));
+const farCity = Array.from({length:22}, (_,i)=>({ x:(i-11)*46 + visRng()*30, w:26+visRng()*36, h:14+visRng()*46 }));
+const buildings = Array.from({length:14}, (_,i)=>({ x:(i-7)*74 + visRng()*40, w:44+visRng()*52, h:26+visRng()*84, c:visRng(), tone:visRng(), ant:visRng()<0.35 }));
 const clouds = Array.from({length:14}, ()=>({ wx:(visRng()-0.5)*24, wy:26+visRng()*52, s:30+visRng()*50, sp:3+visRng()*7 }));
-const stars = Array.from({length:90}, ()=>({ x:visRng(), y:visRng(), s:0.5+visRng()*1.8, tw:visRng()*6 }));
+const cloudsFar = Array.from({length:10}, ()=>({ wx:(visRng()-0.5)*24, wy:30+visRng()*48, s:46+visRng()*60, sp:1+visRng()*2.5 }));
+const stars = Array.from({length:110}, ()=>({ x:visRng(), y:visRng(), s:0.5+visRng()*1.8, tw:visRng()*6 }));
+let vigCache = { key:'', cvs:null };
+function vignette(){
+  const key = W+'_'+H;
+  if (vigCache.key !== key){
+    const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+    const c = oc.getContext('2d');
+    const r = c.createRadialGradient(W/2, H*0.45, Math.min(W,H)*0.45, W/2, H*0.5, Math.max(W,H)*0.75);
+    r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, 'rgba(6,8,24,0.34)');
+    c.fillStyle = r; c.fillRect(0,0,W,H);
+    // Scrim oben: Höhenzähler bleibt immer lesbar
+    const s = c.createLinearGradient(0,0,0,130);
+    s.addColorStop(0, 'rgba(4,6,18,0.42)'); s.addColorStop(1, 'rgba(4,6,18,0)');
+    c.fillStyle = s; c.fillRect(0,0,W,130);
+    vigCache = { key, cvs: oc };
+  }
+  ctx.drawImage(vigCache.cvs, 0, 0);
+}
 
 function skyColors(h){
   const stops = [
-    [0,   [126,178,232], [180,215,245]],
-    [25,  [96,152,220],  [168,205,240]],
-    [50,  [56,102,190],  [140,180,230]],
-    [75,  [24,48,120],   [90,120,190]],
-    [100, [6,10,34],     [30,40,90]],
-    [160, [2,4,16],      [10,14,40]],
+    [0,   [116,172,235], [255,214,166]],
+    [25,  [92,148,225],  [255,183,150]],
+    [50,  [58,100,196],  [176,160,215]],
+    [75,  [26,46,124],   [110,110,185]],
+    [100, [8,12,40],     [46,44,104]],
+    [160, [3,4,18],      [16,16,52]],
   ];
   let a=stops[stops.length-1], b=stops[stops.length-1];
   for (let i=0;i<stops.length-1;i++) if (h>=stops[i][0] && h<=stops[i+1][0]){ a=stops[i]; b=stops[i+1]; break; }
@@ -557,11 +577,11 @@ function skyColors(h){
 }
 const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 
-// Kamera: ppm = Pixel pro Meter, cy = Welthöhe in Bildschirmmitte
-const cam = { ppm: 60, cy: 2, shake: 0 };
+// Kamera: ppm = Pixel pro Meter, (cx,cy) = Weltpunkt in Bildschirmmitte
+const cam = { ppm: 60, cx: 0, cy: 2, shake: 0 };
 let skyCache = { key: '', grad: null };
 function worldToScreen(wx, wy){
-  return [ W/2 + wx*cam.ppm, H*0.62 - (wy - cam.cy)*cam.ppm ];
+  return [ W/2 + (wx - cam.cx)*cam.ppm, H*0.62 - (wy - cam.cy)*cam.ppm ];
 }
 
 function drawScene(sim, ghost, t){
@@ -576,7 +596,18 @@ function drawScene(sim, ghost, t){
   }
   ctx.fillStyle = skyCache.grad; ctx.fillRect(0,0,W,H);
 
-  // Sterne (ab 70 m einblenden)
+  // Sonne (unten) bzw. Mond (oben)
+  const sunA = clamp(1 - h/65, 0, 1);
+  if (sunA > 0){
+    const sx = W*0.78, sy = H*0.2;
+    const glow = ctx.createRadialGradient(sx, sy, 4, sx, sy, 130);
+    glow.addColorStop(0, `rgba(255,244,200,${0.85*sunA})`);
+    glow.addColorStop(0.25, `rgba(255,220,150,${0.4*sunA})`);
+    glow.addColorStop(1, 'rgba(255,210,140,0)');
+    ctx.fillStyle = glow; ctx.fillRect(sx-130, sy-130, 260, 260);
+    ctx.fillStyle = `rgba(255,250,225,${0.95*sunA})`;
+    ctx.beginPath(); ctx.arc(sx, sy, 26, 0, 7); ctx.fill();
+  }
   if (h > 70){
     const a = clamp((h-70)/30, 0, 1);
     for (const s of stars){
@@ -584,35 +615,78 @@ function drawScene(sim, ghost, t){
       ctx.fillStyle = '#fff';
       ctx.fillRect(s.x*W, s.y*H*0.9, s.s, s.s);
     }
+    // Mond mit Sichel-Schatten
+    ctx.globalAlpha = a;
+    const mx = W*0.22, my = H*0.16;
+    ctx.fillStyle = '#f4f0e2';
+    ctx.beginPath(); ctx.arc(mx, my, 22, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(20,24,60,0.85)';
+    ctx.beginPath(); ctx.arc(mx-9, my-4, 19, 0, 7); ctx.fill();
     ctx.globalAlpha = 1;
   }
   const shX = (Math.random()-0.5)*cam.shake, shY = (Math.random()-0.5)*cam.shake;
   ctx.save(); ctx.translate(shX, shY);
 
-  // Boden + Stadt
+  // Boden + Stadt (zwei Ebenen für Tiefe)
   const gy0 = worldToScreen(0, 0)[1];
-  if (gy0 < H + 200){
-    ctx.fillStyle = '#2e4a2f';
-    ctx.fillRect(0, gy0, W, Math.max(0, H-gy0)+200);
-    for (const b of buildings){
-      const bx = W/2 + b.x;
+  if (gy0 < H + 260){
+    // Dunst am Horizont
+    const haze = ctx.createLinearGradient(0, gy0-110, 0, gy0);
+    haze.addColorStop(0, 'rgba(255,220,180,0)');
+    haze.addColorStop(1, 'rgba(255,220,180,0.35)');
+    ctx.fillStyle = haze; ctx.fillRect(0, gy0-110, W, 110);
+    // Ferne Skyline (hell, dunstig, halbe Parallaxe)
+    ctx.fillStyle = 'rgba(150,160,205,0.5)';
+    for (const b of farCity){
       const bh = b.h * cam.ppm/60;
-      ctx.fillStyle = 'rgba(40,52,80,0.9)';
+      ctx.fillRect(W/2 + b.x*1.6 - cam.cx*cam.ppm*0.45, gy0-bh, b.w, bh+4);
+    }
+    // Boden
+    const gnd = ctx.createLinearGradient(0, gy0, 0, gy0+140);
+    gnd.addColorStop(0, '#5a7a4a'); gnd.addColorStop(1, '#31452c');
+    ctx.fillStyle = gnd;
+    ctx.fillRect(0, gy0, W, Math.max(0, H-gy0)+260);
+    // Nahe Gebäude mit Fenstern + Antennen
+    for (const b of buildings){
+      const bx = W/2 + b.x - cam.cx*cam.ppm*0.85;
+      const bh = b.h * cam.ppm/60;
+      const tone = 44 + b.tone*22;
+      ctx.fillStyle = `rgb(${tone},${tone+12},${tone+38})`;
       ctx.fillRect(bx, gy0-bh, b.w, bh);
-      ctx.fillStyle = 'rgba(255,230,150,0.5)';
+      ctx.fillStyle = 'rgba(255,255,255,0.09)';
+      ctx.fillRect(bx, gy0-bh, 5, bh);
+      if (b.ant){ ctx.strokeStyle = `rgb(${tone},${tone+12},${tone+38})`; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(bx+b.w*0.5, gy0-bh); ctx.lineTo(bx+b.w*0.5, gy0-bh-14); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(255,224,140,0.55)';
       for (let wy=8; wy<bh-6; wy+=14) for (let wx=6; wx<b.w-8; wx+=13)
         if (((wx*7+wy*13+((b.c*100)|0))|0)%3===0) ctx.fillRect(bx+wx, gy0-bh+wy, 4, 6);
     }
   }
-  // Wolken (Weltkoordinaten, driften horizontal)
+  // Wolken: ferne Schicht (langsam, blass) + nahe Schicht
+  for (const c of cloudsFar){
+    const cy = worldToScreen(0, c.wy)[1];
+    if (cy < -90 || cy > H+90) continue;
+    const x = (((c.wx*cam.ppm + W/2 + t*c.sp*8 - cam.cx*cam.ppm*0.35) % (W+340)) + (W+340)) % (W+340) - 170;
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(x, cy, c.s, c.s*0.34, 0, 0, 7);
+    ctx.ellipse(x+c.s*0.7, cy+5, c.s*0.55, c.s*0.26, 0, 0, 7);
+    ctx.fill();
+  }
   for (const c of clouds){
     const cy = worldToScreen(0, c.wy)[1];
     if (cy < -80 || cy > H+80) continue;
-    const x = (((c.wx*cam.ppm + W/2 + t*c.sp*8) % (W+300)) + (W+300)) % (W+300) - 150;
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    const x = (((c.wx*cam.ppm + W/2 + t*c.sp*8 - cam.cx*cam.ppm*0.7) % (W+300)) + (W+300)) % (W+300) - 150;
+    // Weiche Puffs: Schatten unten, Licht oben
+    ctx.fillStyle = 'rgba(190,205,235,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(x+3, cy+6, c.s*0.95, c.s*0.38, 0, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath();
     ctx.ellipse(x, cy, c.s, c.s*0.42, 0, 0, 7);
-    ctx.ellipse(x+c.s*0.6, cy+4, c.s*0.6, c.s*0.3, 0, 0, 7);
+    ctx.ellipse(x+c.s*0.55, cy-c.s*0.12, c.s*0.55, c.s*0.3, 0, 0, 7);
+    ctx.ellipse(x-c.s*0.5, cy+3, c.s*0.45, c.s*0.26, 0, 0, 7);
     ctx.fill();
   }
   // Jetstream-Streifen
@@ -663,6 +737,7 @@ function drawScene(sim, ghost, t){
   drawLadderClimber(sim, t, { alpha: 1 });
 
   ctx.restore();
+  vignette();
 }
 
 function drawLadderClimber(sim, t, style){
@@ -674,27 +749,48 @@ function drawLadderClimber(sim, t, style){
   ctx.globalAlpha = style.alpha;
 
   const gold = SAVE.unlocked.gold && !style.ghost;
-  ctx.strokeStyle = style.ghost ? '#b7a6ff' : (gold ? '#ffd76a' : '#c9803a');
-  ctx.lineWidth = Math.max(2, cam.ppm*0.06);
+  const railDark  = style.ghost ? '#7a68c9' : (gold ? '#c9a132' : '#8a5220');
+  const railLight = style.ghost ? '#b7a6ff' : (gold ? '#ffd76a' : '#c9803a');
   const railOff = 0.28;
-  // Zwei Holme: Achse (sinθ·s, cosθ·s), Querversatz senkrecht dazu = (cosθ, -sinθ)·off
+  ctx.lineCap = 'round';
+  // Bodenschatten der Leiter (nur in Bodennähe sichtbar)
+  if (!style.ghost){
+    const shA = clamp(1 - sim.h/40, 0, 1) * 0.28;
+    if (shA > 0){
+      const [bx0, by0] = worldToScreen(gxOff, 0);
+      ctx.fillStyle = `rgba(10,20,10,${shA})`;
+      ctx.beginPath();
+      ctx.ellipse(bx0 + sin*cam.ppm*0.8, by0 + cam.ppm*0.06, cam.ppm*0.9, cam.ppm*0.14, 0, 0, 7);
+      ctx.fill();
+    }
+  }
+  // Zwei Holme mit Tiefe: dunkler Kern + helle Kante
+  // Achse (sinθ·s, cosθ·s), Querversatz senkrecht dazu = (cosθ, -sinθ)·off
   for (const off of [-railOff, railOff]){
     const [ax,ay] = worldToScreen(cos*off + gxOff, -sin*off);
     const [bx,by] = worldToScreen(sin*ladderTop + cos*off + gxOff, cos*ladderTop - sin*off);
+    ctx.strokeStyle = railDark;
+    ctx.lineWidth = Math.max(3, cam.ppm*0.085);
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    ctx.strokeStyle = railLight;
+    ctx.lineWidth = Math.max(1.6, cam.ppm*0.045);
     ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
   }
-  // Sprossen (nur sichtbarer Bereich, EIN Pfad für alle -> ein stroke-Call)
-  ctx.lineWidth = Math.max(1.5, cam.ppm*0.045);
+  // Sprossen (nur sichtbarer Bereich, je EIN Pfad für Kern + Kante)
   const halfSpan = H/cam.ppm;
   const visBottom = Math.max(0, cam.cy - halfSpan);
   const visTop = Math.min(ladderTop, cam.cy + halfSpan);
-  ctx.beginPath();
-  for (let s = Math.ceil(visBottom*2)/2; s <= visTop; s += 0.5){
-    const [x1,y1] = worldToScreen(sin*s + cos*railOff + gxOff, cos*s - sin*railOff);
-    const [x2,y2] = worldToScreen(sin*s - cos*railOff + gxOff, cos*s + sin*railOff);
-    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+  for (const pass of [[railDark, 0.06], [railLight, 0.032]]){
+    ctx.strokeStyle = pass[0];
+    ctx.lineWidth = Math.max(1.4, cam.ppm*pass[1]);
+    ctx.beginPath();
+    for (let s = Math.ceil(visBottom*2)/2; s <= visTop; s += 0.5){
+      const [x1,y1] = worldToScreen(sin*s + cos*railOff + gxOff, cos*s - sin*railOff);
+      const [x2,y2] = worldToScreen(sin*s - cos*railOff + gxOff, cos*s + sin*railOff);
+      ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
   // Gepflanzte Flaggen
   ctx.font = `${Math.max(14, cam.ppm*0.4)|0}px system-ui`;
   ctx.textAlign = 'left';
@@ -710,28 +806,56 @@ function drawLadderClimber(sim, t, style){
   ctx.rotate(th*0.5 + (sim.curU||0)*0.3);
   const bob = Math.sin(sim.climbPhase*3.1)*3*s;
   const skin = style.ghost ? '#b7a6ff' : '#ffcf9e';
-  const suit = style.ghost ? '#8f7ce0' : '#e8503a';
-  ctx.strokeStyle = suit; ctx.lineWidth = 5*s; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-3*s, 6*s); ctx.lineTo(-8*s, 16*s + bob); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(3*s, 6*s); ctx.lineTo(8*s, 16*s - bob); ctx.stroke();
+  const suit = style.ghost ? '#8f7ce0' : '#ff6a3d';
+  const suitDark = style.ghost ? '#6c58c4' : '#c94a24';
+  ctx.lineCap = 'round';
+  // Beine (mit dunkler Kontur)
+  for (const leg of [[-3,-8,bob],[3,8,-bob]]){
+    ctx.strokeStyle = suitDark; ctx.lineWidth = 6.4*s;
+    ctx.beginPath(); ctx.moveTo(leg[0]*s, 6*s); ctx.lineTo(leg[1]*s, 16*s + leg[2]); ctx.stroke();
+    ctx.strokeStyle = suit; ctx.lineWidth = 4.6*s;
+    ctx.beginPath(); ctx.moveTo(leg[0]*s, 6*s); ctx.lineTo(leg[1]*s, 16*s + leg[2]); ctx.stroke();
+    // Schuh
+    ctx.fillStyle = '#33261e';
+    ctx.beginPath(); ctx.arc(leg[1]*s, 16.5*s + leg[2], 2.6*s, 0, 7); ctx.fill();
+  }
+  // Rucksack hinter dem Körper
+  ctx.fillStyle = style.ghost ? '#5c4ab0' : '#8a5a2a';
+  ctx.beginPath(); ctx.roundRect(-10.5*s, -10*s, 6*s, 13*s, 3*s); ctx.fill();
+  // Körper mit Kontur + Lichtkante
+  ctx.fillStyle = suitDark;
+  ctx.beginPath(); ctx.roundRect(-8*s, -15*s, 16*s, 24*s, 7*s); ctx.fill();
   ctx.fillStyle = suit;
   ctx.beginPath(); ctx.roundRect(-7*s, -14*s, 14*s, 22*s, 6*s); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.beginPath(); ctx.roundRect(-7*s, -14*s, 5*s, 22*s, 5*s); ctx.fill();
   if (SAVE.unlocked.scarf && !style.ghost){
-    ctx.strokeStyle = '#a82828'; ctx.lineWidth = 4*s;
+    ctx.strokeStyle = '#c93030'; ctx.lineWidth = 4*s;
     ctx.beginPath(); ctx.moveTo(0,-12*s); ctx.lineTo(-10*s - (sim.omega||0)*20*s, -4*s); ctx.stroke();
   }
-  ctx.strokeStyle = skin; ctx.lineWidth = 4.5*s;
-  ctx.beginPath(); ctx.moveTo(-5*s, -10*s); ctx.lineTo(-9*s, -20*s - bob); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(5*s, -10*s); ctx.lineTo(9*s, -20*s + bob); ctx.stroke();
+  // Arme (greifen abwechselnd nach oben)
+  for (const arm of [[-5,-9,-bob],[5,9,bob]]){
+    ctx.strokeStyle = suitDark; ctx.lineWidth = 6*s;
+    ctx.beginPath(); ctx.moveTo(arm[0]*s, -10*s); ctx.lineTo(arm[1]*s, -20*s + arm[2]); ctx.stroke();
+    ctx.strokeStyle = skin; ctx.lineWidth = 4.2*s;
+    ctx.beginPath(); ctx.moveTo(arm[0]*s, -10*s); ctx.lineTo(arm[1]*s, -20*s + arm[2]); ctx.stroke();
+  }
+  // Kopf + Helm
   ctx.fillStyle = skin;
   ctx.beginPath(); ctx.arc(0, -20*s, 6.5*s, 0, 7); ctx.fill();
+  ctx.fillStyle = style.ghost ? '#cabfff' : '#f4f4f0';
+  ctx.beginPath(); ctx.arc(0, -21.5*s, 6.9*s, Math.PI*1.02, Math.PI*1.98); ctx.fill();
+  ctx.fillStyle = style.ghost ? '#8f7ce0' : '#e04b28';
+  ctx.fillRect(-6.9*s, -22.6*s, 13.8*s, 2.2*s);
   // Panik-Gesicht bei starker Neigung
   const panic = Math.abs(sim.theta)/CFG.fallAngle;
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = '#26211f';
   const ew = panic > 0.55 ? 2.4 : 1.4;
-  ctx.beginPath(); ctx.arc(-2.2*s, -21*s, ew*s, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.2*s, -21*s, ew*s, 0, 7); ctx.fill();
-  if (panic > 0.55){ ctx.beginPath(); ctx.arc(0, -17.5*s, 2.2*s, 0, 7); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(-2.2*s, -19.5*s, ew*s, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.2*s, -19.5*s, ew*s, 0, 7); ctx.fill();
+  if (panic > 0.55){ ctx.beginPath(); ctx.arc(0, -16*s, 2.2*s, 0, 7); ctx.fill(); }
+  else { ctx.strokeStyle = '#26211f'; ctx.lineWidth = 1.2*s;
+    ctx.beginPath(); ctx.arc(0, -17.5*s, 2*s, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke(); }
   ctx.restore();
 
   // Gerald
@@ -757,19 +881,44 @@ function drawLadderClimber(sim, t, style){
 function drawGerald(c, x, y, dir, phase, t, s){
   c.save(); c.translate(x, y); c.scale(-dir*s, s);
   const flap = phase !== 'landed' ? Math.sin(t*22)*0.5 : 0;
-  c.fillStyle = '#8a93a6';
-  c.beginPath(); c.ellipse(-2, -2, 9, 4.5, -0.4 - flap, 0, 7); c.fill();
-  c.fillStyle = '#a7b0c3';
+  // Schwanzfedern
+  c.fillStyle = '#6f7890';
+  c.beginPath(); c.moveTo(-8, -1); c.lineTo(-16, -5); c.lineTo(-15, 1); c.closePath(); c.fill();
+  // Körper mit Verlauf (Bauch heller)
+  c.fillStyle = '#9aa4ba';
   c.beginPath(); c.ellipse(0, 0, 10, 7, 0, 0, 7); c.fill();
-  c.fillStyle = '#98a2b8';
-  c.beginPath(); c.arc(9, -5, 4.5, 0, 7); c.fill();
+  c.fillStyle = '#c3cbdc';
+  c.beginPath(); c.ellipse(1, 2.4, 7.5, 4.2, 0, 0, 7); c.fill();
+  // Flügel (über dem Körper)
+  c.fillStyle = '#7d87a0';
+  c.beginPath(); c.ellipse(-2, -2.5, 8.5, 4.2, -0.45 - flap, 0, 7); c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.25)';
+  c.beginPath(); c.ellipse(-3, -3.5, 5.5, 2.4, -0.45 - flap, 0, 7); c.fill();
+  // Kopf mit Schimmer
+  c.fillStyle = '#8b95ac';
+  c.beginPath(); c.arc(9, -5, 4.6, 0, 7); c.fill();
+  c.fillStyle = 'rgba(120,220,160,0.35)';
+  c.beginPath(); c.arc(8, -6, 3, 0, 7); c.fill();
+  // Auge (leicht genervt) mit weißem Ring
+  c.fillStyle = '#fff';
+  c.beginPath(); c.arc(10.4, -5.8, 1.9, 0, 7); c.fill();
   c.fillStyle = '#ff7040';
-  c.beginPath(); c.arc(10.4, -5.8, 1.3, 0, 7); c.fill();
+  c.beginPath(); c.arc(10.6, -5.7, 1.2, 0, 7); c.fill();
+  c.fillStyle = '#26211f';
+  c.beginPath(); c.arc(10.8, -5.6, 0.55, 0, 7); c.fill();
+  // Schnabel
   c.fillStyle = '#e8a23a';
-  c.beginPath(); c.moveTo(13, -5); c.lineTo(17, -4); c.lineTo(13, -3); c.fill();
+  c.beginPath(); c.moveTo(13, -5.6); c.lineTo(17.4, -4.4); c.lineTo(13, -3.2); c.closePath(); c.fill();
+  // Füßchen (nur gelandet)
+  if (phase === 'landed'){
+    c.strokeStyle = '#e8a23a'; c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(-2, 6.5); c.lineTo(-2, 9); c.moveTo(3, 6.5); c.lineTo(3, 9); c.stroke();
+  }
   if (SAVE.unlocked.helm){
     c.fillStyle = '#ffd76a';
-    c.beginPath(); c.arc(9, -7, 4.6, Math.PI, 0); c.fill();
+    c.beginPath(); c.arc(9, -7, 4.8, Math.PI, 0); c.fill();
+    c.fillStyle = '#e0b73f';
+    c.fillRect(4.2, -7.4, 9.6, 1.3);
   }
   c.restore();
 }
@@ -1233,6 +1382,11 @@ function frame(now){
     cam.ppm = lerp(cam.ppm, targetPpm, Math.min(1, dtReal * (st==='run' ? 2.5 : 4)));
     const targetCy = falling ? camSim.h*0.45 : Math.max(2, camSim.h*Math.cos(camSim.theta) - 1);
     cam.cy = lerp(cam.cy, targetCy, Math.min(1, dtReal*5));
+    // Seitliches Tracking: der Kletterer bleibt im Bild, auch bei Schräglage
+    const targetCx = st === 'attract' ? 0
+      : falling ? Math.sin(camSim.theta)*camSim.h*0.5
+      : Math.sin(camSim.theta)*camSim.h*0.9;
+    cam.cx = lerp(cam.cx, targetCx, Math.min(1, dtReal*6));
   }
 
   // --- Zeichnen
@@ -1241,6 +1395,13 @@ function frame(now){
   if (st === 'attract'){
     const a = Game.attractSim;
     a.theta = Math.sin(t*0.9)*0.06; a.h = 3 + Math.sin(t*0.5)*0.4; a.climbPhase = t*2;
+    // Rotierende Kurzanleitung
+    if (!Game.ghostData){
+      const hints = ['Daumen ziehen = balancieren', 'Kippt sie rechts → zieh nach rechts',
+        'Runterziehen = abstützen', 'Stehenbleiben ist NIE sicher'];
+      const hi = ((t/2.6)|0) % hints.length;
+      if (els.subhint.textContent !== hints[hi]) els.subhint.textContent = hints[hi];
+    }
   }
   drawScene(drawSim, Game.ghost, t);
   // Böen-Warnpfeil
@@ -1280,7 +1441,7 @@ requestAnimationFrame(frame);
 Game.updateChips();
 
 // Debug-/Test-Hook für automatisierte Tests
-window.__RUNG = { Game, Sim, CFG, SAVE, encodeGhost, decodeGhost, Input, AudioEngine, save };
+window.__RUNG = { Game, Sim, CFG, SAVE, encodeGhost, decodeGhost, Input, AudioEngine, save, cam };
 
 // ------------------------------------------------ PWA ----
 if ('serviceWorker' in navigator && location.protocol === 'https:'){
