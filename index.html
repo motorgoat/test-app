@@ -498,7 +498,7 @@ function decodeGhost(str){
     if (b[0] !== 1) return null;
     const seed = (b[2] | b[3]<<8 | b[4]<<16 | b[5]<<24) >>> 0;
     const height = (b[6] | b[7]<<8) / 10;
-    const assist = b[8]/100;
+    const assist = clamp(b[8]/100, 0, 1);
     const track = rleDec(Array.from(b.slice(9)));
     return { seed, height, assist, track, daily: b[1]===1 };
   } catch(e){ return null; }
@@ -866,6 +866,7 @@ const Game = {
     } else this.ghost = null;
     this.timeScale = 1; this.state = 'run';
     this.toppleSnap = null;
+    acc = 0; // kein Restfehler aus dem Vor-Run
     els.deathPanel.classList.add('hidden');
     els.dailyPanel.classList.add('hidden');
     els.hint.classList.add('hidden'); els.subhint.classList.add('hidden');
@@ -1119,7 +1120,7 @@ $('btnDailyClose').addEventListener('click', () => {
   }
   Game.updateChips();
 });
-$('btnDailyShare').addEventListener('click', () => Game.share());
+$('btnDailyShare').addEventListener('click', () => Game.share(true));
 $('btnStreakSave').addEventListener('click', () => {
   Game.dailySeedKey = todayKey(1);
   toast('🩹 Gestern nachholen – Serie retten!');
