@@ -195,24 +195,30 @@ loadSave();
 SAVE.sessions++; save();
 
 // ------------------------------------------------ Audio ----
-/* Bus-Architektur:  Stimmen ─┐
-                              ├─> sfxBus ─┐
-     Wind-Ambience ─> ambBus ─────────────┴─> master ─> Limiter ─> Ausgang
-   - Alle Hüllkurven starten und enden auf 0 (klickfrei).
+/* Signalkette:
+     Stimmen ─> sfxBus ─┐
+                        ├─> trim ─> Hochpass 55 Hz ─> Limiter ─> Softclip ─> master ─> Ausgang
+     Wind ─> ambBus ────┘                                                     (Mute/Lautstärke)
+
+   - Hüllkurven starten und enden auf 0 (klickfrei), Attack wird gegen dur geklemmt.
    - Rauschen kommt aus EINEM vorgerechneten Puffer (keine Allokation pro Ton).
-   - Stimmenbudget verhindert Aufsummieren bei Event-Salven.
-   - Lauter SFX duckt die Ambience kurz weg.
-   - Master-Pegel auf ~-16 LUFS im Spielbetrieb kalibriert, Limiter fängt Spitzen. */
+     Achtung: der Puffer ist bewusst nicht normalisiert (Spitzen ~ +6 dB), die
+     Gain-Werte von noise() und tone() sind daher NICHT in derselben Einheit.
+   - Stimmenbudget mit Priorität: unwichtige Salven (Sprossen) fallen zuerst weg.
+   - Lauter SFX duckt die Wind-Ambience kurz weg.
+   - Wichtig für Handy-Lautsprecher: jeder tiefe Sound hat eine Mittenschicht,
+     sonst ist er auf dem Zielgerät praktisch unhörbar. Der Hochpass entfernt
+     Sub-Anteile, die ohnehin nur Headroom kosten.
+   - Pegel offline gemessen (ITU-R BS.1770-4, K-weighted, gated) — Zielwerte im
+     Testprotokoll: Spielmix ~-16,5 LUFS, Worst Case Sample-Peak <= -3 dBFS. */
 const AudioEngine = {
-  ctx: null, master: null, limiter: null, sfxBus: null, ambBus: null, trim: null,
-  windFilter: null, windLow: null, windGain: null,
-  muted: !SAVE.sound, voices: 0, maxVoices: 20, noiseBuf: null,
-  rungStep: 0, lastRung: 0,
-  MASTER: 0.9,                  // Nutzerlautstärke (Mute schaltet hier)
-  // Kalibrierung: die Gain-Werte unten sind Design-Einheiten (relative Balance),
-  // TRIM hebt den Gesamtmix auf das Zielniveau. Offline gemessen nach ITU-R
-  // BS.1770-4: Spielmix ~-18 LUFS, Worst Case ohne Clipping (siehe Testprotokoll).
-  TRIM: 4.2,
+  ctx: null, master: null, limiter: null, clip: null, hp: null,
+  sfxBus: null, ambBus: null, trim: null, panL: null, panR: null,
+  windFilter: null, windLow: null, windGain: null, windMod: null,
+  muted: !SAVE.sound, voices: 0, maxVoices: 32, noiseBuf: null,
+  rungStep: 0, rungDeg: null, lastRung: 0, wTarget: -1, wHeight: -1,
+  MASTER: 1.0,                  // Nutzerlautstärke/Mute – sitzt NACH dem Limiter
+  TRIM: 7.0,                    // trägt die gesamte Pegelkalibrierung
   PENTA: [0, 2, 4, 7, 9],       // Dur-Pentatonik: klingt beim Klettern immer "richtig"
 
   init(){
@@ -222,27 +228,53 @@ const AudioEngine = {
     try { this.ctx = new AC({ latencyHint: 'interactive' }); } catch(e){ this.ctx = new AC(); }
     const c = this.ctx;
 
-    // Limiter als letzte Instanz: verhindert Clipping, wenn viel gleichzeitig spielt
-    this.limiter = c.createDynamicsCompressor();
-    this.limiter.threshold.value = -4;
-    this.limiter.knee.value = 2;
-    this.limiter.ratio.value = 20;
-    this.limiter.attack.value = 0.002;
-    this.limiter.release.value = 0.14;
-    this.limiter.connect(c.destination);
-
+    // Nutzerlautstärke ganz am Ende: Mute ist damit garantiert echte Stille
     this.master = c.createGain();
     this.master.gain.value = this.muted ? 0 : this.MASTER;
-    this.master.connect(this.limiter);
+    this.master.connect(c.destination);
 
-    // Trim trägt die Pegelkalibrierung, damit die Sound-Gains lesbare
-    // Design-Einheiten bleiben und Ducking weiter in 0..1 rechnet
-    this.trim = c.createGain(); this.trim.gain.value = this.TRIM; this.trim.connect(this.master);
+    // Softclip mit 4-fachem Oversampling: begrenzt auch Zwischenwert-Spitzen
+    // (das kann ein DynamicsCompressor mangels Vorausschau nicht)
+    const n = 4096, curve = new Float32Array(n), K = 0.5, CEIL = 0.708; // 0.708 = -3 dBFS
+    for (let i = 0; i < n; i++){
+      const x = (i/(n-1))*2 - 1, a = Math.abs(x);
+      curve[i] = Math.sign(x) * (a <= K ? a : K + (CEIL-K)*Math.tanh((a-K)/(CEIL-K)));
+    }
+    this.clip = c.createWaveShaper();
+    this.clip.curve = curve; this.clip.oversample = '4x';
+    this.clip.connect(this.master);
+
+    this.limiter = c.createDynamicsCompressor();
+    this.limiter.threshold.value = -6;
+    this.limiter.knee.value = 4;
+    this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.003;
+    this.limiter.release.value = 0.12;
+    this.limiter.connect(this.clip);
+
+    // Sub unter 55 Hz raus: auf Handys unhörbar, kostet aber Headroom
+    this.hp = c.createBiquadFilter();
+    this.hp.type = 'highpass'; this.hp.frequency.value = 55; this.hp.Q.value = 0.7;
+    this.hp.connect(this.limiter);
+
+    this.trim = c.createGain(); this.trim.gain.value = this.TRIM; this.trim.connect(this.hp);
     this.sfxBus = c.createGain(); this.sfxBus.gain.value = 1; this.sfxBus.connect(this.trim);
     this.ambBus = c.createGain(); this.ambBus.gain.value = 1; this.ambBus.connect(this.trim);
 
-    // Ein Rauschpuffer für alles (2 s, wird an zufälliger Stelle angespielt)
-    const len = c.sampleRate * 2;
+    // Feste Panorama-Busse für die Sprossen (spart Knoten im heißen Pfad).
+    // Der Vorverstärker gleicht den Leistungsverlust des Panners aus.
+    if (c.createStereoPanner){
+      const mk = p => {
+        const g = c.createGain(); g.gain.value = Math.SQRT2;
+        const sp = c.createStereoPanner(); sp.pan.value = p;
+        g.connect(sp); sp.connect(this.sfxBus);
+        return g;
+      };
+      this.panL = mk(-0.18); this.panR = mk(0.18);
+    }
+
+    // Ein Rauschpuffer für alles (3 s, wird an zufälliger Stelle angespielt)
+    const len = c.sampleRate * 3;
     this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
     let b0=0, b1=0, b2=0;
@@ -254,73 +286,112 @@ const AudioEngine = {
       d[i] = (b0+b1+b2+w*0.1848) * 0.28;
     }
 
-    // Dauerhafte Wind-Ambience: zwei Schichten, damit es nicht wie Zischen klingt
+    // Wind-Ambience: zwei Filterschichten + zwei langsame, teilerfremde LFOs,
+    // damit sie atmet und nie hörbar loopt (Schwebung ~2,3 min)
     const src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
     this.windLow = c.createBiquadFilter();
     this.windLow.type = 'lowpass'; this.windLow.frequency.value = 900; this.windLow.Q.value = 0.7;
     this.windFilter = c.createBiquadFilter();
     this.windFilter.type = 'bandpass'; this.windFilter.frequency.value = 420; this.windFilter.Q.value = 0.8;
     this.windGain = c.createGain(); this.windGain.gain.value = 0;
+    this.windMod = c.createGain(); this.windMod.gain.value = 1;
     src.connect(this.windLow); this.windLow.connect(this.windFilter);
-    this.windFilter.connect(this.windGain); this.windGain.connect(this.ambBus);
+    this.windFilter.connect(this.windGain); this.windGain.connect(this.windMod);
+    this.windMod.connect(this.ambBus);
     src.start();
+    const lf1 = c.createOscillator(); lf1.frequency.value = 0.071;
+    const lg1 = c.createGain(); lg1.gain.value = 0.38;          // Pegel atmet ±38 %
+    lf1.connect(lg1); lg1.connect(this.windMod.gain); lf1.start();
+    const lf2 = c.createOscillator(); lf2.frequency.value = 0.113;
+    const lg2 = c.createGain(); lg2.gain.value = 190;           // Bandpass wandert ±190 Hz
+    lf2.connect(lg2); lg2.connect(this.windFilter.frequency); lf2.start();
+
+    // iOS: nach Anruf/Unterbrechung landet der Kontext in 'interrupted'
+    c.addEventListener('statechange', () => {
+      if (c.state === 'interrupted' || (c.state === 'suspended' && !document.hidden))
+        c.resume().catch(()=>{});
+    });
   },
-  resume(){ if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(()=>{}); },
+  resume(){ if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(()=>{}); },
   setMuted(m){
     this.muted = m;
     if (this.master) this.master.gain.setTargetAtTime(m ? 0 : this.MASTER, this.ctx.currentTime, 0.02);
   },
   ok(){ return this.ctx && !this.muted; },
-  // Stimmenbudget: bei Salven wird der leiseste Kandidat einfach verworfen
-  take(){ if (this.voices >= this.maxVoices) return false; this.voices++; return true; },
-  free(node, when){
-    const rel = () => { this.voices = Math.max(0, this.voices-1); node.onended = null; };
+  // Stimmenbudget: wichtige Sounds (prio) dürfen es überschreiten,
+  // Salven wie Sprossen fallen zuerst weg
+  take(prio){ if (this.voices >= this.maxVoices && !prio) return false; this.voices++; return true; },
+  free(node, when, tail){
+    let id = 0, done = false;
+    const rel = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(id);
+      try { node.disconnect(); if (tail && tail !== node) tail.disconnect(); } catch(e){}
+      this.voices = Math.max(0, this.voices - 1);
+      node.onended = null;
+    };
     node.onended = rel;
-    setTimeout(rel, Math.max(50, (when - this.ctx.currentTime + 0.4)*1000));
+    id = setTimeout(rel, Math.max(50, (when - this.ctx.currentTime + 0.4) * 1000));
   },
   // Klickfreie Hüllkurve: von 0 hoch, exponentiell runter, sauber auf 0 beenden
   env(g, t, peak, attack, dur){
+    if (!(peak > 0.0002)){ g.gain.setValueAtTime(0, t); return; }
+    attack = Math.min(attack, dur*0.5);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + attack);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     g.gain.setValueAtTime(0, t + dur + 0.005);
   },
+  // Anschwellende Hüllkurve: Höhepunkt am ENDE (für Warn-Riser)
+  envRise(g, t, peak, rise, rel){
+    if (!(peak > 0.0002)){ g.gain.setValueAtTime(0, t); return; }
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + rise);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + rise + rel);
+    g.gain.setValueAtTime(0, t + rise + rel + 0.005);
+  },
+  shape(g, t, o){
+    if (o.rise) this.envRise(g, t, o.gain, o.rise, Math.max(0.02, o.dur - o.rise));
+    else this.env(g, t, o.gain, o.attack || 0.006, o.dur);
+  },
+  // Panner kostet 3 dB Leistung -> Vorverstärkung gleicht das aus
   pan(node, p){
     if (!p || !this.ctx.createStereoPanner) return node;
-    const sp = this.ctx.createStereoPanner();
-    sp.pan.value = clamp(p, -1, 1);
-    node.connect(sp);
+    const comp = this.ctx.createGain(); comp.gain.value = Math.SQRT2;
+    const sp = this.ctx.createStereoPanner(); sp.pan.value = clamp(p, -1, 1);
+    node.connect(comp); comp.connect(sp);
     return sp;
   },
   // Grundbaustein Ton
   tone(o){
-    if (!this.ok() || !this.take()) return;
+    if (!this.ok() || !this.take(o.prio)) return;
     const c = this.ctx, t = c.currentTime + (o.delay||0);
     const osc = c.createOscillator();
     osc.type = o.type || 'sine';
     osc.frequency.setValueAtTime(o.freq, t);
     if (o.to) osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.to), t + (o.bendDur || o.dur));
     const g = c.createGain();
-    this.env(g, t, o.gain, o.attack || 0.006, o.dur);
+    this.shape(g, t, o);
     let node = osc; node.connect(g); node = g;
     if (o.filter){
       const f = c.createBiquadFilter();
       f.type = o.filter; f.frequency.value = o.fc || 1200; f.Q.value = o.q || 0.7;
       node.connect(f); node = f;
     }
-    // Leichtes Vibrato (Möwe/Taube, Holzknarzen)
     if (o.vib){
       const lfo = c.createOscillator(), lg = c.createGain();
       lfo.frequency.value = o.vibRate || 6; lg.gain.value = o.vib;
       lfo.connect(lg); lg.connect(osc.frequency); lfo.start(t); lfo.stop(t + o.dur + 0.05);
     }
-    this.pan(node, o.p).connect(o.bus || this.sfxBus);
+    const tail = this.pan(node, o.p);
+    tail.connect(o.bus || this.sfxBus);
     osc.start(t); osc.stop(t + o.dur + 0.02);
-    this.free(osc, t + o.dur);
+    this.free(osc, t + o.dur, tail);
   },
   // Grundbaustein Rauschen
   noise(o){
-    if (!this.ok() || !this.take()) return;
+    if (!this.ok() || !this.take(o.prio)) return;
     const c = this.ctx, t = c.currentTime + (o.delay||0);
     const s = c.createBufferSource();
     s.buffer = this.noiseBuf;
@@ -331,12 +402,14 @@ const AudioEngine = {
     if (o.fcTo) f.frequency.exponentialRampToValueAtTime(Math.max(40, o.fcTo), t + o.dur);
     f.Q.value = o.q || 0.9;
     const g = c.createGain();
-    this.env(g, t, o.gain, o.attack || 0.004, o.dur);
+    this.shape(g, t, o);
     s.connect(f); f.connect(g);
-    this.pan(g, o.p).connect(o.bus || this.sfxBus);
-    const off = Math.random() * 1.5;
-    s.start(t, off, o.dur + 0.05);
-    this.free(s, t + o.dur);
+    const tail = this.pan(g, o.p);
+    tail.connect(o.bus || this.sfxBus);
+    // Startpunkt so wählen, dass der Puffer nicht mitten im Ton endet
+    const room = Math.max(0, this.noiseBuf.duration - (o.dur + 0.08));
+    s.start(t, Math.random()*room, o.dur + 0.05);
+    this.free(s, t + o.dur, tail);
   },
   // Ambience kurz wegdrücken, damit wichtige Signale durchkommen
   duck(amount = 0.45, hold = 0.12){
@@ -348,105 +421,156 @@ const AudioEngine = {
   },
 
   // -------- Spielereignisse --------
-  // Sprosse: sehr leise, wechselnde Hand, Tonleiter steigt mit der Höhe.
-  // Läuft ~6×/s, darf deshalb nie im Vordergrund stehen.
+  // Sprosse: läuft ~6×/s und darf deshalb nie nerven. Statt fester Tonleiter
+  // ein begrenzter Zufallslauf, dessen Zentrum mit der Höhe steigt; Register
+  // gedeckelt (sonst wird es schrill), Pegel je Oktave kompensiert, dazu
+  // leichte Ton- und Pegelstreuung gegen den Maschinengewehr-Effekt.
   rung(h){
     const now = this.ctx ? this.ctx.currentTime : 0;
-    if (now - this.lastRung < 0.055) return;       // Anti-Maschinengewehr
+    if (now - this.lastRung < 0.055) return;
     this.lastRung = now;
     const i = this.rungStep++;
-    const semi = this.PENTA[i % 5] + 12*Math.min(3, (h/40)|0);
-    const f = 196 * Math.pow(2, semi/12);
-    this.tone({ freq: f, dur: 0.075, type: 'triangle', gain: 0.055, attack: 0.003,
-      filter: 'lowpass', fc: 2600, p: (i%2 ? 0.18 : -0.18) });
-    this.noise({ dur: 0.035, fc: 1900, q: 1.6, gain: 0.028, p: (i%2 ? 0.18 : -0.18) }); // Holzkontakt
+    const center = Math.min(9, (h/12)|0);
+    if (this.rungDeg === null) this.rungDeg = center;
+    this.rungDeg = clamp(this.rungDeg + (Math.random() < 0.5 ? -1 : 1), center-2, center+3);
+    const deg = this.rungDeg;
+    const semi = this.PENTA[((deg%5)+5)%5] + 12*Math.floor(deg/5);
+    const f = 196 * Math.pow(2, semi/12) * (1 + (Math.random()-0.5)*0.03);
+    const oct = Math.max(0, Math.floor(semi/12));
+    const bus = (i%2 ? this.panR : this.panL) || this.sfxBus;
+    this.tone({ freq: f, dur: 0.075, type: 'triangle', attack: 0.003, bus,
+      gain: 0.105 * Math.pow(0.74, oct) * (0.85 + Math.random()*0.3) });
+    // Holzkontakt: konstanter Anker genau dort, wo Handylautsprecher stark sind
+    this.noise({ dur: 0.04, fc: 1400 + Math.random()*600, q: 1.3, gain: 0.062, bus });
   },
-  // Böenwarnung: gerichteter Riser – man hört, von welcher Seite es kommt
+  // Böenwarnung: gerichteter Riser, dessen Höhepunkt mit dem Einsetzen der Böe
+  // zusammenfällt – sonst warnt er 0,75 s zu früh
   gustWarn(dir = 1){
-    this.duck(0.4, 0.5);
-    this.noise({ dur: 0.85, filter: 'bandpass', fc: 260, fcTo: 1500, q: 1.1, gain: 0.1, attack: 0.25, p: dir*0.85 });
-    this.tone({ freq: 174, to: 300, dur: 0.8, bendDur: 0.75, type: 'triangle', gain: 0.05,
-      attack: 0.2, filter: 'lowpass', fc: 900, p: dir*0.6 });
+    this.duck(0.4, 0.9);
+    this.noise({ dur: 1.0, rise: 0.92, filter: 'bandpass', fc: 240, fcTo: 1800, q: 1.1,
+      gain: 0.05, p: dir*0.85, prio: 1 });
+    this.tone({ freq: 165, to: 330, dur: 1.0, rise: 0.92, bendDur: 0.95, type: 'triangle',
+      gain: 0.026, filter: 'lowpass', fc: 1100, p: dir*0.6, prio: 1 });
   },
   gust(dir = 1){
-    this.noise({ dur: 0.7, filter: 'bandpass', fc: 1100, fcTo: 300, q: 0.8, gain: 0.12, attack: 0.05, p: dir*0.7 });
+    this.noise({ dur: 0.7, filter: 'bandpass', fc: 1100, fcTo: 300, q: 0.8, gain: 0.09,
+      attack: 0.05, p: dir*0.7, prio: 1 });
   },
+  // Holzknarzen: im Mittenband, wo es auf jedem Gerät zu hören ist
   creak(){
-    const f = 82 + Math.random()*36;
-    this.tone({ freq: f, to: f*0.72, dur: 0.28, type: 'sawtooth', gain: 0.035, attack: 0.02,
-      filter: 'lowpass', fc: 520, q: 3.5, vib: 5, vibRate: 11 });
+    this.duck(0.2, 0.1);
+    const f = 240 + Math.random()*180;
+    this.tone({ freq: f, to: f*0.82, dur: 0.3, type: 'sawtooth', gain: 0.12, attack: 0.03,
+      filter: 'bandpass', fc: f*2.2, q: 6, vib: f*0.06, vibRate: 15 + Math.random()*12 });
+    this.noise({ dur: 0.3, filter: 'bandpass', fc: 800 + Math.random()*300, q: 8,
+      gain: 0.088, attack: 0.05 });
   },
+  // Taube: drei Silben mit betonter Mitte statt zwei gleichlangen Tönen
   coo(){
-    this.tone({ freq: 560, to: 470, dur: 0.13, type: 'sine', gain: 0.075, filter: 'bandpass', fc: 900, q: 2, vib: 12, vibRate: 18 });
-    this.tone({ freq: 470, to: 400, dur: 0.2, type: 'sine', gain: 0.07, delay: 0.15, filter: 'bandpass', fc: 780, q: 2, vib: 9, vibRate: 14 });
+    const s = (fr, to, dur, g, d) => this.tone({ freq: fr, to, dur, type: 'triangle', gain: g,
+      delay: d, filter: 'lowpass', fc: 1200, vib: 8, vibRate: 10 });
+    s(430, 400, 0.12, 0.028, 0);
+    s(400, 470, 0.26, 0.034, 0.14);
+    s(455, 380, 0.2, 0.024, 0.44);
   },
   flap(){
     for (let i = 0; i < 3; i++)
-      this.noise({ dur: 0.09, filter: 'bandpass', fc: 700 - i*90, q: 0.7, gain: 0.075 - i*0.016, delay: i*0.13, attack: 0.012 });
+      this.noise({ dur: 0.09, filter: 'bandpass', fc: 520 - i*60, fcTo: 900 - i*60, q: 0.7,
+        gain: 0.075 - i*0.016, delay: i*0.11 + Math.random()*0.05, attack: 0.012 });
   },
   flagStart(){
-    this.noise({ dur: 0.05, fc: 2400, q: 2, gain: 0.06 });
-    this.tone({ freq: 330, to: 494, dur: 0.14, type: 'triangle', gain: 0.06, filter: 'lowpass', fc: 2200 });
+    this.noise({ dur: 0.05, fc: 2400, q: 2, gain: 0.13 });
+    this.tone({ freq: 330, to: 494, dur: 0.14, type: 'triangle', gain: 0.14, filter: 'lowpass', fc: 2200 });
   },
   // Belohnung: aufsteigende Pentatonik mit Glockenanteil
   flagDone(){
     this.duck(0.5, 0.4);
     [0, 4, 7, 12].forEach((s, i) => {
       const f = 392 * Math.pow(2, s/12);
-      this.tone({ freq: f, dur: 0.3, type: 'triangle', gain: 0.075, delay: i*0.085, filter: 'lowpass', fc: 4000 });
-      this.tone({ freq: f*2, dur: 0.18, type: 'sine', gain: 0.03, delay: i*0.085 });
+      this.tone({ freq: f, dur: 0.3, type: 'triangle', gain: 0.06, delay: i*0.085,
+        filter: 'lowpass', fc: 4000, prio: 1 });
+      this.tone({ freq: f*2, dur: 0.18, type: 'sine', gain: 0.024, delay: i*0.085, prio: 1 });
     });
   },
-  // Herzschlag: "lub-dub" statt einzelnem Brummen
+  // Herzschlag "lub-dub": Dreieck statt Sinus, damit Obertöne auf dem
+  // Handylautsprecher ankommen, plus perkussiver Mitten-Knock
   heartbeat(){
-    this.tone({ freq: 78, to: 46, dur: 0.16, type: 'sine', gain: 0.16, attack: 0.008 });
-    this.tone({ freq: 66, to: 40, dur: 0.2, type: 'sine', gain: 0.11, attack: 0.008, delay: 0.19 });
+    this.duck(0.25, 0.15);
+    const beat = (d, g0) => {
+      this.tone({ freq: 110, to: 58, dur: 0.16, type: 'triangle', gain: g0, attack: 0.006,
+        delay: d, filter: 'lowpass', fc: 460, prio: 1 });
+      this.noise({ dur: 0.08, filter: 'bandpass', fc: 400, fcTo: 230, q: 1.2,
+        gain: g0*0.42, attack: 0.004, delay: d, prio: 1 });
+    };
+    beat(0, 0.105); beat(0.19, 0.076);
   },
+  // "Der Wind findet dich": anschwellende Warnung beim Zögern
+  idleWarn(){
+    this.duck(0.35, 0.7);
+    this.noise({ dur: 1.1, rise: 0.8, filter: 'bandpass', fc: 300, fcTo: 1000, q: 1.4, gain: 0.075 });
+    this.tone({ freq: 210, to: 158, dur: 0.8, type: 'triangle', gain: 0.05, attack: 0.06,
+      filter: 'lowpass', fc: 700, vib: 5, vibRate: 4.5 });
+  },
+  grab(){ this.noise({ dur: 0.09, fc: 1300, q: 1.2, gain: 0.16 }); },
   fall(){
     this.duck(0.6, 0.9);
-    this.tone({ freq: 520, to: 120, dur: 1.1, type: 'triangle', gain: 0.09, attack: 0.02, filter: 'lowpass', fc: 2200 });
-    this.noise({ dur: 1.1, filter: 'lowpass', fc: 1400, fcTo: 300, q: 0.6, gain: 0.06, attack: 0.08 });
+    this.tone({ freq: 520, to: 120, dur: 1.1, type: 'triangle', gain: 0.072, attack: 0.02,
+      filter: 'lowpass', fc: 2200, prio: 1 });
+    this.noise({ dur: 1.1, filter: 'lowpass', fc: 1400, fcTo: 300, q: 0.6, gain: 0.048,
+      attack: 0.08, prio: 1 });
   },
   letGo(){
     this.tone({ freq: 700, to: 240, dur: 0.42, type: 'sine', gain: 0.08, filter: 'lowpass', fc: 2400 });
   },
-  // Leiter schlägt auf: Tiefschlag + Holzgeklapper
+  // Leiter schlägt auf: Sub + Mittenkörper + Holzgeklapper
   thud(){
     this.duck(0.7, 0.35);
-    this.tone({ freq: 96, to: 38, dur: 0.34, type: 'sine', gain: 0.34, attack: 0.004 });
-    this.noise({ dur: 0.26, filter: 'lowpass', fc: 900, fcTo: 180, q: 0.7, gain: 0.2, attack: 0.003 });
+    this.tone({ freq: 96, to: 55, dur: 0.3, type: 'sine', gain: 0.17, attack: 0.004, prio: 1 });
+    this.tone({ freq: 190, to: 90, dur: 0.22, type: 'triangle', gain: 0.14, attack: 0.003,
+      filter: 'lowpass', fc: 700, prio: 1 });
+    this.noise({ dur: 0.18, filter: 'bandpass', fc: 420, fcTo: 170, q: 0.9, gain: 0.16,
+      attack: 0.003, prio: 1 });
     for (let i = 0; i < 4; i++)
-      this.noise({ dur: 0.05, fc: 1100 + Math.random()*900, q: 3, gain: 0.055, delay: 0.05 + i*0.06 + Math.random()*0.03 });
+      this.noise({ dur: 0.05, fc: 1100 + Math.random()*900, q: 3, gain: 0.085,
+        delay: 0.05 + i*0.06 + Math.random()*0.03 });
   },
   // Ragdoll landet: dumpfer Aufprall mit Comic-Boing
   bodyThud(){
-    this.tone({ freq: 130, to: 52, dur: 0.22, type: 'sine', gain: 0.2, attack: 0.004 });
-    this.noise({ dur: 0.14, filter: 'lowpass', fc: 600, fcTo: 160, q: 0.6, gain: 0.11, attack: 0.003 });
-    this.tone({ freq: 300, to: 150, dur: 0.24, type: 'triangle', gain: 0.05, delay: 0.05, filter: 'lowpass', fc: 1200, vib: 26, vibRate: 13 });
+    this.tone({ freq: 130, to: 62, dur: 0.22, type: 'triangle', gain: 0.16, attack: 0.004,
+      filter: 'lowpass', fc: 520, prio: 1 });
+    this.noise({ dur: 0.14, filter: 'bandpass', fc: 380, fcTo: 180, q: 0.8, gain: 0.12, attack: 0.003 });
+    this.tone({ freq: 300, to: 150, dur: 0.24, type: 'triangle', gain: 0.05, delay: 0.05,
+      filter: 'lowpass', fc: 1200, vib: 26, vibRate: 13 });
   },
   newBest(){
     this.duck(0.55, 0.6);
     [0, 4, 7, 12, 16].forEach((s, i) => {
       const f = 523.25 * Math.pow(2, s/12);
-      this.tone({ freq: f, dur: 0.42, type: 'triangle', gain: 0.08, delay: i*0.075, filter: 'lowpass', fc: 5000 });
-      this.tone({ freq: f*2.01, dur: 0.3, type: 'sine', gain: 0.028, delay: i*0.075 });
+      this.tone({ freq: f, dur: 0.42, type: 'triangle', gain: 0.055, delay: i*0.075,
+        filter: 'lowpass', fc: 5000, prio: 1 });
+      this.tone({ freq: f*2.01, dur: 0.3, type: 'sine', gain: 0.019, delay: i*0.075, prio: 1 });
     });
   },
-  unlock(){
+  // Freischaltung: wird hinter die Rekord-Fanfare gelegt statt daraufgestapelt
+  unlock(delay = 0){
+    this.duck(0.4, 0.4 + delay);
     [0, 7, 12, 19].forEach((s, i) =>
-      this.tone({ freq: 659.25*Math.pow(2, s/12), dur: 0.3, type: 'sine', gain: 0.06, delay: i*0.06 }));
+      this.tone({ freq: 659.25*Math.pow(2, s/12), dur: 0.3, type: 'sine', gain: 0.05,
+        delay: delay + i*0.06, prio: 1 }));
   },
-  uiTap(){ this.tone({ freq: 480, to: 660, dur: 0.06, type: 'sine', gain: 0.05 }); },
-  // Wind-Ambience geglättet setzen (kein Zippern durch Wertsprünge pro Frame)
+  uiTap(){ this.tone({ freq: 480, to: 660, dur: 0.06, type: 'sine', gain: 0.115 }); },
+  // Wind-Ambience geglättet setzen; nur bei relevanter Änderung neu automatisieren
   setWind(intensity, h){
     if (!this.windGain) return;
+    const target = this.muted ? 0 : Math.min(0.28, 0.03 + intensity*0.34);
+    if (Math.abs(target - this.wTarget) < 0.004 && Math.abs(h - this.wHeight) < 2) return;
+    this.wTarget = target; this.wHeight = h;
     const t = this.ctx.currentTime;
-    const target = this.muted ? 0 : Math.min(0.2, 0.022 + intensity*0.3);
     this.windGain.gain.setTargetAtTime(target, t, 0.12);
     this.windFilter.frequency.setTargetAtTime(340 + Math.min(600, h*3.2), t, 0.3);
     this.windLow.frequency.setTargetAtTime(700 + Math.min(1600, h*8), t, 0.3);
   },
-  // Rückwärtskompatible Helfer (werden von älteren Aufrufstellen benutzt)
+  // Rückwärtskompatible Helfer
   beep(freq, dur=0.08, type='sine', gain=0.25, slideTo=0, delay=0){
     this.tone({ freq, dur, type, gain: gain*0.55, to: slideTo, delay });
   },
@@ -454,7 +578,9 @@ const AudioEngine = {
     this.noise({ dur, fc: freq, gain: gain*0.5, delay });
   },
 };
-// Kontext bei Hintergrund pausieren (Akku + iOS-Regeln)
+// Kontext bei Hintergrund pausieren (Akku + iOS-Regeln).
+// Bekannte Plattformgrenze: auf iOS schaltet der Stummschalter am Gerät reine
+// WebAudio-Ausgabe komplett ab – dafür gibt es keinen sauberen Workaround.
 document.addEventListener('visibilitychange', () => {
   if (!AudioEngine.ctx) return;
   if (document.hidden) AudioEngine.ctx.suspend().catch(()=>{});
@@ -1437,6 +1563,9 @@ const Game = {
     this.toppleSnap = null;
     RAG.on = false;
     acc = 0; // kein Restfehler aus dem Vor-Run
+    this.heartbeatT = 0.4; this.creakT = 0.3;
+    AudioEngine.rungDeg = null;   // Tonlage startet neu unten
+    AudioEngine.grab();           // der Griff an die Leiter gibt dem Start Gewicht
     els.deathPanel.classList.add('hidden');
     els.dailyPanel.classList.add('hidden');
     els.hint.classList.add('hidden'); els.subhint.classList.add('hidden');
@@ -1472,8 +1601,13 @@ const Game = {
     this.lastDeath = { h, cause, track: sim.track.slice(), seed: sim.seed, assist: sim.assist,
       mode: sim.mode, capH: sim.capH, newBest, feathers };
     this.newUnlock = null;
+    // Freischaltungen hinter die Rekord-Fanfare staffeln statt draufstapeln
+    let uq = newBest ? 0.55 : 0;
     for (const u of UNLOCKS){
-      if (!SAVE.unlocked[u.id] && SAVE.feathers >= u.at){ SAVE.unlocked[u.id] = true; this.newUnlock = u.label; AudioEngine.unlock(); }
+      if (!SAVE.unlocked[u.id] && SAVE.feathers >= u.at){
+        SAVE.unlocked[u.id] = true; this.newUnlock = u.label;
+        AudioEngine.unlock(uq); uq += 0.45;
+      }
     }
     if (sim.mode === 'daily') this.recordDailyAttempt(h, cause, sim.dailyKey);
     save();
@@ -1767,7 +1901,7 @@ function frame(now){
       else if (ev.t === 'geraldIn'){ AudioEngine.coo(); AudioEngine.flap(); }
       else if (ev.t === 'geraldLand'){ AudioEngine.coo(); vibrate(20); toast('🕊️ GERALD! Gegenlehnen!', 1400); }
       else if (ev.t === 'geraldOut'){ AudioEngine.flap(); toast('🕊️ Gerald zieht ab!', 1000); }
-      else if (ev.t === 'idlewarn'){ toast('💨 Der Wind findet dich – weiterklettern!', 1800); vibrate(25); }
+      else if (ev.t === 'idlewarn'){ AudioEngine.idleWarn(); toast('💨 Der Wind findet dich – weiterklettern!', 1800); vibrate(25); }
       else if (ev.t === 'flagStart'){ AudioEngine.flagStart(); toast('🚩 Flagge wird gepflanzt – durchhalten!', 1500); }
       else if (ev.t === 'flagDone'){
         AudioEngine.flagDone(); vibrate([30,30,60]);
@@ -1781,9 +1915,11 @@ function frame(now){
     Game.creakT -= dtReal;
     if (sim.alive && Math.abs(sim.theta) > 0.3 && Game.creakT <= 0){ AudioEngine.creak(); Game.creakT = 0.4 + Math.random()*0.4; }
     Game.heartbeatT -= dtReal;
-    if (sim.alive && Math.abs(sim.theta) > 0.45 && Game.heartbeatT <= 0){ AudioEngine.heartbeat(); vibrate(15); Game.heartbeatT = 0.5; }
-    if (AudioEngine.windGain)
-      AudioEngine.setWind((sim.gust ? sim.gust.mag : 0) + sim.h*0.001 + sim.idleAmp*0.1, sim.h);
+    if (sim.alive && Math.abs(sim.theta) > 0.45 && Game.heartbeatT <= 0){
+      AudioEngine.heartbeat(); vibrate(15);
+      // Puls beschleunigt, je näher der Sturz rückt (~97 bis ~214 bpm)
+      Game.heartbeatT = clamp(0.62 - (Math.abs(sim.theta) - 0.45)*2.0, 0.28, 0.62);
+    }
   }
   else if ((st === 'topple' || st === 'replayfall') && sim){
     // Zeitlupen-Sturz: Pendel ohne Kontrolle bis ~90°, dann Panel.
@@ -1821,6 +1957,13 @@ function frame(now){
     RAG.acc += dtReal * scale;
     let guard = 0;
     while (RAG.acc >= CFG.dt && guard++ < 8){ RAG.acc -= CFG.dt; RAG.step(CFG.dt, sim); }
+  }
+
+  // --- Wind-Ambience in JEDEM Zustand steuern (sonst friert sie nach dem Lauf ein)
+  if (AudioEngine.windGain){
+    if (st === 'run' && sim) AudioEngine.setWind((sim.gust ? sim.gust.mag : 0) + sim.h*0.001 + sim.idleAmp*0.1, sim.h);
+    else if (st === 'topple' || st === 'replayfall' || st === 'aftermath') AudioEngine.setWind(0.45, sim ? sim.h : 0);
+    else AudioEngine.setWind(0, 0);
   }
 
   // --- Kamera
