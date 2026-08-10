@@ -3,938 +3,2210 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#87c5f0">
+<meta name="theme-color" content="#0b1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Alpenflug K90 – Skisprung</title>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>RUNG – Die höchste Leiter der Welt</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; overflow: hidden; background: #87c5f0; }
+  html, body { height: 100%; overflow: hidden; background: #0b1020; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action: none;
-         -webkit-user-select: none; user-select: none; }
-  #game { display: block; width: 100%; height: 100%; touch-action: none; }
+         -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+         overscroll-behavior: none; }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; }
 
-  /* --- HTML-Overlays (Start / Ergebnis) --- */
-  .panel {
-    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    background: rgba(16, 32, 48, 0.92); color: #eef6ff; border-radius: 18px;
-    padding: 22px 26px; width: min(92vw, 400px); text-align: center;
-    box-shadow: 0 12px 40px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15);
-    backdrop-filter: blur(4px);
-  }
-  .panel h1 { font-size: 26px; letter-spacing: 1px; margin-bottom: 2px; }
-  .panel h2 { font-size: 20px; margin-bottom: 10px; }
-  .panel .sub { color: #9fc3e0; font-size: 13px; margin-bottom: 14px; }
-  .panel .big { font-size: 44px; font-weight: 800; margin: 6px 0 2px; }
-  .panel .pts { font-size: 15px; color: #cfe6f8; margin-bottom: 10px; line-height: 1.55; }
-  .panel .rating { font-weight: 700; }
-  .panel button {
-    font: inherit; font-weight: 700; font-size: 17px; color: #fff;
-    background: linear-gradient(180deg, #2e9be6, #1670b8); border: none; border-radius: 12px;
-    padding: 13px 26px; margin-top: 8px; cursor: pointer; width: 100%;
-    box-shadow: 0 4px 14px rgba(20,110,180,.5);
-  }
-  .panel button:active { transform: translateY(1px); }
-  .howto { text-align: left; font-size: 13px; color: #cfe6f8; line-height: 1.6;
-           background: rgba(255,255,255,.07); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
-  .howto b { color: #ffe082; }
-  .best { font-size: 13px; color: #ffe082; margin-top: 8px; }
+  .hud { position: fixed; pointer-events: none; color: #fff; z-index: 5; }
+  #alt { top: max(8px, env(safe-area-inset-top)); left: 0; right: 0; text-align: center;
+         font-size: 62px; font-weight: 900; letter-spacing: -2px; color: #fff;
+         font-variant-numeric: tabular-nums;
+         -webkit-text-stroke: 7px #1A1030; paint-order: stroke fill;
+         text-shadow: 0 4px 0 #1A1030; }
+  #alt small { font-size: 24px; font-weight: 900; letter-spacing: 0; margin-left: 3px;
+               -webkit-text-stroke: 5px #1A1030; paint-order: stroke fill; }
+  #topbar { top: max(74px, calc(env(safe-area-inset-top) + 64px)); left: 12px; display: flex; gap: 6px; flex-direction: column; align-items: flex-start; }
+  #topbar .chip { background: #1A2A6B; border: 3px solid #0E1740; border-bottom-width: 5px;
+                  border-radius: 999px; padding: 5px 13px; font-size: 15px; font-weight: 900;
+                  color: #fff; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  #btns { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 6; }
+  .iconbtn { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #0E1740;
+             border-bottom-width: 6px; background: linear-gradient(180deg,#3A57C8,#22368F);
+             color: #fff; font-size: 21px; display: flex; align-items: center; justify-content: center;
+             box-shadow: 0 3px 0 rgba(0,0,0,.25); }
+  .iconbtn:active { transform: translateY(3px); border-bottom-width: 3px; }
+
+  #hint { bottom: 13vh; left: 0; right: 0; text-align: center; animation: pulse 1.4s ease-in-out infinite; }
+  #hint span { display: inline-block; padding: 14px 34px; border-radius: 999px;
+               font-size: 24px; font-weight: 900; letter-spacing: 6px; color: #3A1F00;
+               background: linear-gradient(180deg, #FFD84D, #FFA412);
+               border: 4px solid #0B1130; border-bottom-width: 7px;
+               box-shadow: 0 8px 30px rgba(4,8,24,.35); }
+  #subhint { bottom: calc(13vh - 38px); left: 0; right: 0; text-align: center; font-size: 14px; opacity: .9;
+             font-weight: 600; text-shadow: 0 1px 8px rgba(4,8,24,.6); }
+  @keyframes pulse { 0%,100% { opacity: .72; transform: translateY(2px); } 50% { opacity: 1; transform: translateY(-2px); } }
+
+  #toast { top: 24%; left: 0; right: 0; text-align: center; opacity: 0; transition: opacity .25s; }
+  #toast span { display: inline-block; padding: 10px 20px; border-radius: 999px; font-size: 18px; font-weight: 900;
+                background: #16205A; border: 3px solid #0B1130; border-bottom-width: 5px; color: #fff;
+                box-shadow: 0 8px 26px rgba(0,0,0,.4); }
+
+  .panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+           background: #16205A; color: #eef2ff;
+           border-radius: 28px; padding: 18px 18px 16px; width: min(92vw, 380px); text-align: center; z-index: 20;
+           box-shadow: 0 18px 60px rgba(0,0,0,.55), inset 0 0 0 3px #2E44A8;
+           border: 4px solid #0B1130; }
+  .panel h1 { font-size: 28px; letter-spacing: 1px; }
+  .panel .stamp { display: inline-block; margin: 6px 0 2px; padding: 7px 16px; border: 4px solid #FF2E4D;
+                  color: #fff; border-radius: 14px; font-weight: 900; font-size: 16px; letter-spacing: 1px;
+                  transform: rotate(-3deg); background: #C0182F; }
+  .panel .big { font-size: 52px; font-weight: 900; margin: 6px 0 0; font-variant-numeric: tabular-nums;
+                color: #fff; -webkit-text-stroke: 6px #0B1130; paint-order: stroke fill; }
+  .panel .best { color: #FFD84D; font-weight: 900; font-size: 17px; margin-bottom: 4px; min-height: 22px; }
+  .panel .sub { color: #9fb0d8; font-size: 13px; margin: 5px 0 9px; line-height: 1.45; }
+  .panel .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  .panel button { border: 0; border-bottom: 5px solid #142055; border-radius: 20px;
+                  min-height: 52px; padding: 8px 14px; font-size: 16px; font-weight: 900;
+                  background: linear-gradient(180deg, #3A57C8, #22368F); color: #fff; min-width: 92px;
+                  letter-spacing: .2px; }
+  .panel button.primary { background: linear-gradient(180deg, #FFD84D, #FFA412);
+                          border-bottom-color: #B85C00; color: #3A1F00; }
+  .panel button:active { transform: translateY(3px); border-bottom-width: 2px; }
+  .panel .tapline { margin-top: 12px; font-size: 12px; color: #7f8fb8; }
+  .panel .unlock { color: #7dffb2; font-weight: 800; font-size: 14px; min-height: 18px; margin-top: 2px; }
   .hidden { display: none !important; }
+
+  #dailyGrid { font-size: 26px; letter-spacing: 3px; margin: 6px 0; min-height: 32px; }
+  #dailyPanel .target { font-size: 14px; color: #cfd9f5; }
+  #dailyPanel .streak { color: #ffab5e; font-weight: 800; min-height: 20px; }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="c"></canvas>
 
-<!-- Startbildschirm -->
-<div id="startPanel" class="panel">
-  <h1>⛷ ALPENFLUG</h1>
-  <div class="sub">K90 · Hillsize 100</div>
-  <div class="howto">
-    <b>1. Anlauf:</b> läuft automatisch<br>
-    <b>2. Absprung:</b> am Tischende <b>tippen</b> (Timing!)<br>
-    <b>3. Flug:</b> <b>ziehen / oben-unten halten</b> – Winkel im grünen Korridor halten (Tastatur: ↑ ↓)<br>
-    <b>4. Landung:</b> kurz vor dem Boden <b>tippen</b> = Telemark
+<div class="hud" id="alt">0<small>m</small></div>
+<div class="hud" id="topbar">
+  <div class="chip hidden" id="chipStreak">🔥 0</div>
+  <div class="chip hidden" id="chipFeather">🪶 0</div>
+  <div class="chip hidden" id="chipDaily">📅 Daily</div>
+  <div class="chip hidden" id="chipGhost">👻 0m</div>
+</div>
+<div id="btns">
+  <button class="iconbtn" id="btnDaily" aria-label="Daily">📅</button>
+  <button class="iconbtn" id="btnSound" aria-label="Ton">🔊</button>
+</div>
+<div class="hud" id="hint"><span>HALTEN</span></div>
+<div class="hud" id="subhint">Daumen ziehen = balancieren</div>
+<div class="hud" id="toast"><span></span></div>
+
+<div class="panel hidden" id="deathPanel">
+  <div class="stamp" id="deathStamp">DER WIND GEWINNT</div>
+  <div class="big" id="deathH">0m</div>
+  <div class="best" id="deathBest"></div>
+  <div class="unlock" id="deathUnlock"></div>
+  <div class="sub" id="deathSub"></div>
+  <div class="row">
+    <button id="btnReplay">🎬 Sturz ansehen</button>
+    <button id="btnShare" class="primary">📤 Teilen</button>
   </div>
-  <button id="startBtn">Sprung starten</button>
-  <div class="best" id="startBest"></div>
+  <div class="row"><button id="btnShareImg">🖼️ Bild teilen</button></div>
+  <div class="tapline">Tippen zum Weiterklettern</div>
 </div>
 
-<!-- Ergebnis -->
-<div id="resultPanel" class="panel hidden">
-  <h2 id="resTitle">Sprungweite</h2>
-  <div class="big" id="resDist">–</div>
-  <div class="pts" id="resPts"></div>
-  <button id="nextBtn">Nächster Sprung</button>
-  <div class="best" id="resBest"></div>
+<div class="panel hidden" id="dailyPanel">
+  <h1>📅 DAILY RUNG</h1>
+  <div class="target" id="dailyTarget"></div>
+  <div id="dailyGrid"></div>
+  <div class="sub" id="dailyInfo"></div>
+  <div class="streak" id="dailyStreak"></div>
+  <div class="row">
+    <button id="btnDailyPlay" class="primary">Klettern</button>
+    <button id="btnDailyShare">📤 Teilen</button>
+    <button id="btnDailyClose">Zurück</button>
+  </div>
+  <div class="row"><button id="btnStreakSave" class="hidden">🩹 Serie retten (gestern)</button></div>
 </div>
 
 <script>
 'use strict';
+/* ============================================================
+   RUNG — Die höchste Leiter der Welt.
+   Single-File HTML5 Mobile Game. Kein Framework, keine Assets.
+   Physik: deterministischer 60-Hz-Timestep (Accumulator) für
+   plattformübergreifende Ghost-Replays via URL-Hash.
+   ============================================================ */
 
-/* =====================================================================
-   ALPENFLUG K90 – HTML5-Canvas-Skisprung-Prototyp (Vanilla JS)
-   Struktur:
-     CONFIG  – alle Balancing-Parameter
-     Hill    – Anlaufspur + Aufsprungprofil (vorberechnete Punktlisten)
-     Input   – Pointer + Tastatur, vereinheitlicht
-     Game    – State-Machine (READY → INRUN → FLIGHT → OUTRUN → RESULT)
-     Render  – Kamera, Parallax, Schanze, Springer, HUD
-   ===================================================================== */
-
-// ------------------------------------------------------------------ CONFIG
-const CONFIG = {
-  // Allgemein
-  gravity: 9.81,              // m/s²
-  timestep: 1 / 60,           // fixe Physikrate
-
-  // Schanze (K90 / HS100)
-  kPoint: 90,                 // K-Punkt in m (entlang des Hangs gemessen)
-  hillSize: 100,              // Hillsize in m
-  takeoffHeight: 3.0,         // Höhe der Tischkante über dem Profil-Ursprung (m)
-  tableAngle: 10.5,           // Neigung des Schanzentischs (Grad, abwärts)
-  tableLength: 6.5,           // Länge des Tischs (m)
-  inrunAngle: 35,             // Neigung des Anlaufhangs (Grad)
-  inrunStraight: 42,          // Länge des geraden Anlaufstücks (m)
-  inrunRadius: 90,            // Übergangsradius Anlauf → Tisch (m)
-  // Aufsprungprofil: Winkelverlauf über horizontale Distanz x
-  landing: { startAngle: 10, maxAngle: 36, steepen0: 8, steepen1: 50, flat0: 88, flat1: 135 },
-
-  // Anlauf
-  inrunFriction: 0.025,       // Gleitreibungskoeffizient Ski/Spur
-  inrunDrag: 0.0011,          // Luftwiderstand in der Hocke (a = k·v²)
-
-  // Absprung
-  takeoffImpulse: 3.2,        // Absprung-Impuls senkrecht zum Tisch (m/s) bei Qualität 1
-  takeoffSpeedBonus: 0.06,    // Qualität skaliert Geschwindigkeit: v·(1-bonus+bonus·q)
-  perfectWindow: 0.040,       // ± Sekunden um die Tischkante = perfekt (~80 ms Fenster)
-  earlyFalloff: 0.50,         // zu früh: Qualität fällt über diese Zeitspanne auf 0
-  lateWindow: 0.18,           // so lange nach der Kante zählt ein Tap noch (stark reduziert)
-
-  // Flug
-  liftCoefficient: 0.0042,    // Auftrieb: a = CL · v_rel² · liftFactor(α)
-  dragCoefficient: 0.0024,    // Grundwiderstand: a = CD · v_rel² · dragFactor(α)
-  dragAngleFactor: 0.0042,    // Zusatzwiderstand bei steilem Anstellwinkel
-  optimalAngle: 12,           // optimaler Anstellwinkel α relativ zur Anströmung (Grad)
-  angleTolerance: 9,          // ± Korridor (Grad) für vollen Auftrieb / Haltungsnote
-  angleSpeed: 45,             // Drehrate der Spielersteuerung (Grad/s)
-  pitchDrift: 4,              // aerodynamische Aufdreh-Tendenz (Grad/s) – muss aktiv gehalten werden
-  bodyMin: -70, bodyMax: 25,  // Begrenzung des Körperwinkels (Grad, absolut)
-
-  // Wind (positiv = Rückenwind → schlechter, negativ = Gegenwind → besser)
-  windStrength: 2.5,          // maximale Windstärke ± m/s (zufällig pro Sprung)
-  windAeroFactor: 2.0,        // Gameplay-Verstärkung der Windwirkung auf die Anströmung
-  gustAmount: 0.25,           // Böen: ±25 % um den Basiswind
-
-  // Landung
-  telemarkWindow: 0.12,       // Tap ≤ 120 ms vor Aufsetzen = Telemark
-  okWindow: 0.28,             // Tap ≤ 280 ms = sichere Landung
-  earlyLimit: 0.55,           // Taps früher als das zählen nicht (Fenster noch zu)
-  crashSpeed: 11.5,           // Aufprall senkrecht zum Hang > x m/s = Sturz
-  outrunFriction: 0.06,       // Bremsreibung im Auslauf
-  crashFriction: 0.30,        // Sturz bremst stark
-
-  // Punkte
-  meterValue: 1.8,            // Weitenpunkte pro Meter (K90-Standard)
-  basePoints: 60,             // Punkte am K-Punkt
-  styleFlightMax: 30,         // Haltungsnote Flug (Zeit im Korridor)
-  styleLandingMax: 30,        // Haltungsnote Landung
+// ------------------------------------------------ Tuning ----
+const CFG = {
+  dt: 1/60,
+  baseLen: 4,               // virtuelle Pendellänge am Boden (m)
+  grav: 22,                 // Pendel-"Gravitation"
+  gravRampH: 25,            // bis hier skaliert die Instabilität ein (Bodennähe = gutmütig)
+  gravFloor: 0.32,
+  ctrl: 80,                 // Lean-Autorität, geteilt durch (10 + h*0.35)
+  braceCtrl: 1.6,           // Kontroll-Bonus beim Abstützen (Daumen nach unten)
+  damp: 0.35,               // Winkeldämpfung
+  fallAngle: 0.62,          // rad -> Sturz
+  climbSpeed: 3.1,          // m/s
+  climbBob: 0.22,           // Schritt-Wackeln beim Klettern
+  dragRange: 120,           // px Daumenweg für vollen Lean
+  braceDy: 34,              // px nach unten = Abstützen
+  idleRatchet: 0.55,        // "Der Wind findet dich": Aufschaukeln pro Sekunde Stillstand
+  idleMax: 2.6,
+  gustWarn: 1.0,            // s Vorwarnung
+  geraldMinH: 35,
+  flagBandsBase: [25, 50, 75, 100],
+  flagEvery: 50,            // danach alle 50 m
+  flagHold: 0.6,            // s Abstützen im Band startet Pflanzen
+  flagPlant: 2.0,           // s eingefroren beim Pflanzen
+  dailyTarget: 60,
+  dailyTries: 5,
+  maxRecFrames: 30*240,     // 240 s Aufnahme-Limit (30 Hz)
 };
+const LANDMARKS = { 25:'DÄCHER', 50:'WOLKEN', 75:'JETSTREAM', 100:'WELTRAUM' };
+const UNLOCKS = [
+  { at: 30,  id: 'helm',  label: '⛑️ Helm für Gerald' },
+  { at: 70,  id: 'scarf', label: '🧣 Roter Schal' },
+  { at: 140, id: 'gold',  label: '✨ Goldene Leiter' },
+];
+const DAILY_EPOCH = Date.UTC(2026, 0, 1);
 
-// ------------------------------------------------------------------ Utils
-const D2R = Math.PI / 180;
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const smoothstep = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
-// Framerate-unabhängige Glättung (für Kamera)
-const damp = (cur, target, rate, dt) => lerp(cur, target, 1 - Math.exp(-rate * dt));
+// ------------------------------------------------ Utils ----
+const clamp = (v,a,b)=> v<a?a : v>b?b : v;
+const lerp = (a,b,t)=> a+(b-a)*t;
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function hashStr(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+function b64uEnc(bytes){ let s=''; for(const b of bytes) s+=String.fromCharCode(b);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64uDec(str){ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='=';
+  const s=atob(str), out=new Uint8Array(s.length); for(let i=0;i<s.length;i++) out[i]=s.charCodeAt(i); return out; }
+function rleEnc(arr){ const out=[]; let i=0; while(i<arr.length){ let j=i; while(j<arr.length-1 && arr[j+1]===arr[i] && j-i<254) j++;
+  out.push(arr[i], j-i+1); i=j+1; } return out; }
+function rleDec(arr){ const out=[]; for(let i=0;i<arr.length;i+=2){ for(let k=0;k<arr[i+1];k++) out.push(arr[i]); } return out; }
+function todayKey(offsetDays=0){ const d=new Date(Date.now()-offsetDays*864e5);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dailyNum(key){ const [y,m,d]=key.split('-').map(Number); return Math.round((Date.UTC(y,m-1,d)-DAILY_EPOCH)/864e5)+1; }
 
-// ------------------------------------------------------------------ Hill
-// Weltkoordinaten: Tischkante = (0, 0). +x in Flugrichtung, +y nach oben.
-const Hill = (() => {
-  const L = CONFIG.landing;
+// ------------------------------------------------ Save ----
+const SAVE_KEY = 'rung_save_v1';
+let SAVE;
+function loadSave(){
+  try { SAVE = JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch(e){ SAVE = {}; }
+  SAVE = Object.assign({ v:1, pb:0, feathers:0, flags:{}, streak:0, lastDailyWin:'', daily:null, dailyAlt:null,
+    geraldKills:0, sessions:0, sound:true, unlocked:{} }, SAVE);
+}
+function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch(e){} }
+loadSave();
+SAVE.sessions++; save();
 
-  // Hangneigung (Grad) des Aufsprungprofils bei horizontaler Distanz x
-  function landingAngle(x) {
-    if (x < L.steepen1)
-      return L.startAngle + (L.maxAngle - L.startAngle) * smoothstep((x - L.steepen0) / (L.steepen1 - L.steepen0));
-    if (x < L.flat0) return L.maxAngle;
-    return L.maxAngle * (1 - smoothstep((x - L.flat0) / (L.flat1 - L.flat0)));
-  }
+// ------------------------------------------------ Audio ----
+/* Signalkette:
+     Stimmen ─> sfxBus ─┐
+                        ├─> trim ─> Hochpass 55 Hz ─> Limiter ─> Softclip ─> master ─> Ausgang
+     Wind ─> ambBus ────┘                                                     (Mute/Lautstärke)
 
-  // Profil integrieren: y(x) und Bogenlänge s(x) (= gemessene Weite)
-  const STEP = 0.5, XMAX = 320;
-  const prof = [{ x: 0, y: -CONFIG.takeoffHeight, s: 0 }];
-  for (let x = STEP; x <= XMAX; x += STEP) {
-    const th = landingAngle(x - STEP / 2) * D2R;
-    const p = prof[prof.length - 1];
-    prof.push({ x, y: p.y - Math.tan(th) * STEP, s: p.s + STEP / Math.cos(th) });
-  }
-  function groundAt(x) {
-    x = clamp(x, 0, XMAX - STEP);
-    const i = Math.floor(x / STEP), t = (x - prof[i].x) / STEP;
-    return {
-      y: lerp(prof[i].y, prof[i + 1].y, t),
-      s: lerp(prof[i].s, prof[i + 1].s, t),
-      angle: landingAngle(x),
+   - Hüllkurven starten und enden auf 0 (klickfrei), Attack wird gegen dur geklemmt.
+   - Rauschen kommt aus EINEM vorgerechneten Puffer (keine Allokation pro Ton).
+     Achtung: der Puffer ist bewusst nicht normalisiert (Spitzen ~ +6 dB), die
+     Gain-Werte von noise() und tone() sind daher NICHT in derselben Einheit.
+   - Stimmenbudget mit Priorität: unwichtige Salven (Sprossen) fallen zuerst weg.
+   - Lauter SFX duckt die Wind-Ambience kurz weg.
+   - Wichtig für Handy-Lautsprecher: jeder tiefe Sound hat eine Mittenschicht,
+     sonst ist er auf dem Zielgerät praktisch unhörbar. Der Hochpass entfernt
+     Sub-Anteile, die ohnehin nur Headroom kosten.
+   - Pegel offline gemessen (ITU-R BS.1770-4, K-weighted, gated) — Zielwerte im
+     Testprotokoll: Spielmix ~-16,5 LUFS, Worst Case Sample-Peak <= -3 dBFS. */
+const AudioEngine = {
+  ctx: null, master: null, limiter: null, clip: null, hp: null,
+  sfxBus: null, ambBus: null, trim: null, panL: null, panR: null,
+  windFilter: null, windLow: null, windGain: null, windMod: null,
+  muted: !SAVE.sound, voices: 0, maxVoices: 32, noiseBuf: null,
+  rungStep: 0, rungDeg: null, lastRung: 0, wTarget: -1, wHeight: -1,
+  MASTER: 1.0,                  // Nutzerlautstärke/Mute – sitzt NACH dem Limiter
+  TRIM: 7.0,                    // trägt die gesamte Pegelkalibrierung
+  PENTA: [0, 2, 4, 7, 9],       // Dur-Pentatonik: klingt beim Klettern immer "richtig"
+
+  init(){
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { this.ctx = new AC({ latencyHint: 'interactive' }); } catch(e){ this.ctx = new AC(); }
+    const c = this.ctx;
+
+    // Nutzerlautstärke ganz am Ende: Mute ist damit garantiert echte Stille
+    this.master = c.createGain();
+    this.master.gain.value = this.muted ? 0 : this.MASTER;
+    this.master.connect(c.destination);
+
+    // Softclip mit 4-fachem Oversampling: begrenzt auch Zwischenwert-Spitzen
+    // (das kann ein DynamicsCompressor mangels Vorausschau nicht)
+    const n = 4096, curve = new Float32Array(n), K = 0.5, CEIL = 0.708; // 0.708 = -3 dBFS
+    for (let i = 0; i < n; i++){
+      const x = (i/(n-1))*2 - 1, a = Math.abs(x);
+      curve[i] = Math.sign(x) * (a <= K ? a : K + (CEIL-K)*Math.tanh((a-K)/(CEIL-K)));
+    }
+    this.clip = c.createWaveShaper();
+    this.clip.curve = curve; this.clip.oversample = '4x';
+    this.clip.connect(this.master);
+
+    this.limiter = c.createDynamicsCompressor();
+    this.limiter.threshold.value = -6;
+    this.limiter.knee.value = 4;
+    this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.003;
+    this.limiter.release.value = 0.12;
+    this.limiter.connect(this.clip);
+
+    // Sub unter 55 Hz raus: auf Handys unhörbar, kostet aber Headroom
+    this.hp = c.createBiquadFilter();
+    this.hp.type = 'highpass'; this.hp.frequency.value = 55; this.hp.Q.value = 0.7;
+    this.hp.connect(this.limiter);
+
+    this.trim = c.createGain(); this.trim.gain.value = this.TRIM; this.trim.connect(this.hp);
+    this.sfxBus = c.createGain(); this.sfxBus.gain.value = 1; this.sfxBus.connect(this.trim);
+    this.ambBus = c.createGain(); this.ambBus.gain.value = 1; this.ambBus.connect(this.trim);
+
+    // Feste Panorama-Busse für die Sprossen (spart Knoten im heißen Pfad).
+    // Der Vorverstärker gleicht den Leistungsverlust des Panners aus.
+    if (c.createStereoPanner){
+      const mk = p => {
+        const g = c.createGain(); g.gain.value = Math.SQRT2;
+        const sp = c.createStereoPanner(); sp.pan.value = p;
+        g.connect(sp); sp.connect(this.sfxBus);
+        return g;
+      };
+      this.panL = mk(-0.18); this.panR = mk(0.18);
+    }
+
+    // Ein Rauschpuffer für alles (3 s, wird an zufälliger Stelle angespielt)
+    const len = c.sampleRate * 3;
+    this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
+    const d = this.noiseBuf.getChannelData(0);
+    let b0=0, b1=0, b2=0;
+    for (let i=0;i<len;i++){
+      const w = Math.random()*2-1;                 // leicht rosa gefärbt: weicher
+      b0 = 0.99765*b0 + w*0.0990460;
+      b1 = 0.96300*b1 + w*0.2965164;
+      b2 = 0.57000*b2 + w*1.0526913;
+      d[i] = (b0+b1+b2+w*0.1848) * 0.28;
+    }
+
+    // Wind-Ambience: zwei Filterschichten + zwei langsame, teilerfremde LFOs,
+    // damit sie atmet und nie hörbar loopt (Schwebung ~2,3 min)
+    const src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+    this.windLow = c.createBiquadFilter();
+    this.windLow.type = 'lowpass'; this.windLow.frequency.value = 900; this.windLow.Q.value = 0.7;
+    this.windFilter = c.createBiquadFilter();
+    this.windFilter.type = 'bandpass'; this.windFilter.frequency.value = 420; this.windFilter.Q.value = 0.8;
+    this.windGain = c.createGain(); this.windGain.gain.value = 0;
+    this.windMod = c.createGain(); this.windMod.gain.value = 1;
+    src.connect(this.windLow); this.windLow.connect(this.windFilter);
+    this.windFilter.connect(this.windGain); this.windGain.connect(this.windMod);
+    this.windMod.connect(this.ambBus);
+    src.start();
+    const lf1 = c.createOscillator(); lf1.frequency.value = 0.071;
+    const lg1 = c.createGain(); lg1.gain.value = 0.38;          // Pegel atmet ±38 %
+    lf1.connect(lg1); lg1.connect(this.windMod.gain); lf1.start();
+    const lf2 = c.createOscillator(); lf2.frequency.value = 0.113;
+    const lg2 = c.createGain(); lg2.gain.value = 190;           // Bandpass wandert ±190 Hz
+    lf2.connect(lg2); lg2.connect(this.windFilter.frequency); lf2.start();
+
+    // iOS: nach Anruf/Unterbrechung landet der Kontext in 'interrupted'
+    c.addEventListener('statechange', () => {
+      if (c.state === 'interrupted' || (c.state === 'suspended' && !document.hidden))
+        c.resume().catch(()=>{});
+    });
+  },
+  resume(){ if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(()=>{}); },
+  setMuted(m){
+    this.muted = m;
+    if (this.master) this.master.gain.setTargetAtTime(m ? 0 : this.MASTER, this.ctx.currentTime, 0.02);
+  },
+  ok(){ return this.ctx && !this.muted; },
+  // Stimmenbudget: wichtige Sounds (prio) dürfen es überschreiten,
+  // Salven wie Sprossen fallen zuerst weg
+  take(prio){ if (this.voices >= this.maxVoices && !prio) return false; this.voices++; return true; },
+  free(node, when, tail){
+    let id = 0, done = false;
+    const rel = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(id);
+      try { node.disconnect(); if (tail && tail !== node) tail.disconnect(); } catch(e){}
+      this.voices = Math.max(0, this.voices - 1);
+      node.onended = null;
     };
-  }
-  // x-Position für gegebene Weite s (für K-/HS-Linien)
-  function xAtDistance(s) {
-    for (let i = 1; i < prof.length; i++)
-      if (prof[i].s >= s) return lerp(prof[i - 1].x, prof[i].x, (s - prof[i - 1].s) / (prof[i].s - prof[i - 1].s));
-    return XMAX;
-  }
-
-  // Anlaufspur: vom Tisch rückwärts integriert. inrun[0] = Startpunkt oben.
-  const arcLen = (CONFIG.inrunAngle - CONFIG.tableAngle) * D2R * CONFIG.inrunRadius;
-  const inrunLength = CONFIG.inrunStraight + arcLen + CONFIG.tableLength;
-  function inrunAngleAt(sFromTop) {
-    if (sFromTop < CONFIG.inrunStraight) return CONFIG.inrunAngle;
-    if (sFromTop < CONFIG.inrunStraight + arcLen)
-      return CONFIG.inrunAngle - (sFromTop - CONFIG.inrunStraight) / arcLen * (CONFIG.inrunAngle - CONFIG.tableAngle);
-    return CONFIG.tableAngle;
-  }
-  const inrun = [];
-  {
-    let x = 0, y = 0;
-    const n = Math.ceil(inrunLength / STEP);
-    inrun[n] = { x: 0, y: 0, s: inrunLength };
-    for (let i = n - 1; i >= 0; i--) {
-      const s = i * STEP;
-      const th = inrunAngleAt(s + STEP / 2) * D2R;
-      x -= Math.cos(th) * STEP; y += Math.sin(th) * STEP;
-      inrun[i] = { x, y, s };
+    node.onended = rel;
+    id = setTimeout(rel, Math.max(50, (when - this.ctx.currentTime + 0.4) * 1000));
+  },
+  // Klickfreie Hüllkurve: von 0 hoch, exponentiell runter, sauber auf 0 beenden
+  env(g, t, peak, attack, dur){
+    if (!(peak > 0.0002)){ g.gain.setValueAtTime(0, t); return; }
+    attack = Math.min(attack, dur*0.5);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.setValueAtTime(0, t + dur + 0.005);
+  },
+  // Anschwellende Hüllkurve: Höhepunkt am ENDE (für Warn-Riser)
+  envRise(g, t, peak, rise, rel){
+    if (!(peak > 0.0002)){ g.gain.setValueAtTime(0, t); return; }
+    rise = Math.max(0.001, rise); rel = Math.max(0.02, rel);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + rise);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + rise + rel);
+    g.gain.setValueAtTime(0, t + rise + rel + 0.005);
+  },
+  shape(g, t, o){
+    if (o.rise) this.envRise(g, t, o.gain, Math.min(o.rise, o.dur*0.9), Math.max(0.02, o.dur - Math.min(o.rise, o.dur*0.9)));
+    else this.env(g, t, o.gain, o.attack || 0.006, o.dur);
+  },
+  // Panner kostet 3 dB Leistung -> Vorverstärkung gleicht das aus
+  pan(node, p){
+    if (!p || !this.ctx.createStereoPanner) return node;
+    const comp = this.ctx.createGain(); comp.gain.value = Math.SQRT2;
+    const sp = this.ctx.createStereoPanner(); sp.pan.value = clamp(p, -1, 1);
+    node.connect(comp); comp.connect(sp);
+    return sp;
+  },
+  // Grundbaustein Ton
+  tone(o){
+    if (!this.ok() || !this.take(o.prio)) return;
+    const c = this.ctx, t = c.currentTime + (o.delay||0);
+    const osc = c.createOscillator();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.freq, t);
+    if (o.to) osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.to), t + (o.bendDur || o.dur));
+    const g = c.createGain();
+    this.shape(g, t, o);
+    let node = osc; node.connect(g); node = g;
+    if (o.filter){
+      const f = c.createBiquadFilter();
+      f.type = o.filter; f.frequency.value = o.fc || 1200; f.Q.value = o.q || 0.7;
+      node.connect(f); node = f;
     }
-  }
-  function inrunAt(s) {
-    s = clamp(s, 0, inrunLength - 0.001);
-    const i = Math.floor(s / STEP);
-    const t = (s - inrun[i].s) / (inrun[i + 1].s - inrun[i].s);
-    return {
-      x: lerp(inrun[i].x, inrun[i + 1].x, t),
-      y: lerp(inrun[i].y, inrun[i + 1].y, t),
-      angle: inrunAngleAt(s),
+    if (o.vib){
+      const lfo = c.createOscillator(), lg = c.createGain();
+      lfo.frequency.value = o.vibRate || 6; lg.gain.value = o.vib;
+      lfo.connect(lg); lg.connect(osc.frequency); lfo.start(t); lfo.stop(t + o.dur + 0.05);
+    }
+    const tail = this.pan(node, o.p);
+    tail.connect(o.bus || this.sfxBus);
+    osc.start(t); osc.stop(t + o.dur + 0.02);
+    this.free(osc, t + o.dur, tail);
+  },
+  // Grundbaustein Rauschen
+  noise(o){
+    if (!this.ok() || !this.take(o.prio)) return;
+    const c = this.ctx, t = c.currentTime + (o.delay||0);
+    const s = c.createBufferSource();
+    s.buffer = this.noiseBuf;
+    s.playbackRate.value = o.rate || 1;
+    const f = c.createBiquadFilter();
+    f.type = o.filter || 'bandpass';
+    f.frequency.setValueAtTime(o.fc || 900, t);
+    if (o.fcTo) f.frequency.exponentialRampToValueAtTime(Math.max(40, o.fcTo), t + o.dur);
+    f.Q.value = o.q || 0.9;
+    const g = c.createGain();
+    this.shape(g, t, o);
+    s.connect(f); f.connect(g);
+    const tail = this.pan(g, o.p);
+    tail.connect(o.bus || this.sfxBus);
+    // Startpunkt so wählen, dass der Puffer nicht mitten im Ton endet
+    const room = Math.max(0, this.noiseBuf.duration - (o.dur + 0.08));
+    s.start(t, Math.random()*room, o.dur + 0.05);
+    this.free(s, t + o.dur, tail);
+  },
+  // Ambience kurz wegdrücken, damit wichtige Signale durchkommen
+  duck(amount = 0.45, hold = 0.12){
+    if (!this.ok() || !this.ambBus) return;
+    const t = this.ctx.currentTime, g = this.ambBus.gain;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(1 - amount, t, 0.02);
+    g.setTargetAtTime(1, t + hold, 0.18);
+  },
+
+  // -------- Spielereignisse --------
+  // Sprosse: läuft ~6×/s und darf deshalb nie nerven. Statt fester Tonleiter
+  // ein begrenzter Zufallslauf, dessen Zentrum mit der Höhe steigt; Register
+  // gedeckelt (sonst wird es schrill), Pegel je Oktave kompensiert, dazu
+  // leichte Ton- und Pegelstreuung gegen den Maschinengewehr-Effekt.
+  rung(h){
+    const now = this.ctx ? this.ctx.currentTime : 0;
+    if (now - this.lastRung < 0.055) return;
+    this.lastRung = now;
+    const i = this.rungStep++;
+    const center = Math.min(9, (h/12)|0);
+    if (this.rungDeg === null) this.rungDeg = center;
+    // Am Fensterrand spiegeln statt klemmen: Klemmen erzeugt Tonwiederholungen
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    let next = this.rungDeg + dir;
+    if (next < center-2 || next > center+3) next = this.rungDeg - dir;
+    this.rungDeg = clamp(next, center-2, center+3);
+    const deg = this.rungDeg;
+    const semi = this.PENTA[((deg%5)+5)%5] + 12*Math.floor(deg/5);
+    const f = 196 * Math.pow(2, semi/12) * (1 + (Math.random()-0.5)*0.03);
+    const oct = Math.max(0, Math.floor(semi/12));
+    const bus = (i%2 ? this.panR : this.panL) || this.sfxBus;
+    this.tone({ freq: f, dur: 0.075, type: 'triangle', attack: 0.003, bus,
+      gain: 0.105 * Math.pow(0.74, oct) * (0.85 + Math.random()*0.3) });
+    // Holzkontakt: konstanter Anker genau dort, wo Handylautsprecher stark sind
+    this.noise({ dur: 0.04, fc: 1400 + Math.random()*600, q: 1.3, gain: 0.062, bus });
+  },
+  // Böenwarnung: gerichteter Riser, dessen Höhepunkt mit dem Einsetzen der Böe
+  // zusammenfällt – sonst warnt er 0,75 s zu früh
+  gustWarn(dir = 1){
+    this.duck(0.4, 0.9);
+    this.noise({ dur: 1.0, rise: 0.92, filter: 'bandpass', fc: 240, fcTo: 1800, q: 1.1,
+      gain: 0.05, p: dir*0.85, prio: 1 });
+    this.tone({ freq: 165, to: 330, dur: 1.0, rise: 0.92, bendDur: 0.95, type: 'triangle',
+      gain: 0.026, filter: 'lowpass', fc: 1100, p: dir*0.6, prio: 1 });
+  },
+  gust(dir = 1){
+    this.noise({ dur: 0.7, filter: 'bandpass', fc: 1100, fcTo: 300, q: 0.8, gain: 0.075,
+      attack: 0.09, p: dir*0.55, prio: 1 });
+  },
+  // Holzknarzen: im Mittenband, wo es auf jedem Gerät zu hören ist
+  creak(){
+    this.duck(0.2, 0.1);
+    const f = 240 + Math.random()*180;
+    this.tone({ freq: f, to: f*0.82, dur: 0.3, type: 'sawtooth', gain: 0.12, attack: 0.03,
+      filter: 'bandpass', fc: f*2.2, q: 6, vib: f*0.06, vibRate: 15 + Math.random()*12 });
+    this.noise({ dur: 0.3, filter: 'bandpass', fc: 800 + Math.random()*300, q: 8,
+      gain: 0.088, attack: 0.05 });
+  },
+  // Taube: drei Silben mit betonter Mitte statt zwei gleichlangen Tönen
+  coo(){
+    const s = (fr, to, dur, g, d) => this.tone({ freq: fr, to, dur, type: 'triangle', gain: g,
+      delay: d, filter: 'lowpass', fc: 1200, vib: 8, vibRate: 10 });
+    s(430, 400, 0.12, 0.028, 0);
+    s(400, 470, 0.26, 0.034, 0.14);
+    s(455, 380, 0.2, 0.024, 0.44);
+  },
+  flap(){
+    for (let i = 0; i < 3; i++)
+      this.noise({ dur: 0.09, filter: 'bandpass', fc: 520 - i*60, fcTo: 900 - i*60, q: 0.7,
+        gain: 0.075 - i*0.016, delay: i*0.11 + Math.random()*0.05, attack: 0.012 });
+  },
+  flagStart(){
+    this.noise({ dur: 0.05, fc: 2400, q: 2, gain: 0.13 });
+    this.tone({ freq: 330, to: 494, dur: 0.14, type: 'triangle', gain: 0.14, filter: 'lowpass', fc: 2200 });
+  },
+  // Belohnung: aufsteigende Pentatonik mit Glockenanteil
+  flagDone(){
+    this.duck(0.5, 0.4);
+    [0, 4, 7, 12].forEach((s, i) => {
+      const f = 392 * Math.pow(2, s/12);
+      this.tone({ freq: f, dur: 0.3, type: 'triangle', gain: 0.06, delay: i*0.085,
+        filter: 'lowpass', fc: 4000, prio: 1 });
+      this.tone({ freq: f*2, dur: 0.18, type: 'sine', gain: 0.024, delay: i*0.085, prio: 1 });
+    });
+  },
+  // Herzschlag "lub-dub": Dreieck statt Sinus, damit Obertöne auf dem
+  // Handylautsprecher ankommen, plus perkussiver Mitten-Knock
+  heartbeat(period = 0.62){
+    this.duck(0.55, 0.15);
+    const beat = (d, g0) => {
+      this.tone({ freq: 110, to: 58, dur: 0.16, type: 'triangle', gain: g0, attack: 0.006,
+        delay: d, filter: 'lowpass', fc: 460, prio: 1 });
+      // Der Knock ist der einzige Teil, der einen Handylautsprecher erreicht
+      this.noise({ dur: 0.08, filter: 'bandpass', fc: 700, fcTo: 420, q: 1.2,
+        gain: g0*1.2, attack: 0.004, delay: d, prio: 1 });
     };
-  }
-
-  return { prof, groundAt, xAtDistance, inrun, inrunAt, inrunLength, landingAngle };
-})();
-
-// ------------------------------------------------------------------ Input
-const Input = (() => {
-  const state = {
-    tap: false,          // in diesem Frame neu getippt (Pointer down / Space)
-    pointerDown: false,
-  };
-  let startY = 0, curY = 0, dragging = false;
-  const keys = {};
-  const canvas = document.getElementById('game');
-
-  canvas.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    state.tap = true;
-    state.pointerDown = true;
-    startY = curY = e.clientY;
-    dragging = false;
-    canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener('pointermove', e => {
-    if (!state.pointerDown) return;
-    curY = e.clientY;
-    if (Math.abs(curY - startY) > 16) dragging = true;
-  });
-  const up = () => { state.pointerDown = false; dragging = false; };
-  canvas.addEventListener('pointerup', up);
-  canvas.addEventListener('pointercancel', up);
-
-  window.addEventListener('keydown', e => {
-    if (e.repeat) return;
-    keys[e.key] = true;
-    if (e.key === ' ' || e.key === 'Enter') state.tap = true;
-    if (e.key === 'd' || e.key === 'D') Game.debug = !Game.debug;
-  });
-  window.addEventListener('keyup', e => { keys[e.key] = false; });
-
-  // Pro Physikframe aufrufen: liefert Steuerwert und setzt Tap zurück
-  function poll() {
-    let a = 0;
-    if (state.pointerDown) {
-      if (dragging) {
-        // Ziehen: Auslenkung vom Startpunkt = Drehrate (nach oben ziehen = aufrichten)
-        a = clamp((startY - curY) / (window.innerHeight * 0.18), -1, 1);
-      } else {
-        // Halten: obere Hälfte = aufrichten, untere = Vorlage
-        a = curY < window.innerHeight / 2 ? 0.8 : -0.8;
-      }
-    }
-    if (keys['ArrowUp'] || keys['w']) a = 1;
-    if (keys['ArrowDown'] || keys['s']) a = -1;
-    const tap = state.tap; state.tap = false;
-    return { tap, angle: a };
-  }
-  return { poll, state };
-})();
-
-// ------------------------------------------------------------------ Game
-const Game = {
-  state: 'READY',   // READY | INRUN | FLIGHT | OUTRUN | RESULT
-  debug: false,
-  time: 0,
-  outrunTimer: 0,
-
-  // Springer
-  skier: { x: 0, y: 0, vx: 0, vy: 0, body: 0, s: 0, v: 0, pose: 'crouch', spin: 0 },
-
-  // Sprungdaten
-  wind: 0, gustPhase: 0,
-  takeoff: { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null },
-  flight: { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 },
-  landingTap: { time: -99, windowOpen: false, tta: 99 },
-  result: null,
-  best: JSON.parse(localStorage.getItem('alpenflug_best') || 'null'),
-
-  message: { text: '', color: '#fff', until: 0 },
-  particles: [],
-
-  showMsg(text, color, dur = 1.4) {
-    this.message = { text, color, until: this.time + dur };
+    // Systole rückt mit steigendem Puls näher, wie bei einem echten Herzschlag
+    beat(0, 0.105); beat(Math.min(0.19, period*0.42), 0.076);
   },
-
-  newJump() {
-    this.state = 'INRUN';
-    this.wind = (Math.random() * 2 - 1) * CONFIG.windStrength;
-    this.gustPhase = Math.random() * 100;
-    const start = Hill.inrunAt(0);
-    Object.assign(this.skier, { s: 0, v: 0, x: start.x, y: start.y, vx: 0, vy: 0, body: -start.angle, pose: 'crouch', spin: 0 });
-    this.takeoff = { tapped: false, quality: 0, lateTimer: 0, done: false, tapTTE: null };
-    this.flight = { time: 0, corridorTime: 0, alpha: 0, lift: 0, drag: 0 };
-    this.landingTap = { time: -99, windowOpen: false, tta: 99 };
-    this.result = null;
-    this.particles.length = 0;
-    hide(startPanel); hide(resultPanel);
+  // "Der Wind findet dich": anschwellende Warnung beim Zögern
+  idleWarn(){
+    this.duck(0.35, 0.7);
+    this.noise({ dur: 1.1, rise: 0.8, filter: 'bandpass', fc: 300, fcTo: 1000, q: 1.4, gain: 0.075 });
+    this.tone({ freq: 210, to: 158, dur: 0.8, type: 'triangle', gain: 0.05, attack: 0.06,
+      filter: 'lowpass', fc: 700, vib: 5, vibRate: 4.5 });
   },
-
-  // aktueller Wind inkl. Böen
-  currentWind() {
-    const gust = Math.sin(this.time * 1.3 + this.gustPhase) * Math.sin(this.time * 0.7);
-    return this.wind * (1 + CONFIG.gustAmount * gust);
+  grab(){
+    this.noise({ dur: 0.09, fc: 1300, q: 1.2, gain: 0.235 });
+    this.tone({ freq: 150, to: 95, dur: 0.12, type: 'triangle', gain: 0.05, attack: 0.004,
+      filter: 'lowpass', fc: 600 });
   },
-
-  // ---------------- Physik-Update (fixer Timestep) ----------------
-  update(dt) {
-    this.time += dt;
-    const inp = Input.poll();
-    const S = this.skier;
-
-    if (this.state === 'READY' && inp.tap) this.newJump();
-
-    // ---------- ANLAUF ----------
-    else if (this.state === 'INRUN') {
-      const th = Hill.inrunAt(S.s).angle * D2R;
-      const a = CONFIG.gravity * Math.sin(th)
-              - CONFIG.inrunFriction * CONFIG.gravity * Math.cos(th)
-              - CONFIG.inrunDrag * S.v * S.v;
-      S.v += a * dt;
-      S.s += S.v * dt;
-
-      // Absprung-Tap: Qualität nach Restzeit bis zur Tischkante
-      if (inp.tap && !this.takeoff.tapped) {
-        this.takeoff.tapped = true;
-        const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
-        this.takeoff.tapTTE = tte;
-        this.takeoff.quality = tte <= CONFIG.perfectWindow
-          ? 1
-          : Math.max(0.05, 1 - (tte - CONFIG.perfectWindow) / CONFIG.earlyFalloff);
-      }
-
-      if (S.s >= Hill.inrunLength) this.startFlight();
-      else {
-        const p = Hill.inrunAt(S.s);
-        S.x = p.x; S.y = p.y; S.body = -p.angle;
-      }
-    }
-
-    // ---------- FLUG ----------
-    else if (this.state === 'FLIGHT') {
-      const F = this.flight, T = this.takeoff;
-
-      // Verspäteter Absprung: Tap kurz nach der Kante zählt noch (reduziert)
-      if (!T.done) {
-        T.lateTimer += dt;
-        if (inp.tap && T.lateTimer <= CONFIG.lateWindow) {
-          T.tapped = true; T.done = true;
-          T.quality = Math.max(0.05, 1 - (T.lateTimer + CONFIG.perfectWindow) / (CONFIG.lateWindow + CONFIG.perfectWindow));
-          this.applyTakeoffImpulse(T.quality, true);
-          this.rateTakeoff(T.quality, 'spät');
-        } else if (T.lateTimer > CONFIG.lateWindow) {
-          T.done = true;
-          this.rateTakeoff(0, 'keiner');
-        }
-      }
-
-      // Fluglagensteuerung + aerodynamischer Drift
-      S.body += inp.angle * CONFIG.angleSpeed * dt + CONFIG.pitchDrift * dt;
-      S.body = clamp(S.body, CONFIG.bodyMin, CONFIG.bodyMax);
-
-      // Aerodynamik relativ zur Anströmung (Wind verstärkt via windAeroFactor)
-      const w = this.currentWind() * CONFIG.windAeroFactor;
-      const rvx = S.vx - w, rvy = S.vy;
-      const rv = Math.hypot(rvx, rvy);
-      const velAng = Math.atan2(rvy, rvx) / D2R;
-      const alpha = S.body - velAng;                       // Anstellwinkel
-      const dNorm = (alpha - CONFIG.optimalAngle) / CONFIG.angleTolerance;
-      const liftF = Math.exp(-dNorm * dNorm);              // Gauß-Glocke ums Optimum
-      const aPos = Math.max(0, alpha) / 30;
-      const dragF = 1 + (CONFIG.dragAngleFactor / CONFIG.dragCoefficient) * aPos * aPos;
-      const lift = CONFIG.liftCoefficient * rv * rv * liftF;
-      const drag = CONFIG.dragCoefficient * rv * rv * dragF;
-      const ux = rvx / rv, uy = rvy / rv;
-      S.vx += (-drag * ux - lift * uy) * dt;
-      S.vy += (-drag * uy + lift * ux - CONFIG.gravity) * dt;
-      S.x += S.vx * dt; S.y += S.vy * dt;
-
-      // Haltungsnote: Zeit im Korridor
-      F.time += dt;
-      if (Math.abs(alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance) F.corridorTime += dt;
-      F.alpha = alpha; F.lift = lift; F.drag = drag;
-
-      // Landefenster: geschätzte Zeit bis zum Aufsetzen
-      const g = Hill.groundAt(S.x);
-      const gap = S.y - g.y;
-      const closure = -(S.vy + S.vx * Math.tan(g.angle * D2R)); // Annäherungsrate an den Hang
-      this.landingTap.tta = closure > 0.3 ? gap / closure : 99;
-      const open = this.landingTap.tta < CONFIG.earlyLimit && F.time > 0.5;
-      if (open && !this.landingTap.windowOpen) this.showMsg('LANDEN!', '#ffe082', 0.9);
-      this.landingTap.windowOpen = open;
-      if (inp.tap && open) this.landingTap.time = this.time;
-
-      if (S.y <= g.y && F.time > 0.1) this.touchdown(g);
-    }
-
-    // ---------- AUSLAUF ----------
-    else if (this.state === 'OUTRUN') {
-      const th = Hill.groundAt(S.x).angle * D2R;
-      const fric = this.result.crashed ? CONFIG.crashFriction : CONFIG.outrunFriction;
-      const a = CONFIG.gravity * Math.sin(th) - fric * CONFIG.gravity * Math.cos(th) - 0.002 * S.v * S.v;
-      S.v = Math.max(0, S.v + a * dt);
-      S.x += S.v * Math.cos(th) * dt;
-      const g2 = Hill.groundAt(S.x);
-      S.y = g2.y;
-      if (this.result.crashed) {
-        S.body += S.spin * dt;
-        S.spin *= 0.97;
-        if (S.v > 2) this.spray(2);
-      } else {
-        S.body = -g2.angle;
-      }
-      this.outrunTimer += dt;
-      if ((S.v < 1.5 || this.outrunTimer > 3.5) && this.outrunTimer > 1.4) this.showResult();
-    }
-
-    // Partikel
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 6 * dt; p.life -= dt;
-      if (p.life <= 0) this.particles.splice(i, 1);
-    }
+  fall(){
+    this.duck(0.6, 0.9);
+    this.tone({ freq: 520, to: 120, dur: 1.1, type: 'triangle', gain: 0.072, attack: 0.02,
+      filter: 'lowpass', fc: 2200, prio: 1 });
+    this.noise({ dur: 1.1, filter: 'lowpass', fc: 1400, fcTo: 300, q: 0.6, gain: 0.048,
+      attack: 0.08, prio: 1 });
   },
-
-  startFlight() {
-    const S = this.skier, T = this.takeoff;
-    const ta = -CONFIG.tableAngle * D2R;
-    const q = T.tapped ? T.quality : 0;
-    // Absprungqualität wirkt auch auf die Abfahrtsgeschwindigkeit
-    const v = S.v * (1 - CONFIG.takeoffSpeedBonus + CONFIG.takeoffSpeedBonus * q);
-    S.x = 0; S.y = 0;
-    S.vx = v * Math.cos(ta); S.vy = v * Math.sin(ta);
-    S.body = -CONFIG.tableAngle + 4;
-    S.pose = 'flight';
-    this.state = 'FLIGHT';
-    if (T.tapped) {
-      T.done = true;
-      this.applyTakeoffImpulse(q, false);
-      this.rateTakeoff(q, T.tapTTE <= CONFIG.perfectWindow ? 'perfekt' : 'früh');
-    }
-    // sonst: lateWindow läuft im FLIGHT-Update weiter
+  letGo(){
+    this.tone({ freq: 700, to: 240, dur: 0.42, type: 'sine', gain: 0.08, filter: 'lowpass', fc: 2400 });
   },
-
-  applyTakeoffImpulse(q, late) {
-    const S = this.skier, ta = CONFIG.tableAngle * D2R;
-    const imp = CONFIG.takeoffImpulse * q * (late ? 0.8 : 1);
-    S.vx += imp * Math.sin(ta) * 0.25;   // kleiner Vorwärtsanteil
-    S.vy += imp * Math.cos(ta);          // Hauptanteil senkrecht zum Tisch
+  // Leiter schlägt auf: Sub + Mittenkörper + Holzgeklapper
+  thud(){
+    this.duck(0.7, 0.35);
+    this.tone({ freq: 96, to: 55, dur: 0.3, type: 'sine', gain: 0.17, attack: 0.004, prio: 1 });
+    this.tone({ freq: 190, to: 90, dur: 0.22, type: 'triangle', gain: 0.14, attack: 0.003,
+      filter: 'lowpass', fc: 700, prio: 1 });
+    this.noise({ dur: 0.18, filter: 'bandpass', fc: 420, fcTo: 170, q: 0.9, gain: 0.16,
+      attack: 0.003, prio: 1 });
+    for (let i = 0; i < 4; i++)
+      this.noise({ dur: 0.05, fc: 1100 + Math.random()*900, q: 3, gain: 0.085,
+        delay: 0.05 + i*0.06 + Math.random()*0.03 });
   },
-
-  rateTakeoff(q, kind) {
-    if (kind === 'keiner')      this.showMsg('Absprung verschlafen!', '#ff8a80');
-    else if (q >= 0.93)         this.showMsg('PERFEKTER ABSPRUNG!', '#69f0ae');
-    else if (q >= 0.7)          this.showMsg('Guter Absprung', '#b9f6ca');
-    else if (kind === 'spät')   this.showMsg('Zu spät!', '#ffb74d');
-    else                        this.showMsg('Zu früh!', '#ffb74d');
+  // Ragdoll landet: dumpfer Aufprall mit Comic-Boing
+  bodyThud(){
+    this.duck(0.45, 0.25);
+    this.tone({ freq: 130, to: 62, dur: 0.22, type: 'triangle', gain: 0.16, attack: 0.004,
+      filter: 'lowpass', fc: 520, prio: 1 });
+    this.noise({ dur: 0.14, filter: 'bandpass', fc: 380, fcTo: 180, q: 0.8, gain: 0.12, attack: 0.003 });
+    this.tone({ freq: 300, to: 150, dur: 0.24, type: 'triangle', gain: 0.05, delay: 0.05,
+      filter: 'lowpass', fc: 1200, vib: 26, vibRate: 13 });
   },
-
-  touchdown(g) {
-    const S = this.skier;
-    const th = g.angle * D2R;
-    // Aufprallgeschwindigkeit senkrecht zum Hang (Hangnormale n = (sinθ, cosθ))
-    const vNormal = -(S.vx * Math.sin(th) + S.vy * Math.cos(th));
-    // Telemark-Timing
-    const dtTap = this.time - this.landingTap.time;
-    let landing, landingPts, crashed = false;
-    if (dtTap <= CONFIG.telemarkWindow)     { landing = 'Telemark!';        landingPts = CONFIG.styleLandingMax; }
-    else if (dtTap <= CONFIG.okWindow)      { landing = 'Sichere Landung';  landingPts = CONFIG.styleLandingMax * 0.6; }
-    else if (dtTap <= CONFIG.earlyLimit)    { landing = 'Wacklige Landung'; landingPts = CONFIG.styleLandingMax * 0.33; }
-    else                                    { landing = 'STURZ!';           landingPts = 0; crashed = true; }
-    if (vNormal > CONFIG.crashSpeed)        { landing = 'STURZ – zu hart!'; landingPts = 0; crashed = true; }
-
-    const dist = Math.round(g.s * 2) / 2;   // auf 0,5 m gerundet
-    const distPts = Math.max(0, CONFIG.basePoints + (dist - CONFIG.kPoint) * CONFIG.meterValue);
-    const F = this.flight;
-    let flightPts = (F.time > 0 ? F.corridorTime / F.time : 0) * CONFIG.styleFlightMax;
-    if (crashed) flightPts *= 0.25;
-    const total = distPts + flightPts + landingPts;
-
-    this.result = {
-      dist, distPts, flightPts, landingPts, total, landing, crashed,
-      wind: this.wind, takeoffQ: this.takeoff.quality,
-    };
-    // Bestleistung
-    if (!this.best || total > this.best.total) {
-      this.best = { dist, total };
-      try { localStorage.setItem('alpenflug_best', JSON.stringify(this.best)); } catch (e) {}
-    }
-
-    // In den Auslauf übergehen
-    this.state = 'OUTRUN';
-    this.outrunTimer = 0;
-    const vTang = S.vx * Math.cos(th) - S.vy * Math.sin(th);
-    S.v = Math.max(3, vTang);
-    S.y = g.y;
-    S.pose = crashed ? 'crash' : (dtTap <= CONFIG.telemarkWindow ? 'telemark' : 'landed');
-    if (crashed) { S.spin = -540; this.showMsg('STURZ!', '#ff5252', 1.8); }
-    else this.showMsg(landing, dtTap <= CONFIG.telemarkWindow ? '#69f0ae' : '#fff', 1.4);
-    this.spray(crashed ? 40 : 18);
+  newBest(){
+    this.duck(0.55, 0.6);
+    [0, 4, 7, 12, 16].forEach((s, i) => {
+      const f = 523.25 * Math.pow(2, s/12);
+      this.tone({ freq: f, dur: 0.42, type: 'triangle', gain: 0.055, delay: i*0.075,
+        filter: 'lowpass', fc: 5000, prio: 1 });
+      this.tone({ freq: f*2.01, dur: 0.3, type: 'sine', gain: 0.019, delay: i*0.075, prio: 1 });
+    });
   },
-
-  spray(n) {
-    const S = this.skier;
-    for (let i = 0; i < n; i++)
-      this.particles.push({
-        x: S.x, y: S.y + 0.2, life: 0.4 + Math.random() * 0.5,
-        vx: -2 - Math.random() * 5, vy: 1 + Math.random() * 4,
-      });
+  // Freischaltung: wird hinter die Rekord-Fanfare gelegt statt daraufgestapelt
+  unlock(delay = 0){
+    this.duck(0.4, 0.4 + delay);
+    [0, 7, 12, 19].forEach((s, i) =>
+      this.tone({ freq: 659.25*Math.pow(2, s/12), dur: 0.3, type: 'sine', gain: 0.05,
+        delay: delay + i*0.06, prio: 1 }));
   },
-
-  showResult() {
-    this.state = 'RESULT';
-    const r = this.result;
-    resTitle.textContent = r.crashed ? '💥 Gestürzt' : '🎿 Sprungweite';
-    resDist.textContent = r.dist.toFixed(1).replace('.', ',') + ' m';
-    resPts.innerHTML =
-      `Weite: <b>${r.distPts.toFixed(1)}</b> · Haltung Flug: <b>${r.flightPts.toFixed(1)}</b> · ` +
-      `Landung (<span class="rating">${r.landing}</span>): <b>${r.landingPts.toFixed(1)}</b><br>` +
-      `Gesamt: <b style="font-size:20px">${r.total.toFixed(1)} Punkte</b><br>` +
-      `<span style="color:#9fc3e0">Wind: ${windLabel(r.wind)}</span>`;
-    resBest.textContent = this.best
-      ? `Bestleistung: ${this.best.dist.toFixed(1).replace('.', ',')} m · ${this.best.total.toFixed(1)} Pkt.` : '';
-    show(resultPanel);
+  uiTap(){ this.tone({ freq: 480, to: 660, dur: 0.06, type: 'sine', gain: 0.115 }); },
+  // Wind-Ambience geglättet setzen; nur bei relevanter Änderung neu automatisieren
+  setWind(intensity, h){
+    if (!this.windGain) return;
+    // Deckel bewusst niedrig: bei 0.28 hielt die Ambience allein den Limiter
+    // dauerhaft in Regelung und verdeckte jedes Spielsignal.
+    const target = this.muted ? 0 : Math.min(0.12, 0.03 + intensity*0.34);
+    if (Math.abs(target - this.wTarget) < 0.004 && Math.abs(h - this.wHeight) < 2) return;
+    this.wTarget = target; this.wHeight = h;
+    const t = this.ctx.currentTime;
+    this.windGain.gain.setTargetAtTime(target, t, 0.12);
+    this.windFilter.frequency.setTargetAtTime(340 + Math.min(600, h*3.2), t, 0.3);
+    this.windLow.frequency.setTargetAtTime(700 + Math.min(1600, h*8), t, 0.3);
+  },
+  // Rückwärtskompatible Helfer
+  beep(freq, dur=0.08, type='sine', gain=0.25, slideTo=0, delay=0){
+    this.tone({ freq, dur, type, gain: gain*0.55, to: slideTo, delay });
+  },
+  noiseBurst(dur=0.15, freq=900, gain=0.3, delay=0){
+    this.noise({ dur, fc: freq, gain: gain*0.5, delay });
   },
 };
+// Kontext bei Hintergrund pausieren (Akku + iOS-Regeln).
+// Bekannte Plattformgrenze: auf iOS schaltet der Stummschalter am Gerät reine
+// WebAudio-Ausgabe komplett ab – dafür gibt es keinen sauberen Workaround.
+document.addEventListener('visibilitychange', () => {
+  if (!AudioEngine.ctx) return;
+  if (document.hidden) AudioEngine.ctx.suspend().catch(()=>{});
+  else AudioEngine.resume();
+});
+function vibrate(pat){ try { if (navigator.vibrate) navigator.vibrate(pat); } catch(e){} }
 
-function windLabel(w) {
-  const abs = Math.abs(w).toFixed(1).replace('.', ',');
-  if (Math.abs(w) < 0.15) return 'windstill';
-  return w < 0 ? `${abs} m/s Gegenwind ✓` : `${abs} m/s Rückenwind ✗`;
+// ------------------------------------------------ Input ----
+const Input = {
+  touching: false, startX: 0, startY: 0, x: 0, y: 0, id: null,
+  keyLean: 0, keyDown: false, keyBrace: false,
+  lean(){ // -1..1, relativ zum Aufsetzpunkt (Daumen-Okklusions-Fix)
+    if (this.touching) return clamp((this.x - this.startX) / CFG.dragRange, -1, 1);
+    return this.keyDown ? this.keyLean : 0;
+  },
+  brace(){
+    if (this.touching){
+      // Nur bei klar dominanter Abwärtsbewegung, sonst greift es beim Quer-Lenken
+      const dy = this.y - this.startY;
+      return dy > CFG.braceDy && dy > Math.abs(this.x - this.startX) * 0.7;
+    }
+    return this.keyDown && this.keyBrace;
+  },
+  held(){ return this.touching || this.keyDown; },
+};
+const cvs = document.getElementById('c');
+function onDown(x, y, id){
+  if (Input.touching) return;
+  Input.touching = true; Input.id = id;
+  Input.startX = Input.x = x; Input.startY = Input.y = y;
+  AudioEngine.init(); AudioEngine.resume();
+  Game.onPress();
+}
+function onMove(x, y, id){
+  if (!Input.touching || id !== Input.id) return;
+  Input.x = x; Input.y = y;
+  // Driftender Anker: am Bildschirmrand bleibt voller Ausschlag erreichbar,
+  // Richtungswechsel wirken sofort
+  if (x - Input.startX > CFG.dragRange) Input.startX = x - CFG.dragRange;
+  else if (x - Input.startX < -CFG.dragRange) Input.startX = x + CFG.dragRange;
+  if (y - Input.startY > CFG.braceDy*3) Input.startY = y - CFG.braceDy*3;
+  else if (y - Input.startY < -CFG.braceDy) Input.startY = y + CFG.braceDy;
+}
+function onUp(id){ if (Input.touching && id === Input.id){ Input.touching = false; Input.id = null; } }
+cvs.addEventListener('pointerdown', e => { e.preventDefault(); onDown(e.clientX, e.clientY, e.pointerId); }, {passive:false});
+window.addEventListener('pointermove', e => onMove(e.clientX, e.clientY, e.pointerId), {passive:true});
+window.addEventListener('pointerup', e => onUp(e.pointerId));
+window.addEventListener('pointercancel', e => onUp(e.pointerId));
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'ArrowUp'){ Input.keyDown = true; AudioEngine.init(); AudioEngine.resume(); Game.onPress(); }
+  if (e.code === 'ArrowLeft') Input.keyLean = -1;
+  if (e.code === 'ArrowRight') Input.keyLean = 1;
+  if (e.code === 'ArrowDown') Input.keyBrace = true;
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') Input.keyDown = false;
+  if (e.code === 'ArrowLeft' && Input.keyLean < 0) Input.keyLean = 0;
+  if (e.code === 'ArrowRight' && Input.keyLean > 0) Input.keyLean = 0;
+  if (e.code === 'ArrowDown') Input.keyBrace = false;
+});
+
+// ------------------------------------------------ Sim ----
+/* Deterministischer Kern. Input pro 2 Frames (30 Hz) als Byte:
+   Bits 0-3: Lean quantisiert (0..14, 7 = neutral), Bit 4: gehalten, Bit 5: Abstützen.
+   Grobe Quantisierung => RLE komprimiert gut => kurze Ghost-URLs.
+   Player-Sim zeichnet auf, Ghost-Sim spielt ab. */
+class Sim {
+  constructor(seed, opts = {}){
+    this.seed = seed >>> 0;
+    this.rng = mulberry32(this.seed);
+    this.assist = opts.assist || 0;
+    this.playback = opts.playback || null;
+    this.record = !opts.playback;
+    this.track = [];
+    this.frame = 0;
+    this.theta = 0; this.omega = 0;
+    this.h = 0; this.climbPhase = 0;
+    this.alive = true; this.deathCause = null;
+    this.idleT = 0; this.idleAmp = 0;
+    // Wind
+    this.windAmb = 0; this.gust = null; this.nextGustAt = 4 + this.rng()*2;
+    this.gustWarnLeft = 0; this.warned = false;
+    this.pendingDir = 1; this.pendingMag = 0;
+    this.time = 0;
+    // Gerald
+    this.gerald = null; this.nextGeraldAt = 20 + this.rng()*14; this.geraldWasRecent = 0;
+    // Flaggen
+    this.flagsPlanted = []; this.planting = 0; this.braceT = 0; this.flagBand = null; this.lastBand = null;
+    this.braceEdgeInBand = false; this.idleWarned = false; this.capH = null;
+    // abgeleitete Werte für Renderer / Events für Sound
+    this.curU = 0; this.curHeld = false; this.curBrace = false;
+    this.events = [];
+  }
+  landmarkAt(h){
+    for (const b of CFG.flagBandsBase) if (Math.abs(h-b) <= 2) return b;
+    if (h > 102){ const n = Math.round(h/CFG.flagEvery)*CFG.flagEvery;
+      if (n > 100 && Math.abs(h-n) <= 2) return n; }
+    return null;
+  }
+  inputByte(){
+    if (this.playback) return (this.frame>>1) < this.playback.length ? this.playback[this.frame>>1] : 7;
+    const q = clamp(Math.round(Input.lean()*7)+7, 0, 14);
+    return q | (Input.held()?16:0) | (Input.brace()?32:0);
+  }
+  step(){
+    const dt = CFG.dt;
+    if (!this.alive) return;
+    // Input nur jeden 2. Frame neu lesen (30 Hz, deterministisch, quantisiert)
+    if (this.frame % 2 === 0){
+      const b = this.inputByte();
+      if (this.record){
+        if (this.track.length < CFG.maxRecFrames) this.track.push(b);
+        else if (this.capH === null) this.capH = this.h; // Ghost endet hier
+      }
+      const nb = !!(b & 32);
+      // Flagge nur nach FRISCHEM Runterziehen im Band (kein verschleppter Brace)
+      if (nb && !this.curBrace) this.braceEdgeInBand = this.landmarkAt(this.h) !== null;
+      else if (!nb) this.braceEdgeInBand = false;
+      this.curU = ((b & 15) - 7) / 7;
+      this.curHeld = !!(b & 16);
+      this.curBrace = nb;
+    }
+    this.frame++; this.time += dt;
+    const h = this.h, held = this.curHeld;
+    const brace = this.curBrace && held;
+    const planting = this.planting > 0;
+
+    // --- Klettern
+    const climbing = held && !brace && !planting;
+    if (climbing){
+      const prev = this.h;
+      this.h += CFG.climbSpeed * dt;
+      this.climbPhase += CFG.climbSpeed * dt * 2.2;
+      if (((prev*2)|0) !== ((this.h*2)|0)) this.events.push({t:'rung'});
+    }
+    // --- Stillstands-Ratchet ("der Wind findet dich")
+    if (!climbing && !planting){
+      this.idleT += dt;
+      if (this.idleT > 0.6){
+        // wächst nach dem Cap langsam weiter: Dauer-Campen kippt IMMER irgendwann
+        this.idleAmp = this.idleAmp < CFG.idleMax
+          ? Math.min(CFG.idleMax, this.idleAmp + CFG.idleRatchet*dt)
+          : this.idleAmp + 0.08*dt;
+        if (!this.idleWarned && this.idleAmp > 0.5){ this.idleWarned = true; this.events.push({t:'idlewarn'}); }
+      }
+    } else { this.idleT = 0; this.idleAmp = Math.max(0, this.idleAmp - 2.5*dt);
+      if (this.idleAmp === 0) this.idleWarned = false; }
+
+    // --- Wind: Ambient + Turbulenz + geplante Böen (alles aus dem Seed)
+    this.windAmb = Math.sin(this.time*0.7 + this.seed%10) * (0.05 + h*0.0016);
+    if (h > 40) // Turbulenz in der Höhe: mehrere überlagerte Frequenzen
+      this.windAmb += (Math.sin(this.time*2.3 + this.seed%7) + Math.sin(this.time*3.7)) * Math.min(0.09, (h-40)*0.0011);
+    if (!this.gust && !this.warned && this.time >= this.nextGustAt - CFG.gustWarn){
+      this.warned = true; this.gustWarnLeft = CFG.gustWarn;
+      this.pendingDir = this.rng() < 0.5 ? -1 : 1;
+      this.pendingMag = (0.16 + Math.min(0.55, h*0.005) + this.rng()*0.12) * (1 - this.assist*0.45);
+      this.events.push({t:'gustwarn', dir: this.pendingDir});
+    }
+    if (this.warned && !this.gust){
+      this.gustWarnLeft -= dt;
+      if (this.gustWarnLeft <= 0){
+        this.gust = { dir: this.pendingDir, mag: this.pendingMag, left: 1.2 + this.rng()*1.4 };
+        this.events.push({t:'gust'});
+      }
+    }
+    let windTq = this.windAmb * (1 + this.idleAmp);
+    if (this.gust){
+      windTq += this.gust.dir * this.gust.mag;
+      this.gust.left -= dt;
+      if (this.gust.left <= 0){ this.gust = null; this.warned = false;
+        // Böen rücken mit der Höhe enger zusammen
+        const spacing = clamp(1 - h/220, 0.4, 1);
+        this.nextGustAt = this.time + (3.2 + this.rng()*4.2) * spacing; }
+    }
+    if (this.idleAmp > 0) windTq += Math.sin(this.time*5.3) * this.idleAmp * 0.14;
+
+    // --- Gerald 🕊️
+    if (!this.gerald && h >= CFG.geraldMinH && this.time >= this.nextGeraldAt){
+      this.gerald = { phase:'approach', t:0, dir: this.rng()<0.5?-1:1, shake:0 };
+      this.events.push({t:'geraldIn', dir:this.gerald.dir});
+    }
+    if (this.gerald){
+      const g = this.gerald; g.t += dt;
+      if (g.phase === 'approach'){ if (g.t > 1.2){ g.phase='landed'; g.t=0; this.events.push({t:'geraldLand'}); } }
+      else if (g.phase === 'landed'){
+        windTq += g.dir * 0.30;
+        this.geraldWasRecent = 1.0;
+        // Gegenlehnen schüttelt ihn ab
+        if (this.curU * g.dir < -0.45) g.shake += dt; else g.shake = Math.max(0, g.shake - dt*0.5);
+        if (g.shake > 0.4 || g.t > 3.5){ g.phase='leave'; g.t=0; this.events.push({t:'geraldOut'}); }
+      }
+      else if (g.phase === 'leave'){ if (g.t > 0.8){ this.gerald = null;
+        this.nextGeraldAt = this.time + 14 + this.rng()*16; } }
+    }
+    this.geraldWasRecent = Math.max(0, this.geraldWasRecent - dt);
+
+    // --- Flaggen-Banking (Abstützen im Landmark-Band startet Pflanzen)
+    this.flagBand = this.landmarkAt(h);
+    const bandFree = this.flagBand !== null && !this.flagsPlanted.includes(this.flagBand);
+    if (planting){
+      this.planting -= dt;
+      if (this.planting <= 0){
+        this.flagsPlanted.push(this.lastBand);
+        this.events.push({t:'flagDone', at: this.lastBand});
+      }
+    } else if (bandFree && brace && this.braceEdgeInBand){
+      this.braceT += dt;
+      if (this.braceT >= CFG.flagHold){
+        this.planting = CFG.flagPlant; this.lastBand = this.flagBand;
+        this.braceT = 0; this.events.push({t:'flagStart'});
+      }
+    } else this.braceT = 0;
+
+    // --- Pendel (invertiert; L wächst mit der Höhe -> träger, Wind wird stärker)
+    const L = CFG.baseLen + h;
+    const gravScale = (CFG.gravFloor + (1-CFG.gravFloor)*Math.min(1, h/CFG.gravRampH))
+      * (1 + Math.min(1, h/150)) * (1 - this.assist*0.35);
+    let alpha = (CFG.grav / L) * Math.sin(this.theta) * gravScale + windTq;
+    if (climbing) alpha += Math.sin(this.climbPhase*3.1) * CFG.climbBob / Math.sqrt(L);
+    if (planting) alpha *= 1.5;                 // beide Hände an der Flagge
+    else if (held){
+      const auth = CFG.ctrl / (10 + h*0.35) * (brace ? CFG.braceCtrl : 1);
+      this.omega -= this.curU * auth * dt;
+    }
+    this.omega += alpha * dt;
+    this.omega -= this.omega * CFG.damp * dt;
+    this.omega = clamp(this.omega, -3, 3);
+    this.theta += this.omega * dt;
+
+    // --- Sturz
+    if (Math.abs(this.theta) > CFG.fallAngle){
+      this.alive = false;
+      this.deathCause = planting ? 'flag'
+        : this.geraldWasRecent > 0 ? 'gerald'
+        : this.idleAmp > 1 ? 'idle'
+        : (this.gust || this.warned) ? 'wind' : 'balance';
+      this.events.push({t:'fall'});
+    }
+  }
+  takeEvents(){ const e = this.events; this.events = []; return e; }
 }
 
-// ------------------------------------------------------------------ Render
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-let W = 0, H = 0, DPR = 1;
+// ------------------------------------------------ Ghost-Link ----
+function encodeGhost(d){
+  const rle = rleEnc(d.track);
+  // Bei gekappter Aufnahme nur die tatsächlich replaybare Höhe versprechen
+  const hEff = (d.capH !== null && d.capH !== undefined) ? Math.min(d.h, d.capH) : d.h;
+  const h10 = Math.round(hEff*10);
+  const bytes = [1, d.mode === 'daily' ? 1 : 0,
+    d.seed & 255, (d.seed>>>8)&255, (d.seed>>>16)&255, (d.seed>>>24)&255,
+    h10 & 255, (h10>>>8)&255,
+    Math.round((d.assist||0)*100)];
+  return b64uEnc(bytes.concat(rle));
+}
+function decodeGhost(str){
+  try {
+    const b = b64uDec(str);
+    if (b[0] !== 1) return null;
+    const seed = (b[2] | b[3]<<8 | b[4]<<16 | b[5]<<24) >>> 0;
+    const height = (b[6] | b[7]<<8) / 10;
+    const assist = clamp(b[8]/100, 0, 1);
+    const track = rleDec(Array.from(b.slice(9)));
+    return { seed, height, assist, track, daily: b[1]===1 };
+  } catch(e){ return null; }
+}
 
-function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 3);
+// ------------------------------------------------ Renderer ----
+const ctx = cvs.getContext('2d');
+let W=0, H=0, DPR=1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
-  canvas.width = Math.round(W * DPR);
-  canvas.height = Math.round(H * DPR);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cvs.width = Math.max(1, W*DPR); cvs.height = Math.max(1, H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => { resize(); if (typeof Game !== 'undefined') Game.layoutHud(); });
 resize();
 
-// Kamera: Weltkoordinaten (m) → Bildschirm (CSS-px)
-const cam = { x: -30, y: -10, ppm: 10 };
-function worldToScreen(wx, wy) {
-  return { x: (wx - cam.x) * cam.ppm + W * 0.5, y: H * 0.48 - (wy - cam.y) * cam.ppm };
+/* ---- Farb- und Formsprache ----
+   Nach Recherche der Mobile-Charts (Block Blast, Subway Surfers, Royal Match,
+   Voodoo-Titel): kräftige Sättigung auf der Spielebene, ruhiger Hintergrund,
+   EINE durchgehende dunkle Kontur, dicke runde Formen. Nie reines Schwarz. */
+const PAL = {
+  ink:      '#241209',   // warme Kontur für alle Spielobjekte
+  inkSoft:  '#3A1F0E',
+  rail:     '#D97012',   // Leiter Grundton
+  railLit:  '#FFB13D',   // Lichtseite
+  rung:     '#FFC96B',
+  railGold: '#FFD84D', railGoldLit: '#FFA412',
+  suit:     '#FF5A1F', suitDark: '#C7350A',
+  skin:     '#FFD2A6',
+  helmet:   '#FFFFFF', helmetStripe: '#FF2D55',
+  safe:     '#22E06B', warn: '#FFB020', danger: '#FF2E4D',
+  gold:     '#FFD84D',
+  ghost:    '#B7A6FF', ghostDark: '#6B57C4',
+};
+// Eine Kontur-Breite für alles: uneinheitliche Strichstärken sind laut
+// Recherche das häufigste Erkennungsmerkmal von Amateur-2D-Grafik.
+const ow = s => Math.max(2.5, 3*s);
+
+// Partikel-Pool (harte Obergrenze -> 60 fps auf Mid-Range)
+const POOL_N = 420;
+const pool = Array.from({length:POOL_N}, ()=>({on:false,x:0,y:0,vx:0,vy:0,life:0,max:1,
+  size:2,col:'#fff',grav:0,shape:0,rot:0,spin:0,drag:0}));
+let poolIdx = 0;
+function spawnP(x,y,vx,vy,life,size,col,grav=0,shape=0,drag=0){
+  const p = pool[poolIdx]; poolIdx = (poolIdx+1)%POOL_N;
+  p.on=true; p.x=x; p.y=y; p.vx=vx; p.vy=vy; p.life=life; p.max=life; p.size=size; p.col=col;
+  p.grav=grav; p.shape=shape; p.rot=Math.random()*6.28; p.spin=(Math.random()-0.5)*10; p.drag=drag;
 }
-
-function updateCamera(dt) {
-  const S = Game.skier;
-  let targetX, targetY, view;
-  if (Game.state === 'READY' || Game.state === 'INRUN') {
-    view = 42;
-    targetX = S.x + 8; targetY = S.y - 6;
-  } else if (Game.state === 'FLIGHT') {
-    const hAbove = S.y - Hill.groundAt(S.x).y;
-    view = clamp(hAbove * 2.0 + 24, 42, 95);
-    targetX = S.x + S.vx * 0.45; targetY = S.y - hAbove * 0.45;
-  } else {
-    view = 46; targetX = S.x + 6; targetY = S.y + 4;
-  }
-  const targetPpm = Math.min(H / view, W / (view * 1.15));
-  cam.ppm = damp(cam.ppm, targetPpm, 2.5, dt);
-  cam.x = damp(cam.x, targetX, 4, dt);
-  cam.y = damp(cam.y, targetY, 4, dt);
-}
-
-// --- Hintergrund: Himmel + Parallax-Bergketten ---
-function ridgeY(x, seed) { // deterministische Silhouette
-  return Math.sin(x * 0.011 + seed) * 14 + Math.sin(x * 0.031 + seed * 2.3) * 6 + Math.sin(x * 0.005 + seed * 0.7) * 20;
-}
-function drawBackground() {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#6fb4e8'); sky.addColorStop(0.6, '#a8d4f2'); sky.addColorStop(1, '#e8f4fc');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-
-  // Sonne
-  ctx.fillStyle = 'rgba(255,245,200,0.9)';
-  ctx.beginPath(); ctx.arc(W * 0.78, H * 0.14, Math.min(W, H) * 0.05, 0, 7); ctx.fill();
-
-  // zwei Bergketten mit Parallax
-  const layers = [
-    { par: 0.10, base: 0.42, color: '#9db8cc', seed: 3 },
-    { par: 0.22, base: 0.55, color: '#b9cfe0', seed: 8 },
-  ];
-  for (const l of layers) {
-    ctx.fillStyle = l.color;
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    for (let sx = 0; sx <= W; sx += 12) {
-      const wx = sx + cam.x * cam.ppm * l.par;
-      ctx.lineTo(sx, H * l.base - ridgeY(wx, l.seed) - cam.y * cam.ppm * l.par * 0.3);
+function stepDrawParticles(dt){
+  for (const p of pool){ if (!p.on) continue;
+    p.life -= dt; if (p.life<=0){ p.on=false; continue; }
+    if (p.drag){ const f = Math.max(0, 1 - p.drag*dt); p.vx *= f; p.vy *= f; }
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += p.grav*dt; p.rot += p.spin*dt;
+    ctx.globalAlpha = Math.min(1, p.life/p.max*1.6);
+    ctx.fillStyle = p.col;
+    const s = p.size * Math.min(1, 0.35 + p.life/p.max);
+    if (p.shape === 0){                       // Kreis
+      ctx.beginPath(); ctx.arc(p.x, p.y, s*0.5, 0, 7); ctx.fill();
+    } else if (p.shape === 1){                // Vierzack-Stern
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.beginPath();
+      for (let i=0;i<8;i++){ const r = i%2 ? s*0.22 : s*0.6, a = i*Math.PI/4;
+        i ? ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r); }
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    } else {                                  // Splitter / Feder
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillRect(-s*0.5, -s*0.18, s, s*0.36); ctx.restore();
     }
-    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
-  }
-}
-
-function drawHill() {
-  // --- Aufsprunghang ---
-  const first = worldToScreen(Hill.prof[0].x, Hill.prof[0].y);
-  const last = worldToScreen(Hill.prof[Hill.prof.length - 1].x, Hill.prof[Hill.prof.length - 1].y);
-  ctx.beginPath();
-  ctx.moveTo(first.x, first.y);
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.lineTo(last.x, H + 50); ctx.lineTo(first.x, H + 50); ctx.closePath();
-  const snow = ctx.createLinearGradient(0, 0, 0, H);
-  snow.addColorStop(0, '#ffffff'); snow.addColorStop(1, '#dcebf7');
-  ctx.fillStyle = snow; ctx.fill();
-  ctx.strokeStyle = '#c4d9ea'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (const p of Hill.prof) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.stroke();
-
-  // Weitenmarkierungen alle 10 m + K- und HS-Linie
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  for (let d = 20; d <= 130; d += 10) {
-    const x = Hill.xAtDistance(d);
-    const g = Hill.groundAt(x);
-    const a = worldToScreen(x, g.y), th = g.angle * D2R;
-    const isK = d === CONFIG.kPoint, isHS = d === CONFIG.hillSize;
-    const len = (isK || isHS ? 2.4 : 1.4) * cam.ppm;
-    ctx.strokeStyle = isK ? '#e53935' : isHS ? '#1e88e5' : '#90a4ae';
-    ctx.lineWidth = isK || isHS ? 3 : 1.5;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(a.x + Math.sin(th) * len * 0.4, a.y + Math.cos(th) * len * 0.4);
-    ctx.stroke();
-    if (cam.ppm > 4.5 || isK || isHS) {
-      ctx.fillStyle = isK ? '#e53935' : isHS ? '#1e88e5' : '#78909c';
-      ctx.font = `${isK || isHS ? 'bold ' : ''}${Math.max(10, cam.ppm * 1.1)}px system-ui`;
-      ctx.fillText(isK ? 'K ' + d : isHS ? 'HS ' + d : d, a.x + Math.sin(th) * len * 0.4 + 4, a.y + Math.cos(th) * len * 0.4 + 4);
-    }
-  }
-
-  // --- Anlauf + Turm ---
-  const ir = Hill.inrun;
-  const top = worldToScreen(ir[0].x, ir[0].y);
-  const edge = worldToScreen(0, 0);
-  // Turmstruktur unter dem Anlauf
-  ctx.fillStyle = '#37474f';
-  ctx.beginPath();
-  ctx.moveTo(top.x, top.y);
-  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.lineTo(edge.x, edge.y + 4.5 * cam.ppm);
-  ctx.lineTo(top.x, Math.min(H + 40, top.y + 60 * cam.ppm));
-  ctx.closePath(); ctx.fill();
-  // Anlaufspur
-  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = Math.max(2, cam.ppm * 0.35);
-  ctx.beginPath();
-  for (const p of ir) { const s = worldToScreen(p.x, p.y); ctx.lineTo(s.x, s.y); }
-  ctx.stroke();
-  // Tischkanten-Markierung
-  ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(edge.x, edge.y - 2); ctx.lineTo(edge.x, edge.y + 0.9 * cam.ppm); ctx.stroke();
-}
-
-// --- Springer (stilisierte Figur, Anstellwinkel sichtbar) ---
-function drawSkier() {
-  const S = Game.skier;
-  const p = worldToScreen(S.x, S.y);
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.rotate(-S.body * D2R);
-  ctx.scale(cam.ppm, cam.ppm);
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-
-  const head = (hx, hy) => {
-    ctx.fillStyle = '#fafafa';
-    ctx.beginPath(); ctx.arc(hx, hy, 0.17, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#455a64'; ctx.lineWidth = 0.05; ctx.stroke();
-    ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 0.19; // Anzugfarbe zurücksetzen
-  };
-
-  // Ski (2 Stück, leicht versetzt → V-Andeutung im Flug)
-  const skiV = S.pose === 'flight' ? 0.07 : 0;
-  ctx.strokeStyle = '#fdd835'; ctx.lineWidth = 0.16;
-  ctx.beginPath(); ctx.moveTo(-1.1, 0.02); ctx.lineTo(1.35, 0.02 - skiV * 2.2); ctx.stroke();
-  ctx.strokeStyle = '#f9a825';
-  ctx.beginPath(); ctx.moveTo(-1.15, 0.14); ctx.lineTo(1.3, 0.14 + skiV * 1.2); ctx.stroke();
-
-  ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 0.19;
-  if (S.pose === 'crouch') {
-    // Anlaufhocke
-    ctx.beginPath(); ctx.moveTo(0.05, 0); ctx.lineTo(-0.15, -0.45); ctx.lineTo(0.55, -0.75); ctx.stroke(); // Beine + Rücken
-    ctx.beginPath(); ctx.moveTo(0.55, -0.75); ctx.lineTo(0.85, -0.35); ctx.stroke();                        // Arme
-    head(0.78, -0.88);
-  } else if (S.pose === 'flight') {
-    // Gestreckte Flughaltung: Körper flach nach hinten über den Ski
-    ctx.beginPath(); ctx.moveTo(0.0, 0); ctx.lineTo(-0.25, -0.35); ctx.lineTo(-1.15, -0.62); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-1.0, -0.58); ctx.lineTo(-1.25, -0.25); ctx.stroke();                       // Arm angelegt
-    head(-1.33, -0.75);
-  } else if (S.pose === 'telemark') {
-    ctx.beginPath(); ctx.moveTo(0.35, 0); ctx.lineTo(0.15, -0.55); ctx.lineTo(0.05, -1.05); ctx.stroke();  // vorderes Bein + Torso
-    ctx.beginPath(); ctx.moveTo(-0.45, 0); ctx.lineTo(-0.25, -0.3); ctx.lineTo(0.15, -0.55); ctx.stroke(); // hinteres Bein gebeugt
-    ctx.beginPath(); ctx.moveTo(0.05, -1.0); ctx.lineTo(0.55, -0.8); ctx.stroke();                          // Arme ausgestellt
-    ctx.beginPath(); ctx.moveTo(0.05, -1.0); ctx.lineTo(-0.45, -0.85); ctx.stroke();
-    head(0.12, -1.24);
-  } else if (S.pose === 'landed') {
-    ctx.beginPath(); ctx.moveTo(0.1, 0); ctx.lineTo(-0.05, -0.6); ctx.lineTo(0.2, -1.1); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.2, -1.05); ctx.lineTo(0.5, -0.7); ctx.stroke();
-    head(0.28, -1.3);
-  } else { // crash: Wackel-/Trudelfigur
-    const wob = Math.sin(Game.time * 30) * 0.15;
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-0.3 + wob, -0.5); ctx.lineTo(0.4, -0.8 - wob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.4, -0.8); ctx.lineTo(0.9, -0.5 + wob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.4, -0.8); ctx.lineTo(-0.1, -1.1 - wob); ctx.stroke();
-    head(0.62, -1.0);
-  }
-  ctx.restore();
-}
-
-function drawParticles() {
-  for (const p of Game.particles) {
-    const s = worldToScreen(p.x, p.y);
-    ctx.globalAlpha = clamp(p.life * 2, 0, 0.9);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1.5, cam.ppm * 0.12), 0, 7); ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
+// Bündel aus Rückmeldungen: laut Recherche feuern Chart-Titel 5-8 Reaktionen
+// innerhalb von ~100 ms (Blitz, Shake, Hit-Stop, Partikel, Ton, Haptik).
+const FX = { flash: 0, flashCol: '#fff', hitStop: 0, shake: 0, shakeT: 0, shakeMax: 0 };
+function punch(o){
+  if (o.flash){ FX.flash = o.flashT || 0.08; FX.flashA = o.flash; FX.flashCol = o.flashCol || '#fff'; }
+  if (o.shake){ FX.shake = o.shake; FX.shakeT = o.shakeDur || 0.09; FX.shakeMax = o.shakeDur || 0.09; }
+  if (o.hitStop) FX.hitStop = o.hitStop;
+}
 
-// --- HUD ---
-function drawHUD() {
-  const S = Game.skier;
-  const uiScale = clamp(Math.min(W, H) / 420, 0.85, 1.5);
-
-  // Windfahne + Windwert (oben links)
-  const w = Game.currentWind();
-  const wx = 14 * uiScale, wy = 18 * uiScale;
-  ctx.save();
-  ctx.translate(wx + 10 * uiScale, wy + 16 * uiScale);
-  ctx.strokeStyle = '#37474f'; ctx.lineWidth = 3;                    // Mast
-  ctx.beginPath(); ctx.moveTo(0, 18 * uiScale); ctx.lineTo(0, -12 * uiScale); ctx.stroke();
-  // Fahne: Richtung = Windrichtung, Länge = Stärke
-  const flagLen = (8 + Math.abs(w) / CONFIG.windStrength * 26) * uiScale * Math.sign(w || 1);
-  const flap = Math.sin(Game.time * 6) * 3 * uiScale;
-  ctx.fillStyle = Math.abs(w) < 0.15 ? '#90a4ae' : (w < 0 ? '#43a047' : '#e53935');
-  ctx.beginPath();
-  ctx.moveTo(0, -12 * uiScale);
-  ctx.lineTo(flagLen, -8 * uiScale + flap);
-  ctx.lineTo(0, -3 * uiScale);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-  ctx.fillStyle = 'rgba(16,32,48,0.65)';
-  roundRect(wx + 30 * uiScale, wy, 140 * uiScale, 26 * uiScale, 8);
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${13 * uiScale}px system-ui`;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(windLabel(w), wx + 38 * uiScale, wy + 13 * uiScale);
-
-  // Bestweite (oben rechts)
-  if (Game.best) {
-    const bw = 118 * uiScale;
-    ctx.fillStyle = 'rgba(16,32,48,0.65)';
-    roundRect(W - bw - 14, wy, bw, 26 * uiScale, 8);
-    ctx.fillStyle = '#ffe082';
-    ctx.textAlign = 'right';
-    ctx.fillText(`Best: ${Game.best.dist.toFixed(1).replace('.', ',')} m`, W - 22, wy + 13 * uiScale);
+// Deko (Gebäude, Wolken, Sterne) – rein visuell, eigener RNG
+const visRng = mulberry32(1337);
+const farCity = Array.from({length:22}, (_,i)=>({ x:(i-11)*46 + visRng()*30, w:26+visRng()*36, h:14+visRng()*46 }));
+const buildings = Array.from({length:14}, (_,i)=>({ x:(i-7)*74 + visRng()*40, w:44+visRng()*52, h:26+visRng()*84, c:visRng(), tone:visRng(), ant:visRng()<0.35 }));
+const clouds = Array.from({length:14}, ()=>({ wx:(visRng()-0.5)*24, wy:26+visRng()*52, s:30+visRng()*50, sp:3+visRng()*7 }));
+const cloudsFar = Array.from({length:10}, ()=>({ wx:(visRng()-0.5)*24, wy:30+visRng()*48, s:46+visRng()*60, sp:1+visRng()*2.5 }));
+const stars = Array.from({length:110}, ()=>({ x:visRng(), y:visRng(), s:0.5+visRng()*1.8, tw:visRng()*6 }));
+let vigCache = { key:'', cvs:null };
+function vignette(){
+  const key = W+'_'+H;
+  if (vigCache.key !== key){
+    const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+    const c = oc.getContext('2d');
+    // Dezent: eine starke Vignette entsättigt das ganze Bild
+    const r = c.createRadialGradient(W/2, H*0.45, Math.min(W,H)*0.45, W/2, H*0.5, Math.max(W,H)*0.75);
+    r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, 'rgba(20,10,50,0.14)');
+    c.fillStyle = r; c.fillRect(0,0,W,H);
+    // Scrim oben: Höhenzähler bleibt immer lesbar
+    const s = c.createLinearGradient(0,0,0,130);
+    s.addColorStop(0, 'rgba(4,6,18,0.42)'); s.addColorStop(1, 'rgba(4,6,18,0)');
+    c.fillStyle = s; c.fillRect(0,0,W,130);
+    vigCache = { key, cvs: oc };
   }
+  ctx.drawImage(vigCache.cvs, 0, 0);
+}
 
-  // Zentrale Meldung
-  if (Game.time < Game.message.until) {
-    ctx.globalAlpha = clamp((Game.message.until - Game.time) / 0.3, 0, 1);
-    ctx.font = `800 ${30 * uiScale}px system-ui`;
-    ctx.textAlign = 'center';
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 4;
-    ctx.strokeText(Game.message.text, W / 2, H * 0.24);
-    ctx.fillStyle = Game.message.color;
-    ctx.fillText(Game.message.text, W / 2, H * 0.24);
+function skyColors(h){
+  // Kräftige, klar getrennte Stufen statt Pastell: jede Höhenzone soll wie
+  // eine eigene "Welt" wirken (Block-Blast-Prinzip der Tier-Reskins).
+  const stops = [
+    [0,   [79,195,255],  [255,233,168]],   // Dächer
+    [25,  [47,168,255],  [255,179,122]],
+    [50,  [45,107,255],  [201,155,255]],   // Wolken
+    [75,  [43,27,168],   [123,91,255]],    // Jetstream
+    [100, [18,9,63],     [74,42,160]],     // Weltraum
+    [160, [7,3,31],      [27,15,77]],
+  ];
+  let a=stops[stops.length-1], b=stops[stops.length-1];
+  for (let i=0;i<stops.length-1;i++) if (h>=stops[i][0] && h<=stops[i+1][0]){ a=stops[i]; b=stops[i+1]; break; }
+  const t = clamp((h-a[0])/Math.max(1,b[0]-a[0]),0,1);
+  const mix = (u,v)=> u.map((c,i)=> Math.round(lerp(c, v[i], t)));
+  return [mix(a[1],b[1]), mix(a[2],b[2])];
+}
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+// Kamera: ppm = Pixel pro Meter, (cx,cy) = Weltpunkt in Bildschirmmitte
+const cam = { ppm: 60, cx: 0, cy: 2, shake: 0 };
+let skyCache = { key: '', grad: null };
+function worldToScreen(wx, wy){
+  return [ W/2 + (wx - cam.cx)*cam.ppm, H*0.62 - (wy - cam.cy)*cam.ppm ];
+}
+
+function drawScene(sim, ghost, t){
+  const h = sim.h;
+  // Gradient nur bei Höhen-/Größenänderung neu bauen (Per-Frame-Allokation sparen)
+  const skyKey = ((h*2)|0) + '_' + H;
+  const [top, bot] = skyColors(h);   // bot tönt auch die Silhouettenbänder
+  if (skyCache.key !== skyKey){
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+    skyCache = { key: skyKey, grad: g };
+  }
+  ctx.fillStyle = skyCache.grad; ctx.fillRect(0,0,W,H);
+
+  // Sonne (unten) bzw. Mond (oben)
+  const sunA = clamp(1 - h/65, 0, 1);
+  if (sunA > 0){
+    const sx = W*0.78, sy = H*0.2;
+    const glow = ctx.createRadialGradient(sx, sy, 4, sx, sy, 130);
+    glow.addColorStop(0, `rgba(255,244,200,${0.85*sunA})`);
+    glow.addColorStop(0.25, `rgba(255,220,150,${0.4*sunA})`);
+    glow.addColorStop(1, 'rgba(255,210,140,0)');
+    ctx.fillStyle = glow; ctx.fillRect(sx-130, sy-130, 260, 260);
+    ctx.fillStyle = `rgba(255,250,225,${0.95*sunA})`;
+    ctx.beginPath(); ctx.arc(sx, sy, 26, 0, 7); ctx.fill();
+  }
+  if (h > 70){
+    const a = clamp((h-70)/30, 0, 1);
+    for (const s of stars){
+      ctx.globalAlpha = a * (0.4 + 0.6*Math.abs(Math.sin(t*0.8+s.tw)));
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(s.x*W, s.y*H*0.9, s.s, s.s);
+    }
+    // Mond mit Sichel-Schatten
+    ctx.globalAlpha = a;
+    const mx = W*0.22, my = H*0.16;
+    ctx.fillStyle = '#f4f0e2';
+    ctx.beginPath(); ctx.arc(mx, my, 22, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(20,24,60,0.85)';
+    ctx.beginPath(); ctx.arc(mx-9, my-4, 19, 0, 7); ctx.fill();
     ctx.globalAlpha = 1;
   }
+  const shX = (Math.random()-0.5)*cam.shake, shY = (Math.random()-0.5)*cam.shake;
+  ctx.save(); ctx.translate(shX, shY);
 
-  // --- Absprung-Timing-Balken (Anlauf) ---
-  if (Game.state === 'INRUN') {
-    const tte = (Hill.inrunLength - S.s) / Math.max(S.v, 0.1);
-    const SHOW = 1.4; // Balken zeigt die letzten 1,4 s vor der Kante
-    if (tte < SHOW * 1.3) {
-      const bw = Math.min(W * 0.72, 430), bh = 26 * uiScale;
-      const bx = (W - bw) / 2, by = H - bh - Math.max(24, H * 0.06);
-      ctx.fillStyle = 'rgba(16,32,48,0.7)';
-      roundRect(bx - 4, by - 4, bw + 8, bh + 8, 10);
-      // Zonen: grau → gelb (gut) → grün (perfekt); Tischkante = rechtes Ende
-      const posOf = t => bx + bw * clamp(1 - t / SHOW, 0, 1);
-      ctx.fillStyle = '#546e7a'; ctx.fillRect(bx, by, bw, bh);
-      const goodX = posOf(0.16);
-      ctx.fillStyle = '#f9a825'; ctx.fillRect(goodX, by, bx + bw - goodX, bh);
-      const perfX = posOf(CONFIG.perfectWindow);
-      ctx.fillStyle = '#43a047'; ctx.fillRect(perfX, by, bx + bw - perfX, bh);
-      // Marker
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(posOf(tte) - 2.5, by - 7, 5, bh + 14);
-      if (!Game.takeoff.tapped) {
-        ctx.font = `bold ${14 * uiScale}px system-ui`;
-        ctx.textAlign = 'center';
-        ctx.fillText('TIPPEN im grünen Bereich!', W / 2, by - 14 * uiScale);
+  // Boden + Stadt: flache Silhouettenbänder statt grauem Detailbrei.
+  // Die Bänder werden aus der aktuellen Himmelsfarbe getönt, bleiben also
+  // immer als Hintergrund lesbar und konkurrieren nie mit der Spielebene.
+  const gy0 = worldToScreen(0, 0)[1];
+  if (gy0 < H + 260){
+    const mix = (c, t) => `rgb(${Math.round(lerp(c[0],43,t))},${Math.round(lerp(c[1],27,t))},${Math.round(lerp(c[2],79,t))})`;
+    // Ferne Silhouette (25 % abgedunkelt, halbe Parallaxe, keine Fenster)
+    ctx.fillStyle = mix(bot, 0.25);
+    for (const b of farCity){
+      const bh = b.h * cam.ppm/60;
+      ctx.fillRect(W/2 + b.x*1.6 - cam.cx*cam.ppm*0.45, gy0-bh, b.w, bh+6);
+    }
+    // Mittlere Silhouette (45 %)
+    ctx.fillStyle = mix(bot, 0.45);
+    for (const b of farCity){
+      const bh = b.h * 0.72 * cam.ppm/60;
+      ctx.fillRect(W/2 + b.x*1.1 - cam.cx*cam.ppm*0.65 + 30, gy0-bh, b.w*0.9, bh+6);
+    }
+    // Boden
+    const gnd = ctx.createLinearGradient(0, gy0, 0, gy0+140);
+    gnd.addColorStop(0, '#3EA65B'); gnd.addColorStop(1, '#1F6B39');
+    ctx.fillStyle = gnd;
+    ctx.fillRect(0, gy0, W, Math.max(0, H-gy0)+260);
+    // Nahe Silhouette (65 %) mit EINER warmen Fensterfarbe
+    const near = mix(bot, 0.65);
+    for (const b of buildings){
+      const bx = W/2 + b.x - cam.cx*cam.ppm*0.85;
+      const bh = b.h * cam.ppm/60;
+      ctx.fillStyle = near;
+      ctx.fillRect(bx, gy0-bh, b.w, bh);
+      if (b.ant){ ctx.fillStyle = near; ctx.fillRect(bx+b.w*0.5-1.5, gy0-bh-14, 3, 14); }
+      ctx.fillStyle = 'rgba(255,198,41,0.6)';
+      for (let wy=10; wy<bh-8; wy+=16) for (let wx=8; wx<b.w-10; wx+=15)
+        if (((wx*7+wy*13+((b.c*100)|0))|0)%3===0) ctx.fillRect(bx+wx, gy0-bh+wy, 5, 7);
+    }
+  }
+  // Wolken: ferne Schicht (langsam, blass) + nahe Schicht
+  for (const c of cloudsFar){
+    const cy = worldToScreen(0, c.wy)[1];
+    if (cy < -90 || cy > H+90) continue;
+    const x = (((c.wx*cam.ppm + W/2 + t*c.sp*8 - cam.cx*cam.ppm*0.35) % (W+340)) + (W+340)) % (W+340) - 170;
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.beginPath();
+    ctx.ellipse(x, cy, c.s*0.9, c.s*0.42, 0, 0, 7);
+    ctx.ellipse(x+c.s*0.6, cy-c.s*0.1, c.s*0.55, c.s*0.32, 0, 0, 7);
+    ctx.ellipse(x-c.s*0.55, cy+c.s*0.05, c.s*0.5, c.s*0.28, 0, 0, 7);
+    ctx.fill();
+  }
+  for (const c of clouds){
+    const cy = worldToScreen(0, c.wy)[1];
+    if (cy < -80 || cy > H+80) continue;
+    const x = (((c.wx*cam.ppm + W/2 + t*c.sp*8 - cam.cx*cam.ppm*0.7) % (W+300)) + (W+300)) % (W+300) - 150;
+    // Dichte Wolkenblöcke: Schattensockel + strahlend weiße Kappe
+    ctx.fillStyle = 'rgba(176,196,236,0.9)';
+    ctx.beginPath();
+    ctx.ellipse(x+2, cy+c.s*0.16, c.s*1.0, c.s*0.42, 0, 0, 7);
+    ctx.ellipse(x+c.s*0.62, cy+c.s*0.2, c.s*0.6, c.s*0.32, 0, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.ellipse(x, cy, c.s*0.96, c.s*0.44, 0, 0, 7);
+    ctx.ellipse(x+c.s*0.58, cy-c.s*0.14, c.s*0.6, c.s*0.34, 0, 0, 7);
+    ctx.ellipse(x-c.s*0.54, cy+c.s*0.02, c.s*0.5, c.s*0.3, 0, 0, 7);
+    ctx.fill();
+  }
+  // Jetstream-Streifen
+  if (h > 58 && h < 112){
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2;
+    for (let i=0;i<5;i++){
+      const ly = worldToScreen(0, 72 + i*6)[1];
+      if (ly<-20||ly>H+20) continue;
+      const off = (t*90 + i*140) % (W+240) - 120;
+      ctx.beginPath(); ctx.moveTo(off-70, ly); ctx.lineTo(off+70, ly); ctx.stroke();
+    }
+  }
+
+  // PB-Goldlinie
+  if (SAVE.pb > 2){
+    const py = worldToScreen(0, SAVE.pb)[1];
+    if (py > -30 && py < H+30){
+      ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 2; ctx.setLineDash([10,8]);
+      ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#ffd76a'; ctx.font = '700 13px system-ui'; ctx.textAlign='right';
+      ctx.fillText('PB ' + SAVE.pb.toFixed(0) + ' m', W-10, py-6);
+    }
+  }
+  // Ghost-Ziellinie
+  if (ghost && Game.ghostData){
+    const gy = worldToScreen(0, Game.ghostData.height)[1];
+    if (gy > -30 && gy < H+30){
+      ctx.strokeStyle = 'rgba(183,166,255,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([4,6]);
+      ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#b7a6ff'; ctx.font = '700 13px system-ui'; ctx.textAlign='left';
+      ctx.fillText('👻 ' + Game.ghostData.height.toFixed(0) + ' m', 10, gy-6);
+    }
+  }
+  // Landmark-Linien + Pill-Labels
+  ctx.textAlign = 'left';
+  const marks = CFG.flagBandsBase.concat([150,200,250,300,400,500]);
+  ctx.font = '800 11px system-ui';
+  for (const m of marks){
+    const my = worldToScreen(0, m)[1];
+    if (my < -30 || my > H+30) continue;
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth=1; ctx.setLineDash([3,9]);
+    ctx.beginPath(); ctx.moveTo(0,my); ctx.lineTo(W,my); ctx.stroke(); ctx.setLineDash([]);
+    if (my < Game.meterY + 26) continue;   // nicht unter den HUD-Kopf schieben
+    const label = (LANDMARKS[m] || ('SEKTOR ' + (m/50))) + '  ' + m + ' m';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(10,15,34,0.42)';
+    ctx.beginPath(); ctx.roundRect(10, my-18, tw+18, 17, 9); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.fillText(label, 19, my-6);
+  }
+
+  // Ghost zuerst (hinter dem Spieler)
+  if (ghost && ghost.visible) drawLadderClimber(ghost.sim, t, { alpha: 0.32, ghost: true });
+  drawLadderClimber(sim, t, { alpha: 1, hideClimber: RAG.on });
+  if (RAG.on) drawRagdoll(t);
+
+  ctx.restore();
+  vignette();
+}
+
+function drawLadderClimber(sim, t, style){
+  const th = sim.theta;
+  const sin = Math.sin(th), cos = Math.cos(th);
+  const ladderTop = sim.h + 1.6;
+  const gxOff = style.ghost ? 0.9 : 0;
+  const pt = s => worldToScreen(sin*s + gxOff, cos*s);
+  ctx.globalAlpha = style.alpha;
+
+  const gold = SAVE.unlocked.gold && !style.ghost;
+  const railDark  = style.ghost ? PAL.ghostDark : (gold ? PAL.railGoldLit : PAL.rail);
+  const railLight = style.ghost ? PAL.ghost : (gold ? PAL.railGold : PAL.railLit);
+  const railOff = 0.34;                 // dickere Leiter: hält die Silhouette
+  const S = Math.max(0.5, cam.ppm/60);  // eine Skala für alle Konturbreiten
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // Warmes Rimlight in der Höhe, damit die Leiter vor dem Nachthimmel steht
+  const rim = clamp((sim.h-45)/60, 0, 1) * (style.ghost ? 0.25 : 0.6);
+  if (rim > 0.02){
+    ctx.strokeStyle = style.ghost ? `rgba(183,166,255,${rim*0.5})` : `rgba(255,183,110,${rim*0.35})`;
+    ctx.lineWidth = Math.max(6, cam.ppm*0.22);
+    const [ax,ay] = worldToScreen(gxOff, 0);
+    const [bx,by] = worldToScreen(sin*ladderTop + gxOff, cos*ladderTop);
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+  }
+  // Bodenschatten der Leiter (nur in Bodennähe sichtbar)
+  if (!style.ghost){
+    const shA = clamp(1 - sim.h/40, 0, 1) * 0.28;
+    if (shA > 0){
+      const [bx0, by0] = worldToScreen(gxOff, 0);
+      ctx.fillStyle = `rgba(10,20,10,${shA})`;
+      ctx.beginPath();
+      ctx.ellipse(bx0 + sin*cam.ppm*0.8, by0 + cam.ppm*0.06, cam.ppm*0.9, cam.ppm*0.14, 0, 0, 7);
+      ctx.fill();
+    }
+  }
+  // Holme: Kontur -> Grundton -> Lichtkante. Achse (sinθ·s, cosθ·s),
+  // Querversatz senkrecht dazu = (cosθ, -sinθ)·off
+  const railPts = off => {
+    const [ax,ay] = worldToScreen(cos*off + gxOff, -sin*off);
+    const [bx,by] = worldToScreen(sin*ladderTop + cos*off + gxOff, cos*ladderTop - sin*off);
+    return [ax,ay,bx,by];
+  };
+  const halfSpan = H/cam.ppm;
+  const visBottom = Math.max(0, cam.cy - halfSpan);
+  const visTop = Math.min(ladderTop, cam.cy + halfSpan);
+  const rungPath = () => {
+    ctx.beginPath();
+    for (let s = Math.ceil(visBottom*2)/2; s <= visTop; s += 0.5){
+      const [x1,y1] = worldToScreen(sin*s + cos*railOff + gxOff, cos*s - sin*railOff);
+      const [x2,y2] = worldToScreen(sin*s - cos*railOff + gxOff, cos*s + sin*railOff);
+      ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    }
+  };
+  // 1. Durchgang: gemeinsame Kontur unter allem
+  if (!style.ghost){
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = Math.max(4, cam.ppm*0.135);
+    for (const off of [-railOff, railOff]){
+      const p = railPts(off);
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[2],p[3]); ctx.stroke();
+    }
+    ctx.lineWidth = Math.max(3, cam.ppm*0.105); rungPath(); ctx.stroke();
+  }
+  // 2. Grundton
+  ctx.strokeStyle = railDark;
+  ctx.lineWidth = Math.max(2.6, cam.ppm*0.095);
+  for (const off of [-railOff, railOff]){
+    const p = railPts(off);
+    ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[2],p[3]); ctx.stroke();
+  }
+  ctx.lineWidth = Math.max(2, cam.ppm*0.07); rungPath(); ctx.stroke();
+  // 3. Lichtkante (Glanzstreifen) – gibt der Leiter Volumen
+  ctx.strokeStyle = railLight;
+  ctx.lineWidth = Math.max(1.2, cam.ppm*0.036);
+  ctx.globalAlpha = style.alpha * 0.9;
+  for (const off of [-railOff, railOff]){
+    const p = railPts(off);
+    ctx.beginPath(); ctx.moveTo(p[0]-1.5,p[1]); ctx.lineTo(p[2]-1.5,p[3]); ctx.stroke();
+  }
+  ctx.strokeStyle = style.ghost ? PAL.ghost : PAL.rung;
+  ctx.lineWidth = Math.max(1, cam.ppm*0.03); rungPath(); ctx.stroke();
+  ctx.globalAlpha = style.alpha;
+  // Gepflanzte Flaggen (gezeichnet statt Emoji: einheitlich auf allen Geräten)
+  for (const f of sim.flagsPlanted){
+    const [fx,fy] = pt(f);
+    if (fy < -30 || fy > H+30) continue;
+    const fs = Math.max(8, cam.ppm*0.36);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = Math.max(2.5, fs*0.26);
+    ctx.beginPath(); ctx.moveTo(fx+fs*0.6, fy); ctx.lineTo(fx+fs*0.6, fy-fs*1.6); ctx.stroke();
+    ctx.strokeStyle = '#F2F5FF'; ctx.lineWidth = Math.max(1.2, fs*0.13);
+    ctx.beginPath(); ctx.moveTo(fx+fs*0.6, fy); ctx.lineTo(fx+fs*0.6, fy-fs*1.6); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(fx+fs*0.6, fy-fs*1.6);
+    ctx.lineTo(fx+fs*2.0, fy-fs*1.22);
+    ctx.lineTo(fx+fs*0.6, fy-fs*0.84);
+    ctx.closePath();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = Math.max(2, fs*0.2); ctx.stroke();
+    ctx.fillStyle = style.ghost ? PAL.ghost : PAL.danger; ctx.fill();
+  }
+  // Kletterer (beim Sturz übernimmt der Ragdoll).
+  // Proportionen ~1:3 (Kopf ein Drittel der Höhe) und große Cartoon-Augen:
+  // beides laut Recherche entscheidend für Lesbarkeit auf Daumennagelgröße.
+  if (style.hideClimber){ ctx.globalAlpha = 1; return; }
+  const [cx2, cy2] = pt(sim.h);
+  const s = Math.max(0.5, cam.ppm/60);
+  ctx.save();
+  ctx.translate(cx2, cy2);
+  ctx.rotate(th*0.5 + (sim.curU||0)*0.3);
+  const bob = Math.sin(sim.climbPhase*3.1)*3*s;
+  const skin = style.ghost ? PAL.ghost : PAL.skin;
+  const suit = style.ghost ? '#8f7ce0' : PAL.suit;
+  const suitDark = style.ghost ? PAL.ghostDark : PAL.suitDark;
+  const ink = style.ghost ? PAL.ghostDark : PAL.ink;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const line = (x1,y1,x2,y2,col,w) => {
+    ctx.strokeStyle = ink; ctx.lineWidth = (w+3)*s;
+    ctx.beginPath(); ctx.moveTo(x1*s,y1*s); ctx.lineTo(x2*s,y2*s); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = w*s;
+    ctx.beginPath(); ctx.moveTo(x1*s,y1*s); ctx.lineTo(x2*s,y2*s); ctx.stroke();
+  };
+  // Beine + Schuhe
+  for (const leg of [[-3,-8,bob/s],[3,8,-bob/s]]){
+    line(leg[0], 7, leg[1], 17 + leg[2], suit, 5.5);
+    ctx.fillStyle = ink;
+    ctx.beginPath(); ctx.arc(leg[1]*s, 17.5*s + leg[2]*s, 3.2*s, 0, 7); ctx.fill();
+  }
+  // Rucksack
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.roundRect(-12*s, -9*s, 7.5*s, 14*s, 3.5*s); ctx.fill();
+  ctx.fillStyle = style.ghost ? '#5c4ab0' : '#A05A18';
+  ctx.beginPath(); ctx.roundRect(-11*s, -8*s, 6*s, 12*s, 3*s); ctx.fill();
+  // Rumpf: Kontur, Grundton, Lichtkante
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.roundRect(-8.5*s, -13*s, 17*s, 21*s, 7.5*s); ctx.fill();
+  ctx.fillStyle = suitDark;
+  ctx.beginPath(); ctx.roundRect(-7*s, -11.5*s, 14*s, 18.5*s, 6.5*s); ctx.fill();
+  ctx.fillStyle = suit;
+  ctx.beginPath(); ctx.roundRect(-7*s, -11.5*s, 14*s, 14*s, 6.5*s); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath(); ctx.roundRect(-6*s, -10.5*s, 4*s, 12*s, 2*s); ctx.fill();
+  if (SAVE.unlocked.scarf && !style.ghost){
+    line(0, -10, -11 - (sim.omega||0)*20, -2, '#E8323C', 4.5);
+  }
+  // Arme
+  for (const arm of [[-5,-10,-bob/s],[5,10,bob/s]]){
+    line(arm[0], -8, arm[1], -18 + arm[2], skin, 5);
+  }
+  // Kopf: großer Kreis mit Kontur
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.arc(0, -19*s, 9.6*s, 0, 7); ctx.fill();
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, -19*s, 8.2*s, 0, 7); ctx.fill();
+  // Helm als klare Kuppel mit Streifen
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.arc(0, -20.2*s, 9.9*s, Math.PI*1.0, Math.PI*2.0); ctx.fill();
+  ctx.fillStyle = style.ghost ? '#cabfff' : PAL.helmet;
+  ctx.beginPath(); ctx.arc(0, -20.2*s, 8.6*s, Math.PI*1.02, Math.PI*1.98); ctx.fill();
+  ctx.fillStyle = style.ghost ? '#8f7ce0' : PAL.helmetStripe;
+  ctx.fillRect(-8.6*s, -22.6*s, 17.2*s, 2.8*s);
+  ctx.fillStyle = ink;
+  ctx.fillRect(-9.9*s, -20.6*s, 19.8*s, 1.6*s);   // Helmrand
+  // Große Cartoon-Augen: weiße Sklera + Pupille, weiten sich bei Gefahr
+  const panic = Math.abs(sim.theta)/CFG.fallAngle;
+  const er = (panic > 0.55 ? 3.5 : 2.8) * s;
+  for (const ex of [-3.4, 3.4]){
+    ctx.fillStyle = ink;
+    ctx.beginPath(); ctx.arc(ex*s, -17.5*s, er+1.1*s, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(ex*s, -17.5*s, er, 0, 7); ctx.fill();
+    ctx.fillStyle = ink;
+    ctx.beginPath(); ctx.arc(ex*s + (sim.curU||0)*1.2*s, -17.5*s + (panic>0.55?0.6*s:0), er*0.52, 0, 7); ctx.fill();
+  }
+  if (panic > 0.55){    // Schrei-Mund
+    ctx.fillStyle = ink;
+    ctx.beginPath(); ctx.ellipse(0, -12.6*s, 2.6*s, 3.4*s, 0, 0, 7); ctx.fill();
+  } else {
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.8*s;
+    ctx.beginPath(); ctx.arc(0, -14.2*s, 2.6*s, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Gerald
+  if (sim.gerald && !style.ghost){
+    const gph = sim.gerald;
+    let gx, gy;
+    const [tx,ty] = pt(sim.h + 1.2);
+    if (gph.phase === 'approach'){
+      const p = clamp(gph.t/1.2, 0, 1);
+      gx = lerp(gph.dir>0 ? W+60 : -60, tx + gph.dir*cam.ppm*0.32, p);
+      gy = lerp(H*0.25, ty, p);
+    } else if (gph.phase === 'landed'){
+      gx = tx + gph.dir*cam.ppm*0.32; gy = ty + Math.sin(t*10)*1.5;
+    } else {
+      const p = clamp(gph.t/0.8, 0, 1);
+      gx = lerp(tx + gph.dir*cam.ppm*0.32, gph.dir>0 ? W+80 : -80, p);
+      gy = ty - p*H*0.3;
+    }
+    drawGerald(ctx, gx, gy, gph.dir, gph.phase, t, Math.max(0.8, cam.ppm/60));
+  }
+  ctx.globalAlpha = 1;
+}
+function drawGerald(c, x, y, dir, phase, t, s){
+  c.save(); c.translate(x, y); c.scale(-dir*s, s);
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  const flap = phase !== 'landed' ? Math.sin(t*22)*0.5 : 0;
+  const ink = PAL.ink;
+  // Alles zweistufig: erst Kontur, dann Füllung – eine Strichstärke für alles
+  const shape = (fill, path) => {
+    c.strokeStyle = ink; c.lineWidth = 3.4; path(); c.stroke();
+    c.fillStyle = fill; path(); c.fill();
+  };
+  shape('#5C6B86', () => { c.beginPath(); c.moveTo(-8,-1); c.lineTo(-17,-6); c.lineTo(-16,2); c.closePath(); });
+  shape('#8B9AB8', () => { c.beginPath(); c.ellipse(0, 0, 10.5, 7.5, 0, 0, 7); });
+  c.fillStyle = '#D5DDEC';
+  c.beginPath(); c.ellipse(1.5, 2.6, 7.5, 4.2, 0, 0, 7); c.fill();
+  shape('#6E7E9C', () => { c.beginPath(); c.ellipse(-2, -2.5, 9, 4.6, -0.45 - flap, 0, 7); });
+  c.fillStyle = 'rgba(255,255,255,0.3)';
+  c.beginPath(); c.ellipse(-3, -3.5, 5.5, 2.4, -0.45 - flap, 0, 7); c.fill();
+  shape('#7C8CAA', () => { c.beginPath(); c.arc(9, -5, 5, 0, 7); });
+  c.fillStyle = 'rgba(90,230,160,0.45)';
+  c.beginPath(); c.arc(8, -6.2, 3, 0, 7); c.fill();
+  // Großes Auge: weiße Sklera, dunkle Pupille – auf Daumennagelgröße lesbar
+  c.fillStyle = ink; c.beginPath(); c.arc(10.4, -5.8, 2.9, 0, 7); c.fill();
+  c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(10.4, -5.8, 2.2, 0, 7); c.fill();
+  c.fillStyle = PAL.danger; c.beginPath(); c.arc(10.8, -5.7, 1.3, 0, 7); c.fill();
+  c.fillStyle = ink; c.beginPath(); c.arc(11.0, -5.6, 0.65, 0, 7); c.fill();
+  shape('#FFB020', () => { c.beginPath(); c.moveTo(13.4,-5.9); c.lineTo(18.4,-4.4); c.lineTo(13.4,-2.9); c.closePath(); });
+  if (phase === 'landed'){
+    c.strokeStyle = '#FFB020'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(-2, 7); c.lineTo(-2, 9.6); c.moveTo(3, 7); c.lineTo(3, 9.6); c.stroke();
+  }
+  if (SAVE.unlocked.helm){
+    shape(PAL.gold, () => { c.beginPath(); c.arc(9, -7.4, 5.2, Math.PI, 0); c.closePath(); });
+    c.fillStyle = '#C98A00'; c.fillRect(3.8, -7.8, 10.4, 1.5);
+  }
+  c.restore();
+}
+
+// ------------------------------------------------ Ragdoll ----
+/* Verlet-Ragdoll in Weltkoordinaten (Meter). Rein kosmetisch: die Simulation
+   ist beim Sturz bereits beendet, der Ragdoll beeinflusst nichts mehr.
+   Während des Kippens hängen die Hände an der Leiterspitze, kurz vor dem
+   Aufschlag lässt er los und segelt frei. */
+const RAG = {
+  on:false, pts:null, cons:null, pinned:false, acc:0, t:0, landed:false, dizzy:0,
+  spawn(sim){
+    const sin = Math.sin(sim.theta), cos = Math.cos(sim.theta);
+    const bx = sin*sim.h, by = cos*sim.h;
+    const P = (up, side, r) => {
+      const x = bx + sin*up + cos*side, y = by + cos*up - sin*side;
+      return { x, y, px:x, py:y, r };
+    };
+    this.pts = [
+      P( 0.58,  0.00, 0.115), // 0 Kopf
+      P( 0.36,  0.00, 0.095), // 1 Brust
+      P( 0.06,  0.00, 0.085), // 2 Hüfte
+      P( 0.72, -0.15, 0.055), // 3 Hand links
+      P( 0.72,  0.15, 0.055), // 4 Hand rechts
+      P(-0.26, -0.10, 0.065), // 5 Fuß links
+      P(-0.26,  0.10, 0.065), // 6 Fuß rechts
+    ];
+    const L = (a,b,stiff=1) => ({ a, b, stiff,
+      len: Math.hypot(this.pts[a].x-this.pts[b].x, this.pts[a].y-this.pts[b].y) });
+    this.cons = [L(0,1), L(1,2), L(1,3,0.85), L(1,4,0.85), L(2,5,0.85), L(2,6,0.85),
+                 L(0,2,0.45), L(3,4,0.2), L(5,6,0.2)];
+    // Startschwung aus der Drehbewegung der Leiterspitze
+    const vt = clamp(sim.omega, -3, 3) * sim.h * CFG.dt * 0.5;
+    for (const p of this.pts){ p.px = p.x - cos*vt; p.py = p.y + sin*vt; }
+    this.on = true; this.pinned = true; this.acc = 0; this.t = 0; this.landed = false; this.dizzy = 0;
+  },
+  step(dt, sim){
+    if (!this.on) return;
+    this.t += dt;
+    // Er reitet die Leiter bis kurz vor dem Aufschlag hinunter und wird dann
+    // weggeschleudert – deutlich lustiger (und schneller) als freier Fall aus 100 m.
+    if (this.pinned && sim && Math.abs(sim.theta) > 1.42){
+      this.pinned = false;
+      AudioEngine.letGo();
+      const vmax = 0.32;                          // m pro Verlet-Schritt (~19 m/s)
+      for (const p of this.pts){
+        let vx = p.x - p.px, vy = p.y - p.py;
+        const v = Math.hypot(vx, vy);
+        if (v > vmax){ vx = vx/v*vmax; vy = vy/v*vmax; p.px = p.x - vx; p.py = p.y - vy; }
+      }
+    }
+    const G = 24;
+    for (const p of this.pts){
+      const vx = (p.x - p.px) * 0.994, vy = (p.y - p.py) * 0.994;
+      p.px = p.x; p.py = p.y;
+      p.x += vx; p.y += vy - G*dt*dt;
+    }
+    for (let it = 0; it < 4; it++){
+      for (const c of this.cons){
+        const a = this.pts[c.a], b = this.pts[c.b];
+        const dx = b.x-a.x, dy = b.y-a.y;
+        const d = Math.hypot(dx, dy) || 1e-6;
+        const f = (d - c.len)/d * 0.5 * c.stiff;
+        a.x += dx*f; a.y += dy*f; b.x -= dx*f; b.y -= dy*f;
+      }
+      if (this.pinned && sim){
+        const sin = Math.sin(sim.theta), cos = Math.cos(sim.theta);
+        const tx = sin*sim.h, ty = cos*sim.h;
+        for (const [i, side] of [[3,-0.15],[4,0.15]]){
+          const p = this.pts[i];
+          p.x = tx + cos*side; p.y = ty - sin*side;
+        }
+      }
+      for (const p of this.pts){
+        if (p.y < p.r){
+          const vx = p.x - p.px, vy = p.y - p.py;
+          // vy ist der Versatz pro Schritt (~1/60 s): -0.07 entspricht gut 4 m/s
+          if (!this.landed && vy < -0.07){ this.landed = true; this.dizzy = 2.6;
+            AudioEngine.bodyThud(); punch({ shake: 9, shakeDur: 0.11, hitStop: 0.05 }); }
+          p.y = p.r;
+          p.py = p.y + vy*0.36;   // Abprall
+          p.px = p.x - vx*0.5;    // Bodenreibung
+        }
+      }
+    }
+    if (this.dizzy > 0) this.dizzy -= dt;
+  },
+};
+
+function drawRagdoll(t){
+  if (!RAG.on) return;
+  // Mindestgröße: bei herausgezoomter Sturzkamera bliebe er sonst ein Pixelfleck.
+  // Skaliert um den Schwerpunkt, die Position stimmt also weiterhin.
+  const k = Math.max(1, 46 / Math.max(1, cam.ppm));
+  let mx = 0, my = 0;
+  for (const p of RAG.pts){ mx += p.x; my += p.y; }
+  mx /= RAG.pts.length; my /= RAG.pts.length;
+  const S = RAG.pts.map(p => worldToScreen(mx + (p.x-mx)*k, my + (p.y-my)*k));
+  const w = Math.max(2.6, cam.ppm*k*0.11);
+  const skin = PAL.skin, suit = PAL.suit, suitDark = PAL.ink;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const limb = (a, b, col, outline, mul=1) => {
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = w*1.55*mul;
+    ctx.beginPath(); ctx.moveTo(S[a][0], S[a][1]); ctx.lineTo(S[b][0], S[b][1]); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = w*mul;
+    ctx.beginPath(); ctx.moveTo(S[a][0], S[a][1]); ctx.lineTo(S[b][0], S[b][1]); ctx.stroke();
+  };
+  limb(2, 5, suit, suitDark); limb(2, 6, suit, suitDark);      // Beine
+  limb(1, 2, suit, suitDark, 1.9);                              // Rumpf
+  limb(1, 3, skin, suitDark, 0.85); limb(1, 4, skin, suitDark, 0.85); // Arme
+  // Schuhe + Hände
+  ctx.fillStyle = PAL.ink;
+  for (const i of [5,6]){ ctx.beginPath(); ctx.arc(S[i][0], S[i][1], w*0.6, 0, 7); ctx.fill(); }
+  ctx.fillStyle = skin;
+  for (const i of [3,4]){ ctx.beginPath(); ctx.arc(S[i][0], S[i][1], w*0.5, 0, 7); ctx.fill(); }
+  // Kopf mit Helm, Blickrichtung entlang Kopf-Brust-Achse
+  const hx = S[0][0], hy = S[0][1];
+  const ang = Math.atan2(S[0][0]-S[1][0], -(S[0][1]-S[1][1]));
+  const hr = Math.max(5.5, cam.ppm*k*0.12);
+  ctx.save(); ctx.translate(hx, hy); ctx.rotate(ang);
+  ctx.fillStyle = suitDark; ctx.beginPath(); ctx.arc(0, 0, hr*1.12, 0, 7); ctx.fill();
+  ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, 0, hr, 0, 7); ctx.fill();
+  ctx.fillStyle = PAL.helmet; ctx.beginPath(); ctx.arc(0, -hr*0.2, hr*1.06, Math.PI*1.02, Math.PI*1.98); ctx.fill();
+  ctx.fillStyle = PAL.helmetStripe; ctx.fillRect(-hr*1.06, -hr*0.38, hr*2.12, hr*0.34);
+  // X-Augen nach dem Aufschlag, sonst Panikaugen
+  ctx.strokeStyle = PAL.ink; ctx.lineWidth = Math.max(1.4, hr*0.2); ctx.fillStyle = PAL.ink;
+  if (RAG.landed){
+    for (const ex of [-hr*0.36, hr*0.36]){
+      ctx.beginPath();
+      ctx.moveTo(ex-hr*0.2, -hr*0.2); ctx.lineTo(ex+hr*0.2, hr*0.2);
+      ctx.moveTo(ex+hr*0.2, -hr*0.2); ctx.lineTo(ex-hr*0.2, hr*0.2);
+      ctx.stroke();
+    }
+  } else {
+    for (const ex of [-hr*0.36, hr*0.36]){ ctx.beginPath(); ctx.arc(ex, -hr*0.05, hr*0.24, 0, 7); ctx.fill(); }
+    ctx.beginPath(); ctx.ellipse(0, hr*0.42, hr*0.26, hr*0.34, 0, 0, 7); ctx.fill(); // Schrei
+  }
+  ctx.restore();
+  // Schwindel-Sternchen nach der Landung
+  if (RAG.dizzy > 0){
+    ctx.fillStyle = PAL.gold;
+    for (let i = 0; i < 3; i++){
+      const a = t*4 + i*2.1;
+      ctx.beginPath();
+      ctx.arc(hx + Math.cos(a)*hr*2.1, hy - hr*1.9 + Math.sin(a)*hr*0.6, Math.max(1.5, hr*0.16), 0, 7);
+      ctx.fill();
+    }
+  }
+}
+
+// Balance-Anzeige: fix oben mittig, immer im Blick
+function drawBalanceMeter(sim, t){
+  if (!sim || !sim.alive) return;
+  const bw = Math.min(300, W*0.76), bh = 15;
+  const bx = W/2 - bw/2, by = Game.meterY;
+  const tNorm = clamp(sim.theta/CFG.fallAngle, -1, 1);
+  const danger = Math.abs(tNorm);
+  ctx.save();
+  // Track mit Gefahrenzonen
+  ctx.fillStyle = 'rgba(8,12,28,0.55)';
+  ctx.beginPath(); ctx.roundRect(bx-3, by-3, bw+6, bh+6, (bh+6)/2); ctx.fill();
+  const g = ctx.createLinearGradient(bx, 0, bx+bw, 0);
+  g.addColorStop(0,    'rgba(255,84,112,0.85)');
+  g.addColorStop(0.24, 'rgba(255,175,94,0.35)');
+  g.addColorStop(0.5,  'rgba(125,255,178,0.22)');
+  g.addColorStop(0.76, 'rgba(255,175,94,0.35)');
+  g.addColorStop(1,    'rgba(255,84,112,0.85)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bh/2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(bx+0.5, by+0.5, bw-1, bh-1, bh/2); ctx.stroke();
+  // Mittelkerbe
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillRect(W/2-1, by+3, 2, bh-6);
+  // Soll-Marke (Daumen)
+  const u = Input.lean();
+  if (Input.touching || u !== 0){
+    ctx.fillStyle = '#ffd76a';
+    const ux = W/2 + u*(bw/2-9);
+    ctx.beginPath();
+    ctx.moveTo(ux, by+bh+4); ctx.lineTo(ux-5, by+bh+12); ctx.lineTo(ux+5, by+bh+12);
+    ctx.closePath(); ctx.fill();
+  }
+  // Ist-Knopf mit Glow
+  const kx = W/2 + tNorm*(bw/2-9), ky = by + bh/2;
+  const col = danger > 0.72 ? '#ff5470' : danger > 0.42 ? '#ffaf5e' : '#7dffb2';
+  const pulse = danger > 0.72 ? 1 + Math.sin(t*16)*0.14 : 1;
+  ctx.globalAlpha = 0.35 * (0.5 + danger);
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(kx, ky, 15*pulse, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#0b1020';
+  ctx.beginPath(); ctx.arc(kx, ky, 9.5*pulse, 0, 7); ctx.fill();
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(kx, ky, 7*pulse, 0, 7); ctx.fill();
+  // Abgestützt-Hinweis
+  if (Input.brace() || (sim.curBrace && sim.curHeld)){
+    ctx.fillStyle = '#7db8ff'; ctx.font = '800 11px system-ui'; ctx.textAlign = 'center';
+    ctx.letterSpacing = '1px';
+    ctx.fillText('ABGESTÜTZT', W/2, by - 8);
+    ctx.letterSpacing = '0px';
+  }
+  ctx.restore();
+}
+
+// ------------------------------------------------ Game ----
+const $ = id => document.getElementById(id);
+const els = {
+  alt: $('alt'), hint: $('hint'), subhint: $('subhint'), toast: $('toast'),
+  deathPanel: $('deathPanel'), deathStamp: $('deathStamp'), deathH: $('deathH'),
+  deathBest: $('deathBest'), deathSub: $('deathSub'), deathUnlock: $('deathUnlock'),
+  dailyPanel: $('dailyPanel'), dailyGrid: $('dailyGrid'), dailyInfo: $('dailyInfo'),
+  dailyStreak: $('dailyStreak'), dailyTarget: $('dailyTarget'),
+  chipStreak: $('chipStreak'), chipFeather: $('chipFeather'), chipDaily: $('chipDaily'), chipGhost: $('chipGhost'),
+};
+let toastT = null;
+function toast(msg, ms=1800){
+  els.toast.firstElementChild.textContent = msg; els.toast.style.opacity = 1;
+  clearTimeout(toastT); toastT = setTimeout(()=> els.toast.style.opacity = 0, ms);
+}
+
+const DEATH_TEXTS = {
+  wind:    { stamp: 'DER WIND GEWINNT', emo: '💨' },
+  gerald:  { stamp: 'ERLEDIGT VON GERALD', emo: '🕊️' },
+  balance: { stamp: 'GLEICHGEWICHT VERLOREN', emo: '🌀' },
+  flag:    { stamp: 'FLAGGEN-GIER', emo: '🚩' },
+  idle:    { stamp: 'ZU LANGE GEZÖGERT', emo: '⏳' },
+};
+// Serie gilt nur als aktiv, wenn sie nicht bereits gerissen ist
+function effectiveStreak(){
+  const lw = SAVE.lastDailyWin;
+  if (!lw || SAVE.streak === 0) return 0;
+  if (lw === todayKey() || lw === todayKey(1)) return SAVE.streak;
+  if (lw === todayKey(2) && new Date().getHours() < 12) return SAVE.streak; // Saver-Fenster
+  return 0;
+}
+
+const Game = {
+  state: 'attract',   // attract | run | topple | dead | replayfall
+  sim: null, ghost: null, ghostData: null, attractSim: null,
+  mode: 'endless', dailySeedKey: null,
+  toppleT: 0, toppleSnap: null, timeScale: 1,
+  lastDeath: null, heartbeatT: 0, creakT: 0,
+  gustWarnT: 0, gustWarnDir: 1,
+  newUnlock: null, time: 0,
+
+  assistLevel(){
+    // Einsteiger-Hilfe: primär ans Können (PB) gekoppelt, Routine reduziert nur einen Teil
+    const pbTerm = 1 - Math.min(SAVE.pb/40, 1);
+    const sessTerm = SAVE.sessions <= 3 ? 1 : 0.7;
+    return clamp(pbTerm * sessTerm, 0, 1) * 0.8;
+  },
+  newRun(){
+    // Backstop: ein fertiges Daily startet nie erneut mit dem bekannten Seed
+    if (this.mode === 'daily' && this.dailyState().done){ this.mode = 'endless'; this.dailySeedKey = null; }
+    let seed, assist;
+    if (this.mode === 'daily'){
+      this.dailySeedKey = this.dailySeedKey || todayKey();
+      seed = hashStr('RUNG-DAILY-' + this.dailySeedKey);
+      assist = 0.25; // fix für ALLE: gleicher Wind, gleiche Physik, fairer Vergleich
+    } else {
+      seed = (Math.random()*0xFFFFFFFF)>>>0;
+      // aufs Ghost-Wire-Format quantisiert, damit Replay bit-identisch rechnet
+      assist = Math.round(this.assistLevel()*100)/100;
+    }
+    this.sim = new Sim(seed, { assist });
+    this.sim.mode = this.mode;
+    this.sim.dailyKey = this.dailySeedKey;
+    if (this.ghostData){
+      const gs = new Sim(this.ghostData.seed, { playback: this.ghostData.track, assist: this.ghostData.assist });
+      this.ghost = { sim: gs, visible: true, done: false };
+    } else this.ghost = null;
+    this.timeScale = 1; this.state = 'run';
+    this.toppleSnap = null;
+    RAG.on = false;
+    acc = 0; // kein Restfehler aus dem Vor-Run
+    this.heartbeatT = 0.4; this.creakT = 0.3;
+    AudioEngine.rungDeg = null;   // Tonlage startet neu unten
+    AudioEngine.grab();           // der Griff an die Leiter gibt dem Start Gewicht
+    els.deathPanel.classList.add('hidden');
+    els.dailyPanel.classList.add('hidden');
+    els.hint.classList.add('hidden'); els.subhint.classList.add('hidden');
+    this.updateChips();
+  },
+  onPress(){
+    if (this.state === 'attract'){ this.newRun(); return; }
+    if (this.state === 'dead'){
+      if (this.time - this.deathShownAt < 0.45) return; // Rage-Tap-Schutz: Panel erst lesen
+      this.newRun(); return;
+    }
+    if (this.state === 'replayfall'){ this.timeScale = 1; }
+    if (this.state === 'aftermath'){ this.afterT = 0; }  // Ungeduldige überspringen die Pointe
+  },
+  onFall(){
+    const sim = this.sim;
+    this.state = 'topple'; this.toppleT = 0; this.timeScale = 0.28; this.toppleAcc = 0;
+    this.toppleSnap = { theta: sim.theta, omega: sim.omega, h: sim.h };
+    RAG.spawn(sim);
+    AudioEngine.fall(); vibrate([60, 40, 120]);
+    cam.shake = 8;
+  },
+  finishRun(){
+    const sim = this.sim, h = sim.h;
+    const cause = sim.deathCause || 'balance';
+    let feathers = 0;
+    for (const f of sim.flagsPlanted){ feathers += Math.max(5, (f/5)|0); SAVE.flags[f] = (SAVE.flags[f]||0)+1; }
+    SAVE.feathers += feathers;
+    if (cause === 'gerald') SAVE.geraldKills++;
+    const newBest = h > SAVE.pb;
+    if (newBest){
+      SAVE.pb = Math.round(h*10)/10; AudioEngine.newBest();
+      const cols = [PAL.gold, '#FFFFFF', PAL.safe, PAL.danger];
+      for (let i=0;i<90;i++)
+        spawnP(Math.random()*W, -20 - Math.random()*160, (Math.random()-0.5)*90,
+          140 + Math.random()*220, 1.8 + Math.random(), 4 + Math.random()*8, cols[i%4], 90, i%3, 0.5);
+      punch({ flash: 0.2, flashCol: PAL.gold, shake: 6, shakeDur: 0.12 });
+    }
+    // Entscheidend ist der Modus des GELAUFENEN Sims, nicht der UI-Zustand
+    this.lastDeath = { h, cause, track: sim.track.slice(), seed: sim.seed, assist: sim.assist,
+      mode: sim.mode, capH: sim.capH, newBest, feathers };
+    this.newUnlock = null;
+    // Freischaltungen hinter die Rekord-Fanfare staffeln statt draufstapeln
+    let uq = newBest ? 0.55 : 0;
+    for (const u of UNLOCKS){
+      if (!SAVE.unlocked[u.id] && SAVE.feathers >= u.at){
+        SAVE.unlocked[u.id] = true; this.newUnlock = u.label;
+        AudioEngine.unlock(uq); uq += 0.45;
+      }
+    }
+    if (sim.mode === 'daily') this.recordDailyAttempt(h, cause, sim.dailyKey);
+    save();
+    // Share-Card vorab rendern, damit der Teilen-Tap seine User-Activation behält
+    this.cardBlob = null;
+    this.renderShareCard().then(b => { this.cardBlob = b; }).catch(()=>{});
+    this.showDeathPanel();
+  },
+  showDeathPanel(){
+    const d = this.lastDeath; if (!d) return;
+    const newBest = !!d.newBest, feathers = d.feathers || 0;
+    this.state = 'dead';
+    this.deathShownAt = this.time;
+    const t = DEATH_TEXTS[d.cause] || DEATH_TEXTS.balance;
+    els.deathStamp.textContent = t.emo + ' ' + t.stamp;
+    els.deathH.textContent = d.h.toFixed(1) + ' m';
+    els.deathBest.textContent = newBest ? '🏆 NEUE BESTHÖHE!' : ('Besthöhe: ' + SAVE.pb.toFixed(1) + ' m');
+    els.deathUnlock.textContent = this.newUnlock ? ('Freigeschaltet: ' + this.newUnlock) : '';
+    let sub = '';
+    if (feathers) sub += `🪶 +${feathers} Federn gebankt · `;
+    sub += `🕊️ Gerald hat dich ${SAVE.geraldKills}× erwischt.`;
+    if (this.ghostData) sub += `<br>👻 Ghost: ${this.ghostData.height.toFixed(0)} m ${d.h > this.ghostData.height ? '— GESCHLAGEN! 💪' : '— noch nicht geschlagen.'}`;
+    if (d.mode === 'daily'){
+      const st = this.dailyState();
+      sub += `<br>📅 Daily: Versuch ${st.tries.length}/${CFG.dailyTries}`;
+    }
+    els.deathSub.innerHTML = sub;
+    els.deathPanel.classList.remove('hidden');
+    if (d.mode === 'daily' && this.dailyState().done){
+      // Fertiges Daily: Ergebnis-Panel zeigen, Tap-Restart geht in Endless weiter
+      setTimeout(()=> { if (this.state === 'dead') this.openDaily(); }, 1200);
+      this.mode = 'endless'; this.dailySeedKey = null;
+    }
+    this.updateChips();
+  },
+  // ---------------- Replay des Sturzes
+  startReplayFall(){
+    if (!this.toppleSnap || !this.sim) return;
+    els.deathPanel.classList.add('hidden');
+    const s = this.toppleSnap;
+    this.sim.theta = s.theta; this.sim.omega = s.omega; this.sim.h = s.h;
+    RAG.spawn(this.sim);
+    AudioEngine.fall();
+    this.state = 'replayfall'; this.toppleT = 0; this.timeScale = 0.28; this.toppleAcc = 0;
+    cam.shake = 6;
+  },
+  // ---------------- Daily
+  dailyState(key){
+    key = key || this.dailySeedKey || todayKey();
+    if (key === todayKey()){
+      if (!SAVE.daily || SAVE.daily.key !== key) SAVE.daily = { key, tries: [], done: false, success: false };
+      return SAVE.daily;
+    }
+    if (!SAVE.dailyAlt || SAVE.dailyAlt.key !== key) SAVE.dailyAlt = { key, tries: [], done: false, success: false };
+    return SAVE.dailyAlt;
+  },
+  recordDailyAttempt(h, cause, key){
+    const st = this.dailyState(key);
+    if (st.done) return;
+    st.tries.push({ h: Math.round(h*10)/10, c: cause || 'balance' });
+    if (h >= CFG.dailyTarget){
+      st.done = true; st.success = true;
+      this.onDailyWin(st.key);
+    } else if (st.tries.length >= CFG.dailyTries) st.done = true;
+    save();
+  },
+  onDailyWin(key){
+    // Serie: gestern gewonnen -> +1; Streak-Saver: gestern nachgeholt zählt weiter;
+    // Kulanz: heute vor 12 Uhr gewonnen, während der Saver noch offen war
+    const yesterday = todayKey(1);
+    if (SAVE.lastDailyWin === yesterday) SAVE.streak++;
+    else if (key === yesterday && SAVE.lastDailyWin === todayKey(2)) SAVE.streak++;
+    else if (key === todayKey() && SAVE.lastDailyWin === todayKey(2) && new Date().getHours() < 12) SAVE.streak++;
+    else if (SAVE.lastDailyWin !== key) SAVE.streak = 1;
+    if (key > (SAVE.lastDailyWin||'')) SAVE.lastDailyWin = key;
+    save();
+  },
+  dailyEmoji(st){
+    // Höhen-Band + Todesursache pro Versuch, z.B. "🟧💨 🟥🕊️ ✅"
+    return st.tries.map(t => {
+      const h = typeof t === 'number' ? t : t.h;
+      const band = h >= CFG.dailyTarget ? '✅' : h >= 40 ? '🟨' : h >= 20 ? '🟧' : '🟥';
+      const cause = (typeof t === 'object' && h < CFG.dailyTarget && DEATH_TEXTS[t.c]) ? DEATH_TEXTS[t.c].emo : '';
+      return band + cause;
+    }).join(' ');
+  },
+  openDaily(){
+    this.mode = 'daily';
+    this.dailySeedKey = todayKey();
+    const st = this.dailyState();
+    els.dailyTarget.textContent = `Erreiche ${CFG.dailyTarget} m – in so wenigen Leitern wie möglich (max. ${CFG.dailyTries})`;
+    els.dailyGrid.textContent = this.dailyEmoji(st) || '·····';
+    els.dailyInfo.textContent = st.done
+      ? (st.success ? `Geschafft in ${st.tries.length} Leiter${st.tries.length>1?'n':''}! Morgen weht neuer Wind.` : 'Heute nicht geschafft – morgen neuer Versuch!')
+      : `RUNG #${dailyNum(todayKey())} · gleicher Wind für alle · ${CFG.dailyTries - st.tries.length} Versuch${CFG.dailyTries-st.tries.length===1?'':'e'} übrig`;
+    const eff = effectiveStreak();
+    els.dailyStreak.textContent = eff > 0 ? `🔥 Serie: ${eff} Tag${eff>1?'e':''}` : '';
+    $('btnDailyPlay').classList.toggle('hidden', st.done);
+    // Streak-Saver: gestern verpasst, heute vor 12 Uhr, gestern noch nicht nachgeholt
+    const canSave = SAVE.lastDailyWin === todayKey(2) && new Date().getHours() < 12
+      && !(SAVE.dailyAlt && SAVE.dailyAlt.key === todayKey(1) && SAVE.dailyAlt.done);
+    $('btnStreakSave').classList.toggle('hidden', !canSave);
+    if (canSave && !st.done) els.dailyStreak.textContent = '⚠️ Serie in Gefahr – rette zuerst gestern!';
+    els.deathPanel.classList.add('hidden');
+    els.dailyPanel.classList.remove('hidden');
+  },
+  // ---------------- Teilen
+  shareText(forceDaily){
+    const d = this.lastDeath;
+    const url = location.origin + location.pathname;
+    if (forceDaily || (d && d.mode === 'daily')){
+      const st = this.dailyState();
+      const n = dailyNum(st.key);
+      const eff = effectiveStreak();
+      const streak = eff > 0 ? ` · 🔥${eff}` : '';
+      return `RUNG #${n} ${this.dailyEmoji(st) || '·'} ${st.success ? st.tries.length + ' Leiter' + (st.tries.length>1?'n':'') : 'X'}${streak}\n${url}`;
+    }
+    if (!d) return `🪜 RUNG – die höchste Leiter der Welt.\n${url}`;
+    const ghost = '#g=' + encodeGhost(d);
+    return `🪜 RUNG – ich bin ${d.h.toFixed(1)} m hochgekommen. Kletter gegen meinen Geist! 👻\n${url}${ghost}`;
+  },
+  // Primärer Share: NUR Text — der Ghost-Link ist die virale Fracht und darf
+  // nicht von Datei-Shares verschluckt werden (iOS lässt text bei files fallen)
+  async share(forceDaily){
+    const text = this.shareText(forceDaily);
+    try {
+      if (navigator.share){ await navigator.share({ text }); return; }
+    } catch(e){ if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); toast('📋 In Zwischenablage kopiert!'); }
+    catch(e){ toast('Teilen nicht verfügbar'); }
+  },
+  // Sekundär: Bild-Share (Card trägt die URL selbst im Bild)
+  async shareImage(){
+    const blob = this.cardBlob || await this.renderShareCard().catch(()=>null);
+    const text = this.shareText();
+    try {
+      if (blob && navigator.share && navigator.canShare
+          && navigator.canShare({ files: [new File([blob],'rung.png',{type:'image/png'})] })){
+        await navigator.share({ text, files: [new File([blob],'rung.png',{type:'image/png'})] });
+        return;
+      }
+    } catch(e){ if (e && e.name === 'AbortError') return; }
+    this.share();
+  },
+  renderShareCard(){
+    return new Promise(res => {
+      const d = this.lastDeath; if (!d) return res(null);
+      const cw = 1080, ch = 1350, oc = document.createElement('canvas');
+      oc.width = cw; oc.height = ch;
+      const c = oc.getContext('2d');
+      const [top, bot] = skyColors(d.h);
+      const g = c.createLinearGradient(0,0,0,ch);
+      g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+      c.fillStyle = g; c.fillRect(0,0,cw,ch);
+      c.save(); c.translate(cw/2, ch-120); c.rotate(0.35);
+      c.strokeStyle = '#c9803a'; c.lineWidth = 14; c.lineCap = 'round';
+      const lh = ch - 300;
+      for (const off of [-46, 46]){ c.beginPath(); c.moveTo(off, 0); c.lineTo(off, -lh); c.stroke(); }
+      c.lineWidth = 9;
+      for (let y=0; y<lh; y+=52){ c.beginPath(); c.moveTo(-46,-y); c.lineTo(46,-y); c.stroke(); }
+      c.restore();
+      c.fillStyle = '#fff'; c.textAlign = 'center';
+      c.font = '900 130px system-ui';
+      c.fillText('RUNG', cw/2, 190);
+      c.font = '900 200px system-ui';
+      c.fillStyle = '#ffd76a';
+      c.fillText(d.h.toFixed(1) + ' m', cw/2, ch/2);
+      const t = DEATH_TEXTS[d.cause] || DEATH_TEXTS.balance;
+      c.font = '700 56px system-ui'; c.fillStyle = '#fff';
+      c.fillText(t.emo + ' ' + t.stamp, cw/2, ch/2 + 110);
+      c.font = '600 44px system-ui'; c.fillStyle = 'rgba(255,255,255,0.85)';
+      c.fillText('Die höchste Leiter der Welt. Schaffst du mehr?', cw/2, ch - 160);
+      c.font = '700 40px system-ui'; c.fillStyle = '#ffd76a';
+      c.fillText(location.host + location.pathname, cw/2, ch - 96);
+      drawGerald(c, cw/2 + 320, 300, -1, 'landed', 0, 5);
+      oc.toBlob(res, 'image/png');
+    });
+  },
+  // Y-Position der Balance-Anzeige: immer unter Höhenzähler und Chips
+  layoutHud(){
+    let bottom = 0;
+    for (const el of [els.alt, $('topbar'), $('btns')]){
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height > 0) bottom = Math.max(bottom, r.bottom);
+    }
+    this.meterY = Math.round(Math.max(84, bottom + 16));
+  },
+  updateChips(){
+    const eff = effectiveStreak();
+    els.chipStreak.textContent = '🔥 ' + eff;
+    els.chipFeather.textContent = '🪶 ' + SAVE.feathers;
+    els.chipStreak.classList.toggle('hidden', eff === 0);
+    els.chipFeather.classList.toggle('hidden', SAVE.feathers === 0);
+    if (this.ghostData){ els.chipGhost.textContent = '👻 ' + this.ghostData.height.toFixed(0) + ' m'; els.chipGhost.classList.remove('hidden'); }
+    else els.chipGhost.classList.add('hidden');
+    els.chipDaily.classList.toggle('hidden', this.mode !== 'daily');
+    this.layoutHud();
+  },
+};
+Game.meterY = 120;
+
+// ------------------------------------------------ UI-Buttons ----
+$('btnSound').addEventListener('click', e => {
+  e.stopPropagation();
+  AudioEngine.init();
+  AudioEngine.setMuted(!AudioEngine.muted);
+  SAVE.sound = !AudioEngine.muted; save();
+  $('btnSound').textContent = AudioEngine.muted ? '🔇' : '🔊';
+});
+$('btnSound').textContent = AudioEngine.muted ? '🔇' : '🔊';
+for (const id of ['btnSound','btnDaily'])
+  $(id).addEventListener('pointerdown', e => e.stopPropagation());
+$('btnDaily').addEventListener('click', e => { e.stopPropagation();
+  // Mitten im Lauf kein Moduswechsel — das würde den Run als Daily werten
+  if (Game.state === 'run' || Game.state === 'topple' || Game.state === 'replayfall') return;
+  Game.openDaily(); });
+$('btnDailyPlay').addEventListener('click', () => {
+  const st = Game.dailyState();
+  if (st.done) return;
+  Game.newRun();
+});
+$('btnDailyClose').addEventListener('click', () => {
+  els.dailyPanel.classList.add('hidden');
+  Game.mode = 'endless'; Game.dailySeedKey = null;
+  if (Game.state === 'dead') els.deathPanel.classList.remove('hidden');
+  else if (Game.state !== 'run'){
+    Game.state = 'attract';
+    els.hint.classList.remove('hidden'); els.subhint.classList.remove('hidden');
+  }
+  Game.updateChips();
+});
+$('btnDailyShare').addEventListener('click', () => Game.share(true));
+$('btnStreakSave').addEventListener('click', () => {
+  Game.dailySeedKey = todayKey(1);
+  toast('🩹 Gestern nachholen – Serie retten!');
+  Game.newRun();
+});
+$('btnReplay').addEventListener('click', e => { e.stopPropagation(); Game.startReplayFall(); });
+$('btnShare').addEventListener('click', e => { e.stopPropagation(); Game.share(); });
+$('btnShareImg').addEventListener('click', e => { e.stopPropagation(); Game.shareImage(); });
+$('dailyPanel').addEventListener('pointerdown', e => e.stopPropagation());
+// Das Ergebnis-Panel füllt auf kleinen Geräten fast den Schirm – ein Tipp
+// darauf muss deshalb selbst neu starten, sonst ist der Hinweis eine Lüge.
+$('deathPanel').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  if (e.target.closest('button')) return;
+  Game.onPress();
+});
+// Haptisches Klick-Feedback auf allen Panel-Buttons
+for (const b of document.querySelectorAll('.panel button'))
+  b.addEventListener('click', () => { AudioEngine.init(); AudioEngine.resume(); AudioEngine.uiTap(); });
+
+// ------------------------------------------------ Ghost aus URL ----
+(function initGhost(){
+  const m = location.hash.match(/#g=([A-Za-z0-9_-]+)/);
+  if (!m) return;
+  const g = decodeGhost(m[1]);
+  if (g && g.track.length){
+    Game.ghostData = g;
+    toast('👻 Ghost-Herausforderung: schlag ' + g.height.toFixed(0) + ' m!', 3200);
+    els.subhint.textContent = '👻 Schlag ' + g.height.toFixed(0) + ' m!';
+  }
+  Game.updateChips();
+})();
+
+// ------------------------------------------------ Loop ----
+let last = performance.now(), acc = 0;
+function frame(now){
+  requestAnimationFrame(frame);
+  let dtReal = Math.min(0.1, (now - last)/1000);
+  last = now;
+  // Hit-Stop: kurzes Einfrieren macht Treffer wuchtig (Chart-Standard 60-80 ms)
+  if (FX.hitStop > 0){ FX.hitStop -= dtReal; if (FX.hitStop > 0) dtReal = 0; }
+  Game.time += dtReal;
+  const t = Game.time;
+  cam.shake = Math.max(0, cam.shake - dtReal*20);
+  if (FX.shakeT > 0){ FX.shakeT -= dtReal;
+    cam.shake = Math.max(cam.shake, FX.shake * Math.max(0, FX.shakeT/FX.shakeMax)); }
+  if (FX.flash > 0) FX.flash -= dtReal;
+
+  const sim = Game.sim;
+  const st = Game.state;
+
+  // --- Simulation (fester Timestep)
+  if (st === 'run' && sim){
+    acc += dtReal;
+    let steps = 0;
+    while (acc >= CFG.dt && steps < 6){
+      sim.step();
+      if (Game.ghost && !Game.ghost.done){
+        Game.ghost.sim.step();
+        if (!Game.ghost.sim.alive){ Game.ghost.done = true; Game.ghost.visible = false; }
+      }
+      acc -= CFG.dt; steps++;
+      if (!sim.alive){ Game.onFall(); break; }
+    }
+    // Events -> Sound/FX
+    for (const ev of sim.takeEvents()){
+      if (ev.t === 'rung') AudioEngine.rung(sim.h);
+      else if (ev.t === 'gustwarn'){ AudioEngine.gustWarn(ev.dir); vibrate(30); Game.gustWarnDir = ev.dir; Game.gustWarnT = CFG.gustWarn; }
+      else if (ev.t === 'gust'){
+        AudioEngine.gust(Game.gustWarnDir);
+        punch({ flash: 0.12, flashCol: PAL.warn, shake: 6, shakeDur: 0.09 });
+        // Windstreifen aus der Böenrichtung
+        const d = Game.gustWarnDir || 1;
+        for (let i=0;i<12;i++)
+          spawnP(d>0 ? -20 : W+20, Math.random()*H*0.8, d*(420+Math.random()*260),
+            (Math.random()-0.5)*60, 0.5, 3, 'rgba(255,255,255,0.9)', 0, 2);
+      }
+      else if (ev.t === 'geraldIn'){ AudioEngine.coo(); AudioEngine.flap(); }
+      else if (ev.t === 'geraldLand'){ AudioEngine.coo(); vibrate(20); toast('🕊️ GERALD! Gegenlehnen!', 1400); }
+      else if (ev.t === 'geraldOut'){ AudioEngine.flap(); toast('🕊️ Gerald zieht ab!', 1000); }
+      else if (ev.t === 'idlewarn'){ AudioEngine.idleWarn(); toast('💨 Der Wind findet dich – weiterklettern!', 1800); vibrate(25); }
+      else if (ev.t === 'flagStart'){ AudioEngine.flagStart(); toast('🚩 Flagge wird gepflanzt – durchhalten!', 1500); }
+      else if (ev.t === 'flagDone'){
+        AudioEngine.flagDone(); vibrate([30,30,60]);
+        toast('🚩 ' + (LANDMARKS[ev.at] || ev.at + ' m') + ' GEBANKT! +' + Math.max(5, (ev.at/5)|0) + ' 🪶', 2200);
+        const [fx,fy] = worldToScreen(Math.sin(sim.theta)*sim.h, Math.cos(sim.theta)*sim.h);
+        // Belohnungs-Bündel: Konfetti + Blitz + Shake + Hit-Stop in <100 ms
+        const cols = [PAL.gold, '#FFFFFF', '#FF8A1F', PAL.safe];
+        for (let i=0;i<70;i++){
+          const a = Math.random()*6.28, sp = 90 + Math.random()*260;
+          spawnP(fx, fy, Math.cos(a)*sp, Math.sin(a)*sp - 110, 0.8 + Math.random()*0.8,
+            3 + Math.random()*7, cols[i%4], 340, i%3, 1.4);
+        }
+        punch({ flash: 0.15, flashCol: '#FFFFFF', shake: 8, shakeDur: 0.1, hitStop: 0.06 });
+      }
+    }
+    if (Game.ghost) Game.ghost.sim.takeEvents();
+    // Kontinuierliche Sounds
+    Game.creakT -= dtReal;
+    if (sim.alive && Math.abs(sim.theta) > 0.3 && Game.creakT <= 0){ AudioEngine.creak(); Game.creakT = 0.4 + Math.random()*0.4; }
+    Game.heartbeatT -= dtReal;
+    if (sim.alive && Math.abs(sim.theta) > 0.45 && Game.heartbeatT <= 0){
+      // Puls beschleunigt, je näher der Sturz rückt (~97 bis ~214 bpm)
+      const period = clamp(0.62 - (Math.abs(sim.theta) - 0.45)*2.0, 0.28, 0.62);
+      AudioEngine.heartbeat(period); vibrate(15);
+      Game.heartbeatT = period;
+    }
+  }
+  else if ((st === 'topple' || st === 'replayfall') && sim){
+    // Zeitlupen-Sturz: Pendel ohne Kontrolle bis ~90°, dann Panel.
+    // Accumulator mit skalierter Echtzeit -> gleiche Zeitlupe auf 60/120 Hz.
+    Game.toppleT += dtReal;
+    Game.toppleAcc = (Game.toppleAcc || 0) + dtReal * Game.timeScale * 2;
+    if (Math.abs(sim.theta) < Math.PI/2 - 0.05){
+      let guard = 0;
+      while (Game.toppleAcc >= CFG.dt && guard++ < 8 && Math.abs(sim.theta) < Math.PI/2 - 0.05){
+        Game.toppleAcc -= CFG.dt;
+        const L = CFG.baseLen + sim.h;
+        sim.omega += (CFG.grav/L)*Math.sin(sim.theta)*1.2 * CFG.dt;
+        sim.theta += sim.omega * CFG.dt;
+      }
+      if (Math.abs(sim.theta) >= Math.PI/2 - 0.05){
+        AudioEngine.thud(); cam.shake = 14; vibrate([80,50,80]);
+        const [gx,gy] = worldToScreen(Math.sin(sim.theta)*sim.h, Math.cos(sim.theta)*sim.h);
+        for (let i=0;i<120;i++){
+          const a = Math.random()*6.28, sp = 60 + Math.random()*320;
+          spawnP(gx, gy, Math.cos(a)*sp, Math.sin(a)*sp*0.6 - Math.random()*200,
+            0.9 + Math.random()*0.9, 3 + Math.random()*8,
+            [PAL.rail, '#E8DCC8', PAL.suit, '#9A6B3A'][i%4], 420, i%3, 1.1);
+        }
+        punch({ flash: 0.18, flashCol: '#FFE9A8', shake: 12, shakeDur: 0.13, hitStop: 0.08 });
+        // Kurze Nachspiel-Pause: der Ragdoll darf noch landen und trudeln
+        Game.afterAction = (st === 'topple') ? 'finish' : 'show';
+        Game.afterT = 1.1; Game.state = 'aftermath'; Game.timeScale = 1;
       }
     }
   }
-
-  // --- Fluglagen-Anzeige (Winkel-Korridor, rechts) ---
-  if (Game.state === 'FLIGHT') {
-    const gw = 22 * uiScale, gh = Math.min(H * 0.38, 240);
-    const gx = W - gw - 16, gy = (H - gh) / 2;
-    const mapA = a => gy + gh * (1 - (a + 15) / 50);     // Skala: -15° … +35°
-    ctx.fillStyle = 'rgba(16,32,48,0.55)';
-    roundRect(gx - 5, gy - 10, gw + 10, gh + 20, 8);
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.fillRect(gx, gy, gw, gh);
-    // grüner Korridor
-    const c0 = mapA(CONFIG.optimalAngle - CONFIG.angleTolerance);
-    const c1 = mapA(CONFIG.optimalAngle + CONFIG.angleTolerance);
-    ctx.fillStyle = 'rgba(67,160,71,0.85)';
-    ctx.fillRect(gx, c1, gw, c0 - c1);
-    // Nadel = aktueller Anstellwinkel
-    const inCorr = Math.abs(Game.flight.alpha - CONFIG.optimalAngle) <= CONFIG.angleTolerance;
-    const ny = clamp(mapA(Game.flight.alpha), gy - 6, gy + gh + 6);
-    ctx.fillStyle = inCorr ? '#69f0ae' : '#ff8a80';
-    ctx.fillRect(gx - 3, ny - 2.5, gw + 6, 5);
-    // Landefenster-Hinweis
-    if (Game.landingTap.windowOpen) {
-      ctx.globalAlpha = 0.5 + Math.sin(Game.time * 18) * 0.5;
-      ctx.fillStyle = '#ffe082';
-      ctx.font = `800 ${24 * uiScale}px system-ui`;
-      ctx.textAlign = 'center';
-      ctx.fillText('JETZT TIPPEN – TELEMARK!', W / 2, H * 0.68);
-      ctx.globalAlpha = 1;
+  else if (st === 'aftermath'){
+    Game.afterT -= dtReal;
+    if (Game.afterT <= 0){
+      if (Game.afterAction === 'finish') Game.finishRun(); else Game.showDeathPanel();
     }
   }
 
-  // --- Debug-Overlay (Taste D) ---
-  if (Game.debug) {
-    const g = Hill.groundAt(S.x);
-    const spd = Game.state === 'FLIGHT' ? Math.hypot(S.vx, S.vy) : S.v;
-    const lines = [
-      `state: ${Game.state}`,
-      `v: ${spd.toFixed(1)} m/s (${(spd * 3.6).toFixed(0)} km/h)`,
-      `pos: ${S.x.toFixed(1)} / ${S.y.toFixed(1)}   h: ${(S.y - g.y).toFixed(1)} m`,
-      `alpha: ${Game.flight.alpha.toFixed(1)}°   body: ${S.body.toFixed(1)}°`,
-      `lift: ${Game.flight.lift.toFixed(2)}   drag: ${Game.flight.drag.toFixed(2)}`,
-      `wind: ${Game.currentWind().toFixed(2)} m/s   tta: ${Game.landingTap.tta.toFixed(2)} s`,
-      `korridor: ${(Game.flight.time ? Game.flight.corridorTime / Game.flight.time * 100 : 0).toFixed(0)} %`,
-    ];
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    roundRect(10, H - 26 - lines.length * 16, 310, lines.length * 16 + 12, 6);
-    ctx.fillStyle = '#b2ff59';
-    ctx.font = '12px ui-monospace, monospace';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    lines.forEach((l, i) => ctx.fillText(l, 18, H - 20 - (lines.length - 1 - i) * 16));
+  // --- Ragdoll (läuft im Sturz in Zeitlupe, danach in Echtzeit weiter)
+  if (RAG.on && sim){
+    const scale = (st === 'topple' || st === 'replayfall') ? Game.timeScale*2 : 1;
+    RAG.acc += dtReal * scale;
+    let guard = 0;
+    while (RAG.acc >= CFG.dt && guard++ < 8){ RAG.acc -= CFG.dt; RAG.step(CFG.dt, sim); }
   }
-  ctx.textBaseline = 'alphabetic';
-}
 
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath(); ctx.fill();
-}
-
-// ------------------------------------------------------------------ Loop
-let last = performance.now(), acc = 0;
-function frame(now) {
-  requestAnimationFrame(frame);
-  let dt = (now - last) / 1000; last = now;
-  dt = Math.min(dt, 0.25);            // Tab-Wechsel/Aussetzer abfangen
-  acc += dt;
-  while (acc >= CONFIG.timestep) {    // fixer Physik-Timestep
-    Game.update(CONFIG.timestep);
-    acc -= CONFIG.timestep;
+  // --- Wind-Ambience in JEDEM Zustand steuern (sonst friert sie nach dem Lauf ein)
+  if (AudioEngine.windGain){
+    if (st === 'run' && sim) AudioEngine.setWind((sim.gust ? sim.gust.mag : 0) + sim.h*0.001 + sim.idleAmp*0.1, sim.h);
+    else if (st === 'topple' || st === 'replayfall' || st === 'aftermath') AudioEngine.setWind(0.45, sim ? sim.h : 0);
+    else AudioEngine.setWind(0, 0);
   }
-  updateCamera(dt);
-  drawBackground();
-  drawHill();
-  drawParticles();
-  drawSkier();
-  drawHUD();
-}
 
-// ------------------------------------------------------------------ UI-Verdrahtung
-const startPanel = document.getElementById('startPanel');
-const resultPanel = document.getElementById('resultPanel');
-const resTitle = document.getElementById('resTitle');
-const resDist = document.getElementById('resDist');
-const resPts = document.getElementById('resPts');
-const resBest = document.getElementById('resBest');
-const show = el => el.classList.remove('hidden');
-const hide = el => el.classList.add('hidden');
-
-document.getElementById('startBtn').addEventListener('click', () => Game.newJump());
-document.getElementById('nextBtn').addEventListener('click', () => Game.newJump());
-window.addEventListener('keydown', e => {
-  if ((e.key === ' ' || e.key === 'Enter') && (Game.state === 'READY' || Game.state === 'RESULT')) {
-    e.preventDefault();
-    Game.newJump();
+  // --- Kamera
+  const camSim = sim || Game.attractSim;
+  if (camSim){
+    const falling = (st === 'topple' || st === 'replayfall' || st === 'dead' || st === 'aftermath');
+    // Beim Sturz muss der weggeschleuderte Ragdoll mit ins Bild passen
+    const ragX = RAG.on ? Math.abs(RAG.pts[1].x) : 0;
+    const span = Math.max(camSim.h, ragX + 4);
+    const targetPpm = falling
+      ? clamp(Math.min(W/(span+6), (H*0.8)/(span+4)), 3, 60)
+      : clamp(60 - camSim.h*0.25, 26, 60);
+    cam.ppm = lerp(cam.ppm, targetPpm, Math.min(1, dtReal * (st==='run' ? 2.5 : 4)));
+    const targetCy = falling ? camSim.h*0.45 : Math.max(2, camSim.h*Math.cos(camSim.theta) - 1);
+    cam.cy = lerp(cam.cy, targetCy, Math.min(1, dtReal*5));
+    // Seitliches Tracking mit Komfortzone: erst wenn der Kletterer sie verlässt,
+    // schwenkt die Kamera – so bleibt er garantiert im Bild, ohne früh zu wackeln.
+    const climberX = Math.sin(camSim.theta)*camSim.h;
+    const zone = (W*0.2)/Math.max(1, cam.ppm);
+    const targetCx = st === 'attract' ? 0
+      : falling ? (Math.sign(climberX || 1) * Math.max(Math.abs(climberX), ragX)) * 0.5
+      : climberX - clamp(climberX, -zone, zone);
+    cam.cx = lerp(cam.cx, targetCx, Math.min(1, dtReal*6));
+    if (!falling && st !== 'attract'){
+      // Harte Sicherung gegen Nachlauf der Interpolation: nie aus dem Bild
+      const maxDev = (W*0.30)/Math.max(1, cam.ppm);
+      cam.cx = clamp(cam.cx, climberX - maxDev, climberX + maxDev);
+    }
   }
-});
-if (Game.best)
-  document.getElementById('startBest').textContent =
-    `Bestleistung: ${Game.best.dist.toFixed(1).replace('.', ',')} m · ${Game.best.total.toFixed(1)} Pkt.`;
 
-// Springer für den Startbildschirm oben an den Anlauf setzen
-{
-  const start = Hill.inrunAt(0);
-  Object.assign(Game.skier, { x: start.x, y: start.y, body: -start.angle, pose: 'crouch' });
-  cam.x = start.x + 8; cam.y = start.y - 6; cam.ppm = Math.min(H / 42, W / 48);
+  // --- Zeichnen
+  if (!Game.attractSim){ Game.attractSim = new Sim(42, {assist:1}); }
+  const drawSim = sim || Game.attractSim;
+  if (st === 'attract'){
+    const a = Game.attractSim;
+    a.theta = Math.sin(t*0.9)*0.06; a.h = 3 + Math.sin(t*0.5)*0.4; a.climbPhase = t*2;
+    // Rotierende Kurzanleitung
+    if (!Game.ghostData){
+      const hints = ['Daumen ziehen = balancieren', 'Kippt sie rechts → zieh nach rechts',
+        'Runterziehen = abstützen', 'Stehenbleiben ist NIE sicher'];
+      const hi = ((t/2.6)|0) % hints.length;
+      if (els.subhint.textContent !== hints[hi]) els.subhint.textContent = hints[hi];
+    }
+  }
+  drawScene(drawSim, Game.ghost, t);
+  // Böen-Warnpfeil
+  if (Game.gustWarnT > 0 && st === 'run'){
+    Game.gustWarnT -= dtReal;
+    ctx.globalAlpha = Math.abs(Math.sin(t*12));
+    ctx.fillStyle = '#ff5470'; ctx.font = '900 40px system-ui'; ctx.textAlign = 'center';
+    const dir = Game.gustWarnDir || 1;
+    ctx.fillText(dir > 0 ? '💨 →' : '← 💨', W/2 - dir*W*0.26, H*0.3);
+    ctx.globalAlpha = 1;
+  } else if (st !== 'run') Game.gustWarnT = 0;
+  // Flaggen-Hinweise
+  if (st === 'run' && sim && sim.planting > 0){
+    ctx.fillStyle = '#ffd76a'; ctx.font = '900 22px system-ui'; ctx.textAlign='center';
+    ctx.fillText('🚩 FLAGGE… ' + Math.max(0,sim.planting).toFixed(1) + ' s – NICHT WACKELN!', W/2, H*0.4);
+  } else if (st === 'run' && sim && sim.flagBand !== null && !sim.flagsPlanted.includes(sim.flagBand)){
+    ctx.fillStyle = 'rgba(255,215,106,0.95)'; ctx.font = '800 16px system-ui'; ctx.textAlign='center';
+    ctx.fillText('🚩 ' + (LANDMARKS[sim.flagBand]||sim.flagBand+' m') + ': Daumen runterziehen = Flagge banken!', W/2, H*0.42);
+  }
+  // Sichtbarer Idle-Ratchet: Windstreifen ziehen quer, je länger man zögert
+  if (st === 'run' && sim && sim.idleAmp > 0.3 && Math.random() < sim.idleAmp*0.35){
+    const dir = Math.sin(t*5.3) >= 0 ? 1 : -1;
+    spawnP(dir > 0 ? -12 : W+12, Math.random()*H*0.7, dir*(240+Math.random()*180), (Math.random()-0.5)*40,
+      0.7, 2.5, 'rgba(255,255,255,0.85)');
+  }
+  stepDrawParticles(dtReal);
+  if (FX.flash > 0){
+    ctx.globalAlpha = FX.flashA * Math.max(0, FX.flash/0.08);
+    ctx.fillStyle = FX.flashCol; ctx.fillRect(0,0,W,H); ctx.globalAlpha = 1;
+  }
+  drawBalanceMeter(st === 'run' ? sim : null, t);
+
+  // HUD (DOM nur bei Änderung anfassen)
+  const altHTML = (sim && st !== 'attract')
+    ? sim.h.toFixed(sim.h < 100 ? 1 : 0) + '<small>m</small>'
+    : '<small style="font-size:28px;letter-spacing:2px;font-weight:800">🪜 RUNG</small>';
+  if (altHTML !== Game.lastAltHTML){ els.alt.innerHTML = altHTML; Game.lastAltHTML = altHTML; }
+  window.__RUNG_FRAME = (window.__RUNG_FRAME||0)+1;
 }
-
-// Alten Service-Worker (aus früherem Projekt auf dieser Domain) entfernen,
-// damit keine gecachte Fremd-Version ausgeliefert wird.
-if ('serviceWorker' in navigator)
-  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
-
 requestAnimationFrame(frame);
+Game.updateChips();
+
+// Debug-/Test-Hook für automatisierte Tests
+window.__RUNG = { Game, Sim, CFG, SAVE, encodeGhost, decodeGhost, Input, AudioEngine, save, cam, RAG };
+
+// ------------------------------------------------ PWA ----
+if ('serviceWorker' in navigator && location.protocol === 'https:'){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
 </script>
 </body>
 </html>
