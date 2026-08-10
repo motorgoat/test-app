@@ -35,7 +35,7 @@ function Ballistics.clampDirection(direction: Vector3): Vector3?
 	end
 	local unit = direction.Unit
 	local horizontal = Vector3.new(unit.X, 0, unit.Z)
-	local elevationDeg = math.deg(math.atan(unit.Y, horizontal.Magnitude))
+	local elevationDeg = math.deg(math.atan2(unit.Y, horizontal.Magnitude))
 	local clampedDeg = math.clamp(
 		elevationDeg,
 		Config.Ballistics.MinElevationDeg,
