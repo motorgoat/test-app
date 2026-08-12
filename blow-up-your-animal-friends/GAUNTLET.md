@@ -1,5 +1,26 @@
 # Gauntlet-Handoff — Stand nach Cloud-Session (2026-08-11)
 
+## UPDATE 2026-08-12: Schießen läuft im Live-Spiel (v11)
+
+Der Loop läuft jetzt über das VERÖFFENTLICHTE Spiel (Open-Cloud-Publish via
+`scripts/publish.sh`), der Mensch spielt als Kritiker. Drei Live-only-Bugs
+gefunden und gefixt, die in Studio nie aufgetreten wären:
+
+1. **Root-Cause des toten Clients:** `require(script.Parent.X)` in
+   PlayerScripts wirft im Live-Join ("X is not a valid member"), weil die
+   Klone aus StarterPlayerScripts NACH dem startenden LocalScript eintreffen
+   können. Regel ab jetzt: Nachbar-Module IMMER per `WaitForChild` auflösen.
+2. **Server-Crash-Loop:** `Terrain:CopyRegion` (Snapshot für resetTerrain)
+   riss den Server-Prozess hart ab — kein pcall fängt das. Ausgebaut;
+   resetTerrain() füllt stattdessen idempotent neu.
+3. **Remotes** liegen jetzt statisch im Place-File (default.project.json)
+   statt zur Laufzeit erstellt zu werden.
+
+Diagnose-Infrastruktur (bewusst noch aktiv, Ausbau nach bestandener
+Messlatte): BootHud (3-zeilige Statusanzeige mit Place-Version,
+Live-ReplicatedStorage-Inventar, Server-Boot-Schritt via repliziertem
+Attribut `ServerBootStep`), benannte Timeouts an jedem Wartepunkt.
+
 ## Aktueller Stand
 Meilenstein-1-Code ist vollständig gebaut und zwei Code-Review-Runden durchlaufen
 (Kritiker 1 fand einen atan2-Bug, gefixt in 18c198e; Kritiker 2: keine blockierende
