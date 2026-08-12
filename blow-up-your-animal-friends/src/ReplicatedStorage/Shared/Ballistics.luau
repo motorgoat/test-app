@@ -30,7 +30,9 @@ end
 -- Gibt nil zurück, wenn die Richtung unbrauchbar ist (Nullvektor, NaN, exakt senkrecht).
 function Ballistics.clampDirection(direction: Vector3): Vector3?
 	local magnitude = direction.Magnitude
-	if magnitude ~= magnitude or magnitude == 0 then -- NaN oder Nullvektor
+	-- NaN, Nullvektor ODER Unendlich: inf.Unit ergäbe NaN und schlüpfte sonst
+	-- durch die Winkelklemmung (Audit-Befund: inf-Vektor vom Client).
+	if magnitude ~= magnitude or magnitude == 0 or magnitude == math.huge then
 		return nil
 	end
 	local unit = direction.Unit

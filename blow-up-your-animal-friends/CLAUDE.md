@@ -19,7 +19,8 @@ Die Firebase-PWA an der Repo-Wurzel ist ein anderes Projekt — **nicht anfassen
 - **Server-autoritativ.** Spiellogik, Schaden und Terrainänderungen leben ausschließlich in
   `ServerScriptService`. Clients senden nur Eingaben (Richtung als Einheitsvektor, Stärke 0..1)
   und rendern Kosmetik. Der Server validiert jede Eingabe.
-- **Terrain wird nur serverseitig verändert** (aktuell nur in `ProjectileServer.luau`).
+- **Terrain wird nur serverseitig verändert** (ausschließlich in `TerrainWorld.luau`;
+  Krater nur über den Seam `TerrainWorld.carveCrater`).
 - **Struktur:**
   - `src/ReplicatedStorage/Shared/` — geteilte, pure Module (Config, Ballistics)
   - `src/ServerScriptService/` — Server-Bootstrap + Server-Module

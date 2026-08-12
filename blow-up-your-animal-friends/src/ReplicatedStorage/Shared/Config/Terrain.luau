@@ -25,5 +25,7 @@ return {
 		SpawnFallbackY = 24,
 		SpawnHeightOffset = 2,
 		SpawnSize = Vector3.new(8, 1, 8),
+		SpawnMaterial = Enum.Material.WoodPlanks,
+		SpawnColor = Color3.fromRGB(160, 120, 80),
 	},
 }

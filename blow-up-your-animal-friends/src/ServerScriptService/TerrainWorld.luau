@@ -57,8 +57,8 @@ local function createSpawn()
 	spawnLocation.Anchored = true
 	spawnLocation.Neutral = true
 	spawnLocation.Duration = 0 -- kein ForceField
-	spawnLocation.Material = Enum.Material.WoodPlanks
-	spawnLocation.Color = Color3.fromRGB(160, 120, 80)
+	spawnLocation.Material = Config.Terrain.SpawnMaterial
+	spawnLocation.Color = Config.Terrain.SpawnColor
 	spawnLocation.Parent = workspace
 end
 

@@ -4,7 +4,8 @@
 -- Heartbeat mit Ballistics.step berechnet und zwischen den Schritten geraycastet.
 -- Dadurch ist die Server-Flugbahn mathematisch identisch mit der Client-Vorschau.
 --
--- Terrainänderung (Krater) passiert AUSSCHLIESSLICH hier, ausschließlich serverseitig.
+-- Terrainänderung (Krater) läuft AUSSCHLIESSLICH über TerrainWorld.carveCrater —
+-- dieses Modul fasst das Terrain nie direkt an.
 --
 -- Optionales Referenz-Part: anchored + unsichtbar, folgt der Simulation.
 -- Guardrail "Network Ownership auf Server" ist damit konstruktiv erfüllt:

@@ -46,3 +46,9 @@ Kritiker-Protokoll siehe README.md in diesem Ordner: frischer Kritiker pro
 Runde, echtes Testplay via Studio-MCP, Blindvergleich gegen Worms Armageddon,
 binäres Urteil, EINE größte Lücke. Keine feste Rundenzahl — es gibt keine
 letzte Runde außer der bestandenen. Commit nach jeder bestandenen Runde.
+
+## Bekannter Audit-Befund (mit erledigen)
+
+WeaponSelect-Handler: `weaponId` MUSS typgeprueft (string) und gegen die
+WeaponDefs-Whitelist validiert werden — niemals Client-Input direkt als
+Table-Index verwenden; Munitions- und Besitzpruefung serverseitig.

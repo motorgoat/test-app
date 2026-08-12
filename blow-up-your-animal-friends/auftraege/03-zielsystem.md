@@ -45,3 +45,9 @@ Kritiker-Protokoll siehe README.md in diesem Ordner: frischer Kritiker pro
 Runde, echtes Testplay via Studio-MCP, Blindvergleich gegen Worms Armageddon,
 binäres Urteil, EINE größte Lücke. Keine feste Rundenzahl — es gibt keine
 letzte Runde außer der bestandenen. Commit nach jeder bestandenen Runde.
+
+## Bekannter Audit-Befund (mit erledigen)
+
+`AimController.releaseAndFire` spielt den Muendungs-Kick auch dann, wenn der
+Server den Schuss verwirft (Cooldown/canFire). Beim Umbau den Kick an die
+eigene Phasen-/Cooldown-Logik koppeln (oder an ProjectileFired haengen).

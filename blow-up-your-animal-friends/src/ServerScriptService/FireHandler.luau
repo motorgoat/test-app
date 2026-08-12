@@ -29,8 +29,14 @@ end
 local lastFireClock: { [Player]: number } = {}
 
 local function onFireRequest(player: Player, direction: unknown, power: unknown)
-	-- Typprüfung (Remotes können beliebige Werte liefern).
+	-- Typprüfung (Remotes können beliebige Werte liefern). Endlichkeit wird
+	-- HIER explizit geprüft, nicht nur delegiert: ein inf-Vektor überlebt
+	-- .Unit als NaN und vergiftet sonst die Simulation aller Clients.
 	if typeof(direction) ~= "Vector3" then
+		return
+	end
+	local magnitude = direction.Magnitude
+	if magnitude ~= magnitude or magnitude == 0 or magnitude == math.huge then
 		return
 	end
 	if type(power) ~= "number" or power ~= power then -- NaN-Check
