@@ -18,6 +18,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Ballistics = require(Shared:WaitForChild("Ballistics"))
 
+local TerrainWorld = require(script.Parent.TerrainWorld)
+
 local ProjectileServer = {}
 
 type Remotes = {
@@ -91,8 +93,8 @@ local function simulate(shooter: Player, shotId: number, origin: Vector3, veloci
 				-- Ins Meer: kein Krater, nur Verpuffen.
 				craterRadius = 0
 			else
-				-- EINZIGE Terrainänderung im Spiel: Krater sprengen.
-				workspace.Terrain:FillBall(result.Position, craterRadius, Enum.Material.Air)
+				-- Terrainänderung ausschliesslich ueber den TerrainWorld-Seam.
+				TerrainWorld.carveCrater(result.Position, craterRadius)
 			end
 			fireImpact(shotId, result.Position, craterRadius)
 			if refPart ~= nil then

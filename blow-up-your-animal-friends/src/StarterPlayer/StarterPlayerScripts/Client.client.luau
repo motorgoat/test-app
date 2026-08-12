@@ -85,18 +85,24 @@ if remotesFolder == nil then
 	return
 end
 
-local fireRequest = waitForNamed(remotesFolder, "FireRequest")
-local projectileFired = waitForNamed(remotesFolder, "ProjectileFired")
-local projectileImpact = waitForNamed(remotesFolder, "ProjectileImpact")
-if fireRequest == nil
-	or not fireRequest:IsA("RemoteEvent")
-	or projectileFired == nil
-	or not projectileFired:IsA("RemoteEvent")
-	or projectileImpact == nil
-	or not projectileImpact:IsA("RemoteEvent")
-then
-	BootHud.setError("Remotes unvollständig oder falscher Typ — Screenshot bitte.")
-	return
+local REMOTE_NAMES = {
+	"FireRequest",
+	"ProjectileFired",
+	"ProjectileImpact",
+	"WeaponSelect",
+	"MatchEvent",
+	"QuipEvent",
+	"CameraCue",
+	"DamageEvent",
+}
+local remoteEvents: { [string]: RemoteEvent } = {}
+for _, name in REMOTE_NAMES do
+	local remote = waitForNamed(remotesFolder, name)
+	if remote == nil or not remote:IsA("RemoteEvent") then
+		BootHud.setError("Remotes unvollständig oder falscher Typ (" .. name .. ") — Screenshot bitte.")
+		return
+	end
+	remoteEvents[name] = remote
 end
 
 -- Shared VOR den Requires prüfen: die Module warten intern ohne Timeout darauf.
@@ -109,11 +115,7 @@ if waitForNamed(shared, "Config") == nil or waitForNamed(shared, "Ballistics") =
 	return
 end
 
-local remotes = {
-	FireRequest = fireRequest :: RemoteEvent,
-	ProjectileFired = projectileFired :: RemoteEvent,
-	ProjectileImpact = projectileImpact :: RemoteEvent,
-}
+local remotes = remoteEvents
 
 -- Requires einzeln anmelden UND per WaitForChild auflösen: Nachbar-Module
 -- können später eintreffen als dieses Skript. Hängt eines, friert die
@@ -136,11 +138,24 @@ local TrajectoryPreview = requireSibling("TrajectoryPreview")
 local ImpactEffects = requireSibling("ImpactEffects")
 local ProjectileVisual = requireSibling("ProjectileVisual")
 local AimController = requireSibling("AimController")
+-- Vollausbau-Module (aktuell Stubs — je ein Element fuellt sie, s. auftraege/):
+local CameraDirector = requireSibling("CameraDirector")
+local SoundDirector = requireSibling("SoundDirector")
+local QuipSystem = requireSibling("QuipSystem")
+local DamageNumbers = requireSibling("DamageNumbers")
+local HudController = requireSibling("HudController")
+local WeaponWheel = requireSibling("WeaponWheel")
 if PowerBar == nil
 	or TrajectoryPreview == nil
 	or ImpactEffects == nil
 	or ProjectileVisual == nil
 	or AimController == nil
+	or CameraDirector == nil
+	or SoundDirector == nil
+	or QuipSystem == nil
+	or DamageNumbers == nil
+	or HudController == nil
+	or WeaponWheel == nil
 then
 	return
 end
@@ -175,8 +190,38 @@ end) then
 end
 if not step("AimController", function()
 	AimController.init(remotes)
-	-- Seam für die spätere Zustandsmaschine: enable()/disable() steuern das Zielen.
+	-- Seam für die Zustandsmaschine: enable()/disable() steuern das Zielen.
 	AimController.enable()
+end) then
+	return
+end
+if not step("CameraDirector", function()
+	CameraDirector.init(remotes)
+end) then
+	return
+end
+if not step("SoundDirector", function()
+	SoundDirector.init(remotes)
+end) then
+	return
+end
+if not step("QuipSystem", function()
+	QuipSystem.init(remotes)
+end) then
+	return
+end
+if not step("DamageNumbers", function()
+	DamageNumbers.init(remotes)
+end) then
+	return
+end
+if not step("HudController", function()
+	HudController.init(remotes)
+end) then
+	return
+end
+if not step("WeaponWheel", function()
+	WeaponWheel.init(remotes)
 end) then
 	return
 end

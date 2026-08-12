@@ -18,6 +18,34 @@
           "Duration": 0,
           "Neutral": true
         }
+      },
+      "PlayFieldWallFront": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "Size": [1024, 512, 2],
+          "Position": [0, 128, -15],
+          "Transparency": 1,
+          "CanCollide": true,
+          "CanQuery": false,
+          "CanTouch": false,
+          "CastShadow": false,
+          "Locked": true
+        }
+      },
+      "PlayFieldWallBack": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "Size": [1024, 512, 2],
+          "Position": [0, 128, 15],
+          "Transparency": 1,
+          "CanCollide": true,
+          "CanQuery": false,
+          "CanTouch": false,
+          "CastShadow": false,
+          "Locked": true
+        }
       }
     },
     "ReplicatedStorage": {
@@ -29,7 +57,12 @@
         "$className": "Folder",
         "FireRequest": { "$className": "RemoteEvent" },
         "ProjectileFired": { "$className": "RemoteEvent" },
-        "ProjectileImpact": { "$className": "RemoteEvent" }
+        "ProjectileImpact": { "$className": "RemoteEvent" },
+        "WeaponSelect": { "$className": "RemoteEvent" },
+        "MatchEvent": { "$className": "RemoteEvent" },
+        "QuipEvent": { "$className": "RemoteEvent" },
+        "CameraCue": { "$className": "RemoteEvent" },
+        "DamageEvent": { "$className": "RemoteEvent" }
       }
     },
     "ServerScriptService": {
