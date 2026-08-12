@@ -11,11 +11,11 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local TerrainIsland = require(script.Parent.TerrainIsland)
-local ProjectileServer = require(script.Parent.ProjectileServer)
-local FireHandler = require(script.Parent.FireHandler)
-
--- RemoteEvents: Server erstellt sie, Clients warten mit WaitForChild.
+-- RemoteEvents ZUALLERERST erstellen und sichtbar machen — noch vor den requires.
+-- Selbst wenn ein Modul-Require hängt (z. B. ein WaitForChild auf fehlende
+-- Inhalte), sieht der Client so sofort, dass der Server lebt. Die Handler
+-- verbinden sich wenige Millisekunden später; so früh kann ein Client noch
+-- gar nicht feuern (er braucht Sekunden zum Laden).
 local remotesFolder = Instance.new("Folder")
 remotesFolder.Name = "Remotes"
 
@@ -32,12 +32,16 @@ local remotes = {
 	ProjectileImpact = createRemote("ProjectileImpact"), -- Server → Clients: (shotId, Position, Kraterradius)
 }
 
+remotesFolder.Parent = ReplicatedStorage
+print("[BUYAF] Server: Remotes aktiv (Place v" .. tostring(game.PlaceVersion) .. ").")
+
+local TerrainIsland = require(script.Parent.TerrainIsland)
+local ProjectileServer = require(script.Parent.ProjectileServer)
+local FireHandler = require(script.Parent.FireHandler)
+
 ProjectileServer.init(remotes)
 FireHandler.init(remotes)
-
--- Erst jetzt sichtbar machen — alle Handler hängen bereits.
-remotesFolder.Parent = ReplicatedStorage
-print("[BUYAF] Server: Remotes aktiv.")
+print("[BUYAF] Server: Handler verbunden.")
 
 -- Weltgenerierung (legt intern den Terrain-Snapshot für resetTerrain() an).
 -- Abgesichert: ein Fehler hier wird benannt statt den Bootstrap zu töten.

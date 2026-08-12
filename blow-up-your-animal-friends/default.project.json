@@ -2,6 +2,24 @@
   "name": "blow-up-your-animal-friends",
   "tree": {
     "$className": "DataModel",
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "StreamingEnabled": false
+      },
+      "FileSpawnBeacon": {
+        "$className": "SpawnLocation",
+        "$properties": {
+          "Anchored": true,
+          "Size": [12, 1, 12],
+          "Position": [0, 40, 0],
+          "Color": [0.2, 0.55, 1.0],
+          "Material": "Neon",
+          "Duration": 0,
+          "Neutral": true
+        }
+      }
+    },
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "Shared": {
