@@ -11,28 +11,18 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- RemoteEvents ZUALLERERST erstellen und sichtbar machen — noch vor den requires.
--- Selbst wenn ein Modul-Require hängt (z. B. ein WaitForChild auf fehlende
--- Inhalte), sieht der Client so sofort, dass der Server lebt. Die Handler
--- verbinden sich wenige Millisekunden später; so früh kann ein Client noch
--- gar nicht feuern (er braucht Sekunden zum Laden).
-local remotesFolder = Instance.new("Folder")
-remotesFolder.Name = "Remotes"
-
-local function createRemote(name: string): RemoteEvent
-	local remote = Instance.new("RemoteEvent")
-	remote.Name = name
-	remote.Parent = remotesFolder
-	return remote
-end
+-- Die RemoteEvents liegen STATISCH im Place-File (default.project.json →
+-- ReplicatedStorage/Remotes). Sie sind damit Teil des Join-Snapshots, den jeder
+-- Client garantiert bekommt — zur Laufzeit erstellte Instanzen kamen beim
+-- Client dieser Experience nachweislich nicht an (Gauntlet-Diagnose, v3–v8).
+-- Der Server erstellt hier also nichts mehr, er greift nur noch zu.
+local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 
 local remotes = {
-	FireRequest = createRemote("FireRequest"), -- Client → Server: (Richtung, Stärke)
-	ProjectileFired = createRemote("ProjectileFired"), -- Server → Clients: (shotId, Ursprung, Startgeschwindigkeit)
-	ProjectileImpact = createRemote("ProjectileImpact"), -- Server → Clients: (shotId, Position, Kraterradius)
+	FireRequest = remotesFolder:WaitForChild("FireRequest") :: RemoteEvent, -- Client → Server: (Richtung, Stärke)
+	ProjectileFired = remotesFolder:WaitForChild("ProjectileFired") :: RemoteEvent, -- Server → Clients: (shotId, Ursprung, Startgeschwindigkeit)
+	ProjectileImpact = remotesFolder:WaitForChild("ProjectileImpact") :: RemoteEvent, -- Server → Clients: (shotId, Position, Kraterradius)
 }
-
-remotesFolder.Parent = ReplicatedStorage
 
 -- Boot-Fortschritt als repliziertes Attribut: das BootHud des Clients spiegelt
 -- es live. Stirbt der Server, steht sein letzter Schritt auf dem Bildschirm.

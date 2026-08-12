@@ -24,6 +24,12 @@
       "$className": "ReplicatedStorage",
       "Shared": {
         "$path": "src/ReplicatedStorage/Shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "FireRequest": { "$className": "RemoteEvent" },
+        "ProjectileFired": { "$className": "RemoteEvent" },
+        "ProjectileImpact": { "$className": "RemoteEvent" }
       }
     },
     "ServerScriptService": {
