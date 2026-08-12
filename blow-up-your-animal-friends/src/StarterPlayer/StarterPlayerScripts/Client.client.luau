@@ -15,6 +15,21 @@ BootHud.init()
 local REMOTES_TIMEOUT = 15 -- Sekunden; danach gilt der Server-Bootstrap als tot
 local REMOTE_TIMEOUT = 5
 
+-- Der Server repliziert Fehler seiner Weltgenerierung als StringValue
+-- "ServerBootError" — das BootHud zeigt sie an, sonst blieben sie unsichtbar.
+local function watchServerBootError()
+	local existing = ReplicatedStorage:FindFirstChild("ServerBootError")
+	if existing ~= nil and existing:IsA("StringValue") then
+		BootHud.setError("Server: " .. existing.Value)
+		return
+	end
+	ReplicatedStorage.ChildAdded:Connect(function(child)
+		if child.Name == "ServerBootError" and child:IsA("StringValue") then
+			BootHud.setError("Server: " .. child.Value)
+		end
+	end)
+end
+
 BootHud.setStatus("Lade… warte auf Server (Remotes)")
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", REMOTES_TIMEOUT)
 if remotesFolder == nil then
@@ -22,6 +37,7 @@ if remotesFolder == nil then
 		"Server-Remotes nicht gefunden — Server-Skript vermutlich abgestürzt. "
 			.. "Bitte Screenshot dieser Meldung schicken."
 	)
+	watchServerBootError()
 	return
 end
 
@@ -90,3 +106,6 @@ end) then
 end
 
 BootHud.setReady()
+-- Nach dem Ready-Text darf ein Server-Fehler ihn überschreiben — die Fehlermeldung
+-- ist in dieser Diagnose-Phase wichtiger als der Steuerungs-Hinweis.
+watchServerBootError()
