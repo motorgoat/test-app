@@ -12,7 +12,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BootHud = require(script.Parent.BootHud)
 BootHud.init()
 
-local REMOTES_TIMEOUT = 15 -- Sekunden; danach gilt der Server-Bootstrap als tot
+-- Server-Boot-Fortschritt live spiegeln (repliziertes Attribut). Sofort starten,
+-- noch VOR dem Warten auf Remotes — gerade wenn der Server beim Boot stirbt,
+-- ist sein letzter gemeldeter Schritt die wichtigste Information.
+local function updateServerStep()
+	local step = ReplicatedStorage:GetAttribute("ServerBootStep")
+	BootHud.setServerStep(if step ~= nil then tostring(step) else "(noch keine Meldung)")
+end
+updateServerStep()
+ReplicatedStorage:GetAttributeChangedSignal("ServerBootStep"):Connect(updateServerStep)
+
+local REMOTES_TIMEOUT = 8 -- Sekunden; danach gilt der Server-Bootstrap als tot (kurz genug, um die Meldung vor einem Server-Crash-Kick noch zu sehen)
 local REMOTE_TIMEOUT = 5
 
 -- Der Server repliziert Fehler seiner Weltgenerierung als StringValue

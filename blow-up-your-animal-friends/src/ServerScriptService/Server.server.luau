@@ -33,21 +33,30 @@ local remotes = {
 }
 
 remotesFolder.Parent = ReplicatedStorage
-print("[BUYAF] Server: Remotes aktiv (Place v" .. tostring(game.PlaceVersion) .. ").")
+
+-- Boot-Fortschritt als repliziertes Attribut: das BootHud des Clients spiegelt
+-- es live. Stirbt der Server, steht sein letzter Schritt auf dem Bildschirm.
+local function mark(step: string)
+	ReplicatedStorage:SetAttribute("ServerBootStep", step)
+	print("[BUYAF] Server-Schritt: " .. step)
+end
+
+mark("remotes aktiv (Place v" .. tostring(game.PlaceVersion) .. ")")
 
 local TerrainIsland = require(script.Parent.TerrainIsland)
 local ProjectileServer = require(script.Parent.ProjectileServer)
 local FireHandler = require(script.Parent.FireHandler)
+mark("module geladen")
 
 ProjectileServer.init(remotes)
 FireHandler.init(remotes)
-print("[BUYAF] Server: Handler verbunden.")
+mark("handler verbunden")
 
 -- Weltgenerierung (legt intern den Terrain-Snapshot für resetTerrain() an).
 -- Abgesichert: ein Fehler hier wird benannt statt den Bootstrap zu töten.
 local ok, err = pcall(TerrainIsland.generate)
 if ok then
-	print("[BUYAF] Server: Insel generiert.")
+	mark("server bereit")
 else
 	local message = tostring(err)
 	warn("[BUYAF] TerrainIsland.generate fehlgeschlagen: " .. message)

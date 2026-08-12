@@ -4,6 +4,11 @@
 -- WO der Bootstrap steht bzw. woran er scheitert (gelb = läuft, rot = Fehler,
 -- weiß = bereit mit Steuerungs-Hinweis).
 --
+-- Zweite Zeile: der letzte vom SERVER gemeldete Boot-Schritt (repliziertes
+-- Attribut "ServerBootStep" auf ReplicatedStorage). Crasht der Server-Prozess,
+-- friert diese Zeile auf seinem letzten Lebenszeichen ein — genau die
+-- Information, die wir zum Eingrenzen brauchen.
+--
 -- BEWUSST abhängigkeitsfrei (kein Config-Require, kein WaitForChild auf Shared):
 -- dieses Modul muss auch dann noch anzeigen können, wenn ReplicatedStorage
 -- unvollständig repliziert oder der restliche Bootstrap kaputt ist. Die wenigen
@@ -28,8 +33,16 @@ local READY_TEXT =
 -- laufende Server bleiben nach einem Publish auf der Vorgängerversion).
 local versionTag = "v" .. tostring(game.PlaceVersion)
 
-local function tagged(message: string): string
-	return "[" .. versionTag .. "] " .. message
+local clientText = ""
+local clientColor = COLOR_STATUS
+local serverStep = "(noch keine Meldung)"
+
+local function render()
+	if label == nil then
+		return
+	end
+	label.TextColor3 = clientColor
+	label.Text = "[" .. versionTag .. "] " .. clientText .. "\nServer-Schritt: " .. serverStep
 end
 
 function BootHud.init()
@@ -47,7 +60,7 @@ function BootHud.init()
 	text.Name = "Status"
 	text.AnchorPoint = Vector2.new(0.5, 1)
 	text.Position = UDim2.new(0.5, 0, 1, -36)
-	text.Size = UDim2.new(1, -48, 0, 32)
+	text.Size = UDim2.new(1, -48, 0, 58)
 	text.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
 	text.BackgroundTransparency = 0.35
 	text.TextColor3 = COLOR_STATUS
@@ -62,30 +75,33 @@ function BootHud.init()
 	text.Parent = gui
 	gui.Parent = playerGui
 	label = text
+	render()
 end
 
 function BootHud.setStatus(message: string)
 	print("[BUYAF] " .. message)
-	if label ~= nil then
-		label.TextColor3 = COLOR_STATUS
-		label.Text = tagged(message)
-	end
+	clientColor = COLOR_STATUS
+	clientText = message
+	render()
 end
 
 function BootHud.setError(message: string)
 	warn("[BUYAF] FEHLER: " .. message)
-	if label ~= nil then
-		label.TextColor3 = COLOR_ERROR
-		label.Text = tagged("FEHLER: " .. message)
-	end
+	clientColor = COLOR_ERROR
+	clientText = "FEHLER: " .. message
+	render()
 end
 
 function BootHud.setReady()
 	print("[BUYAF] Client bereit.")
-	if label ~= nil then
-		label.TextColor3 = COLOR_READY
-		label.Text = tagged(READY_TEXT)
-	end
+	clientColor = COLOR_READY
+	clientText = READY_TEXT
+	render()
+end
+
+function BootHud.setServerStep(step: string)
+	serverStep = step
+	render()
 end
 
 return BootHud

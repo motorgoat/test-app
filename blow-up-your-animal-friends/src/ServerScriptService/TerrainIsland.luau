@@ -4,24 +4,27 @@
 -- ist die Insel. Füll-Reihenfolge Grass → Ground → Rock lässt Schichten übrig,
 -- die Krater später freilegen (sichtbares Feedback!).
 --
--- Nach der Generierung wird die Spielzone per Terrain:CopyRegion gesichert;
--- resetTerrain() stellt sie per PasteRegion wieder her. Bewusst nur eine
--- Funktion, kein System — Seam für den späteren Rundenablauf.
+-- resetTerrain() führt einfach dieselben Fills erneut aus: identische Fills sind
+-- idempotent, und Krater (= Luftlöcher innerhalb der Kugeln) werden dadurch wieder
+-- geschlossen. Der frühere CopyRegion/PasteRegion-Snapshot ist ausgebaut —
+-- Verdacht auf harten Server-Absturz während des Snapshots (Gauntlet-Diagnose;
+-- der Server starb reproduzierbar zwischen Spawn-Erstellung und Remote-Parenting).
+--
+-- Jeder Schritt meldet sich über das replizierte Attribut "ServerBootStep" —
+-- das BootHud des Clients spiegelt es, damit ein Server-Crash mitten in der
+-- Generierung auf dem Bildschirm des Spielers benannt ist.
 
-local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 
 local TerrainIsland = {}
 
 local terrain = workspace.Terrain
-local savedRegion: TerrainRegion? = nil
-local savedCorner: Vector3int16? = nil
 
--- Weltkoordinaten → Terrain-Rasterkoordinaten (Region muss auf dem 4er-Raster liegen).
-local function toGridRegion(minWorld: Vector3, maxWorld: Vector3): (Region3int16, Vector3int16)
-	local voxel = Config.Terrain.VoxelSize
-	local min = Vector3int16.new(minWorld.X / voxel, minWorld.Y / voxel, minWorld.Z / voxel)
-	local max = Vector3int16.new(maxWorld.X / voxel, maxWorld.Y / voxel, maxWorld.Z / voxel)
-	return Region3int16.new(min, max), min
+local function mark(step: string)
+	ReplicatedStorage:SetAttribute("ServerBootStep", step)
+	print("[BUYAF] Server-Schritt: " .. step)
 end
 
 local function createSpawn()
@@ -54,34 +57,37 @@ local function createSpawn()
 	spawnLocation.Parent = workspace
 end
 
-function TerrainIsland.generate()
+local function fillWorld()
 	local cfg = Config.Terrain
 
 	-- Meer zuerst (nur Optik) — die Insel-Fills überschreiben es.
+	mark("terrain: wasser")
 	terrain:FillBlock(CFrame.new(cfg.WaterCenter), cfg.WaterSize, Enum.Material.Water)
 
-	for _, fill in cfg.CoreFills do
+	for i, fill in cfg.CoreFills do
+		mark("terrain: kern " .. i .. "/" .. #cfg.CoreFills)
 		terrain:FillBall(fill.Center, fill.Radius, fill.Material)
 	end
+	mark("terrain: huegel")
 	for _, hill in cfg.Hills do
 		terrain:FillBall(hill.Center, hill.Radius, hill.Material)
 	end
+end
 
+function TerrainIsland.generate()
+	-- Zellen VOR dem Füllen: >0 hieße, dass altes Terrain den Place-Upload
+	-- überlebt hat (Merge-Verdacht) — wichtiger Diagnosewert.
+	mark("terrain: start (vorhandene Zellen: " .. tostring(terrain:CountCells()) .. ")")
+	fillWorld()
+	mark("terrain: spawn")
 	createSpawn()
-
-	-- Snapshot der Spielzone für resetTerrain().
-	local gridRegion, corner = toGridRegion(cfg.ResetRegionMin, cfg.ResetRegionMax)
-	savedRegion = terrain:CopyRegion(gridRegion)
-	savedCorner = corner
+	mark("insel fertig")
 end
 
 -- Stellt das Terrain der Spielzone auf den Zustand direkt nach generate() zurück.
--- (pasteEmptyCells = true, damit auch Krater wieder aufgefüllt werden.)
+-- Seam für den späteren Rundenablauf.
 function TerrainIsland.resetTerrain()
-	if savedRegion == nil or savedCorner == nil then
-		return
-	end
-	terrain:PasteRegion(savedRegion, savedCorner, true)
+	fillWorld()
 end
 
 return TerrainIsland
