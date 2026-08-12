@@ -14,7 +14,12 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local BootHud = require(script.Parent.BootHud)
+-- WICHTIG: PlayerScripts-Nachbarn IMMER per WaitForChild holen. Die Klone aus
+-- StarterPlayerScripts treffen beim Join nach und nach ein; dieses Skript kann
+-- laufen, BEVOR seine Nachbarn existieren. Direkter Punktzugriff
+-- (script.Parent.PowerBar) warf dann "not a valid member" und tötete den
+-- gesamten Bootstrap — DER Root-Cause der stillen Client-Ausfälle im Live-Spiel.
+local BootHud = require(script.Parent:WaitForChild("BootHud"))
 BootHud.init()
 
 local WAIT_TIMEOUT = 8 -- Sekunden pro Wartepunkt; danach roter Fehler statt stilles Hängen
@@ -110,18 +115,35 @@ local remotes = {
 	ProjectileImpact = projectileImpact :: RemoteEvent,
 }
 
--- Requires einzeln anmelden: hängt eines, friert die Statuszeile auf seinem
--- Namen ein — genau die Information, die bisher fehlte.
-BootHud.setStatus("Lade Modul: PowerBar …")
-local PowerBar = require(script.Parent.PowerBar)
-BootHud.setStatus("Lade Modul: TrajectoryPreview …")
-local TrajectoryPreview = require(script.Parent.TrajectoryPreview)
-BootHud.setStatus("Lade Modul: ImpactEffects …")
-local ImpactEffects = require(script.Parent.ImpactEffects)
-BootHud.setStatus("Lade Modul: ProjectileVisual …")
-local ProjectileVisual = require(script.Parent.ProjectileVisual)
-BootHud.setStatus("Lade Modul: AimController …")
-local AimController = require(script.Parent.AimController)
+-- Requires einzeln anmelden UND per WaitForChild auflösen: Nachbar-Module
+-- können später eintreffen als dieses Skript. Hängt eines, friert die
+-- Statuszeile auf seinem Namen ein; fehlt es dauerhaft, gibt es einen
+-- benannten roten Fehler statt eines stillen Skript-Todes.
+local function requireSibling(name: string): any?
+	BootHud.setStatus("Lade Modul: " .. name .. " …")
+	local moduleScript = script.Parent:WaitForChild(name, WAIT_TIMEOUT)
+	if moduleScript == nil or not moduleScript:IsA("ModuleScript") then
+		BootHud.setError(
+			"Modul '" .. name .. "' ist nicht in PlayerScripts angekommen — Screenshot bitte."
+		)
+		return nil
+	end
+	return require(moduleScript)
+end
+
+local PowerBar = requireSibling("PowerBar")
+local TrajectoryPreview = requireSibling("TrajectoryPreview")
+local ImpactEffects = requireSibling("ImpactEffects")
+local ProjectileVisual = requireSibling("ProjectileVisual")
+local AimController = requireSibling("AimController")
+if PowerBar == nil
+	or TrajectoryPreview == nil
+	or ImpactEffects == nil
+	or ProjectileVisual == nil
+	or AimController == nil
+then
+	return
+end
 
 -- Init-Schritte einzeln absichern: ein Crash in einem Modul soll benannt auf dem
 -- Bildschirm stehen, nicht den restlichen Bootstrap still mitreißen.

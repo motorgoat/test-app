@@ -15,9 +15,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Ballistics = require(Shared:WaitForChild("Ballistics"))
 
-local TrajectoryPreview = require(script.Parent.TrajectoryPreview)
-local PowerBar = require(script.Parent.PowerBar)
-local ImpactEffects = require(script.Parent.ImpactEffects)
+-- Nachbar-Module per WaitForChild: Klone aus StarterPlayerScripts treffen beim
+-- Join nach und nach ein — direkter Punktzugriff wirft, wenn der Nachbar noch
+-- fehlt. (Der Client-Bootstrap hat sie beim Require dieses Moduls bereits
+-- geladen, damit sind diese Aufrufe im Normalfall sofortige Cache-Treffer.)
+local TrajectoryPreview = require(script.Parent:WaitForChild("TrajectoryPreview"))
+local PowerBar = require(script.Parent:WaitForChild("PowerBar"))
+local ImpactEffects = require(script.Parent:WaitForChild("ImpactEffects"))
 
 local AimController = {}
 
