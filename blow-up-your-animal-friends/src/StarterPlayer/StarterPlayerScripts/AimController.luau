@@ -1,7 +1,8 @@
 --!strict
 -- AimController: Zielen mit der Maus, Stärke durch Halten der linken Maustaste,
--- Loslassen feuert. Sendet AUSSCHLIESSLICH (Richtung, Stärke) an den Server —
--- Ursprung und Wirkung berechnet der Server selbst.
+-- Loslassen feuert. Touch funktioniert analog: Finger halten = laden, heben = feuern,
+-- gezielt wird auf die letzte Touch-Position. Sendet AUSSCHLIESSLICH
+-- (Richtung, Stärke) an den Server — Ursprung und Wirkung berechnet der Server selbst.
 --
 -- Seam für die spätere Zustandsmaschine: enable()/disable().
 
@@ -30,6 +31,17 @@ local lastFireClock = -math.huge -- Client-Spiegel des Server-Cooldowns (nur UX)
 local renderConnection: RBXScriptConnection? = nil
 local inputBeganConnection: RBXScriptConnection? = nil
 local inputEndedConnection: RBXScriptConnection? = nil
+local inputChangedConnection: RBXScriptConnection? = nil
+
+-- Auf Touch-Geräten liefert GetMouseLocation keine verlässliche Position —
+-- dort zielt die zuletzt gesehene Touch-Position (bleibt nach dem Heben stehen,
+-- damit die Vorschau nicht springt). Desktop: nil → Mausposition.
+local lastTouchPosition: Vector2? = nil
+
+local function isFireInput(input: InputObject): boolean
+	return input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+end
 
 local aimRaycastParams = RaycastParams.new()
 aimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -49,8 +61,8 @@ local function computeAimDirection(origin: Vector3): Vector3?
 	if camera == nil then
 		return nil
 	end
-	local mouse = UserInputService:GetMouseLocation()
-	local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
+	local pointer = lastTouchPosition or UserInputService:GetMouseLocation()
+	local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
 
 	local character = localPlayer.Character
 	aimRaycastParams.FilterDescendantsInstances = if character then { character } else {}
@@ -140,14 +152,26 @@ function AimController.enable()
 		if gameProcessed then
 			return
 		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if isFireInput(input) then
+			if input.UserInputType == Enum.UserInputType.Touch then
+				lastTouchPosition = Vector2.new(input.Position.X, input.Position.Y)
+			end
 			beginCharge()
+		end
+	end)
+
+	inputChangedConnection = UserInputService.InputChanged:Connect(function(input, _gameProcessed)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			lastTouchPosition = Vector2.new(input.Position.X, input.Position.Y)
 		end
 	end)
 
 	inputEndedConnection = UserInputService.InputEnded:Connect(function(input, _gameProcessed)
 		-- Loslassen feuert auch dann, wenn die Maus inzwischen über UI steht.
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if isFireInput(input) then
+			if input.UserInputType == Enum.UserInputType.Touch then
+				lastTouchPosition = Vector2.new(input.Position.X, input.Position.Y)
+			end
 			releaseAndFire()
 		end
 	end)
@@ -169,6 +193,10 @@ function AimController.disable()
 	if inputEndedConnection ~= nil then
 		inputEndedConnection:Disconnect()
 		inputEndedConnection = nil
+	end
+	if inputChangedConnection ~= nil then
+		inputChangedConnection:Disconnect()
+		inputChangedConnection = nil
 	end
 	if renderConnection ~= nil then
 		renderConnection:Disconnect()

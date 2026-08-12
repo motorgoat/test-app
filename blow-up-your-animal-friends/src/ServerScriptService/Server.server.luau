@@ -34,3 +34,5 @@ FireHandler.init(remotes)
 
 -- Erst jetzt sichtbar machen — alle Handler hängen bereits.
 remotesFolder.Parent = ReplicatedStorage
+
+print("[BUYAF] Server bereit — Insel generiert, Remotes aktiv.")
