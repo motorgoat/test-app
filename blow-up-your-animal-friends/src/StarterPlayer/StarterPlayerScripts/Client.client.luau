@@ -1,29 +1,50 @@
 --!strict
--- Client-Bootstrap: wartet auf die Remotes des Servers und initialisiert
--- die Client-Module in Abhängigkeitsreihenfolge. Danach ist Zielen aktiv.
+-- Client-Bootstrap: wartet auf die statischen Remotes und Shared-Module aus dem
+-- Place-File und initialisiert die Client-Module in Abhängigkeitsreihenfolge.
 --
--- Jeder Schritt meldet seinen Status ans BootHud — im Live-Spiel gibt es keine
--- sichtbare Konsole, deshalb müssen Hänger und Fehler auf dem Bildschirm landen.
--- WaitForChild läuft mit Timeout statt endlos: ein toter Server-Bootstrap
--- (keine Remotes) wird so als Fehlermeldung sichtbar statt als stilles Nichts.
+-- Diagnose-Erkenntnis aus dem Gauntlet: Der Client hing wiederholt in einem
+-- Modul-Require (dessen WaitForChild auf "Shared" hat keinen Timeout), während
+-- die Statuszeile noch einen ÄLTEREN Schritt anzeigte. Deshalb gilt hier:
+--   1. JEDER Wartepunkt hat einen Timeout und eine eigene Statusmeldung —
+--      auch jedes einzelne require meldet sich vorher an. Friert die Anzeige
+--      ein, benennt sie exakt die hängende Stelle.
+--   2. Eine unabhängige Diagnosezeile schreibt sich jede Sekunde selbst neu
+--      (Zeit, game:IsLoaded(), Live-Inhalt von ReplicatedStorage) und kann
+--      damit nie veralten.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BootHud = require(script.Parent.BootHud)
 BootHud.init()
 
--- Server-Boot-Fortschritt live spiegeln (repliziertes Attribut). Sofort starten,
--- noch VOR dem Warten auf Remotes — gerade wenn der Server beim Boot stirbt,
--- ist sein letzter gemeldeter Schritt die wichtigste Information.
+local WAIT_TIMEOUT = 8 -- Sekunden pro Wartepunkt; danach roter Fehler statt stilles Hängen
+
+-- Unabhängige Live-Diagnosezeile: läuft für immer, unabhängig vom Bootstrap.
+task.spawn(function()
+	local startClock = os.clock()
+	while true do
+		local names = {}
+		for _, child in ReplicatedStorage:GetChildren() do
+			table.insert(names, child.Name)
+		end
+		BootHud.setDiagnostics(string.format(
+			"t=%ds  geladen=%s  RS[%d]: %s",
+			math.floor(os.clock() - startClock),
+			tostring(game:IsLoaded()),
+			#names,
+			table.concat(names, ", ")
+		))
+		task.wait(1)
+	end
+end)
+
+-- Server-Boot-Fortschritt live spiegeln (repliziertes Attribut).
 local function updateServerStep()
 	local step = ReplicatedStorage:GetAttribute("ServerBootStep")
 	BootHud.setServerStep(if step ~= nil then tostring(step) else "(noch keine Meldung)")
 end
 updateServerStep()
 ReplicatedStorage:GetAttributeChangedSignal("ServerBootStep"):Connect(updateServerStep)
-
-local REMOTES_TIMEOUT = 8 -- Sekunden; danach gilt der Server-Bootstrap als tot (kurz genug, um die Meldung vor einem Server-Crash-Kick noch zu sehen)
-local REMOTE_TIMEOUT = 5
 
 -- Der Server repliziert Fehler seiner Weltgenerierung als StringValue
 -- "ServerBootError" — das BootHud zeigt sie an, sonst blieben sie unsichtbar.
@@ -40,51 +61,72 @@ local function watchServerBootError()
 	end)
 end
 
-BootHud.setStatus("Lade… warte auf Server (Remotes)")
-local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", REMOTES_TIMEOUT)
-if remotesFolder == nil then
-	-- Diagnose: Was sieht der Client tatsächlich in ReplicatedStorage?
-	-- Unterscheidet "Server-Skript tot" von "Replikation kaputt".
-	local childNames = {}
-	for _, child in ReplicatedStorage:GetChildren() do
-		table.insert(childNames, child.Name)
+-- Benannter Wartepunkt: Timeout + Fehlermeldung statt stilles Hängen.
+local function waitForNamed(parent: Instance, name: string): Instance?
+	BootHud.setStatus("Warte auf " .. parent.Name .. "." .. name .. " …")
+	local found = parent:WaitForChild(name, WAIT_TIMEOUT)
+	if found == nil then
+		BootHud.setError(
+			parent.Name .. "." .. name .. " ist nach " .. WAIT_TIMEOUT
+				.. "s nicht angekommen — Screenshot bitte."
+		)
 	end
-	BootHud.setError(
-		"Server-Remotes nicht gefunden — Server-Skript vermutlich abgestürzt. "
-			.. "ReplicatedStorage enthält: ["
-			.. table.concat(childNames, ", ")
-			.. "]. Bitte Screenshot dieser Meldung schicken."
-	)
+	return found
+end
+
+local remotesFolder = waitForNamed(ReplicatedStorage, "Remotes")
+if remotesFolder == nil then
 	watchServerBootError()
 	return
 end
 
-local function waitForRemote(name: string): RemoteEvent?
-	local remote = remotesFolder:WaitForChild(name, REMOTE_TIMEOUT)
-	if remote == nil or not remote:IsA("RemoteEvent") then
-		BootHud.setError("RemoteEvent '" .. name .. "' fehlt oder hat den falschen Typ.")
-		return nil
-	end
-	return remote
+local fireRequest = waitForNamed(remotesFolder, "FireRequest")
+local projectileFired = waitForNamed(remotesFolder, "ProjectileFired")
+local projectileImpact = waitForNamed(remotesFolder, "ProjectileImpact")
+if fireRequest == nil
+	or not fireRequest:IsA("RemoteEvent")
+	or projectileFired == nil
+	or not projectileFired:IsA("RemoteEvent")
+	or projectileImpact == nil
+	or not projectileImpact:IsA("RemoteEvent")
+then
+	BootHud.setError("Remotes unvollständig oder falscher Typ — Screenshot bitte.")
+	return
 end
 
-local fireRequest = waitForRemote("FireRequest")
-local projectileFired = waitForRemote("ProjectileFired")
-local projectileImpact = waitForRemote("ProjectileImpact")
-if fireRequest == nil or projectileFired == nil or projectileImpact == nil then
+-- Shared VOR den Requires prüfen: die Module warten intern ohne Timeout darauf.
+local shared = waitForNamed(ReplicatedStorage, "Shared")
+if shared == nil then
+	watchServerBootError()
+	return
+end
+if waitForNamed(shared, "Config") == nil or waitForNamed(shared, "Ballistics") == nil then
 	return
 end
 
 local remotes = {
-	FireRequest = fireRequest,
-	ProjectileFired = projectileFired,
-	ProjectileImpact = projectileImpact,
+	FireRequest = fireRequest :: RemoteEvent,
+	ProjectileFired = projectileFired :: RemoteEvent,
+	ProjectileImpact = projectileImpact :: RemoteEvent,
 }
+
+-- Requires einzeln anmelden: hängt eines, friert die Statuszeile auf seinem
+-- Namen ein — genau die Information, die bisher fehlte.
+BootHud.setStatus("Lade Modul: PowerBar …")
+local PowerBar = require(script.Parent.PowerBar)
+BootHud.setStatus("Lade Modul: TrajectoryPreview …")
+local TrajectoryPreview = require(script.Parent.TrajectoryPreview)
+BootHud.setStatus("Lade Modul: ImpactEffects …")
+local ImpactEffects = require(script.Parent.ImpactEffects)
+BootHud.setStatus("Lade Modul: ProjectileVisual …")
+local ProjectileVisual = require(script.Parent.ProjectileVisual)
+BootHud.setStatus("Lade Modul: AimController …")
+local AimController = require(script.Parent.AimController)
 
 -- Init-Schritte einzeln absichern: ein Crash in einem Modul soll benannt auf dem
 -- Bildschirm stehen, nicht den restlichen Bootstrap still mitreißen.
 local function step(name: string, fn: () -> ()): boolean
-	BootHud.setStatus("Lade… " .. name)
+	BootHud.setStatus("Starte " .. name .. " …")
 	local ok, err = pcall(fn)
 	if not ok then
 		BootHud.setError(name .. ": " .. tostring(err))
@@ -92,12 +134,6 @@ local function step(name: string, fn: () -> ()): boolean
 	end
 	return true
 end
-
-local PowerBar = require(script.Parent.PowerBar)
-local TrajectoryPreview = require(script.Parent.TrajectoryPreview)
-local ImpactEffects = require(script.Parent.ImpactEffects)
-local ProjectileVisual = require(script.Parent.ProjectileVisual)
-local AimController = require(script.Parent.AimController)
 
 if not step("PowerBar", PowerBar.init) then
 	return

@@ -1,13 +1,17 @@
 --!strict
--- BootHud: Status-/Diagnosezeile für den Client-Bootstrap plus Steuerungs-Hinweis.
+-- BootHud: Status-/Diagnose-Panel für den Client-Bootstrap plus Steuerungs-Hinweis.
 -- Im Live-Spiel gibt es keine sichtbare Konsole — dieses Overlay macht sichtbar,
 -- WO der Bootstrap steht bzw. woran er scheitert (gelb = läuft, rot = Fehler,
 -- weiß = bereit mit Steuerungs-Hinweis).
 --
--- Zweite Zeile: der letzte vom SERVER gemeldete Boot-Schritt (repliziertes
--- Attribut "ServerBootStep" auf ReplicatedStorage). Crasht der Server-Prozess,
--- friert diese Zeile auf seinem letzten Lebenszeichen ein — genau die
--- Information, die wir zum Eingrenzen brauchen.
+-- Drei Zeilen:
+--   1. Client-Status (letzter gemeldeter Schritt des Client-Bootstraps)
+--   2. Live-Diagnose (vom Client jede Sekunde neu geschrieben: verstrichene
+--      Zeit, game:IsLoaded(), tatsächlicher Inhalt von ReplicatedStorage) —
+--      diese Zeile kann konstruktionsbedingt nie veralten
+--   3. letzter vom SERVER gemeldeter Boot-Schritt (repliziertes Attribut
+--      "ServerBootStep"); crasht der Server, friert sie auf seinem letzten
+--      Lebenszeichen ein
 --
 -- BEWUSST abhängigkeitsfrei (kein Config-Require, kein WaitForChild auf Shared):
 -- dieses Modul muss auch dann noch anzeigen können, wenn ReplicatedStorage
@@ -29,12 +33,12 @@ local READY_TEXT =
 	"Maus bewegen: zielen  •  Linke Maustaste HALTEN: Kraft laden  •  LOSLASSEN: Feuer!"
 
 -- Place-Version in jeder Meldung: macht auf Screenshots sofort sichtbar, ob der
--- Spieler wirklich die zuletzt veröffentlichte Version spielt (alte, noch
--- laufende Server bleiben nach einem Publish auf der Vorgängerversion).
+-- Spieler wirklich die zuletzt veröffentlichte Version spielt.
 local versionTag = "v" .. tostring(game.PlaceVersion)
 
 local clientText = ""
 local clientColor = COLOR_STATUS
+local diagnosticsText = ""
 local serverStep = "(noch keine Meldung)"
 
 local function render()
@@ -42,7 +46,9 @@ local function render()
 		return
 	end
 	label.TextColor3 = clientColor
-	label.Text = "[" .. versionTag .. "] " .. clientText .. "\nServer-Schritt: " .. serverStep
+	label.Text = "[" .. versionTag .. "] " .. clientText
+		.. "\n" .. diagnosticsText
+		.. "\nServer-Schritt: " .. serverStep
 end
 
 function BootHud.init()
@@ -60,11 +66,11 @@ function BootHud.init()
 	text.Name = "Status"
 	text.AnchorPoint = Vector2.new(0.5, 1)
 	text.Position = UDim2.new(0.5, 0, 1, -36)
-	text.Size = UDim2.new(1, -48, 0, 58)
+	text.Size = UDim2.new(1, -48, 0, 88)
 	text.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
 	text.BackgroundTransparency = 0.35
 	text.TextColor3 = COLOR_STATUS
-	text.TextSize = 18
+	text.TextSize = 16
 	text.TextWrapped = true
 	text.Text = ""
 
@@ -96,6 +102,11 @@ function BootHud.setReady()
 	print("[BUYAF] Client bereit.")
 	clientColor = COLOR_READY
 	clientText = READY_TEXT
+	render()
+end
+
+function BootHud.setDiagnostics(message: string)
+	diagnosticsText = message
 	render()
 end
 
