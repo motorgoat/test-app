@@ -33,9 +33,17 @@ end
 BootHud.setStatus("Lade… warte auf Server (Remotes)")
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", REMOTES_TIMEOUT)
 if remotesFolder == nil then
+	-- Diagnose: Was sieht der Client tatsächlich in ReplicatedStorage?
+	-- Unterscheidet "Server-Skript tot" von "Replikation kaputt".
+	local childNames = {}
+	for _, child in ReplicatedStorage:GetChildren() do
+		table.insert(childNames, child.Name)
+	end
 	BootHud.setError(
 		"Server-Remotes nicht gefunden — Server-Skript vermutlich abgestürzt. "
-			.. "Bitte Screenshot dieser Meldung schicken."
+			.. "ReplicatedStorage enthält: ["
+			.. table.concat(childNames, ", ")
+			.. "]. Bitte Screenshot dieser Meldung schicken."
 	)
 	watchServerBootError()
 	return

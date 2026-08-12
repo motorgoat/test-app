@@ -23,6 +23,15 @@ local COLOR_READY = Color3.fromRGB(240, 240, 240)
 local READY_TEXT =
 	"Maus bewegen: zielen  •  Linke Maustaste HALTEN: Kraft laden  •  LOSLASSEN: Feuer!"
 
+-- Place-Version in jeder Meldung: macht auf Screenshots sofort sichtbar, ob der
+-- Spieler wirklich die zuletzt veröffentlichte Version spielt (alte, noch
+-- laufende Server bleiben nach einem Publish auf der Vorgängerversion).
+local versionTag = "v" .. tostring(game.PlaceVersion)
+
+local function tagged(message: string): string
+	return "[" .. versionTag .. "] " .. message
+end
+
 function BootHud.init()
 	if label ~= nil then
 		return
@@ -59,7 +68,7 @@ function BootHud.setStatus(message: string)
 	print("[BUYAF] " .. message)
 	if label ~= nil then
 		label.TextColor3 = COLOR_STATUS
-		label.Text = message
+		label.Text = tagged(message)
 	end
 end
 
@@ -67,7 +76,7 @@ function BootHud.setError(message: string)
 	warn("[BUYAF] FEHLER: " .. message)
 	if label ~= nil then
 		label.TextColor3 = COLOR_ERROR
-		label.Text = "FEHLER: " .. message
+		label.Text = tagged("FEHLER: " .. message)
 	end
 end
 
@@ -75,7 +84,7 @@ function BootHud.setReady()
 	print("[BUYAF] Client bereit.")
 	if label ~= nil then
 		label.TextColor3 = COLOR_READY
-		label.Text = READY_TEXT
+		label.Text = tagged(READY_TEXT)
 	end
 end
 
