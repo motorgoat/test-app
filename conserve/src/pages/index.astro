@@ -1,0 +1,205 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ProjectCard from '@/components/ProjectCard.astro';
+import ContactCta from '@/components/ContactCta.astro';
+import ImagePlaceholder from '@/components/ImagePlaceholder.astro';
+import { site } from '@/data/site';
+import { leistungen } from '@/data/leistungen';
+import { getFeaturedProjekte } from '@/lib/projekte';
+
+const featured = await getFeaturedProjekte(6);
+const yearsActive = new Date().getFullYear() - site.founded;
+---
+
+<BaseLayout>
+  <section class="intro">
+    <div class="container intro__grid">
+      <div class="intro__text">
+        <span class="eyebrow">{site.tagline}</span>
+        <h1>Historische Bausubstanz verstehen, erhalten und weiterbauen.</h1>
+        <p class="lead">
+          CONSERVE ist ein Baumeisterunternehmen mit Schwerpunkt Denkmalpflege und Altbausanierung. Wir begleiten
+          Bauherren und Planer von der historischen Begutachtung bis zur örtlichen Bauaufsicht.
+        </p>
+        <div class="intro__actions">
+          <a class="btn" href="/leistungen">Unsere Leistungen</a>
+          <a class="btn btn--ghost" href="/projekte">Projekte ansehen</a>
+        </div>
+      </div>
+      <div class="intro__media">
+        <ImagePlaceholder label="Titelbild" ratio="4 / 5" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container facts">
+      <div>
+        <strong>{site.founded}</strong>
+        <span>gegründet</span>
+      </div>
+      <div>
+        <strong>{yearsActive}+</strong>
+        <span>Jahre Erfahrung</span>
+      </div>
+      <div>
+        <strong>BDA</strong>
+        <span>Untersuchungen nach den Richtlinien des Bundesdenkmalamts</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--surface">
+    <div class="container">
+      <div class="head">
+        <div>
+          <span class="eyebrow">Leistungen</span>
+          <h2>Von der Bauforschung bis zur Bauaufsicht</h2>
+        </div>
+        <a href="/leistungen" class="more">Alle Leistungen →</a>
+      </div>
+      <ol class="services">
+        {
+          leistungen.map((l, i) => (
+            <li>
+              <a href={`/leistungen#${l.id}`}>
+                <span class="services__num">{String(i + 1).padStart(2, '0')}</span>
+                <h3>{l.title}</h3>
+                <p>{l.short}</p>
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="head">
+        <div>
+          <span class="eyebrow">Projekte</span>
+          <h2>Ausgewählte Projekte</h2>
+        </div>
+        <a href="/projekte" class="more">Alle Projekte →</a>
+      </div>
+      <div class="card-grid">
+        {featured.map((p) => <ProjectCard project={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <ContactCta />
+</BaseLayout>
+
+<style>
+  .intro {
+    padding-block: var(--space-xl);
+  }
+
+  .intro__grid {
+    display: grid;
+    gap: var(--space-l);
+    align-items: center;
+  }
+
+  @media (min-width: 56rem) {
+    .intro__grid {
+      grid-template-columns: 1.25fr 1fr;
+      gap: var(--space-xl);
+    }
+  }
+
+  .intro__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-s);
+    margin-top: var(--space-l);
+  }
+
+  .facts {
+    display: grid;
+    gap: var(--space-l);
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+
+  .facts > div {
+    display: grid;
+    gap: 0.25rem;
+    padding-top: var(--space-s);
+    border-top: 1px solid var(--c-ink);
+  }
+
+  .facts strong {
+    font-family: var(--f-serif);
+    font-size: var(--fs-h2);
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  .facts span {
+    color: var(--c-ink-soft);
+    font-size: var(--fs-sm);
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: end;
+    gap: var(--space-s);
+    margin-bottom: var(--space-l);
+  }
+
+  .head h2 {
+    margin: 0;
+  }
+
+  .more {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .services {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--c-line);
+    border-left: 1px solid var(--c-line);
+  }
+
+  .services li {
+    border-right: 1px solid var(--c-line);
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  .services a {
+    display: block;
+    height: 100%;
+    padding: var(--space-l) var(--space-m);
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+
+  .services a:hover {
+    background: var(--c-bg);
+    color: inherit;
+  }
+
+  .services__num {
+    display: block;
+    margin-bottom: var(--space-s);
+    font-family: var(--f-serif);
+    color: var(--c-accent);
+  }
+
+  .services p {
+    margin: 0;
+    color: var(--c-ink-soft);
+  }
+</style>

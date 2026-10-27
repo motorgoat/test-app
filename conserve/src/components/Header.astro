@@ -1,0 +1,198 @@
+---
+import Logo from '@/components/Logo.astro';
+import { nav } from '@/data/site';
+
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`));
+---
+
+<header class="header">
+  <div class="container header__inner">
+    <Logo />
+
+    <button
+      class="header__toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="main-nav"
+      data-nav-toggle
+    >
+      <span class="visually-hidden">Menü</span>
+      <span class="header__burger" aria-hidden="true"></span>
+    </button>
+
+    <nav id="main-nav" class="header__nav" aria-label="Hauptnavigation" data-nav>
+      <ul>
+        {
+          nav.map((item) => (
+            <li>
+              <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-nav-toggle]');
+  const navEl = document.querySelector<HTMLElement>('[data-nav]');
+
+  if (toggle && navEl) {
+    const setOpen = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open));
+      navEl.classList.toggle('is-open', open);
+      document.body.style.overflow = open ? 'hidden' : '';
+    };
+
+    toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    });
+    window.matchMedia('(min-width: 56rem)').addEventListener('change', () => setOpen(false));
+  }
+</script>
+
+<style>
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  /* Blur auf eigener Ebene: backdrop-filter am Header selbst würde das
+     position:fixed-Mobilmenü an den Header binden. */
+  .header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: color-mix(in srgb, var(--c-bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+  .header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--header-h);
+  }
+
+  .header__nav ul {
+    display: flex;
+    gap: var(--space-l);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .header__nav a {
+    position: relative;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding-block: 0.5rem;
+  }
+
+  .header__nav a::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--c-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s;
+  }
+
+  .header__nav a:hover::after,
+  .header__nav a[aria-current='page']::after {
+    transform: scaleX(1);
+  }
+
+  .header__nav a[aria-current='page'] {
+    color: var(--c-accent);
+  }
+
+  .header__toggle {
+    display: none;
+  }
+
+  @media (max-width: 55.99rem) {
+    .header__toggle {
+      display: grid;
+      place-items: center;
+      width: 2.75rem;
+      height: 2.75rem;
+      margin-right: -0.5rem;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--c-ink);
+      cursor: pointer;
+    }
+
+    .header__burger,
+    .header__burger::before,
+    .header__burger::after {
+      display: block;
+      width: 1.5rem;
+      height: 2px;
+      background: currentColor;
+      transition: transform 0.25s, opacity 0.25s;
+    }
+
+    .header__burger {
+      position: relative;
+    }
+
+    .header__burger::before,
+    .header__burger::after {
+      content: '';
+      position: absolute;
+      left: 0;
+    }
+
+    .header__burger::before { top: -7px; }
+    .header__burger::after { top: 7px; }
+
+    [aria-expanded='true'] .header__burger { background: transparent; }
+    [aria-expanded='true'] .header__burger::before { transform: translateY(7px) rotate(45deg); }
+    [aria-expanded='true'] .header__burger::after { transform: translateY(-7px) rotate(-45deg); }
+
+    .header__nav {
+      position: fixed;
+      inset: var(--header-h) 0 0;
+      background: var(--c-bg);
+      padding: var(--space-l) var(--gutter);
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+
+    .header__nav.is-open {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .header__nav ul {
+      flex-direction: column;
+      gap: var(--space-m);
+    }
+
+    .header__nav a {
+      font-family: var(--f-serif);
+      font-size: 1.75rem;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+  }
+</style>

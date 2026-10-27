@@ -1,0 +1,83 @@
+---
+import { Image } from 'astro:assets';
+import type { CollectionEntry } from 'astro:content';
+import ImagePlaceholder from '@/components/ImagePlaceholder.astro';
+
+interface Props {
+  project: CollectionEntry<'projekte'>;
+}
+
+const { project } = Astro.props;
+const { title, ort, jahr, leistung, bild, bildAlt } = project.data;
+---
+
+<article class="card">
+  <a href={`/projekte/${project.id}`} class="card__link">
+    <div class="card__media">
+      {
+        bild ? (
+          <Image src={bild} alt={bildAlt ?? title} widths={[400, 800]} sizes="(min-width: 56rem) 33vw, 100vw" />
+        ) : (
+          <ImagePlaceholder label={title} />
+        )
+      }
+    </div>
+    <div class="card__body">
+      <p class="card__meta">
+        {ort}{jahr && <> · {jahr}</>}
+      </p>
+      <h3 class="card__title">{title}</h3>
+      <p class="card__service">{leistung}</p>
+    </div>
+  </a>
+</article>
+
+<style>
+  .card__link {
+    display: block;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .card__link:hover {
+    color: inherit;
+    border-color: var(--c-accent);
+    transform: translateY(-2px);
+  }
+
+  .card__media {
+    overflow: hidden;
+  }
+
+  .card__media :global(img) {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+
+  .card__body {
+    padding: var(--space-m);
+  }
+
+  .card__meta {
+    margin-bottom: 0.35rem;
+    font-size: var(--fs-sm);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-accent);
+  }
+
+  .card__title {
+    margin-bottom: 0.35rem;
+  }
+
+  .card__service {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--c-ink-soft);
+  }
+</style>

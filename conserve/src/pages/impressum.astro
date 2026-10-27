@@ -1,0 +1,60 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PageHero from '@/components/PageHero.astro';
+import { site, team, telHref } from '@/data/site';
+---
+
+<BaseLayout title="Impressum" description={`Impressum der ${site.legalName}.`}>
+  <PageHero title="Impressum" />
+
+  <section class="section">
+    <div class="container prose">
+      <p>Informationen gemäß § 5 ECG, § 14 UGB und § 25 MedienG</p>
+
+      <h2>Medieninhaber und Herausgeber</h2>
+      <p>
+        {site.legalName}<br />
+        {site.address.street}<br />
+        {site.address.zip} {site.address.city}, {site.address.country}
+      </p>
+      <p>
+        E-Mail: <a href={`mailto:${site.email}`}>{site.email}</a><br />
+        {
+          team.map((p) => (
+            <>
+              Tel. {p.name}: <a href={telHref(p.phone)}>{p.phone}</a>
+              <br />
+            </>
+          ))
+        }
+      </p>
+
+      <h2>Unternehmensdaten</h2>
+      <p>
+        Rechtsform: Offene Gesellschaft (OG)<br />
+        Firmenbuchnummer: {site.legal.companyRegister}<br />
+        Firmenbuchgericht: {site.legal.registerCourt}<br />
+        UID-Nummer: {site.legal.vatId}<br />
+        Unternehmensgegenstand: {site.legal.trade}<br />
+        Kammerzugehörigkeit: {site.legal.chamber}
+      </p>
+      <p>
+        Anwendbare Rechtsvorschriften: Gewerbeordnung (GewO), abrufbar unter
+        <a href="https://www.ris.bka.gv.at" target="_blank" rel="noopener noreferrer">www.ris.bka.gv.at</a>
+      </p>
+
+      <h2>Haftung für Inhalte und Links</h2>
+      <p>
+        Die Inhalte dieser Website wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und
+        Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Für Inhalte verlinkter externer Seiten
+        sind ausschließlich deren Betreiber verantwortlich.
+      </p>
+
+      <h2>Urheberrecht</h2>
+      <p>
+        Texte, Bilder und Grafiken dieser Website unterliegen dem Urheberrecht. Eine Verwendung ist nur mit
+        ausdrücklicher Zustimmung von {site.legalName} gestattet.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

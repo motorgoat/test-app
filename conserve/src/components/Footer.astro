@@ -1,0 +1,124 @@
+---
+import Logo from '@/components/Logo.astro';
+import { site, team, nav, legalNav, telHref } from '@/data/site';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="footer section--dark">
+  <div class="container footer__grid">
+    <div>
+      <Logo inverted />
+      <p class="footer__text">
+        Baumeisterunternehmen mit Schwerpunkt Denkmalpflege und Altbausanierung. Seit {site.founded}.
+      </p>
+    </div>
+
+    <div>
+      <h2 class="footer__title">Kontakt</h2>
+      <address>
+        {site.legalName}<br />
+        {site.address.street}<br />
+        {site.address.zip} {site.address.city}<br />
+        <a href={`mailto:${site.email}`}>{site.email}</a>
+      </address>
+    </div>
+
+    <div>
+      <h2 class="footer__title">Ansprechpartnerinnen</h2>
+      <ul class="footer__list">
+        {
+          team.map((p) => (
+            <li>
+              {p.name}
+              <br />
+              <a href={telHref(p.phone)}>{p.phone}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <nav aria-label="Footer-Navigation">
+      <h2 class="footer__title">Seiten</h2>
+      <ul class="footer__list">
+        {nav.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
+      </ul>
+    </nav>
+  </div>
+
+  <div class="container footer__bottom">
+    <span>© {year} {site.legalName}</span>
+    <ul class="footer__legal">
+      {legalNav.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
+    </ul>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    padding-top: var(--space-xl);
+    font-size: var(--fs-sm);
+  }
+
+  .footer a {
+    text-decoration: none;
+  }
+
+  .footer a:hover {
+    color: #d3a888;
+  }
+
+  .footer__grid {
+    display: grid;
+    gap: var(--space-l);
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  }
+
+  .footer__text {
+    margin-top: var(--space-m);
+    opacity: 0.75;
+    max-width: 22em;
+  }
+
+  .footer__title {
+    font-family: var(--f-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  address {
+    font-style: normal;
+  }
+
+  .footer__list {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-s);
+    margin-top: var(--space-xl);
+    padding-block: var(--space-m);
+    background: linear-gradient(rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.12)) top center /
+      calc(100% - 2 * var(--gutter)) 1px no-repeat;
+    opacity: 0.7;
+  }
+
+  .footer__legal {
+    display: flex;
+    gap: var(--space-m);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+</style>

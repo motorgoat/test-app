@@ -1,0 +1,55 @@
+---
+// TODO: Datenschutzerklärung vom Kunden bzw. aus der bestehenden Website übernehmen
+// und an Hosting/Formular-Anbieter anpassen.
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PageHero from '@/components/PageHero.astro';
+import { site, fullAddress } from '@/data/site';
+---
+
+<BaseLayout title="Datenschutz" description={`Datenschutzerklärung der ${site.legalName}.`}>
+  <PageHero title="Datenschutzerklärung" />
+
+  <section class="section">
+    <div class="container prose">
+      <h2>Verantwortlicher</h2>
+      <p>
+        {site.legalName}, {fullAddress}<br />
+        E-Mail: <a href={`mailto:${site.email}`}>{site.email}</a>
+      </p>
+
+      <h2>Allgemeines</h2>
+      <p>
+        Der Schutz Ihrer persönlichen Daten ist uns ein besonderes Anliegen. Wir verarbeiten Ihre Daten
+        ausschließlich auf Grundlage der gesetzlichen Bestimmungen (DSGVO, DSG, TKG 2021).
+      </p>
+
+      <h2>Keine Cookies, keine Tracking-Dienste</h2>
+      <p>
+        Diese Website verwendet keine Cookies und keine Analyse- oder Tracking-Dienste. Schriftarten werden lokal
+        vom eigenen Server ausgeliefert; es werden dabei keine Daten an Dritte übertragen.
+      </p>
+
+      <h2>Kontakt mit uns</h2>
+      <p>
+        Wenn Sie per E-Mail oder Telefon Kontakt mit uns aufnehmen, werden Ihre angegebenen Daten zwecks
+        Bearbeitung der Anfrage und für den Fall von Anschlussfragen bei uns gespeichert. Diese Daten geben wir
+        nicht ohne Ihre Einwilligung weiter.
+      </p>
+
+      <h2>Server-Logfiles</h2>
+      <p>
+        Beim Aufruf der Website werden durch den Hosting-Anbieter technisch notwendige Daten (z.&nbsp;B.
+        IP-Adresse, Datum und Uhrzeit des Zugriffs, aufgerufene Seite) in Server-Logfiles gespeichert. Die
+        Verarbeitung erfolgt auf Grundlage unseres berechtigten Interesses an einem sicheren Betrieb der Website
+        (Art. 6 Abs. 1 lit. f DSGVO).
+      </p>
+
+      <h2>Ihre Rechte</h2>
+      <p>
+        Ihnen stehen grundsätzlich die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung,
+        Datenübertragbarkeit und Widerspruch zu. Wenn Sie glauben, dass die Verarbeitung Ihrer Daten gegen das
+        Datenschutzrecht verstößt, können Sie sich bei der österreichischen Datenschutzbehörde beschweren.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

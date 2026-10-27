@@ -1,0 +1,112 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PageHero from '@/components/PageHero.astro';
+import ContactCta from '@/components/ContactCta.astro';
+import { leistungen } from '@/data/leistungen';
+---
+
+<BaseLayout
+  title="Leistungen"
+  description="Bauforschung, Bestandsaufnahme, Restaurier- und Sanierungskonzepte, Energieberatung, Planung, Ausschreibung und örtliche Bauaufsicht für historische Gebäude."
+>
+  <PageHero
+    eyebrow="Leistungen"
+    title="Begleitung von der historischen Begutachtung bis zur örtlichen Bauaufsicht"
+    lead="Unser Leistungsspektrum deckt den gesamten Weg ab – von der Erforschung des Bestands über das Konzept bis zur Umsetzung auf der Baustelle."
+  >
+    <nav class="toc" aria-label="Leistungen">
+      {leistungen.map((l) => <a href={`#${l.id}`}>{l.title}</a>)}
+    </nav>
+  </PageHero>
+
+  <section class="section">
+    <div class="container">
+      {
+        leistungen.map((l, i) => (
+          <article id={l.id} class="service">
+            <span class="service__num">{String(i + 1).padStart(2, '0')}</span>
+            <div>
+              <h2>{l.title}</h2>
+              <p class="lead">{l.short}</p>
+            </div>
+            <ul class="service__points">
+              {l.points.map((pt) => <li>{pt}</li>)}
+            </ul>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <ContactCta />
+</BaseLayout>
+
+<style>
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: var(--space-l);
+  }
+
+  .toc a {
+    padding: 0.4em 0.9em;
+    border: 1px solid var(--c-line);
+    border-radius: 999px;
+    font-size: var(--fs-sm);
+    text-decoration: none;
+  }
+
+  .toc a:hover {
+    border-color: var(--c-accent);
+  }
+
+  .service {
+    display: grid;
+    gap: var(--space-s) var(--space-l);
+    padding-block: var(--space-l);
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  .service:first-child {
+    padding-top: 0;
+  }
+
+  @media (min-width: 56rem) {
+    .service {
+      grid-template-columns: 4rem 1.3fr 1fr;
+    }
+  }
+
+  .service__num {
+    font-family: var(--f-serif);
+    font-size: var(--fs-h3);
+    color: var(--c-accent);
+  }
+
+  .service .lead {
+    margin: 0;
+  }
+
+  .service__points {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .service__points li {
+    padding: 0.55rem 0 0.55rem 1.4rem;
+    border-bottom: 1px solid var(--c-line);
+    position: relative;
+  }
+
+  .service__points li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.15rem;
+    width: 0.6rem;
+    height: 1px;
+    background: var(--c-accent);
+  }
+</style>

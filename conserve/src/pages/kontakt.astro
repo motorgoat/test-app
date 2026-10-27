@@ -1,0 +1,187 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PageHero from '@/components/PageHero.astro';
+import { site, team, telHref, fullAddress } from '@/data/site';
+
+const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponent(fullAddress)}`;
+---
+
+<BaseLayout title="Kontakt" description={`Kontakt zu ${site.legalName}, ${fullAddress}. E-Mail: ${site.email}`}>
+  <PageHero
+    eyebrow="Kontakt"
+    title="Sprechen wir über Ihr Gebäude."
+    lead="Sie erreichen uns am besten per E-Mail oder telefonisch über eine unserer Ansprechpartnerinnen."
+  />
+
+  <section class="section">
+    <div class="container contact">
+      <div class="contact__info">
+        <div class="block">
+          <h2>Büro</h2>
+          <address>
+            {site.legalName}<br />
+            {site.address.street}<br />
+            {site.address.zip} {site.address.city}, {site.address.country}
+          </address>
+          <p>
+            <a href={`mailto:${site.email}`} class="big">{site.email}</a>
+          </p>
+          <p>
+            <a href={mapsHref} target="_blank" rel="noopener noreferrer">Route planen (OpenStreetMap) ↗</a>
+          </p>
+        </div>
+
+        <div class="block">
+          <h2>Ansprechpartnerinnen</h2>
+          <ul class="people">
+            {
+              team.map((p) => (
+                <li>
+                  <strong>{p.name}</strong>
+                  <a href={telHref(p.phone)}>{p.phone}</a>
+                  {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+
+      {
+        site.formAction && (
+          <form class="form" method="post" action={site.formAction}>
+            <h2>Nachricht senden</h2>
+            <label>
+              Name*
+              <input name="name" autocomplete="name" required />
+            </label>
+            <label>
+              E-Mail*
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Telefon
+              <input name="telefon" type="tel" autocomplete="tel" />
+            </label>
+            <label>
+              Nachricht*
+              <textarea name="nachricht" rows="6" required />
+            </label>
+            <label class="check">
+              <input type="checkbox" name="datenschutz" required />
+              <span>
+                Ich stimme zu, dass meine Angaben zur Bearbeitung der Anfrage verarbeitet werden. Details in der{' '}
+                <a href="/datenschutz">Datenschutzerklärung</a>.*
+              </span>
+            </label>
+            <button class="btn" type="submit">
+              Absenden
+            </button>
+          </form>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .contact {
+    display: grid;
+    gap: var(--space-xl);
+  }
+
+  @media (min-width: 56rem) {
+    .contact:has(.form) {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .contact:not(:has(.form)) .contact__info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-xl);
+    }
+  }
+
+  .block + .block {
+    margin-top: var(--space-l);
+  }
+
+  @media (min-width: 56rem) {
+    .contact:not(:has(.form)) .block + .block {
+      margin-top: 0;
+    }
+  }
+
+  .block h2,
+  .form h2 {
+    font-size: var(--fs-h3);
+  }
+
+  address {
+    font-style: normal;
+    margin-bottom: var(--space-s);
+  }
+
+  .big {
+    font-family: var(--f-serif);
+    font-size: var(--fs-h3);
+  }
+
+  .people {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .people li {
+    display: grid;
+    padding-block: var(--space-s);
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  .people li:first-child {
+    border-top: 1px solid var(--c-line);
+  }
+
+  .form {
+    display: grid;
+    gap: var(--space-s);
+    padding: var(--space-l);
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+  }
+
+  .form label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+  }
+
+  .form input:not([type='checkbox']),
+  .form textarea {
+    width: 100%;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius);
+    background: var(--c-bg);
+    color: var(--c-ink);
+    font: inherit;
+    font-size: var(--fs-base);
+  }
+
+  .form .check {
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 0.6rem;
+    font-weight: 400;
+  }
+
+  .form .check input {
+    margin-top: 0.3rem;
+  }
+
+  .form .btn {
+    justify-self: start;
+  }
+</style>

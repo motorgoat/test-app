@@ -1,0 +1,112 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PageHero from '@/components/PageHero.astro';
+import ContactCta from '@/components/ContactCta.astro';
+import ImagePlaceholder from '@/components/ImagePlaceholder.astro';
+import { site, team, telHref } from '@/data/site';
+---
+
+<BaseLayout
+  title="Über uns"
+  description={`${site.legalName} – seit ${site.founded} erforschen wir Denkmäler und sichern historische Bausubstanz für die Zukunft.`}
+>
+  <PageHero
+    eyebrow="Über uns"
+    title="Denkmäler erforschen. Bausubstanz für die Zukunft sichern."
+    lead={`CONSERVE wurde ${site.founded} gegründet, um Denkmäler zu erforschen und historische Bausubstanz für die Zukunft zu sichern.`}
+  />
+
+  <section class="section">
+    <div class="container split">
+      <div class="prose">
+        <h2>Bauforschung als Grundlage</h2>
+        <p>
+          Die Bauforschung ist ein Spezialgebiet innerhalb der Denkmalpflege. Sie bietet Bauherren und Planern
+          den Ausgangspunkt für einen verantwortungsvollen Umgang mit älteren Gebäuden.
+        </p>
+        <p>
+          Wir führen bauhistorische Untersuchungen nach den aktuellen Richtlinien des Bundesdenkmalamts durch –
+          ergänzt durch Materialanalysen, Dendrochronologie sowie Archiv- und Literaturrecherchen.
+        </p>
+        <h2>Vom Befund bis zur Baustelle</h2>
+        <p>
+          Als Baumeisterunternehmen mit Schwerpunkt Denkmalpflege und Altbausanierung übernehmen wir auch
+          Planung, Kalkulation und Bauleitung. Sanierungskonzepte erarbeiten wir gemeinsam mit unabhängigen
+          Fachpersonen; unsere Energieberatung ist produktunabhängig.
+        </p>
+      </div>
+      <ImagePlaceholder label="Büro / Team" ratio="3 / 4" />
+    </div>
+  </section>
+
+  <section class="section section--surface">
+    <div class="container">
+      <span class="eyebrow">Team</span>
+      <h2>Ihre Ansprechpartnerinnen</h2>
+      <ul class="team">
+        {
+          team.map((p) => (
+            <li class="team__card">
+              <ImagePlaceholder label={p.name} ratio="1 / 1" />
+              <div class="team__body">
+                <h3>{p.name}</h3>
+                {p.role && <p class="team__role">{p.role}</p>}
+                <a href={telHref(p.phone)}>{p.phone}</a>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <ContactCta />
+</BaseLayout>
+
+<style>
+  .split {
+    display: grid;
+    gap: var(--space-l);
+    align-items: start;
+  }
+
+  @media (min-width: 56rem) {
+    .split {
+      grid-template-columns: 1.5fr 1fr;
+      gap: var(--space-xl);
+    }
+  }
+
+  .team {
+    display: grid;
+    gap: var(--space-m);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    margin: var(--space-l) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .team__card {
+    background: var(--c-bg);
+    border: 1px solid var(--c-line);
+  }
+
+  .team__body {
+    padding: var(--space-m);
+  }
+
+  .team__body h3 {
+    font-size: var(--fs-lg);
+    margin-bottom: 0.35rem;
+  }
+
+  .team__role {
+    margin-bottom: 0.35rem;
+    color: var(--c-ink-soft);
+    font-size: var(--fs-sm);
+  }
+
+  .team__body a {
+    font-size: var(--fs-sm);
+  }
+</style>

@@ -1,0 +1,48 @@
+---
+// Platzhalter-Wortmarke, bis das Original-Logo (SVG) vorliegt.
+import { site } from '@/data/site';
+
+interface Props {
+  inverted?: boolean;
+}
+
+const { inverted = false } = Astro.props;
+---
+
+<a href="/" class:list={['logo', { 'logo--inverted': inverted }]} aria-label={`${site.name} – Startseite`}>
+  <span class="logo__mark">{site.name}</span>
+  <span class="logo__sub">{site.tagline}</span>
+</a>
+
+<style>
+  .logo {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-decoration: none;
+    color: var(--c-ink);
+    line-height: 1;
+  }
+
+  .logo--inverted {
+    color: var(--c-dark-ink);
+  }
+
+  .logo:hover {
+    color: inherit;
+  }
+
+  .logo__mark {
+    font-family: var(--f-serif);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+  }
+
+  .logo__sub {
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+</style>
