@@ -11,13 +11,12 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
     eyebrow="Kontakt"
     title="Sprechen wir über Ihr Gebäude."
     bild="hero-kontakt.jpg"
-    bildAlt="Altstadtgasse in Graz"
   />
 
   <section class="section">
     <div class="container kontakt">
       <div class="kontakt__info" data-reveal>
-        <span class="eyebrow">Büro Graz</span>
+        <h2 class="eyebrow">Büro Graz</h2>
         <address class="kontakt__adresse">
           {site.legalName}<br />
           {site.address.street}<br />
@@ -33,7 +32,7 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
       </div>
 
       <div data-reveal>
-        <span class="eyebrow">Ansprechpartnerinnen</span>
+        <h2 class="eyebrow">Ansprech&shy;partnerinnen</h2>
         <ul class="list personen">
           {
             team.map((p) => (
@@ -56,6 +55,7 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
         <div class="container container--narrow">
           <h2>Nachricht senden</h2>
           <form class="form" method="post" action={site.formAction}>
+            <p class="form__full form__hint">Mit * markierte Felder sind Pflichtfelder.</p>
             <label>
               Name*
               <input name="name" autocomplete="name" required />
@@ -76,7 +76,7 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
               <input type="checkbox" name="datenschutz" required />
               <span>
                 Ich stimme zu, dass meine Angaben zur Bearbeitung der Anfrage verarbeitet werden. Details in der{' '}
-                <a href="/datenschutz">Datenschutzerklärung</a>.*
+                <a href="/datenschutz/">Datenschutzerklärung</a>.*
               </span>
             </label>
             <button class="btn" type="submit">
@@ -159,6 +159,12 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
     grid-column: 1 / -1;
   }
 
+  .form__hint {
+    margin: 0;
+    color: var(--c-muted);
+    font-size: var(--fs-sm);
+  }
+
   .form label {
     display: grid;
     gap: 0.4rem;
@@ -171,7 +177,7 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
   .form textarea {
     width: 100%;
     padding: 0.8rem 0.9rem;
-    border: 1px solid #c9ccce;
+    border: 1px solid var(--c-muted);
     border-radius: 0;
     background: var(--c-white);
     color: var(--c-ink);

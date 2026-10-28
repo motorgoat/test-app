@@ -12,10 +12,9 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
 <BaseLayout>
   <Hero
     full
-    title="Denkmalgerecht bewahren. Nachhaltig weiterbauen."
+    title="Denkmalgerecht bewahren.<br />Nachhaltig weiterbauen."
     subtitle="Bauforschung | Denkmalpflege | Planung"
     bild="hero-startseite.jpg"
-    bildAlt="Blick über die Dächer der Altstadt"
     scrollTo="#ueber"
   >
     <a class="btn btn--light" href="#ueber">Mehr über CONSERVE</a>
@@ -25,7 +24,7 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
   <section id="ueber" class="section">
     <div class="container container--narrow center" data-reveal>
       <span class="eyebrow">Über die CONSERVE</span>
-      <h2>Die CONSERVE steht für den verantwortungs&shy;vollen Umgang mit historischer Bausubstanz.</h2>
+      <h2 class="ueber__title">Die CONSERVE steht für den verantwortungs&shy;vollen Umgang mit historischer Bausubstanz.</h2>
       <p>
         Seit der Gründung im Jahr {site.founded} widmen wir uns der Erforschung, Bewertung und Weiterentwicklung von
         Baudenkmälern und Bestandsgebäuden. Unser Ziel ist es, die Qualitäten eines Gebäudes sichtbar zu machen und
@@ -37,7 +36,7 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
         Materialität und Nutzung. So entstehen Lösungen, die den Bestand respektieren, Ressourcen schonen und Gebäude
         zukunftsfähig machen.
       </p>
-      <a class="btn ueber__btn" href="/ueber-uns">Mehr über uns</a>
+      <a class="btn ueber__btn" href="/ueber-uns/">Mehr über uns</a>
     </div>
   </section>
 
@@ -54,7 +53,7 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
           leistungen.map((bereich) => (
             <div class="bereich">
               <h3>
-                <a href={`/leistungen#${bereich.id}`}>{bereich.title}</a>
+                <a href={`/leistungen/#${bereich.id}`}>{bereich.title}</a>
               </h3>
               <ul>
                 {bereich.items.map((item) => (
@@ -67,11 +66,11 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
       </div>
       <div class="leistungen__aside" data-reveal>
         <p class="statement">
-          Fundierte Vor&shy;untersuchung.<br />
+          Fundierte Voruntersuchung.<br />
           Sichere Planung.<br />
-          Nachhaltige Ent&shy;scheidungen.
+          Nachhaltige Entscheidungen.
         </p>
-        <a class="btn btn--light" href="/leistungen">Alle Leistungen</a>
+        <a class="btn btn--light" href="/leistungen/">Alle Leistungen</a>
       </div>
     </div>
   </section>
@@ -81,7 +80,7 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
     <div class="container">
       <div class="projekte__head" data-reveal>
         <h2>Eine kleine Auswahl unserer Projekte</h2>
-        <a class="btn" href="/projekte">Alle Projekte</a>
+        <a class="btn" href="/projekte/">Alle Projekte</a>
       </div>
       <ProjektSlider projekte={startseitenProjekte} />
     </div>
@@ -89,6 +88,16 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
 </BaseLayout>
 
 <style>
+  .ueber__title {
+    font-size: clamp(1.625rem, 1.2rem + 1.4vw, 2.375rem);
+  }
+
+  /* Fließtext schmäler als die Überschrift: angenehme Zeilenlänge */
+  #ueber p {
+    max-width: 40rem;
+    margin-inline: auto;
+  }
+
   .ueber__btn {
     margin-top: var(--space-m);
   }
@@ -98,7 +107,7 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
     gap: var(--space-xl);
   }
 
-  @media (min-width: 64rem) {
+  @media (min-width: 72rem) {
     .leistungen {
       grid-template-columns: 1fr 1fr;
       align-items: center;
@@ -106,8 +115,9 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
   }
 
   .leistungen__title {
-    font-size: var(--fs-h3);
-    line-height: 1.3;
+    font-size: clamp(1.5rem, 1.1rem + 1.2vw, 2.125rem);
+    font-weight: 600;
+    line-height: 1.25;
   }
 
   .bereich {
@@ -118,8 +128,9 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
 
   .bereich h3 {
     margin-bottom: var(--space-xs);
-    font-size: var(--fs-h3);
-    font-weight: 400;
+    font-size: 1.375rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
   }
 
   .bereich h3 a {
@@ -134,7 +145,7 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--fs-sm);
+    font-size: 0.9375rem;
     line-height: 1.6;
   }
 
@@ -142,11 +153,11 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
     padding-block: 0.3rem;
   }
 
-  .leistungen__aside {
-    color: var(--c-white);
+  .leistungen__aside .statement {
+    font-size: clamp(1.5rem, 0.9rem + 2.4vw, 3.25rem);
   }
 
-  @media (min-width: 64rem) {
+  @media (min-width: 72rem) {
     .leistungen__aside {
       position: sticky;
       top: 30vh;
@@ -154,7 +165,6 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
       margin-top: 30vh;
     }
   }
-
 
   .projekte__head {
     display: flex;

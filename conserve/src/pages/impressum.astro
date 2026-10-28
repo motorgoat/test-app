@@ -7,7 +7,7 @@ import { site, team, telHref } from '@/data/site';
   <section class="section">
     <div class="container prose">
       <h1>Impressum</h1>
-      <p>Informationen gemäß § 5 ECG, § 14 UGB und § 25 MedienG</p>
+      <p>Informationen gemäß §&nbsp;5 ECG, §&nbsp;14 UGB und §&nbsp;25 MedienG</p>
 
       <h2>Medieninhaber und Herausgeber</h2>
       <p>
@@ -33,7 +33,10 @@ import { site, team, telHref } from '@/data/site';
         Firmenbuchnummer: {site.legal.companyRegister}<br />
         Firmenbuchgericht: {site.legal.registerCourt}<br />
         UID-Nummer: {site.legal.vatId}<br />
+        Firmensitz: {site.address.city}<br />
         Unternehmensgegenstand: {site.legal.trade}<br />
+        Berufsbezeichnung: {site.legal.jobTitle}<br />
+        Gewerbebehörde: {site.legal.authority}<br />
         Kammerzugehörigkeit: {site.legal.chamber}
       </p>
       <p>

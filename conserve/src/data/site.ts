@@ -2,14 +2,15 @@
 
 export const site = {
   name: 'CONSERVE',
-  legalName: 'CONSERVE Baudenkmalforschung OG',
+  // Zwischen „Baudenkmalforschung“ und „OG“ steht ein geschütztes Leerzeichen (kein Zeilenumbruch)
+  legalName: 'CONSERVE Baudenkmalforschung\u00A0OG',
   claim: 'Denkmalgerecht bewahren. Nachhaltig weiterbauen.',
   description:
     'CONSERVE Baudenkmalforschung OG, Graz – Bauforschung, Denkmalpflege und Planung. Seit 2001 für den verantwortungsvollen Umgang mit historischer Bausubstanz.',
   founded: 2001,
   url: 'https://www.conserve.at',
   email: 'office@conserve.at',
-  phone: '+43 677 62480894',
+  phone: '+43 677 6248 0894', // = Ing. Brandstätter-Tritthart
   address: {
     street: 'Färberplatz 1',
     zip: '8010',
@@ -21,7 +22,10 @@ export const site = {
     // TODO: Firmenbuchgericht mit Kunden bestätigen
     registerCourt: 'Landesgericht für ZRS Graz',
     vatId: 'ATU66456756',
-    trade: 'Baumeister; Planungsbüro für historische Bauforschung',
+    trade: 'Baumeistergewerbe; Planungsbüro für historische Bauforschung',
+    // TODO: Berufsbezeichnung und Gewerbebehörde mit Kunden bestätigen
+    jobTitle: 'Baumeister (verliehen in Österreich)',
+    authority: 'Magistrat Graz (Gewerbebehörde)',
     chamber: 'Wirtschaftskammer Steiermark',
   },
   // Kontaktformular: Ziel-URL eines Form-Endpoints (z. B. eigenes PHP-Skript,
@@ -42,16 +46,17 @@ export const team: Person[] = [
   { name: 'Ing. Rebekka Brandstätter-Tritthart', phone: '+43 677 6248 0894' },
 ];
 
+// Interne Links immer mit Schrägstrich am Ende schreiben (z. B. '/kontakt/')
 export const nav = [
-  { href: '/ueber-uns', label: 'Über uns' },
-  { href: '/leistungen', label: 'Leistungen' },
-  { href: '/projekte', label: 'Projekte' },
-  { href: '/kontakt', label: 'Kontakt' },
+  { href: '/ueber-uns/', label: 'Über uns' },
+  { href: '/leistungen/', label: 'Leistungen' },
+  { href: '/projekte/', label: 'Projekte' },
+  { href: '/kontakt/', label: 'Kontakt' },
 ] as const;
 
 export const legalNav = [
-  { href: '/impressum', label: 'Impressum' },
-  { href: '/datenschutz', label: 'Datenschutz' },
+  { href: '/impressum/', label: 'Impressum' },
+  { href: '/datenschutz/', label: 'Datenschutz' },
 ] as const;
 
 export const telHref = (phone: string) => `tel:${phone.replace(/[^+\d]/g, '')}`;

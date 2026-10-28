@@ -13,7 +13,6 @@ import { projekte } from '@/data/projekte';
     eyebrow="Projekte"
     title="Eine Auswahl unserer Projekte"
     bild="hero-projekte.jpg"
-    bildAlt="Schlossanlage aus der Vogelperspektive"
   />
 
   <section class="section">
@@ -23,7 +22,7 @@ import { projekte } from '@/data/projekte';
           projekte.map((p) => (
             <li class="projekt" data-reveal>
               <div class="projekt__media">
-                <Bild src={p.bild} alt={p.bildAlt ?? `${p.titel}, ${p.ort}`} sizes="(min-width: 48rem) 50vw, 100vw" />
+                <Bild src={p.bild} alt={p.bildAlt ?? ''} sizes="(min-width: 48rem) 50vw, 100vw" />
               </div>
               <div class="projekt__body">
                 <p class="projekt__ort">
@@ -42,10 +41,10 @@ import { projekte } from '@/data/projekte';
     </div>
   </section>
 
-  <section class="section section--navy">
+  <section class="section section--slate">
     <div class="container container--narrow center" data-reveal>
       <p class="statement">Ihr Gebäude ist das nächste Projekt?</p>
-      <a class="btn btn--light" href="/kontakt">Kontakt aufnehmen</a>
+      <a class="btn btn--light" href="/kontakt/">Kontakt aufnehmen</a>
     </div>
   </section>
 </BaseLayout>

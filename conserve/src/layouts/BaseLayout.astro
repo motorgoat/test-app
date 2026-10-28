@@ -1,4 +1,5 @@
 ---
+import { existsSync } from 'node:fs';
 import '@/styles/global.css';
 import Header from '@/components/Header.astro';
 import Footer from '@/components/Footer.astro';
@@ -15,6 +16,28 @@ interface Props {
 const { title, description = site.description, noindex = false, heroHeader = true } = Astro.props;
 const pageTitle = title ? `${title} | ${site.name}` : `${site.name} – ${site.claim}`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
+
+// Vorschaubild für Social Media / Messenger: Datei public/og-image.jpg (1200 × 630 px).
+// Solange sie fehlt, wird kein og:image ausgegeben.
+const ogImage = existsSync('public/og-image.jpg') ? new URL('/og-image.jpg', Astro.site) : undefined;
+
+// Strukturierte Daten für Suchmaschinen (Adresse, Telefon …) – kommen aus src/data/site.ts
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfessionalService',
+  name: site.legalName.replace(/\u00A0/g, ' '),
+  url: site.url,
+  email: site.email,
+  telephone: site.phone.replace(/\s/g, ''),
+  foundingDate: String(site.founded),
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: site.address.street,
+    postalCode: site.address.zip,
+    addressLocality: site.address.city,
+    addressCountry: 'AT',
+  },
+};
 ---
 
 <!doctype html>
@@ -24,8 +47,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
-    {noindex && <meta name="robots" content="noindex" />}
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <meta name="theme-color" content="#112236" />
@@ -35,7 +57,12 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:site_name" content={site.name} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonical} />
+    {!noindex && <meta property="og:url" content={canonical} />}
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {ogImage && <meta property="og:image:width" content="1200" />}
+    {ogImage && <meta property="og:image:height" content="630" />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 
     <script is:inline>
       document.documentElement.classList.add('js');

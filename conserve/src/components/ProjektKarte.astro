@@ -13,7 +13,7 @@ const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
 
 <article class="karte">
   <div class="karte__media">
-    <Bild src={bild} alt={bildAlt ?? `${titel}, ${ort}`} sizes={sizes} />
+    <Bild src={bild} alt={bildAlt ?? ''} sizes={sizes} />
   </div>
   <div class="karte__body">
     <p class="karte__ort">{ort}{jahr && ` · ${jahr}`}</p>
@@ -27,6 +27,7 @@ const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
   .karte {
     position: relative;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-items: end;
     aspect-ratio: 4 / 5;
     overflow: hidden;
@@ -53,12 +54,11 @@ const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, transparent 35%, rgb(17 34 54 / 0.88) 100%);
-    transition: opacity 0.4s var(--ease);
+    background: linear-gradient(180deg, transparent 15%, rgb(17 34 54 / 0.55) 45%, rgb(17 34 54 / 0.9) 100%);
   }
 
   .karte__body {
-    padding: var(--space-m);
+    padding: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
   }
 
   .karte__ort {
@@ -67,13 +67,12 @@ const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    opacity: 0.8;
   }
 
   .karte__titel {
     margin-bottom: 0.4rem;
     color: var(--c-white);
-    font-size: var(--fs-h3);
+    font-size: clamp(1.125rem, 0.8rem + 1.5vw, 1.75rem);
   }
 
   .karte__leistungen,
@@ -81,7 +80,6 @@ const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
     margin: 0;
     font-size: var(--fs-sm);
     line-height: 1.6;
-    opacity: 0.9;
   }
 
   .karte__text {

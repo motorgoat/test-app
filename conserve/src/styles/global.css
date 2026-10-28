@@ -10,7 +10,7 @@
   --c-navy: #112236;
   --c-ink: #17283b;
   --c-text: #46525f;
-  --c-muted: #6b7682;
+  --c-muted: #5e6974;
   --c-slate: #68727c;
   --c-bg: #ffffff;
   --c-bg-alt: #f6f6f4;
@@ -63,6 +63,8 @@ body {
   font-family: var(--f-sans);
   font-size: var(--fs-base);
   line-height: 1.75;
+  /* Cormorant hat sonst Mediävalziffern („1“ sieht aus wie „I“) */
+  font-variant-numeric: lining-nums;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -138,7 +140,7 @@ a {
 
 .section--slate {
   background: var(--c-slate);
-  color: rgb(255 255 255 / 0.9);
+  color: var(--c-white);
 }
 
 .section--navy {
@@ -164,12 +166,16 @@ a {
   font-family: var(--f-serif);
   font-size: var(--fs-lg);
   font-weight: 500;
+  line-height: 1.4;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--c-muted);
 }
 
-.section--slate .eyebrow,
+.section--slate .eyebrow {
+  color: var(--c-white);
+}
+
 .section--navy .eyebrow {
   color: rgb(255 255 255 / 0.75);
 }
@@ -183,12 +189,13 @@ a {
   margin-bottom: var(--space-l);
   color: var(--c-ink);
   font-family: var(--f-serif);
-  font-size: clamp(2rem, 1.4rem + 2.4vw, 3.5rem);
+  font-size: clamp(1.5rem, 0.9rem + 2.8vw, 3.5rem);
   font-weight: 400;
   line-height: 1.1;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  text-wrap: balance;
+  /* Zeilenumbrüche werden per <br /> gesetzt */
+  text-wrap: wrap;
 }
 
 .section--slate .statement,
@@ -263,15 +270,9 @@ a {
   color: var(--c-white);
 }
 
-.btn--ghost-light {
-  border-color: rgb(255 255 255 / 0.7);
-  color: var(--c-white);
-}
-
-.btn--ghost-light:hover {
-  border-color: var(--c-white);
-  background: var(--c-white);
-  color: var(--c-ink);
+/* helle Buttons stehen immer auf dunklem Grund: Fokusrahmen weiß */
+.btn--light:focus-visible {
+  outline-color: var(--c-white);
 }
 
 /* Bilder (Komponente Bild.astro) füllen ihren Rahmen */

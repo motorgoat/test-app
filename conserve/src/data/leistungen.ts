@@ -7,6 +7,7 @@ export type Leistungsbereich = {
   intro: string;
   items: string[];
   bild?: string;
+  bildAlt?: string; // was auf dem Foto zu sehen ist (leer = dekorativ)
 };
 
 export const leistungen: Leistungsbereich[] = [

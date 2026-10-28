@@ -13,7 +13,6 @@ import { site, team, telHref } from '@/data/site';
     eyebrow="Über uns"
     title="Verantwortung für historische Bausubstanz"
     bild="hero-ueber-uns.jpg"
-    bildAlt="Historische Fassade im Detail"
   />
 
   <section class="section">
@@ -30,7 +29,7 @@ import { site, team, telHref } from '@/data/site';
 
   <section class="split">
     <div class="split__media">
-      <Bild src="ueber-uns-arbeitsweise.jpg" alt="Bauforschung am Objekt" sizes="(min-width: 64rem) 50vw, 100vw" />
+      <Bild src="ueber-uns-arbeitsweise.jpg" alt="" sizes="(min-width: 64rem) 50vw, 100vw" />
     </div>
     <div class="split__text" data-reveal>
       <span class="eyebrow">Arbeitsweise</span>
@@ -43,7 +42,7 @@ import { site, team, telHref } from '@/data/site';
         Wir betrachten jedes Gebäude in seiner Geschichte, Konstruktion, Materialität und Nutzung. So entstehen
         Lösungen, die den Bestand respektieren, Ressourcen schonen und Gebäude zukunftsfähig machen.
       </p>
-      <a class="btn" href="/leistungen">Unsere Leistungen</a>
+      <a class="btn" href="/leistungen/">Unsere Leistungen</a>
     </div>
   </section>
 
@@ -51,7 +50,7 @@ import { site, team, telHref } from '@/data/site';
     <div class="container">
       <div class="team__head" data-reveal>
         <span class="eyebrow">Team</span>
-        <h2>Ihre Ansprechpartnerinnen</h2>
+        <h2>Ihre Ansprech&shy;partnerinnen</h2>
       </div>
       <ul class="team">
         {
@@ -68,10 +67,10 @@ import { site, team, telHref } from '@/data/site';
     </div>
   </section>
 
-  <section class="section section--navy">
+  <section class="section section--slate">
     <div class="container container--narrow center" data-reveal>
       <p class="statement">Sie planen ein Projekt im historischen Bestand?</p>
-      <a class="btn btn--light" href="/kontakt">Kontakt aufnehmen</a>
+      <a class="btn btn--light" href="/kontakt/">Kontakt aufnehmen</a>
     </div>
   </section>
 </BaseLayout>
@@ -84,7 +83,7 @@ import { site, team, telHref } from '@/data/site';
 
   @media (min-width: 64rem) {
     .split {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       min-height: 40rem;
     }
   }
@@ -99,15 +98,22 @@ import { site, team, telHref } from '@/data/site';
     inset: 0;
   }
 
+  /* Textspalte: feste Lesebreite, liegt direkt am Bild an */
   .split__text {
+    box-sizing: content-box;
     align-self: center;
-    max-width: 36rem;
+    max-width: 32rem;
     padding: var(--space-xl) var(--gutter);
+  }
+
+  .split__text h2 {
+    font-size: clamp(1.75rem, 1rem + 1.6vw, 2.5rem);
   }
 
   @media (min-width: 64rem) {
     .split__text {
-      padding-inline: var(--space-xl);
+      justify-self: start;
+      padding-inline: clamp(2.5rem, 5vw, 5rem);
     }
   }
 

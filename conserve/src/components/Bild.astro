@@ -3,6 +3,8 @@
 // als `src` übergeben (z. B. src="hero.jpg"). Astro erzeugt automatisch
 // optimierte Größen (WebP). Fehlt die Datei, wird ein gezeichneter
 // Platzhalter angezeigt.
+// alt="" = rein dekoratives Bild (z. B. wenn daneben ohnehin die Überschrift steht).
+// priority = großes Bild ganz oben, wird bevorzugt geladen.
 import { Image } from 'astro:assets';
 import { findeBild } from '@/lib/bilder';
 
@@ -10,15 +12,15 @@ interface Props {
   src?: string;
   alt: string;
   sizes?: string;
-  loading?: 'lazy' | 'eager';
+  priority?: boolean;
   class?: string;
 }
 
-const { src, alt, sizes = '100vw', loading = 'lazy', class: className } = Astro.props;
+const { src, alt, sizes = '100vw', priority = false, class: className } = Astro.props;
 const image = findeBild(src);
 
-// ---------- Platzhalter: Dachlandschaft mit Kirchturm, je nach `alt` variiert ----------
-let seed = [...alt].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+// ---------- Platzhalter: Dachlandschaft mit Kirchturm, je nach Bild variiert ----------
+let seed = [...(src || alt)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const rand = () => {
   seed = (seed + 0x6d2b79f5) >>> 0;
   let t = seed;
@@ -93,7 +95,7 @@ const svg = `
       alt={alt}
       widths={[480, 800, 1200, 1600, 2400]}
       sizes={sizes}
-      loading={loading}
+      priority={priority}
       class:list={['bild', className]}
     />
   ) : (
@@ -101,8 +103,9 @@ const svg = `
       class:list={['bild', 'bild--platzhalter', className]}
       viewBox="0 0 1600 1000"
       preserveAspectRatio="xMidYMax slice"
-      role="img"
-      aria-label={alt}
+      role={alt ? 'img' : undefined}
+      aria-label={alt || undefined}
+      aria-hidden={alt ? undefined : 'true'}
       set:html={svg}
     />
   )

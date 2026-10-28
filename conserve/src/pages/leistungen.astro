@@ -11,9 +11,8 @@ import { leistungen } from '@/data/leistungen';
 >
   <Hero
     eyebrow="Leistungen"
-    title="Fundierte Vor&shy;untersuchung. Sichere Planung. Nachhaltige Ent&shy;scheidungen."
+    title="Fundierte Voruntersuchung.<br />Sichere Planung.<br />Nachhaltige Entscheidungen."
     bild="hero-leistungen.jpg"
-    bildAlt="Dachstuhl eines historischen Gebäudes"
   />
 
   <section class="section">
@@ -33,7 +32,7 @@ import { leistungen } from '@/data/leistungen';
     leistungen.map((bereich, i) => (
       <section id={bereich.id} class:list={['bereich', { 'bereich--reverse': i % 2 === 1 }]}>
         <div class="bereich__media">
-          <Bild src={bereich.bild} alt={bereich.title} sizes="(min-width: 64rem) 50vw, 100vw" />
+          <Bild src={bereich.bild} alt={bereich.bildAlt ?? ''} sizes="(min-width: 64rem) 50vw, 100vw" />
         </div>
         <div class="bereich__text" data-reveal>
           <span class="eyebrow">{String(i + 1).padStart(2, '0')}</span>
@@ -52,7 +51,7 @@ import { leistungen } from '@/data/leistungen';
   <section class="section section--slate">
     <div class="container container--narrow center" data-reveal>
       <p class="statement">Sprechen wir über Ihr Gebäude.</p>
-      <a class="btn btn--light" href="/kontakt">Kontakt aufnehmen</a>
+      <a class="btn btn--light" href="/kontakt/">Kontakt aufnehmen</a>
     </div>
   </section>
 </BaseLayout>
@@ -85,7 +84,7 @@ import { leistungen } from '@/data/leistungen';
 
   @media (min-width: 64rem) {
     .bereich {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       min-height: 42rem;
     }
 
@@ -104,15 +103,26 @@ import { leistungen } from '@/data/leistungen';
     inset: 0;
   }
 
+  /* Textspalte: feste Lesebreite, liegt immer direkt am Bild an */
   .bereich__text {
+    box-sizing: content-box;
     align-self: center;
-    max-width: 38rem;
+    max-width: 32rem;
     padding: var(--space-xl) var(--gutter);
+  }
+
+  .bereich__text h2 {
+    font-size: clamp(1.75rem, 1rem + 1.6vw, 2.5rem);
   }
 
   @media (min-width: 64rem) {
     .bereich__text {
-      padding-inline: var(--space-xl);
+      justify-self: start;
+      padding-inline: clamp(2.5rem, 5vw, 5rem);
+    }
+
+    .bereich--reverse .bereich__text {
+      justify-self: end;
     }
   }
 

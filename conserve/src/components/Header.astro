@@ -8,8 +8,8 @@ interface Props {
 }
 
 const { overlay = true } = Astro.props;
-const path = Astro.url.pathname.replace(/\/$/, '') || '/';
-const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
+const path = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
+const isActive = (href: string) => path.startsWith(href);
 ---
 
 <header class:list={['header', { 'is-solid': !overlay }]} data-header data-overlay={overlay ? '' : undefined}>
@@ -52,10 +52,13 @@ const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
   }
 
   if (header && toggle && navEl) {
+    // Bei offenem Menü ist der Rest der Seite für Tastatur & Screenreader gesperrt
+    const rest = document.querySelectorAll<HTMLElement>('main, footer, .skip-link');
     const setOpen = (open: boolean) => {
       toggle.setAttribute('aria-expanded', String(open));
       header.classList.toggle('is-open', open);
       document.documentElement.style.overflow = open ? 'hidden' : '';
+      rest.forEach((el) => (el.inert = open));
     };
 
     toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
@@ -216,8 +219,10 @@ const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
       inset: 0;
       z-index: 1;
       display: flex;
-      align-items: center;
-      padding: var(--header-h) var(--gutter) var(--space-l);
+      flex-direction: column;
+      padding: calc(var(--header-h) + var(--space-s)) var(--gutter) var(--space-l);
+      overflow-y: auto;
+      overscroll-behavior: contain;
       background: var(--c-navy);
       visibility: hidden;
       opacity: 0;
@@ -231,15 +236,52 @@ const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
 
     .header__nav ul {
       flex-direction: column;
-      gap: var(--space-s);
+      gap: clamp(0.25rem, 2vh, var(--space-s));
+      /* vertikal zentriert, rutscht bei wenig Höhe aber nie unter das Logo */
+      margin-block: auto;
     }
 
     .header__nav a {
       font-family: var(--f-serif);
-      font-size: 2.25rem;
+      font-size: clamp(1.5rem, 1rem + 3vh, 2.25rem);
+      line-height: 1.3;
       font-weight: 500;
       letter-spacing: 0.04em;
       text-transform: uppercase;
+    }
+  }
+
+  /* Ohne JavaScript: Header immer dunkel, Navigation direkt sichtbar */
+  :global(html:not(.js)) .header {
+    background: var(--c-navy);
+  }
+
+  @media (max-width: 55.99rem) {
+    :global(html:not(.js)) .header__toggle {
+      display: none;
+    }
+
+    :global(html:not(.js)) .header__nav {
+      position: static;
+      padding: 0;
+      overflow: visible;
+      visibility: visible;
+      opacity: 1;
+      background: none;
+    }
+
+    :global(html:not(.js)) .header__nav ul {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0 1rem;
+      margin: 0;
+    }
+
+    :global(html:not(.js)) .header__nav a {
+      font-family: var(--f-sans);
+      font-size: var(--fs-sm);
+      text-transform: none;
     }
   }
 </style>
