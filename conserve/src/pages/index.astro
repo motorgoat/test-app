@@ -89,13 +89,20 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
 
 <style>
   .ueber__title {
-    font-size: clamp(1.625rem, 1.2rem + 1.4vw, 2.375rem);
+    font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.375rem);
   }
 
   /* Fließtext schmäler als die Überschrift: angenehme Zeilenlänge */
   #ueber p {
     max-width: 40rem;
     margin-inline: auto;
+  }
+
+  /* auf dem Handy linksbündig – lange zentrierte Absätze lesen sich schlecht */
+  @media (max-width: 40rem) {
+    #ueber p {
+      text-align: left;
+    }
   }
 
   .ueber__btn {

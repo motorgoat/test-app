@@ -18,7 +18,7 @@ import { site, team, telHref } from '@/data/site';
   <section class="section">
     <div class="container container--narrow center" data-reveal>
       <span class="eyebrow">Seit {site.founded}</span>
-      <h2>Die CONSERVE steht für den verantwortungs&shy;vollen Umgang mit historischer Bausubstanz.</h2>
+      <h2 class="intro__title">Die CONSERVE steht für den verantwortungs&shy;vollen Umgang mit historischer Bausubstanz.</h2>
       <p class="lead">
         Seit der Gründung im Jahr {site.founded} widmen wir uns der Erforschung, Bewertung und Weiterentwicklung von
         Baudenkmälern und Bestandsgebäuden. Unser Ziel ist es, die Qualitäten eines Gebäudes sichtbar zu machen und
@@ -76,6 +76,10 @@ import { site, team, telHref } from '@/data/site';
 </BaseLayout>
 
 <style>
+  .intro__title {
+    font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.375rem);
+  }
+
   .split {
     display: grid;
     background: var(--c-bg);
@@ -107,7 +111,7 @@ import { site, team, telHref } from '@/data/site';
   }
 
   .split__text h2 {
-    font-size: clamp(1.75rem, 1rem + 1.6vw, 2.5rem);
+    font-size: clamp(1.5rem, 0.9rem + 1.6vw, 2.5rem);
   }
 
   @media (min-width: 64rem) {

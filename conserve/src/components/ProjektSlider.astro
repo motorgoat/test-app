@@ -111,7 +111,7 @@ const { projekte } = Astro.props;
     background: transparent;
     color: var(--c-ink);
     cursor: pointer;
-    transition: background 0.25s var(--ease), color 0.25s var(--ease), opacity 0.25s;
+    transition: background 0.25s var(--ease), color 0.25s var(--ease), border-color 0.25s var(--ease);
   }
 
   .slider__btn:hover:not([aria-disabled='true']) {
@@ -119,8 +119,10 @@ const { projekte } = Astro.props;
     color: var(--c-white);
   }
 
+  /* nur Rahmen und Pfeil blass – der Fokusrahmen bleibt voll sichtbar */
   .slider__btn[aria-disabled='true'] {
-    opacity: 0.3;
+    border-color: rgb(23 40 59 / 0.3);
+    color: rgb(23 40 59 / 0.3);
     cursor: default;
   }
 

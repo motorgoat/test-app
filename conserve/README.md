@@ -7,12 +7,12 @@ Website der CONSERVE Baudenkmalforschung OG, Graz. Statische Astro-Seite ohne CM
 ```bash
 npm install
 npm run dev       # http://localhost:4321
-npm run build     # statischer Export nach dist/ – diesen Ordner auf den Webserver laden
+npm run build     # prüft den Code und erstellt den statischen Export in dist/ – diesen Ordner auf den Webserver laden
 npm run preview   # gebauten Stand lokal ansehen
 npm run check     # prüft den Code auf Tippfehler (z. B. falsch geschriebene Feldnamen in src/data/*.ts)
 ```
 
-Benötigt Node ≥ 22.12 (Astro 6). Nach Änderungen an `src/data/*.ts` am besten kurz `npm run check` laufen lassen.
+Benötigt Node ≥ 22.12 (Astro 6). `npm run build` bricht mit einer Fehlermeldung ab, wenn z. B. in `src/data/*.ts` ein Feldname falsch geschrieben ist.
 
 ## Wo ändere ich was?
 
@@ -60,7 +60,7 @@ Vorgesehene Dateinamen:
 
 In einer Seite selbst: `<Bild src="dateiname.jpg" alt="Beschreibung" />` (Komponente `src/components/Bild.astro`). `alt=""` bei rein dekorativen Bildern, z. B. wenn die Überschrift daneben schon alles sagt.
 
-Vorschaubild für Social Media/Messenger: `public/og-image.jpg` (1200 × 630 px) – wird automatisch verwendet, sobald die Datei existiert.
+Vorschaubild für Social Media/Messenger: `src/assets/bilder/og-image.jpg` – beliebige Größe, wird automatisch auf 1200 × 630 px zugeschnitten und verwendet, sobald die Datei existiert.
 
 ### Lange Wörter in Überschriften
 
@@ -80,5 +80,5 @@ Ist vorbereitet, aber ausgeblendet. Zum Aktivieren in `src/data/site.ts` bei `fo
 - [ ] Projektbeschreibungen und fehlende Jahreszahlen ergänzen
 - [ ] Rollen der Ansprechpartnerinnen (`src/data/site.ts`, Feld `role`)
 - [ ] Impressum bestätigen: Firmenbuchgericht, Berufsbezeichnung, Gewerbebehörde (`src/data/site.ts`)
-- [ ] Vorschaubild `public/og-image.jpg` (1200 × 630 px)
+- [ ] Vorschaubild `src/assets/bilder/og-image.jpg`
 - [ ] Datenschutzerklärung finalisieren (Hosting, ggf. Formular-Anbieter)

@@ -16,7 +16,7 @@ export type Projekt = {
 
 export const projekte: Projekt[] = [
   {
-    titel: 'Stadtparkbrunnen',
+    titel: 'Stadtpark\u00ADbrunnen', // \u00AD = Trennstelle für schmale Karten
     ort: 'Graz',
     bild: 'projekt-graz-stadtparkbrunnen.jpg',
     leistungen: 'Befundung, Planung, ÖBA',

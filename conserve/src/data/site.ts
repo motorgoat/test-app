@@ -25,7 +25,7 @@ export const site = {
     trade: 'Baumeistergewerbe; Planungsbüro für historische Bauforschung',
     // TODO: Berufsbezeichnung und Gewerbebehörde mit Kunden bestätigen
     jobTitle: 'Baumeister (verliehen in Österreich)',
-    authority: 'Magistrat Graz (Gewerbebehörde)',
+    authority: 'Magistrat Graz',
     chamber: 'Wirtschaftskammer Steiermark',
   },
   // Kontaktformular: Ziel-URL eines Form-Endpoints (z. B. eigenes PHP-Skript,

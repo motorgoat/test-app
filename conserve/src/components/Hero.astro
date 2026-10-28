@@ -122,8 +122,9 @@ const subItems = subtitle?.split('|').map((s) => s.trim()).filter(Boolean) ?? []
     text-shadow: 0 2px 24px rgb(17 34 54 / 0.45);
   }
 
-  /* Titel mit festen Umbrüchen (<br />) nicht zusätzlich ausbalancieren */
+  /* Titel mit festen Umbrüchen (<br />): volle Breite, nicht zusätzlich ausbalancieren */
   .hero__title:has(br) {
+    max-width: none;
     text-wrap: wrap;
   }
 
@@ -162,7 +163,7 @@ const subItems = subtitle?.split('|').map((s) => s.trim()).filter(Boolean) ?? []
   }
 
   /* schmale Bildschirme: Begriffe untereinander, ohne Trennstriche */
-  @media (max-width: 30rem) {
+  @media (max-width: 44.99rem) {
     .hero__subtitle {
       flex-direction: column;
       align-items: center;

@@ -1,9 +1,10 @@
 ---
-import { existsSync } from 'node:fs';
+import { getImage } from 'astro:assets';
 import '@/styles/global.css';
 import Header from '@/components/Header.astro';
 import Footer from '@/components/Footer.astro';
 import { site } from '@/data/site';
+import { findeBild } from '@/lib/bilder';
 
 interface Props {
   title?: string;
@@ -17,9 +18,12 @@ const { title, description = site.description, noindex = false, heroHeader = tru
 const pageTitle = title ? `${title} | ${site.name}` : `${site.name} – ${site.claim}`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 
-// Vorschaubild für Social Media / Messenger: Datei public/og-image.jpg (1200 × 630 px).
-// Solange sie fehlt, wird kein og:image ausgegeben.
-const ogImage = existsSync('public/og-image.jpg') ? new URL('/og-image.jpg', Astro.site) : undefined;
+// Vorschaubild für Social Media / Messenger: Datei src/assets/bilder/og-image.jpg
+// (beliebige Größe, wird auf 1200 × 630 px zugeschnitten). Fehlt sie, gibt es kein og:image.
+const ogQuelle = findeBild('og-image', true);
+const ogImage = ogQuelle
+  ? new URL((await getImage({ src: ogQuelle, width: 1200, height: 630, fit: 'cover', format: 'jpg' })).src, Astro.site)
+  : undefined;
 
 // Strukturierte Daten für Suchmaschinen (Adresse, Telefon …) – kommen aus src/data/site.ts
 const jsonLd = {
@@ -61,6 +65,7 @@ const jsonLd = {
     {ogImage && <meta property="og:image" content={ogImage} />}
     {ogImage && <meta property="og:image:width" content="1200" />}
     {ogImage && <meta property="og:image:height" content="630" />}
+    {ogImage && <meta property="og:image:alt" content={`${site.name} – ${site.claim}`} />}
     <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 
