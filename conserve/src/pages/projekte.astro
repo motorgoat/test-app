@@ -17,6 +17,7 @@ const meta = (p: (typeof projekte)[number]) => [p.ort, p.jahr].filter(Boolean).j
     eyebrow="Projekte"
     title="Eine Auswahl unserer Projekte"
     bild="hero-projekte.jpg"
+    bildPosition="center 15%"
   />
 
   <section class="section">
@@ -71,7 +72,11 @@ const meta = (p: (typeof projekte)[number]) => [p.ort, p.jahr].filter(Boolean).j
               <li>
                 <span class="weitere__ort">{meta(p)}</span>
                 <span class="weitere__name">{p.titel}</span>
-                <span class="weitere__leistung">{p.leistungen}</span>
+                <span class="weitere__leistung">
+                  {p.leistungen}
+                  {p.auftraggeber && <span class="weitere__meta">Auftraggeber: {p.auftraggeber}</span>}
+                  {p.text && <span class="weitere__meta">{p.text}</span>}
+                </span>
               </li>
             ))}
           </ul>
@@ -220,6 +225,12 @@ const meta = (p: (typeof projekte)[number]) => [p.ort, p.jahr].filter(Boolean).j
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
+  }
+
+  .weitere__meta {
+    display: block;
+    color: var(--c-muted);
+    font-size: var(--fs-sm);
   }
 
   .weitere__name {

@@ -7,7 +7,7 @@ import { leistungen } from '@/data/leistungen';
 
 <BaseLayout
   title="Leistungen"
-  description="Dokumentation & Beratung, Bauforschung und Altbausanierung – von der bauhistorischen Untersuchung bis zur örtlichen Bauaufsicht."
+  description="Bauforschung, Gebäudedokumentation & Gutachten, Fachbegleitung im Denkmalschutz und Altbausanierung (ÖBA) – von der bauhistorischen Untersuchung bis zur örtlichen Bauaufsicht."
 >
   <Hero
     eyebrow="Leistungen"
@@ -32,7 +32,12 @@ import { leistungen } from '@/data/leistungen';
     leistungen.map((bereich, i) => (
       <section id={bereich.id} class:list={['bereich', { 'bereich--reverse': i % 2 === 1 }]}>
         <div class="bereich__media">
-          <Bild src={bereich.bild} alt={bereich.bildAlt ?? ''} sizes="(min-width: 64rem) 50vw, 100vw" />
+          <Bild
+            src={bereich.bild}
+            alt={bereich.bildAlt ?? ''}
+            position={bereich.bildPosition}
+            sizes="(min-width: 64rem) 95vw, 100vw"
+          />
         </div>
         <div class="bereich__text" data-reveal>
           <span class="eyebrow">{String(i + 1).padStart(2, '0')}</span>

@@ -64,7 +64,9 @@ Aktuelle Bilder (Fotos vom Kunden, Oktober 2026 – auf max. 2400 px verkleinert
 - Projekte: Titelbilder siehe Feld `bild` in `src/data/projekte.ts`, Galerien in `projekte/<ordner>/`
 - Vorschaubild für Social Media: `og-image.jpg`
 
-Ein Bild tauschen = neue Datei unter demselben Namen ablegen.
+Ein Bild tauschen = neue Datei unter demselben Namen ablegen. Hat die neue Datei eine andere Endung (z. B. `.png` statt `.jpg`), die alte Datei löschen – sonst meldet der Build `[Bild] … gibt es mehrfach`.
+
+Bildausschnitt: Große Bilder füllen ihre Fläche und werden dabei beschnitten. Ist das Wichtige abgeschnitten, den Ausschnitt verschieben – im `<Hero>` mit `bildPosition="center top"` (und `bildPositionMobil` für Handys), bei Projekten und Leistungen mit dem Feld `bildPosition`.
 
 In einer Seite selbst: `<Bild src="dateiname.jpg" alt="Beschreibung" />` (Komponente `src/components/Bild.astro`). `alt=""` bei rein dekorativen Bildern, z. B. wenn die Überschrift daneben schon alles sagt.
 

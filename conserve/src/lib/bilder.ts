@@ -14,7 +14,14 @@ const schluessel = (pfad: string) =>
     .replace(/\.[^./]+$/, '')
     .toLowerCase();
 
-const bilder = new Map(Object.entries(dateien).map(([pfad, modul]) => [schluessel(pfad), modul.default]));
+const bilder = new Map<string, ImageMetadata>();
+for (const [pfad, modul] of Object.entries(dateien)) {
+  const key = schluessel(pfad);
+  if (bilder.has(key)) {
+    console.warn(`[Bild] "${key}" gibt es mehrfach (unterschiedliche Endung) – bitte die alte Datei löschen.`);
+  }
+  bilder.set(key, modul.default);
+}
 
 const gemeldet = new Set<string>();
 

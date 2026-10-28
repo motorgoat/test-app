@@ -13,10 +13,11 @@ interface Props {
   alt: string;
   sizes?: string;
   priority?: boolean;
+  position?: string; // Bildausschnitt, z. B. 'center top' oder '30% 20%' (Standard: Mitte)
   class?: string;
 }
 
-const { src, alt, sizes = '100vw', priority = false, class: className } = Astro.props;
+const { src, alt, sizes = '100vw', priority = false, position, class: className } = Astro.props;
 const image = findeBild(src);
 
 // ---------- Platzhalter: Dachlandschaft mit Kirchturm, je nach Bild variiert ----------
@@ -97,6 +98,7 @@ const svg = `
       sizes={sizes}
       priority={priority}
       class:list={['bild', className]}
+      style={position ? `object-position: ${position}` : undefined}
     />
   ) : (
     <svg

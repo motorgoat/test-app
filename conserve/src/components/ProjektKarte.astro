@@ -7,7 +7,8 @@ interface Props {
   sizes?: string;
 }
 
-const { projekt, sizes = '(min-width: 64rem) 33vw, 85vw' } = Astro.props;
+// Karte ist hochformatig, das Bild füllt sie per „cover“ → größere Bilddatei als die Kartenbreite
+const { projekt, sizes = '(min-width: 64rem) 45vw, 125vw' } = Astro.props;
 const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
 const link = projektLink(projekt);
 const meta = [ort, jahr].filter(Boolean).join(' · ');
@@ -89,13 +90,14 @@ const meta = [ort, jahr].filter(Boolean).join(' · ');
     text-decoration: underline;
   }
 
+  /* Fokusrahmen innen in der Karte – wird vom Slider nicht abgeschnitten */
   .karte__titel a:focus-visible {
     outline: none;
   }
 
-  .karte:has(a:focus-visible) {
-    outline: 2px solid var(--c-ink);
-    outline-offset: 4px;
+  .karte__titel a:focus-visible::after {
+    outline: 2px solid var(--c-white);
+    outline-offset: -6px;
   }
 
   .karte__titel {

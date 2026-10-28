@@ -208,22 +208,10 @@ import { site, team, telHref } from '@/data/site';
   }
 
   .person__foto {
+    align-self: start;
     aspect-ratio: 4 / 5;
     overflow: hidden;
     background: var(--c-bg-alt);
-  }
-
-  @media (min-width: 40rem) {
-    .person__foto {
-      aspect-ratio: auto;
-      min-height: 100%;
-      position: relative;
-    }
-
-    .person__foto :global(.bild) {
-      position: absolute;
-      inset: 0;
-    }
   }
 
   .person__text {

@@ -21,7 +21,7 @@ interface Props {
 }
 
 const { projekt, zurueck, weiter } = Astro.props;
-const titelText = projekt.titel.replace(/­/g, '');
+const titelText = projekt.titel.replace(/\u00AD/g, '');
 const bilder = findeGalerie(projekt.galerie!);
 const fakten = [
   ['Ort', projekt.ort],
@@ -35,7 +35,7 @@ const fakten = [
   title={[titelText, projekt.ort].filter(Boolean).join(', ')}
   description={`${titelText}${projekt.ort ? `, ${projekt.ort}` : ''}: ${projekt.leistungen}. Ein Projekt von CONSERVE Baudenkmalforschung.`}
 >
-  <Hero eyebrow={projekt.ort ?? 'Projekt'} title={projekt.titel} bild={projekt.bild} />
+  <Hero eyebrow={projekt.ort ?? 'Projekt'} title={projekt.titel} bild={projekt.bild} bildPosition={projekt.bildPosition} />
 
   <section class="section">
     <div class="container projekt">

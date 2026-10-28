@@ -10,6 +10,7 @@ export type Leistungsbereich = {
   startseite?: number; // wie viele Punkte auf der Startseite (Standard: 4)
   bild?: string;
   bildAlt?: string; // was auf dem Foto zu sehen ist (leer = dekorativ)
+  bildPosition?: string; // Bildausschnitt, z. B. 'left center'
 };
 
 export const leistungen: Leistungsbereich[] = [
@@ -17,6 +18,7 @@ export const leistungen: Leistungsbereich[] = [
     id: 'bauforschung',
     title: 'Bauforschung',
     bild: 'leistung-bauforschung.jpg',
+    bildPosition: 'left center',
     intro:
       'Die Bauforschung macht die Geschichte eines Gebäudes lesbar – und schafft so die Grundlage für jede denkmalgerechte Entscheidung.',
     items: [

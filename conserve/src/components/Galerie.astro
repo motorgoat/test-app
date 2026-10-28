@@ -9,15 +9,16 @@ interface Props {
 }
 
 const { bilder, titel } = Astro.props;
-const gross = await Promise.all(
-  bilder.map((b) => getImage({ src: b, width: Math.min(b.width, 2000), format: 'webp' })),
-);
+// Großansicht max. 2000 px (Astro vergrößert nie). Breite/Höhe bewusst NICHT vom Original lesen –
+// sonst kopiert Astro die Originaldateien zusätzlich nach dist/.
+const gross = await Promise.all(bilder.map((b) => getImage({ src: b, width: 2000, format: 'webp' })));
+const hochformat = (i: number) => Number(gross[i].attributes.height) > Number(gross[i].attributes.width);
 ---
 
 <ul class="galerie" data-galerie>
   {
     bilder.map((bild, i) => (
-      <li class:list={['galerie__item', { 'galerie__item--hoch': bild.height > bild.width }]}>
+      <li class:list={['galerie__item', { 'galerie__item--hoch': hochformat(i) }]}>
         <a href={gross[i].src} data-index={i} aria-label={`${titel} – Bild ${i + 1} von ${bilder.length} vergrößern`}>
           <Image src={bild} alt="" widths={[400, 700, 1000]} sizes="(min-width: 64rem) 33vw, (min-width: 40rem) 50vw, 100vw" />
         </a>
@@ -27,7 +28,7 @@ const gross = await Promise.all(
 </ul>
 
 <dialog class="lightbox" data-lightbox aria-label={`${titel} – Bildansicht`}>
-  <img class="lightbox__bild" alt="" data-lightbox-bild />
+  <img class="lightbox__bild" alt="" draggable="false" data-lightbox-bild />
   <p class="lightbox__zaehler" data-lightbox-zaehler aria-live="polite"></p>
   <button type="button" class="lightbox__btn lightbox__btn--zu" data-lightbox-zu aria-label="Schließen">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -159,7 +160,11 @@ const gross = await Promise.all(
     max-height: calc(100dvh - 8rem);
     width: auto;
     height: auto;
-    pointer-events: none;
+  }
+
+  /* Seite hinter der Großansicht nicht mitscrollen */
+  :global(html:has(.lightbox[open])) {
+    overflow: hidden;
   }
 
   .lightbox__zaehler {

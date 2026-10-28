@@ -2,6 +2,7 @@
 // Großes Bild mit Text darüber. `full` = volle Bildschirmhöhe (Startseite).
 // Im Titel ist HTML erlaubt: <br /> für Zeilenumbrüche, &shy; für Trennstellen.
 // Die Unterzeile wird an „|“ in einzelne Begriffe geteilt.
+// bildPosition / bildPositionMobil: Bildausschnitt (z. B. 'center top'), Mobil = Hochformat-Bildschirme.
 import Bild from '@/components/Bild.astro';
 
 interface Props {
@@ -10,17 +11,31 @@ interface Props {
   subtitle?: string;
   bild?: string;
   bildAlt?: string; // leer lassen: das Bild ist Hintergrund, die Überschrift trägt die Info
+  bildPosition?: string;
+  bildPositionMobil?: string;
   full?: boolean;
   scrollTo?: string;
 }
 
-const { title, eyebrow, subtitle, bild, bildAlt = '', full = false, scrollTo } = Astro.props;
+const {
+  title,
+  eyebrow,
+  subtitle,
+  bild,
+  bildAlt = '',
+  bildPosition = '50% 50%',
+  bildPositionMobil,
+  full = false,
+  scrollTo,
+} = Astro.props;
+// Bild füllt die Fläche per „cover“: auf Hochformat-Bildschirmen wird es viel breiter als der Bildschirm gezeichnet
+const sizes = full ? '(max-aspect-ratio: 4/3) 300vw, 100vw' : '(max-aspect-ratio: 4/3) 200vw, 100vw';
 const subItems = subtitle?.split('|').map((s) => s.trim()).filter(Boolean) ?? [];
 ---
 
 <section class:list={['hero', { 'hero--full': full }]}>
-  <div class="hero__media">
-    <Bild src={bild} alt={bildAlt} priority />
+  <div class="hero__media" style={`--pos: ${bildPosition}; --pos-mobil: ${bildPositionMobil ?? bildPosition}`}>
+    <Bild src={bild} alt={bildAlt} sizes={sizes} priority />
   </div>
   <div class="container hero__content">
     {eyebrow && <span class="hero__eyebrow">{eyebrow}</span>}
@@ -89,7 +104,14 @@ const subItems = subtitle?.split('|').map((s) => s.trim()).filter(Boolean) ?? []
   }
 
   .hero__media :global(.bild) {
+    object-position: var(--pos);
     animation: hero-zoom 18s var(--ease) both;
+  }
+
+  @media (max-aspect-ratio: 1/1) {
+    .hero__media :global(.bild) {
+      object-position: var(--pos-mobil);
+    }
   }
 
   @keyframes hero-zoom {

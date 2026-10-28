@@ -15,17 +15,19 @@ export type Projekt = {
   bild?: string;
   bildAlt?: string;
   bildText?: string; // Bildunterschrift, z. B. „Foto: Metahofschlössl, Graz“
+  bildPosition?: string; // Ausschnitt im großen Bild der Projektseite, z. B. 'center top'
   galerie?: string;
   startseite?: boolean;
 };
 
 export const projekte: Projekt[] = [
   {
-    titel: 'Stadtpark­brunnen', // ­ = Trennstelle für schmale Karten
+    titel: 'Stadtpark\u00ADbrunnen', // \u00AD = Trennstelle für schmale Karten
     ort: 'Graz',
     leistungen: 'Bauhistorische und restauratorische Untersuchung, Sanierungsplanung, ÖBA',
     text: 'Dem Restaurierungsvorhaben ging eine umfassende interdisziplinäre Bestandsaufnahme voraus.',
     bild: 'projekt-graz-stadtparkbrunnen.jpg',
+    bildPosition: 'center 15%',
     galerie: 'stadtparkbrunnen',
     startseite: true,
   },
@@ -34,6 +36,7 @@ export const projekte: Projekt[] = [
     ort: 'Linz',
     leistungen: 'Bauhistorische Untersuchung',
     bild: 'projekt-linz-paedagogische-hochschule.jpg',
+    bildPosition: 'center top',
     galerie: 'paedagogische-hochschule-linz',
     startseite: true,
   },
@@ -113,7 +116,7 @@ export const projektSlug = (p: Projekt) =>
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
-    .replace(/­/g, '')
+    .replace(/\u00AD/g, '')
     .replace(/ä/g, 'ae')
     .replace(/ö/g, 'oe')
     .replace(/ü/g, 'ue')

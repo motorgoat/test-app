@@ -82,7 +82,7 @@ export const team: Person[] = [
     werdegang: [
       ['1994', 'Erste Bauforschungstätigkeiten'],
       ['1995', 'Abschluss HTL-Kolleg für Restaurierung und Stadterneuerung, Krems/Donau'],
-      ['1995–1999', 'Architekturbüro Tritthart (Umbau im Bestand, Restaurierung)'],
+      ['1995–1999', 'Angestellt im Architekturbüro Tritthart (Umbau im Bestand, Restaurierung)'],
       ['1999–2001', 'Selbstständige Bauforscherin'],
       ['2001', 'Gründung CONSERVE GesbR'],
       ['2007–2017', 'Auslandsaufenthalt; Leitung einer lokalen Non-Profit-Organisation'],
