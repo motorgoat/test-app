@@ -74,6 +74,12 @@ import { site, team, telHref } from '@/data/site';
                 {p.role && <p class="person__role">{p.role}</p>}
                 {p.phone && <a href={telHref(p.phone)}>{p.phone}</a>}
                 {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
+                {p.link && (
+                  <a href={p.link.href} target="_blank" rel="noopener">
+                    {p.link.label}
+                    <span class="visually-hidden"> (öffnet in neuem Tab)</span>
+                  </a>
+                )}
                 <h4 class="visually-hidden">Werdegang</h4>
                 <dl class="werdegang">
                   {p.werdegang.map(([jahr, text]) => (

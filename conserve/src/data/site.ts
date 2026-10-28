@@ -44,6 +44,7 @@ export type Person = {
   phone?: string;
   email?: string;
   foto?: string; // Dateiname in src/assets/bilder/ (Hochformat 4:5)
+  link?: { label: string; href: string }; // z. B. eigene Website (öffnet in neuem Tab)
   werdegang: [string, string][]; // [Jahr, Text]
 };
 
@@ -98,6 +99,7 @@ export const team: Person[] = [
     name: 'Ing. Mag. Eva Tangl',
     phone: '+43 680 133 4435',
     email: 'tangl@conserve.at',
+    link: { label: 'tec-sachverständige.at', href: 'https://xn--tec-sachverstndige-xtb.at/' },
     foto: 'team/tangl.jpg',
     werdegang: [
       ['1998', 'Mag. Kunstgeschichte'],

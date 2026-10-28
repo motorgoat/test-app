@@ -42,6 +42,12 @@ const mapsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURI
                 {p.role && <span class="personen__role">{p.role}</span>}
                 {p.phone && <a href={telHref(p.phone)}>{p.phone}</a>}
                 {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
+                {p.link && (
+                  <a href={p.link.href} target="_blank" rel="noopener">
+                    {p.link.label}
+                    <span class="visually-hidden"> (öffnet in neuem Tab)</span>
+                  </a>
+                )}
               </li>
             ))
           }
