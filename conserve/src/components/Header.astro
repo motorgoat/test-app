@@ -15,7 +15,7 @@ const isActive = (href: string) => path.startsWith(href);
 <header class:list={['header', { 'is-solid': !overlay }]} data-header data-overlay={overlay ? '' : undefined}>
   <div class="container header__inner">
     <a href="/" class="header__logo">
-      <Logo />
+      <Logo variante="wortmarke" />
       <span class="visually-hidden">{site.name} – Startseite</span>
     </a>
 
@@ -115,14 +115,15 @@ const isActive = (href: string) => path.startsWith(href);
     height: 4.5rem;
   }
 
+  /* Wortmarke „CONSERVE Baudenkmalforschung OG“ – Firma sofort erkennbar */
   .header__logo {
     display: block;
-    height: 3.25rem;
+    height: clamp(2.25rem, 1.8rem + 1.2vw, 3rem);
     transition: height 0.35s var(--ease);
   }
 
   .header.is-solid .header__logo {
-    height: 2.6rem;
+    height: clamp(2rem, 1.7rem + 0.8vw, 2.5rem);
   }
 
   .header__nav ul {
