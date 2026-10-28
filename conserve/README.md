@@ -106,9 +106,8 @@ Ist vorbereitet, aber ausgeblendet. Zum Aktivieren in `src/data/site.ts` bei `fo
 
 ## Offene Punkte
 
-- [ ] Telefonnummer Ing. Mag. Eva Tangl (`src/data/site.ts`)
 - [ ] Logo: aus JPG/PNG vektorisiert – falls vorhanden, Original-SVG/PDF vom Grafiker einsetzen (`public/logo/`)
 - [ ] Projektbeschreibungen und fehlende Jahreszahlen ergänzen; Ort der Wöllbachmühle
 - [ ] Höher aufgelöste Fotos für die Großbilder, falls vorhanden (aktuell teils nur 1000–1400 px breit)
-- [ ] Impressum bestätigen: Firmenbuchgericht, Berufsbezeichnung, Gewerbebehörde (`src/data/site.ts`)
+- [ ] Impressum: Berufsbezeichnung „Baumeister“ bestätigen (übrige Angaben von der bisherigen Website übernommen)
 - [ ] Datenschutzerklärung finalisieren (Hosting, ggf. Formular-Anbieter)

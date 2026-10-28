@@ -22,7 +22,14 @@ const year = new Date().getFullYear();
         {site.address.street}, A-{site.address.zip} {site.address.city}
       </address>
       <p>
-        T <a href={telHref(site.phone)}>{site.phone}</a><br />
+        {
+          site.phones.map((nr) => (
+            <>
+              T <a href={telHref(nr)}>{nr}</a>
+              <br />
+            </>
+          ))
+        }
         M <a href={`mailto:${site.email}`}>{site.email}</a>
       </p>
     </div>

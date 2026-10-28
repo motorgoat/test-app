@@ -13,7 +13,8 @@ export const site = {
   founded: 2001,
   url: 'https://www.conserve.at',
   email: 'office@conserve.at',
-  phone: '+43 677 6248 0894', // = Ing. Brandstätter-Tritthart
+  // Zentrale Nummern (wie auf der bisherigen Website): Brandstätter-Tritthart, Wonisch
+  phones: ['+43 677 6248 0894', '+43 650 825 0528'],
   address: {
     street: 'Färberplatz 1',
     zip: '8010',
@@ -21,15 +22,16 @@ export const site = {
     country: 'Österreich',
   },
   legal: {
+    // laut bisheriger Website conserve.at/contact.html
     companyRegister: 'FN 360302 g',
-    // TODO: Firmenbuchgericht mit Kunden bestätigen
     registerCourt: 'Landesgericht für ZRS Graz',
     vatId: 'ATU66456756',
-    trade: 'Baumeistergewerbe; Planungsbüro für historische Bauforschung',
-    // TODO: Berufsbezeichnung und Gewerbebehörde mit Kunden bestätigen
+    trade: 'Planungsbüro für historische Bauforschung; Baumeister, spezialisiert auf Planung, Berechnung und Leitung',
+    // TODO: Berufsbezeichnung mit Kunden bestätigen (stand nicht auf der bisherigen Website)
     jobTitle: 'Baumeister (verliehen in Österreich)',
-    authority: 'Magistrat Graz',
+    authority: 'Magistrat der Stadt Graz',
     chamber: 'Wirtschaftskammer Steiermark',
+    fotos: 'CONSERVE',
   },
   // Kontaktformular: Ziel-URL eines Form-Endpoints (z. B. eigenes PHP-Skript,
   // Formspree, Netlify Forms). Leer lassen = Formular wird nicht angezeigt.
@@ -50,6 +52,7 @@ export const team: Person[] = [
   {
     name: 'DI Edith Ottenbacher',
     phone: '+43 676 722 6347',
+    email: 'ottenbacher@conserve.at',
     foto: 'team/ottenbacher.jpg',
     werdegang: [
       ['1992', 'Erste Bauforschungstätigkeiten'],
@@ -64,6 +67,7 @@ export const team: Person[] = [
   {
     name: 'DI Barbara Wonisch',
     phone: '+43 650 825 0528',
+    email: 'wonisch@conserve.at',
     foto: 'team/wonisch.jpg',
     werdegang: [
       ['1994', 'Erste Bauforschungstätigkeiten'],
@@ -78,6 +82,7 @@ export const team: Person[] = [
   {
     name: 'Ing. Rebekka Brandstätter-Tritthart',
     phone: '+43 677 6248 0894',
+    email: 'brandstaetter@conserve.at',
     foto: 'team/brandstaetter-tritthart.jpg',
     werdegang: [
       ['1994', 'Erste Bauforschungstätigkeiten'],
@@ -91,7 +96,8 @@ export const team: Person[] = [
   },
   {
     name: 'Ing. Mag. Eva Tangl',
-    // TODO: Telefonnummer ergänzen
+    phone: '+43 680 133 4435',
+    email: 'tangl@conserve.at',
     foto: 'team/tangl.jpg',
     werdegang: [
       ['1998', 'Mag. Kunstgeschichte'],

@@ -32,7 +32,7 @@ const jsonLd = {
   name: site.legalName.replace(/\u00A0/g, ' '),
   url: site.url,
   email: site.email,
-  telephone: site.phone.replace(/\s/g, ''),
+  telephone: site.phones[0].replace(/\s/g, ''),
   foundingDate: String(site.founded),
   address: {
     '@type': 'PostalAddress',

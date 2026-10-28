@@ -25,7 +25,7 @@ const mapsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURI
         </address>
         <p class="kontakt__links">
           <a href={`mailto:${site.email}`}>{site.email}</a>
-          <a href={telHref(site.phone)}>{site.phone}</a>
+          {site.phones.map((nr) => <a href={telHref(nr)}>{nr}</a>)}
         </p>
         <a class="btn" href={mapsHref} target="_blank" rel="noopener noreferrer">
           Route planen<span class="visually-hidden"> (öffnet Google Maps in neuem Tab)</span>
