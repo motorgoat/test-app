@@ -1,62 +1,74 @@
 # CONSERVE – Website (Astro)
 
-Website der CONSERVE Baudenkmalforschung OG, Graz. Statische Astro-Seite, keine Cookies, keine externen Requests (Schriften lokal via Fontsource).
+Website der CONSERVE Baudenkmalforschung OG, Graz. Statische Astro-Seite ohne CMS: Alle Inhalte stehen direkt im Code. Keine Cookies, keine externen Requests (Schriften lokal via Fontsource).
 
 ## Entwicklung
 
 ```bash
 npm install
 npm run dev       # http://localhost:4321
-npm run build     # statischer Export nach dist/
-npm run preview
+npm run build     # statischer Export nach dist/ – diesen Ordner auf den Webserver laden
+npm run preview   # gebauten Stand lokal ansehen
 ```
 
-Astro 6.x – benötigt Node ≥ 22.12.
+Benötigt Node ≥ 22.12 (Astro 6).
 
-## Struktur
+## Wo ändere ich was?
 
-```
-src/
-  data/site.ts          Firmendaten, Kontakte, Navigation, Impressumsdaten
-  data/leistungen.ts    Leistungsbereiche (Startseite + /leistungen)
-  content/projekte/     Ein Markdown-File pro Projekt (Content Collection)
-  content.config.ts     Schema der Projekte
-  styles/global.css     Design-Tokens (Farben, Schriften, Abstände) + Basis-Styles
-  layouts/BaseLayout    <head>, SEO-Meta, Header, Footer
-  components/           Header, Footer, Logo, PageHero, ProjectCard, ContactCta, ImagePlaceholder
-  pages/                /, /ueber-uns, /leistungen, /projekte, /projekte/[slug], /kontakt,
-                        /impressum, /datenschutz, 404
-```
+| Inhalt | Datei |
+| --- | --- |
+| Adresse, Telefon, E-Mail, Team, Navigation, Impressumsdaten | `src/data/site.ts` |
+| Leistungsbereiche (Startseite + Leistungen) | `src/data/leistungen.ts` |
+| Projekte (Projektseite + Slider auf der Startseite) | `src/data/projekte.ts` |
+| Texte der einzelnen Seiten | `src/pages/*.astro` (Text steht direkt im HTML) |
+| Farben, Schriften, Abstände | `src/styles/global.css` (Variablen ganz oben) |
+| Logo | `src/components/Logo.astro` |
 
-## Projekt anlegen
+Seiten: `/` · `/ueber-uns` · `/leistungen` · `/projekte` · `/kontakt` · `/impressum` · `/datenschutz` · 404
 
-Neue Datei `src/content/projekte/<slug>.md`:
+### Neues Projekt
 
-```md
----
-title: Palais Welsersheimb
-ort: Graz
-jahr: 2023
-leistung: Fassadenuntersuchung & Maßnahmenkatalog
-kategorie: Bauforschung        # Bauforschung | Sanierung | ÖBA | Energieberatung
-auftraggeber: City Immobilien Invest GmbH
-bild: ./bilder/welsersheimb.jpg  # optional, relativ zur .md-Datei
-bildAlt: Fassade zum Eisernen Tor
-featured: true                 # auf Startseite zeigen
----
+In `src/data/projekte.ts` einen Eintrag ergänzen – die Reihenfolge in der Datei ist die Reihenfolge auf der Website:
 
-Projektbeschreibung in Markdown …
+```ts
+{
+  titel: 'Palais Welsersheimb',
+  ort: 'Graz',
+  jahr: 2023,                                   // optional
+  leistungen: 'Fassadenuntersuchung & Maßnahmenkatalog',
+  text: 'Kurzbeschreibung …',                   // optional
+  auftraggeber: 'City Immobilien Invest GmbH', // optional
+  bild: 'projekt-graz-palais-welsersheimb.jpg',
+  startseite: true,                             // im Slider auf der Startseite zeigen
+},
 ```
 
-Ohne `bild` wird ein neutraler Platzhalter angezeigt.
+### Bilder
+
+Fotos einfach unter dem vorgesehenen Dateinamen in **`src/assets/bilder/`** ablegen (JPG, PNG, WebP oder AVIF; am besten mind. 2400 px breit). Astro erzeugt beim Build automatisch optimierte WebP-Größen. Solange ein Bild fehlt, zeigt die Seite einen gezeichneten Platzhalter, und der Build meldet `[Bild] … fehlt`.
+
+Vorgesehene Dateinamen:
+
+- Großbilder oben: `hero-startseite.jpg`, `hero-ueber-uns.jpg`, `hero-leistungen.jpg`, `hero-projekte.jpg`, `hero-kontakt.jpg`
+- Über uns: `ueber-uns-arbeitsweise.jpg`
+- Leistungen: `leistung-dokumentation-beratung.jpg`, `leistung-bauforschung.jpg`, `leistung-altbausanierung.jpg`
+- Projekte: siehe Feld `bild` in `src/data/projekte.ts`
+
+In einer Seite selbst: `<Bild src="dateiname.jpg" alt="Beschreibung" />` (Komponente `src/components/Bild.astro`).
+
+### Lange Wörter in Überschriften
+
+Überschriften werden nicht automatisch getrennt. Bei sehr langen Wörtern eine weiche Trennstelle mit `&shy;` setzen, z. B. `verantwortungs&shy;vollen` – sie erscheint nur, wenn auf schmalen Bildschirmen tatsächlich getrennt wird.
+
+### Kontaktformular
+
+Ist vorbereitet, aber ausgeblendet. Zum Aktivieren in `src/data/site.ts` bei `formAction` die Adresse eines Formular-Dienstes eintragen (eigenes PHP-Skript, Formspree o. ä.) und die Datenschutzerklärung ergänzen.
 
 ## Offene Punkte
 
-- [ ] Design an den Designvorschlag (conserve.at/wordpress) angleichen – Tokens in `src/styles/global.css`
+- [ ] Fotos liefern (siehe Dateinamen oben)
 - [ ] Original-Logo als SVG einbauen (`src/components/Logo.astro`)
-- [ ] Projektbilder und -beschreibungen aus der bestehenden Website übernehmen
-- [ ] Jahreszahlen für Projekte ohne `jahr` ergänzen
-- [ ] Rollen/Fotos der Ansprechpartnerinnen (`src/data/site.ts`)
+- [ ] Projektbeschreibungen und fehlende Jahreszahlen ergänzen
+- [ ] Rollen der Ansprechpartnerinnen (`src/data/site.ts`, Feld `role`)
 - [ ] Firmenbuchgericht im Impressum bestätigen
 - [ ] Datenschutzerklärung finalisieren (Hosting, ggf. Formular-Anbieter)
-- [ ] Kontaktformular: Endpoint in `site.formAction` setzen (leer = kein Formular)

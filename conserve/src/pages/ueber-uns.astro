@@ -1,58 +1,66 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import PageHero from '@/components/PageHero.astro';
-import ContactCta from '@/components/ContactCta.astro';
-import ImagePlaceholder from '@/components/ImagePlaceholder.astro';
+import Hero from '@/components/Hero.astro';
+import Bild from '@/components/Bild.astro';
 import { site, team, telHref } from '@/data/site';
 ---
 
 <BaseLayout
   title="Über uns"
-  description={`${site.legalName} – seit ${site.founded} erforschen wir Denkmäler und sichern historische Bausubstanz für die Zukunft.`}
+  description={`${site.legalName} – seit ${site.founded} widmen wir uns der Erforschung, Bewertung und Weiterentwicklung von Baudenkmälern und Bestandsgebäuden.`}
 >
-  <PageHero
+  <Hero
     eyebrow="Über uns"
-    title="Denkmäler erforschen. Bausubstanz für die Zukunft sichern."
-    lead={`CONSERVE wurde ${site.founded} gegründet, um Denkmäler zu erforschen und historische Bausubstanz für die Zukunft zu sichern.`}
+    title="Verantwortung für historische Bausubstanz"
+    bild="hero-ueber-uns.jpg"
+    bildAlt="Historische Fassade im Detail"
   />
 
   <section class="section">
-    <div class="container split">
-      <div class="prose">
-        <h2>Bauforschung als Grundlage</h2>
-        <p>
-          Die Bauforschung ist ein Spezialgebiet innerhalb der Denkmalpflege. Sie bietet Bauherren und Planern
-          den Ausgangspunkt für einen verantwortungsvollen Umgang mit älteren Gebäuden.
-        </p>
-        <p>
-          Wir führen bauhistorische Untersuchungen nach den aktuellen Richtlinien des Bundesdenkmalamts durch –
-          ergänzt durch Materialanalysen, Dendrochronologie sowie Archiv- und Literaturrecherchen.
-        </p>
-        <h2>Vom Befund bis zur Baustelle</h2>
-        <p>
-          Als Baumeisterunternehmen mit Schwerpunkt Denkmalpflege und Altbausanierung übernehmen wir auch
-          Planung, Kalkulation und Bauleitung. Sanierungskonzepte erarbeiten wir gemeinsam mit unabhängigen
-          Fachpersonen; unsere Energieberatung ist produktunabhängig.
-        </p>
-      </div>
-      <ImagePlaceholder label="Büro / Team" ratio="3 / 4" />
+    <div class="container container--narrow center" data-reveal>
+      <span class="eyebrow">Seit {site.founded}</span>
+      <h2>Die CONSERVE steht für den verantwortungs&shy;vollen Umgang mit historischer Bausubstanz.</h2>
+      <p class="lead">
+        Seit der Gründung im Jahr {site.founded} widmen wir uns der Erforschung, Bewertung und Weiterentwicklung von
+        Baudenkmälern und Bestandsgebäuden. Unser Ziel ist es, die Qualitäten eines Gebäudes sichtbar zu machen und
+        daraus tragfähige Grundlagen für Planung, Sanierung und Erhaltung zu entwickeln.
+      </p>
     </div>
   </section>
 
-  <section class="section section--surface">
+  <section class="split">
+    <div class="split__media">
+      <Bild src="ueber-uns-arbeitsweise.jpg" alt="Bauforschung am Objekt" sizes="(min-width: 64rem) 50vw, 100vw" />
+    </div>
+    <div class="split__text" data-reveal>
+      <span class="eyebrow">Arbeitsweise</span>
+      <h2>Forschung, Expertise und Planung aus einer Hand</h2>
+      <p>
+        Als spezialisiertes Baumeister- und Planungsbüro verbinden wir bauhistorische Forschung, denkmalpflegerische
+        Expertise und praktische Sanierungsplanung.
+      </p>
+      <p>
+        Wir betrachten jedes Gebäude in seiner Geschichte, Konstruktion, Materialität und Nutzung. So entstehen
+        Lösungen, die den Bestand respektieren, Ressourcen schonen und Gebäude zukunftsfähig machen.
+      </p>
+      <a class="btn" href="/leistungen">Unsere Leistungen</a>
+    </div>
+  </section>
+
+  <section class="section section--alt">
     <div class="container">
-      <span class="eyebrow">Team</span>
-      <h2>Ihre Ansprechpartnerinnen</h2>
+      <div class="team__head" data-reveal>
+        <span class="eyebrow">Team</span>
+        <h2>Ihre Ansprechpartnerinnen</h2>
+      </div>
       <ul class="team">
         {
           team.map((p) => (
-            <li class="team__card">
-              <ImagePlaceholder label={p.name} ratio="1 / 1" />
-              <div class="team__body">
-                <h3>{p.name}</h3>
-                {p.role && <p class="team__role">{p.role}</p>}
-                <a href={telHref(p.phone)}>{p.phone}</a>
-              </div>
+            <li class="person" data-reveal>
+              <h3>{p.name}</h3>
+              {p.role && <p class="person__role">{p.role}</p>}
+              <a href={telHref(p.phone)}>{p.phone}</a>
+              {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
             </li>
           ))
         }
@@ -60,53 +68,90 @@ import { site, team, telHref } from '@/data/site';
     </div>
   </section>
 
-  <ContactCta />
+  <section class="section section--navy">
+    <div class="container container--narrow center" data-reveal>
+      <p class="statement">Sie planen ein Projekt im historischen Bestand?</p>
+      <a class="btn btn--light" href="/kontakt">Kontakt aufnehmen</a>
+    </div>
+  </section>
 </BaseLayout>
 
 <style>
   .split {
     display: grid;
-    gap: var(--space-l);
-    align-items: start;
+    background: var(--c-bg);
   }
 
-  @media (min-width: 56rem) {
+  @media (min-width: 64rem) {
     .split {
-      grid-template-columns: 1.5fr 1fr;
-      gap: var(--space-xl);
+      grid-template-columns: 1fr 1fr;
+      min-height: 40rem;
     }
+  }
+
+  .split__media {
+    position: relative;
+    min-height: 22rem;
+  }
+
+  .split__media :global(.bild) {
+    position: absolute;
+    inset: 0;
+  }
+
+  .split__text {
+    align-self: center;
+    max-width: 36rem;
+    padding: var(--space-xl) var(--gutter);
+  }
+
+  @media (min-width: 64rem) {
+    .split__text {
+      padding-inline: var(--space-xl);
+    }
+  }
+
+  .split__text .btn {
+    margin-top: var(--space-s);
+  }
+
+  .team__head {
+    margin-bottom: var(--space-l);
   }
 
   .team {
     display: grid;
     gap: var(--space-m);
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
-    margin: var(--space-l) 0 0;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .team__card {
-    background: var(--c-bg);
-    border: 1px solid var(--c-line);
+  .person {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    padding: var(--space-l) var(--space-m);
+    background: var(--c-white);
+    border-top: 2px solid var(--c-navy);
   }
 
-  .team__body {
-    padding: var(--space-m);
+  .person h3 {
+    margin-bottom: var(--space-xs);
+    font-size: var(--fs-h3);
   }
 
-  .team__body h3 {
-    font-size: var(--fs-lg);
-    margin-bottom: 0.35rem;
+  .person__role {
+    margin: 0;
+    color: var(--c-muted);
   }
 
-  .team__role {
-    margin-bottom: 0.35rem;
-    color: var(--c-ink-soft);
-    font-size: var(--fs-sm);
+  .person a {
+    text-decoration: none;
   }
 
-  .team__body a {
-    font-size: var(--fs-sm);
+  .person a:hover {
+    text-decoration: underline;
   }
 </style>

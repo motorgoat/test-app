@@ -1,112 +1,122 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import PageHero from '@/components/PageHero.astro';
-import ContactCta from '@/components/ContactCta.astro';
+import Hero from '@/components/Hero.astro';
+import Bild from '@/components/Bild.astro';
 import { leistungen } from '@/data/leistungen';
 ---
 
 <BaseLayout
   title="Leistungen"
-  description="Bauforschung, Bestandsaufnahme, Restaurier- und Sanierungskonzepte, Energieberatung, Planung, Ausschreibung und örtliche Bauaufsicht für historische Gebäude."
+  description="Dokumentation & Beratung, Bauforschung und Altbausanierung – von der bauhistorischen Untersuchung bis zur örtlichen Bauaufsicht."
 >
-  <PageHero
+  <Hero
     eyebrow="Leistungen"
-    title="Begleitung von der historischen Begutachtung bis zur örtlichen Bauaufsicht"
-    lead="Unser Leistungsspektrum deckt den gesamten Weg ab – von der Erforschung des Bestands über das Konzept bis zur Umsetzung auf der Baustelle."
-  >
-    <nav class="toc" aria-label="Leistungen">
-      {leistungen.map((l) => <a href={`#${l.id}`}>{l.title}</a>)}
-    </nav>
-  </PageHero>
+    title="Fundierte Vor&shy;untersuchung. Sichere Planung. Nachhaltige Ent&shy;scheidungen."
+    bild="hero-leistungen.jpg"
+    bildAlt="Dachstuhl eines historischen Gebäudes"
+  />
 
   <section class="section">
-    <div class="container">
-      {
-        leistungen.map((l, i) => (
-          <article id={l.id} class="service">
-            <span class="service__num">{String(i + 1).padStart(2, '0')}</span>
-            <div>
-              <h2>{l.title}</h2>
-              <p class="lead">{l.short}</p>
-            </div>
-            <ul class="service__points">
-              {l.points.map((pt) => <li>{pt}</li>)}
-            </ul>
-          </article>
-        ))
-      }
+    <div class="container container--narrow center" data-reveal>
+      <h2>Spezialisiert auf Weltkulturerbe, Denkmalschutz und Altbau</h2>
+      <p class="lead">
+        Maßgeschneiderte Lösungen für den Erhalt historischer Gebäude – von der Dokumentation über die Bauforschung bis
+        zur Sanierung und örtlichen Bauaufsicht.
+      </p>
+      <nav class="toc" aria-label="Leistungsbereiche">
+        {leistungen.map((l) => <a href={`#${l.id}`}>{l.title}</a>)}
+      </nav>
     </div>
   </section>
 
-  <ContactCta />
+  {
+    leistungen.map((bereich, i) => (
+      <section id={bereich.id} class:list={['bereich', { 'bereich--reverse': i % 2 === 1 }]}>
+        <div class="bereich__media">
+          <Bild src={bereich.bild} alt={bereich.title} sizes="(min-width: 64rem) 50vw, 100vw" />
+        </div>
+        <div class="bereich__text" data-reveal>
+          <span class="eyebrow">{String(i + 1).padStart(2, '0')}</span>
+          <h2>{bereich.title}</h2>
+          <p class="lead">{bereich.intro}</p>
+          <ul class="list">
+            {bereich.items.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    ))
+  }
+
+  <section class="section section--slate">
+    <div class="container container--narrow center" data-reveal>
+      <p class="statement">Sprechen wir über Ihr Gebäude.</p>
+      <a class="btn btn--light" href="/kontakt">Kontakt aufnehmen</a>
+    </div>
+  </section>
 </BaseLayout>
 
 <style>
   .toc {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    justify-content: center;
+    gap: var(--space-xs);
     margin-top: var(--space-l);
   }
 
   .toc a {
-    padding: 0.4em 0.9em;
+    padding: 0.6em 1.2em;
     border: 1px solid var(--c-line);
-    border-radius: 999px;
     font-size: var(--fs-sm);
     text-decoration: none;
+    transition: border-color 0.2s, background 0.2s;
   }
 
   .toc a:hover {
-    border-color: var(--c-accent);
+    border-color: var(--c-ink);
   }
 
-  .service {
+  .bereich {
     display: grid;
-    gap: var(--space-s) var(--space-l);
-    padding-block: var(--space-l);
-    border-bottom: 1px solid var(--c-line);
+    border-top: 1px solid var(--c-line);
   }
 
-  .service:first-child {
-    padding-top: 0;
-  }
+  @media (min-width: 64rem) {
+    .bereich {
+      grid-template-columns: 1fr 1fr;
+      min-height: 42rem;
+    }
 
-  @media (min-width: 56rem) {
-    .service {
-      grid-template-columns: 4rem 1.3fr 1fr;
+    .bereich--reverse .bereich__media {
+      order: 2;
     }
   }
 
-  .service__num {
-    font-family: var(--f-serif);
-    font-size: var(--fs-h3);
-    color: var(--c-accent);
-  }
-
-  .service .lead {
-    margin: 0;
-  }
-
-  .service__points {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .service__points li {
-    padding: 0.55rem 0 0.55rem 1.4rem;
-    border-bottom: 1px solid var(--c-line);
+  .bereich__media {
     position: relative;
+    min-height: 22rem;
   }
 
-  .service__points li::before {
-    content: '';
+  .bereich__media :global(.bild) {
     position: absolute;
-    left: 0;
-    top: 1.15rem;
-    width: 0.6rem;
-    height: 1px;
-    background: var(--c-accent);
+    inset: 0;
+  }
+
+  .bereich__text {
+    align-self: center;
+    max-width: 38rem;
+    padding: var(--space-xl) var(--gutter);
+  }
+
+  @media (min-width: 64rem) {
+    .bereich__text {
+      padding-inline: var(--space-xl);
+    }
+  }
+
+  .bereich__text .lead {
+    margin-bottom: var(--space-l);
   }
 </style>

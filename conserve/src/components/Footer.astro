@@ -1,102 +1,117 @@
 ---
 import Logo from '@/components/Logo.astro';
-import { site, team, nav, legalNav, telHref } from '@/data/site';
+import { site, nav, legalNav, telHref } from '@/data/site';
 
 const year = new Date().getFullYear();
 ---
 
-<footer class="footer section--dark">
+<footer class="footer">
   <div class="container footer__grid">
-    <div>
-      <Logo inverted />
-      <p class="footer__text">
-        Baumeisterunternehmen mit Schwerpunkt Denkmalpflege und Altbausanierung. Seit {site.founded}.
-      </p>
+    <div class="footer__brand">
+      <a href="/" class="footer__logo">
+        <Logo />
+        <span class="visually-hidden">{site.name} – Startseite</span>
+      </a>
+      <p>{site.claim}</p>
     </div>
 
     <div>
       <h2 class="footer__title">Kontakt</h2>
       <address>
         {site.legalName}<br />
-        {site.address.street}<br />
-        {site.address.zip} {site.address.city}<br />
-        <a href={`mailto:${site.email}`}>{site.email}</a>
+        {site.address.street}, A-{site.address.zip} {site.address.city}
       </address>
+      <p>
+        T <a href={telHref(site.phone)}>{site.phone}</a><br />
+        M <a href={`mailto:${site.email}`}>{site.email}</a>
+      </p>
     </div>
 
-    <div>
-      <h2 class="footer__title">Ansprechpartnerinnen</h2>
-      <ul class="footer__list">
-        {
-          team.map((p) => (
-            <li>
-              {p.name}
-              <br />
-              <a href={telHref(p.phone)}>{p.phone}</a>
-            </li>
-          ))
-        }
-      </ul>
-    </div>
-
-    <nav aria-label="Footer-Navigation">
+    <nav aria-label="Footer">
       <h2 class="footer__title">Seiten</h2>
       <ul class="footer__list">
         {nav.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
       </ul>
     </nav>
+
+    <nav aria-label="Rechtliches">
+      <h2 class="footer__title">Rechtliches</h2>
+      <ul class="footer__list">
+        {legalNav.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
+      </ul>
+    </nav>
   </div>
 
-  <div class="container footer__bottom">
-    <span>© {year} {site.legalName}</span>
-    <ul class="footer__legal">
-      {legalNav.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
-    </ul>
+  <div class="container">
+    <div class="footer__bottom">
+      <span>© {year} {site.name} – Baudenkmalforschung</span>
+      <span>Bauforschung · Denkmalpflege · Planung</span>
+    </div>
   </div>
 </footer>
 
 <style>
   .footer {
     padding-top: var(--space-xl);
+    background: var(--c-navy);
+    color: rgb(255 255 255 / 0.72);
     font-size: var(--fs-sm);
+    line-height: 1.8;
   }
 
   .footer a {
     text-decoration: none;
+    transition: color 0.2s;
   }
 
   .footer a:hover {
-    color: #d3a888;
+    color: var(--c-white);
   }
 
   .footer__grid {
     display: grid;
-    gap: var(--space-l);
-    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--space-l) var(--space-xl);
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   }
 
-  .footer__text {
-    margin-top: var(--space-m);
-    opacity: 0.75;
-    max-width: 22em;
+  @media (min-width: 64rem) {
+    .footer__grid {
+      grid-template-columns: 1.4fr 1.4fr 1fr 1fr;
+    }
+  }
+
+  .footer__logo {
+    display: block;
+    height: 3rem;
+    margin-bottom: var(--space-m);
+    color: var(--c-white);
+  }
+
+  .footer__brand p {
+    max-width: 16em;
+    font-family: var(--f-serif);
+    font-size: var(--fs-lg);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    line-height: 1.4;
+    text-transform: uppercase;
   }
 
   .footer__title {
+    margin-bottom: var(--space-s);
+    color: var(--c-white);
     font-family: var(--f-sans);
-    font-size: 0.75rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    opacity: 0.6;
+    letter-spacing: 0.16em;
   }
 
   address {
+    margin-bottom: var(--space-s);
     font-style: normal;
   }
 
   .footer__list {
-    display: grid;
-    gap: 0.6rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -106,19 +121,12 @@ const year = new Date().getFullYear();
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: var(--space-s);
+    gap: var(--space-xs) var(--space-m);
     margin-top: var(--space-xl);
     padding-block: var(--space-m);
-    background: linear-gradient(rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.12)) top center /
-      calc(100% - 2 * var(--gutter)) 1px no-repeat;
-    opacity: 0.7;
-  }
-
-  .footer__legal {
-    display: flex;
-    gap: var(--space-m);
-    margin: 0;
-    padding: 0;
-    list-style: none;
+    border-top: 1px solid rgb(255 255 255 / 0.12);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.04em;
+    color: rgb(255 255 255 / 0.55);
   }
 </style>

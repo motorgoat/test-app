@@ -2,15 +2,13 @@
 // TODO: Datenschutzerklärung vom Kunden bzw. aus der bestehenden Website übernehmen
 // und an Hosting/Formular-Anbieter anpassen.
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import PageHero from '@/components/PageHero.astro';
 import { site, fullAddress } from '@/data/site';
 ---
 
-<BaseLayout title="Datenschutz" description={`Datenschutzerklärung der ${site.legalName}.`}>
-  <PageHero title="Datenschutzerklärung" />
-
+<BaseLayout title="Datenschutz" description={`Datenschutzerklärung der ${site.legalName}.`} heroHeader={false}>
   <section class="section">
     <div class="container prose">
+      <h1>Datenschutzerklärung</h1>
       <h2>Verantwortlicher</h2>
       <p>
         {site.legalName}, {fullAddress}<br />

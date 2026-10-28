@@ -1,0 +1,126 @@
+---
+// Horizontaler Slider (CSS Scroll-Snap, Pfeile per kleinem Skript).
+import ProjektKarte from '@/components/ProjektKarte.astro';
+import type { Projekt } from '@/data/projekte';
+
+interface Props {
+  projekte: Projekt[];
+}
+
+const { projekte } = Astro.props;
+---
+
+<div class="slider" data-slider>
+  <ul class="slider__track" data-track aria-label="Projekte">
+    {
+      projekte.map((p) => (
+        <li class="slider__item">
+          <ProjektKarte projekt={p} />
+        </li>
+      ))
+    }
+  </ul>
+  <div class="slider__nav">
+    <button type="button" class="slider__btn" data-prev aria-label="Vorheriges Projekt" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+    </button>
+    <button type="button" class="slider__btn" data-next aria-label="Nächstes Projekt">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-slider]').forEach((slider) => {
+    const track = slider.querySelector<HTMLElement>('[data-track]')!;
+    const prev = slider.querySelector<HTMLButtonElement>('[data-prev]')!;
+    const next = slider.querySelector<HTMLButtonElement>('[data-next]')!;
+
+    const step = () => (track.firstElementChild as HTMLElement | null)?.offsetWidth ?? track.clientWidth;
+    const update = () => {
+      prev.disabled = track.scrollLeft <= 4;
+      next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+    };
+
+    prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
+    next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
+    track.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
+</script>
+
+<style>
+  .slider__track {
+    --gap: var(--space-m);
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: min(85%, 22rem);
+    gap: var(--gap);
+    margin: 0;
+    padding: 0 0 var(--space-xs);
+    list-style: none;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .slider__track::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 40rem) {
+    .slider__track {
+      grid-auto-columns: calc((100% - var(--gap)) / 2);
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .slider__track {
+      grid-auto-columns: calc((100% - 2 * var(--gap)) / 3);
+    }
+  }
+
+  .slider__item {
+    scroll-snap-align: start;
+  }
+
+  .slider__nav {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+    margin-top: var(--space-m);
+  }
+
+  .slider__btn {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    padding: 0;
+    border: 1px solid var(--c-ink);
+    background: transparent;
+    color: var(--c-ink);
+    cursor: pointer;
+    transition: background 0.25s var(--ease), color 0.25s var(--ease), opacity 0.25s;
+  }
+
+  .slider__btn:hover:not(:disabled) {
+    background: var(--c-ink);
+    color: var(--c-white);
+  }
+
+  .slider__btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .slider__btn svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+</style>

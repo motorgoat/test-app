@@ -8,10 +8,12 @@ interface Props {
   title?: string;
   description?: string;
   noindex?: boolean;
+  // false bei Seiten ohne großes Bild oben (z. B. Impressum)
+  heroHeader?: boolean;
 }
 
-const { title, description = site.description, noindex = false } = Astro.props;
-const pageTitle = title ? `${title} | ${site.name}` : `${site.name} – ${site.tagline}`;
+const { title, description = site.description, noindex = false, heroHeader = true } = Astro.props;
+const pageTitle = title ? `${title} | ${site.name}` : `${site.name} – ${site.claim}`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
@@ -26,7 +28,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="sitemap" href="/sitemap-index.xml" />
-    <meta name="theme-color" content="#2b2824" />
+    <meta name="theme-color" content="#112236" />
 
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="de_AT" />
@@ -34,13 +36,40 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
+
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Zum Inhalt springen</a>
-    <Header />
-    <main id="main">
+    <Header overlay={heroHeader} />
+    <main id="main" class:list={{ 'no-hero': !heroHeader }}>
       <slot />
     </main>
     <Footer />
+
+    <script>
+      // Elemente mit data-reveal beim Scrollen sanft einblenden
+      const items = document.querySelectorAll<HTMLElement>('[data-reveal]');
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              io.unobserve(entry.target);
+            }
+          }
+        },
+        { rootMargin: '0px 0px -10% 0px' },
+      );
+      items.forEach((el) => io.observe(el));
+    </script>
   </body>
 </html>
+
+<style>
+  .no-hero {
+    padding-top: 4.5rem;
+  }
+</style>

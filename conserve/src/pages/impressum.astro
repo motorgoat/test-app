@@ -1,14 +1,12 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import PageHero from '@/components/PageHero.astro';
 import { site, team, telHref } from '@/data/site';
 ---
 
-<BaseLayout title="Impressum" description={`Impressum der ${site.legalName}.`}>
-  <PageHero title="Impressum" />
-
+<BaseLayout title="Impressum" description={`Impressum der ${site.legalName}.`} heroHeader={false}>
   <section class="section">
     <div class="container prose">
+      <h1>Impressum</h1>
       <p>Informationen gemäß § 5 ECG, § 14 UGB und § 25 MedienG</p>
 
       <h2>Medieninhaber und Herausgeber</h2>

@@ -1,61 +1,55 @@
-// Leistungsbereiche laut bestehender Website conserve.at.
+// Leistungsbereiche – erscheinen auf der Startseite und auf /leistungen.
+// `bild`: Dateiname in src/assets/bilder/ (leer = Platzhalter).
 
-export type Leistung = {
+export type Leistungsbereich = {
   id: string;
   title: string;
-  short: string;
-  points: string[];
+  intro: string;
+  items: string[];
+  bild?: string;
 };
 
-export const leistungen: Leistung[] = [
+export const leistungen: Leistungsbereich[] = [
+  {
+    id: 'dokumentation-beratung',
+    bild: 'leistung-dokumentation-beratung.jpg',
+    title: 'Dokumentation & Beratung',
+    intro:
+      'Am Anfang steht ein genaues Bild des Bestands. Wir dokumentieren, beraten unabhängig und entwickeln Konzepte, die Substanz und Nutzung zusammenbringen.',
+    items: [
+      'Individuelle Energieberatung',
+      'Restaurierungs- und Sanierungskonzepte (gemeinsam mit qualifizierten und produktunabhängigen Fachpersonen)',
+      'Fensterkataloge, Bestandsaufnahme, Raumbücher',
+      'Unterstützung bei Förderanträgen',
+    ],
+  },
   {
     id: 'bauforschung',
+    bild: 'leistung-bauforschung.jpg',
     title: 'Bauforschung',
-    short:
-      'Bauhistorische Untersuchungen als Grundlage für jeden verantwortungsvollen Umgang mit historischer Bausubstanz.',
-    points: [
-      'Bauhistorische Untersuchungen nach den Richtlinien des Bundesdenkmalamts',
-      'Materialanalysen und Dendrochronologie',
+    intro:
+      'Die Bauforschung macht die Geschichte eines Gebäudes lesbar – und schafft so die Grundlage für jede denkmalgerechte Entscheidung.',
+    items: [
+      'Bauhistorische Untersuchungen gemäß den aktuellen Richtlinien des Bundesdenkmalamtes',
+      'Bauhistorische Bestandsaufnahme, Sondierungen, Erfassung von Oberflächenschichten (Fassungstreppen, Putze etc.)',
+      'Materialanalysen, mikroskopische Untersuchungen, Feinschliffe, begleitende Dendrochronologie',
       'Archiv- und Literaturrecherchen',
-      'Fassadenuntersuchungen und Maßnahmenkataloge',
+      'Raumbücher, Fassadenbuch, Gespärrebuch',
+      'Gesamtauswertung, Befunddokumentationen, Berichterstellung',
+      'Baualterpläne',
     ],
   },
   {
-    id: 'bestandsaufnahme',
-    title: 'Bestandsaufnahme',
-    short:
-      'Genaue Erfassung und Dokumentation des Bestands – vom Gesamtgebäude bis zum einzelnen Bauteil.',
-    points: ['Bestandsaufnahmen', 'Fensterkataloge'],
-  },
-  {
-    id: 'konzepte',
-    title: 'Restaurier- & Sanierungskonzepte',
-    short:
-      'Konzepte, die Substanz erhalten und Nutzung ermöglichen – gemeinsam mit unabhängigen Fachpersonen erarbeitet.',
-    points: [
-      'Restaurierkonzepte',
-      'Sanierungskonzepte für Altbauten',
-      'Fensterrenovierung',
+    id: 'altbausanierung',
+    bild: 'leistung-altbausanierung.jpg',
+    title: 'Altbausanierung',
+    intro:
+      'Als Baumeister- und Planungsbüro begleiten wir Sanierungen von der Planung über die Einreichung bis zur örtlichen Bauaufsicht.',
+    items: [
+      'Sanierungsplanung (Fassaden, Fenster, thermische Sanierung etc.)',
+      'Einreichung bei Baubehörde, ASVK und BDA',
+      'Ausschreibungen, Leistungsverzeichnisse, Angebotskontrolle',
+      'Örtliche Bauaufsicht, Kostenverfolgung, Qualitätskontrolle, Rechnungsprüfung',
     ],
-  },
-  {
-    id: 'energieberatung',
-    title: 'Energieberatung',
-    short:
-      'Produktunabhängige Energieberatung, abgestimmt auf die Anforderungen historischer Gebäude.',
-    points: ['Produktunabhängige Beratung', 'Energieberatung im Altbau und Denkmal'],
-  },
-  {
-    id: 'planung',
-    title: 'Planung & Ausschreibung',
-    short:
-      'Als Baumeisterunternehmen planen und kalkulieren wir Sanierungen und bereiten die Vergabe vor.',
-    points: ['Planung', 'Ausschreibungen und Leistungsverzeichnisse', 'Angebotskontrolle'],
-  },
-  {
-    id: 'oeba',
-    title: 'Örtliche Bauaufsicht',
-    short: 'Begleitung der Ausführung bis zur Fertigstellung – mit Blick auf Qualität und Kosten.',
-    points: ['Örtliche Bauaufsicht (ÖBA)', 'Kostenverfolgung', 'Qualitätskontrolle', 'Rechnungsprüfung'],
   },
 ];

@@ -1,15 +1,15 @@
-// Zentrale Firmen- und Kontaktdaten. Quelle: bestehende Website conserve.at
-// (Kontakt/Impressum). Vor Go-live mit dem Kunden gegenprüfen.
+// Firmen- und Kontaktdaten – werden in Header, Footer, Kontakt und Impressum verwendet.
 
 export const site = {
   name: 'CONSERVE',
   legalName: 'CONSERVE Baudenkmalforschung OG',
-  tagline: 'Bauforschung und Altbausanierung',
+  claim: 'Denkmalgerecht bewahren. Nachhaltig weiterbauen.',
   description:
-    'CONSERVE Baudenkmalforschung OG – Bauforschung, Sanierungsplanung, Energieberatung und örtliche Bauaufsicht für historische Gebäude. Seit 2001 in Graz.',
+    'CONSERVE Baudenkmalforschung OG, Graz – Bauforschung, Denkmalpflege und Planung. Seit 2001 für den verantwortungsvollen Umgang mit historischer Bausubstanz.',
   founded: 2001,
   url: 'https://www.conserve.at',
   email: 'office@conserve.at',
+  phone: '+43 677 62480894',
   address: {
     street: 'Färberplatz 1',
     zip: '8010',
@@ -43,7 +43,6 @@ export const team: Person[] = [
 ];
 
 export const nav = [
-  { href: '/', label: 'Start' },
   { href: '/ueber-uns', label: 'Über uns' },
   { href: '/leistungen', label: 'Leistungen' },
   { href: '/projekte', label: 'Projekte' },

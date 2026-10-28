@@ -1,16 +1,10 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import PageHero from '@/components/PageHero.astro';
+import Hero from '@/components/Hero.astro';
 ---
 
 <BaseLayout title="Seite nicht gefunden" noindex>
-  <PageHero
-    eyebrow="Fehler 404"
-    title="Diese Seite gibt es nicht (mehr)."
-    lead="Möglicherweise wurde sie verschoben. Über die Navigation finden Sie alle Inhalte."
-  >
-    <p style="margin-top: var(--space-l)">
-      <a class="btn" href="/">Zur Startseite</a>
-    </p>
-  </PageHero>
+  <Hero full eyebrow="Fehler 404" title="Diese Seite gibt es nicht (mehr)." bildAlt="Dächer der Altstadt">
+    <a class="btn btn--light" href="/">Zur Startseite</a>
+  </Hero>
 </BaseLayout>

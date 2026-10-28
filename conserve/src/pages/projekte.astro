@@ -1,0 +1,115 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Hero from '@/components/Hero.astro';
+import Bild from '@/components/Bild.astro';
+import { projekte } from '@/data/projekte';
+---
+
+<BaseLayout
+  title="Projekte"
+  description="Projekte von CONSERVE: bauhistorische Untersuchungen, Befundungen, Fassadenuntersuchungen, Sanierungsplanung und örtliche Bauaufsicht."
+>
+  <Hero
+    eyebrow="Projekte"
+    title="Eine Auswahl unserer Projekte"
+    bild="hero-projekte.jpg"
+    bildAlt="Schlossanlage aus der Vogelperspektive"
+  />
+
+  <section class="section">
+    <div class="container">
+      <ul class="projekte">
+        {
+          projekte.map((p) => (
+            <li class="projekt" data-reveal>
+              <div class="projekt__media">
+                <Bild src={p.bild} alt={p.bildAlt ?? `${p.titel}, ${p.ort}`} sizes="(min-width: 48rem) 50vw, 100vw" />
+              </div>
+              <div class="projekt__body">
+                <p class="projekt__ort">
+                  {p.ort}
+                  {p.jahr && ` · ${p.jahr}`}
+                </p>
+                <h2 class="projekt__titel">{p.titel}</h2>
+                <p class="projekt__leistungen">{p.leistungen}</p>
+                {p.text && <p>{p.text}</p>}
+                {p.auftraggeber && <p class="projekt__meta">Auftraggeber: {p.auftraggeber}</p>}
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--navy">
+    <div class="container container--narrow center" data-reveal>
+      <p class="statement">Ihr Gebäude ist das nächste Projekt?</p>
+      <a class="btn btn--light" href="/kontakt">Kontakt aufnehmen</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .projekte {
+    display: grid;
+    gap: var(--space-xl) var(--space-l);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 48rem) {
+    .projekte {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* versetztes Raster für mehr Ruhe und Rhythmus */
+    .projekt:nth-child(even) {
+      margin-top: var(--space-xl);
+    }
+  }
+
+  .projekt__media {
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--c-bg-alt);
+  }
+
+  .projekt__media :global(.bild) {
+    transition: transform 1.2s var(--ease);
+  }
+
+  .projekt:hover .projekt__media :global(.bild) {
+    transform: scale(1.04);
+  }
+
+  .projekt__body {
+    padding-top: var(--space-m);
+    max-width: 34rem;
+  }
+
+  .projekt__ort {
+    margin-bottom: 0.35rem;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--c-muted);
+  }
+
+  .projekt__titel {
+    margin-bottom: var(--space-xs);
+    font-size: var(--fs-h3);
+  }
+
+  .projekt__leistungen {
+    color: var(--c-ink);
+    font-weight: 500;
+  }
+
+  .projekt__meta {
+    color: var(--c-muted);
+    font-size: var(--fs-sm);
+  }
+</style>

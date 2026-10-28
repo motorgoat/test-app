@@ -1,205 +1,171 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import ProjectCard from '@/components/ProjectCard.astro';
-import ContactCta from '@/components/ContactCta.astro';
-import ImagePlaceholder from '@/components/ImagePlaceholder.astro';
+import Hero from '@/components/Hero.astro';
+import ProjektSlider from '@/components/ProjektSlider.astro';
 import { site } from '@/data/site';
 import { leistungen } from '@/data/leistungen';
-import { getFeaturedProjekte } from '@/lib/projekte';
+import { projekte } from '@/data/projekte';
 
-const featured = await getFeaturedProjekte(6);
-const yearsActive = new Date().getFullYear() - site.founded;
+const startseitenProjekte = projekte.filter((p) => p.startseite);
 ---
 
 <BaseLayout>
-  <section class="intro">
-    <div class="container intro__grid">
-      <div class="intro__text">
-        <span class="eyebrow">{site.tagline}</span>
-        <h1>Historische Bausubstanz verstehen, erhalten und weiterbauen.</h1>
-        <p class="lead">
-          CONSERVE ist ein Baumeisterunternehmen mit Schwerpunkt Denkmalpflege und Altbausanierung. Wir begleiten
-          Bauherren und Planer von der historischen Begutachtung bis zur örtlichen Bauaufsicht.
-        </p>
-        <div class="intro__actions">
-          <a class="btn" href="/leistungen">Unsere Leistungen</a>
-          <a class="btn btn--ghost" href="/projekte">Projekte ansehen</a>
-        </div>
-      </div>
-      <div class="intro__media">
-        <ImagePlaceholder label="Titelbild" ratio="4 / 5" />
-      </div>
+  <Hero
+    full
+    title="Denkmalgerecht bewahren. Nachhaltig weiterbauen."
+    subtitle="Bauforschung | Denkmalpflege | Planung"
+    bild="hero-startseite.jpg"
+    bildAlt="Blick über die Dächer der Altstadt"
+    scrollTo="#ueber"
+  >
+    <a class="btn btn--light" href="#ueber">Mehr über CONSERVE</a>
+  </Hero>
+
+  <!-- Über die CONSERVE -->
+  <section id="ueber" class="section">
+    <div class="container container--narrow center" data-reveal>
+      <span class="eyebrow">Über die CONSERVE</span>
+      <h2>Die CONSERVE steht für den verantwortungs&shy;vollen Umgang mit historischer Bausubstanz.</h2>
+      <p>
+        Seit der Gründung im Jahr {site.founded} widmen wir uns der Erforschung, Bewertung und Weiterentwicklung von
+        Baudenkmälern und Bestandsgebäuden. Unser Ziel ist es, die Qualitäten eines Gebäudes sichtbar zu machen und
+        daraus tragfähige Grundlagen für Planung, Sanierung und Erhaltung zu entwickeln.
+      </p>
+      <p>
+        Als spezialisiertes Baumeister- und Planungsbüro verbinden wir bauhistorische Forschung, denkmalpflegerische
+        Expertise und praktische Sanierungsplanung. Wir betrachten jedes Gebäude in seiner Geschichte, Konstruktion,
+        Materialität und Nutzung. So entstehen Lösungen, die den Bestand respektieren, Ressourcen schonen und Gebäude
+        zukunftsfähig machen.
+      </p>
+      <a class="btn ueber__btn" href="/ueber-uns">Mehr über uns</a>
     </div>
   </section>
 
-  <section class="section">
-    <div class="container facts">
-      <div>
-        <strong>{site.founded}</strong>
-        <span>gegründet</span>
-      </div>
-      <div>
-        <strong>{yearsActive}+</strong>
-        <span>Jahre Erfahrung</span>
-      </div>
-      <div>
-        <strong>BDA</strong>
-        <span>Untersuchungen nach den Richtlinien des Bundesdenkmalamts</span>
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--surface">
-    <div class="container">
-      <div class="head">
-        <div>
-          <span class="eyebrow">Leistungen</span>
-          <h2>Von der Bauforschung bis zur Bauaufsicht</h2>
-        </div>
-        <a href="/leistungen" class="more">Alle Leistungen →</a>
-      </div>
-      <ol class="services">
+  <!-- Leistungen -->
+  <section class="section section--slate">
+    <div class="container leistungen">
+      <div class="leistungen__list" data-reveal>
+        <span class="eyebrow">Leistungen</span>
+        <h2 class="leistungen__title">
+          Spezialisiert auf Weltkulturerbe, Denkmalschutz und Altbau – maßgeschneiderte Lösungen für den Erhalt
+          historischer Gebäude.
+        </h2>
         {
-          leistungen.map((l, i) => (
-            <li>
-              <a href={`/leistungen#${l.id}`}>
-                <span class="services__num">{String(i + 1).padStart(2, '0')}</span>
-                <h3>{l.title}</h3>
-                <p>{l.short}</p>
-              </a>
-            </li>
+          leistungen.map((bereich) => (
+            <div class="bereich">
+              <h3>
+                <a href={`/leistungen#${bereich.id}`}>{bereich.title}</a>
+              </h3>
+              <ul>
+                {bereich.items.map((item) => (
+                  <li>{item}</li>
+                ))}
+              </ul>
+            </div>
           ))
         }
-      </ol>
+      </div>
+      <div class="leistungen__aside" data-reveal>
+        <p class="statement">
+          Fundierte Vor&shy;untersuchung.<br />
+          Sichere Planung.<br />
+          Nachhaltige Ent&shy;scheidungen.
+        </p>
+        <a class="btn btn--light" href="/leistungen">Alle Leistungen</a>
+      </div>
     </div>
   </section>
 
-  <section class="section">
+  <!-- Projekte -->
+  <section class="section section--alt">
     <div class="container">
-      <div class="head">
-        <div>
-          <span class="eyebrow">Projekte</span>
-          <h2>Ausgewählte Projekte</h2>
-        </div>
-        <a href="/projekte" class="more">Alle Projekte →</a>
+      <div class="projekte__head" data-reveal>
+        <h2>Eine kleine Auswahl unserer Projekte</h2>
+        <a class="btn" href="/projekte">Alle Projekte</a>
       </div>
-      <div class="card-grid">
-        {featured.map((p) => <ProjectCard project={p} />)}
-      </div>
+      <ProjektSlider projekte={startseitenProjekte} />
     </div>
   </section>
-
-  <ContactCta />
 </BaseLayout>
 
 <style>
-  .intro {
-    padding-block: var(--space-xl);
+  .ueber__btn {
+    margin-top: var(--space-m);
   }
 
-  .intro__grid {
+  .leistungen {
     display: grid;
-    gap: var(--space-l);
-    align-items: center;
+    gap: var(--space-xl);
   }
 
-  @media (min-width: 56rem) {
-    .intro__grid {
-      grid-template-columns: 1.25fr 1fr;
-      gap: var(--space-xl);
+  @media (min-width: 64rem) {
+    .leistungen {
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
     }
   }
 
-  .intro__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-s);
-    margin-top: var(--space-l);
+  .leistungen__title {
+    font-size: var(--fs-h3);
+    line-height: 1.3;
   }
 
-  .facts {
-    display: grid;
-    gap: var(--space-l);
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  .bereich {
+    padding-top: var(--space-m);
+    margin-top: var(--space-m);
+    border-top: 1px solid rgb(255 255 255 / 0.3);
   }
 
-  .facts > div {
-    display: grid;
-    gap: 0.25rem;
-    padding-top: var(--space-s);
-    border-top: 1px solid var(--c-ink);
+  .bereich h3 {
+    margin-bottom: var(--space-xs);
+    font-size: var(--fs-h3);
+    font-weight: 400;
   }
 
-  .facts strong {
-    font-family: var(--f-serif);
-    font-size: var(--fs-h2);
-    font-weight: 500;
-    line-height: 1.1;
-  }
-
-  .facts span {
-    color: var(--c-ink-soft);
-    font-size: var(--fs-sm);
-  }
-
-  .head {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: end;
-    gap: var(--space-s);
-    margin-bottom: var(--space-l);
-  }
-
-  .head h2 {
-    margin: 0;
-  }
-
-  .more {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  .bereich h3 a {
     text-decoration: none;
   }
 
-  .services {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  .bereich h3 a:hover {
+    text-decoration: underline;
+  }
+
+  .bereich ul {
     margin: 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--c-line);
-    border-left: 1px solid var(--c-line);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
   }
 
-  .services li {
-    border-right: 1px solid var(--c-line);
-    border-bottom: 1px solid var(--c-line);
+  .bereich li {
+    padding-block: 0.3rem;
   }
 
-  .services a {
-    display: block;
-    height: 100%;
-    padding: var(--space-l) var(--space-m);
-    text-decoration: none;
-    transition: background 0.2s;
+  .leistungen__aside {
+    color: var(--c-white);
   }
 
-  .services a:hover {
-    background: var(--c-bg);
-    color: inherit;
+  @media (min-width: 64rem) {
+    .leistungen__aside {
+      position: sticky;
+      top: 30vh;
+      align-self: start;
+      margin-top: 30vh;
+    }
   }
 
-  .services__num {
-    display: block;
-    margin-bottom: var(--space-s);
-    font-family: var(--f-serif);
-    color: var(--c-accent);
+
+  .projekte__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-m);
+    margin-bottom: var(--space-l);
   }
 
-  .services p {
+  .projekte__head h2 {
     margin: 0;
-    color: var(--c-ink-soft);
   }
 </style>

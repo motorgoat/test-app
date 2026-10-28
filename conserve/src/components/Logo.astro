@@ -1,48 +1,20 @@
 ---
-// Platzhalter-Wortmarke, bis das Original-Logo (SVG) vorliegt.
-import { site } from '@/data/site';
-
+// Monogramm „CO“ nach dem Entwurf – bei Vorliegen durch das Original-SVG ersetzen.
 interface Props {
-  inverted?: boolean;
+  class?: string;
 }
 
-const { inverted = false } = Astro.props;
+const { class: className } = Astro.props;
 ---
 
-<a href="/" class:list={['logo', { 'logo--inverted': inverted }]} aria-label={`${site.name} – Startseite`}>
-  <span class="logo__mark">{site.name}</span>
-  <span class="logo__sub">{site.tagline}</span>
-</a>
+<svg class:list={['logo', className]} viewBox="0 0 108 64" aria-hidden="true" focusable="false">
+  <path d="M46.5 14.2A26 26 0 1 0 46.5 49.8" fill="none" stroke="currentColor" stroke-width="2.4" />
+  <ellipse cx="72" cy="32" rx="22" ry="27" fill="none" stroke="currentColor" stroke-width="2.4" />
+</svg>
 
 <style>
   .logo {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    text-decoration: none;
-    color: var(--c-ink);
-    line-height: 1;
-  }
-
-  .logo--inverted {
-    color: var(--c-dark-ink);
-  }
-
-  .logo:hover {
-    color: inherit;
-  }
-
-  .logo__mark {
-    font-family: var(--f-serif);
-    font-size: 1.5rem;
-    font-weight: 600;
-    letter-spacing: 0.32em;
-  }
-
-  .logo__sub {
-    font-size: 0.6875rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    opacity: 0.7;
+    width: auto;
+    height: 100%;
   }
 </style>

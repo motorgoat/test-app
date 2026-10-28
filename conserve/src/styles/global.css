@@ -1,40 +1,44 @@
+@import '@fontsource/cormorant-garamond/400.css';
+@import '@fontsource/cormorant-garamond/500.css';
+@import '@fontsource/cormorant-garamond/600.css';
 @import '@fontsource-variable/inter';
-@import '@fontsource-variable/source-serif-4';
 
 /* ------------------------------------------------------------------
-   Design-Tokens – hier zentral an den Designvorschlag anpassen
+   Design-Tokens
    ------------------------------------------------------------------ */
 :root {
-  --c-bg: #f6f2ea;
-  --c-surface: #fffdf9;
-  --c-ink: #2b2824;
-  --c-ink-soft: #5e5850;
-  --c-line: #ddd5c8;
-  --c-accent: #8c5a3c;
-  --c-accent-ink: #fffdf9;
-  --c-dark: #2b2824;
-  --c-dark-ink: #f6f2ea;
+  --c-navy: #112236;
+  --c-ink: #17283b;
+  --c-text: #46525f;
+  --c-muted: #6b7682;
+  --c-slate: #68727c;
+  --c-bg: #ffffff;
+  --c-bg-alt: #f6f6f4;
+  --c-line: #e2e3e1;
+  --c-white: #ffffff;
 
+  --f-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
   --f-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --f-serif: 'Source Serif 4 Variable', Georgia, 'Times New Roman', serif;
 
+  --fs-xs: 0.75rem;
   --fs-sm: 0.875rem;
-  --fs-base: 1.0625rem;
-  --fs-lg: 1.25rem;
-  --fs-h3: 1.375rem;
-  --fs-h2: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
-  --fs-h1: clamp(2.25rem, 1.5rem + 3vw, 4rem);
+  --fs-base: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-h3: clamp(1.375rem, 1.2rem + 0.6vw, 1.75rem);
+  --fs-h2: clamp(1.625rem, 1.2rem + 1.9vw, 2.875rem);
+  --fs-h1: clamp(1.75rem, 1rem + 4vw, 4.5rem);
 
   --space-xs: 0.5rem;
   --space-s: 1rem;
   --space-m: 1.5rem;
   --space-l: 2.5rem;
-  --space-xl: clamp(3.5rem, 2.5rem + 4vw, 6.5rem);
+  --space-xl: clamp(4rem, 2.8rem + 5vw, 8rem);
 
-  --container: 72rem;
-  --gutter: clamp(1rem, 0.5rem + 2.5vw, 2rem);
-  --radius: 2px;
-  --header-h: 4.5rem;
+  --container: 76rem;
+  --container-narrow: 50rem;
+  --gutter: clamp(1.25rem, 0.6rem + 3vw, 3rem);
+  --header-h: 5.5rem;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /* ------------------------------------------------------------------
@@ -48,16 +52,17 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  scroll-padding-top: calc(var(--header-h) + 1rem);
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--header-h);
 }
 
 body {
   margin: 0;
   background: var(--c-bg);
-  color: var(--c-ink);
+  color: var(--c-text);
   font-family: var(--f-sans);
   font-size: var(--fs-base);
-  line-height: 1.65;
+  line-height: 1.75;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -65,21 +70,26 @@ img,
 svg {
   display: block;
   max-width: 100%;
-  height: auto;
 }
 
 h1,
 h2,
 h3,
 h4 {
+  margin: 0 0 var(--space-m);
+  color: var(--c-ink);
   font-family: var(--f-serif);
   font-weight: 500;
-  line-height: 1.15;
-  margin: 0 0 var(--space-s);
+  line-height: 1.12;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   text-wrap: balance;
+  /* lange Wörter: im Text mit &shy; (weiches Trennzeichen) markieren */
+  hyphens: manual;
+  overflow-wrap: break-word;
 }
 
-h1 { font-size: var(--fs-h1); letter-spacing: -0.01em; }
+h1 { font-size: var(--fs-h1); }
 h2 { font-size: var(--fs-h2); }
 h3 { font-size: var(--fs-h3); }
 
@@ -90,21 +100,22 @@ p {
 
 a {
   color: inherit;
-  text-decoration-color: var(--c-accent);
   text-underline-offset: 0.2em;
-}
-
-a:hover {
-  color: var(--c-accent);
+  text-decoration-thickness: 1px;
 }
 
 :focus-visible {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 3px;
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+
+::selection {
+  background: var(--c-navy);
+  color: var(--c-white);
 }
 
 /* ------------------------------------------------------------------
-   Utilities
+   Layout
    ------------------------------------------------------------------ */
 .container {
   width: 100%;
@@ -113,95 +124,166 @@ a:hover {
   padding-inline: var(--gutter);
 }
 
+.container--narrow {
+  max-width: calc(var(--container-narrow) + 2 * var(--gutter));
+}
+
 .section {
   padding-block: var(--space-xl);
 }
 
-.section--surface {
-  background: var(--c-surface);
-  border-block: 1px solid var(--c-line);
+.section--alt {
+  background: var(--c-bg-alt);
 }
 
-.section--dark {
-  background: var(--c-dark);
-  color: var(--c-dark-ink);
+.section--slate {
+  background: var(--c-slate);
+  color: rgb(255 255 255 / 0.9);
 }
 
+.section--navy {
+  background: var(--c-navy);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.section--slate :is(h1, h2, h3),
+.section--navy :is(h1, h2, h3) {
+  color: var(--c-white);
+}
+
+.center {
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------
+   Typo-Bausteine
+   ------------------------------------------------------------------ */
 .eyebrow {
-  display: inline-block;
-  font-size: var(--fs-sm);
-  font-weight: 600;
+  display: block;
+  margin-bottom: var(--space-s);
+  font-family: var(--f-serif);
+  font-size: var(--fs-lg);
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--c-accent);
-  margin-bottom: var(--space-s);
+  color: var(--c-muted);
 }
 
-.section--dark .eyebrow {
-  color: #d3a888;
+.section--slate .eyebrow,
+.section--navy .eyebrow {
+  color: rgb(255 255 255 / 0.75);
 }
 
 .lead {
   font-size: var(--fs-lg);
-  color: var(--c-ink-soft);
-  max-width: 40em;
+  line-height: 1.8;
+}
+
+.statement {
+  margin-bottom: var(--space-l);
+  color: var(--c-ink);
+  font-family: var(--f-serif);
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3.5rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.section--slate .statement,
+.section--navy .statement {
+  color: var(--c-white);
 }
 
 .prose {
-  max-width: 42em;
+  max-width: 44em;
 }
 
-.prose > * + h2,
-.prose > * + h3 {
+.prose h1 {
+  font-size: var(--fs-h2);
+}
+
+.prose h2 {
   margin-top: var(--space-l);
+  font-size: var(--fs-h3);
 }
 
-.card-grid {
-  display: grid;
-  gap: var(--space-m);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+/* Liste mit feinen Trennlinien */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+.list li {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.section--slate .list li,
+.section--navy .list li {
+  border-color: rgb(255 255 255 / 0.18);
+}
+
+/* ------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------ */
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
-  padding: 0.85em 1.5em;
-  border: 1px solid var(--c-accent);
-  border-radius: var(--radius);
-  background: var(--c-accent);
-  color: var(--c-accent-ink);
-  font: 600 var(--fs-sm) / 1 var(--f-sans);
-  letter-spacing: 0.06em;
+  justify-content: center;
+  gap: 0.6em;
+  min-height: 3rem;
+  padding: 0.8em 1.8em;
+  border: 1px solid var(--c-ink);
+  background: transparent;
+  color: var(--c-ink);
+  font: 600 var(--fs-xs) / 1 var(--f-sans);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.25s var(--ease), color 0.25s var(--ease), border-color 0.25s var(--ease);
 }
 
 .btn:hover {
-  background: transparent;
-  color: var(--c-accent);
-}
-
-.btn--ghost {
-  background: transparent;
-  color: inherit;
-  border-color: currentColor;
-}
-
-.btn--ghost:hover {
   background: var(--c-ink);
-  border-color: var(--c-ink);
-  color: var(--c-bg);
+  color: var(--c-white);
 }
 
-.section--dark .btn--ghost:hover {
-  background: var(--c-dark-ink);
-  border-color: var(--c-dark-ink);
-  color: var(--c-dark);
+.btn--light {
+  border-color: var(--c-white);
+  background: var(--c-white);
+  color: var(--c-ink);
 }
 
+.btn--light:hover {
+  background: transparent;
+  color: var(--c-white);
+}
+
+.btn--ghost-light {
+  border-color: rgb(255 255 255 / 0.7);
+  color: var(--c-white);
+}
+
+.btn--ghost-light:hover {
+  border-color: var(--c-white);
+  background: var(--c-white);
+  color: var(--c-ink);
+}
+
+/* Bilder (Komponente Bild.astro) füllen ihren Rahmen */
+.bild {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ------------------------------------------------------------------
+   Utilities
+   ------------------------------------------------------------------ */
 .visually-hidden {
   position: absolute !important;
   width: 1px;
@@ -217,19 +299,40 @@ a:hover {
   top: -100px;
   z-index: 100;
   padding: 0.75em 1em;
-  background: var(--c-ink);
-  color: var(--c-bg);
+  background: var(--c-white);
+  color: var(--c-ink);
 }
 
 .skip-link:focus {
-  top: 0.5rem;
+  top: 0.75rem;
+}
+
+/* Sanftes Einblenden beim Scrollen (nur mit JS, siehe BaseLayout) */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(1.5rem);
+  transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
+}
+
+.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   *,
   *::before,
   *::after {
     transition: none !important;
     animation: none !important;
+  }
+
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
   }
 }
