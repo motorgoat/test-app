@@ -39,7 +39,7 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
               <li>
                 <strong>{p.name}</strong>
                 {p.role && <span class="personen__role">{p.role}</span>}
-                <a href={telHref(p.phone)}>{p.phone}</a>
+                {p.phone && <a href={telHref(p.phone)}>{p.phone}</a>}
                 {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
               </li>
             ))

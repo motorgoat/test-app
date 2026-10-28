@@ -2,7 +2,11 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import Hero from '@/components/Hero.astro';
 import Bild from '@/components/Bild.astro';
-import { projekte } from '@/data/projekte';
+import { projekte, projektLink } from '@/data/projekte';
+
+const mitBild = projekte.filter((p) => p.bild);
+const weitere = projekte.filter((p) => !p.bild);
+const meta = (p: (typeof projekte)[number]) => [p.ort, p.jahr].filter(Boolean).join(' · ');
 ---
 
 <BaseLayout
@@ -19,27 +23,62 @@ import { projekte } from '@/data/projekte';
     <div class="container">
       <ul class="projekte">
         {
-          projekte.map((p) => (
-            <li class="projekt" data-reveal>
-              <div class="projekt__media">
-                <Bild src={p.bild} alt={p.bildAlt ?? ''} sizes="(min-width: 48rem) 50vw, 100vw" />
-              </div>
-              <div class="projekt__body">
-                <p class="projekt__ort">
-                  {p.ort}
-                  {p.jahr && ` · ${p.jahr}`}
-                </p>
-                <h2 class="projekt__titel">{p.titel}</h2>
-                <p class="projekt__leistungen">{p.leistungen}</p>
-                {p.text && <p>{p.text}</p>}
-                {p.auftraggeber && <p class="projekt__meta">Auftraggeber: {p.auftraggeber}</p>}
-              </div>
-            </li>
-          ))
+          mitBild.map((p) => {
+            const link = projektLink(p);
+            return (
+              <li class="projekt" data-reveal>
+                <figure class="projekt__media">
+                  <div class="projekt__bild">
+                    {link ? (
+                      <a href={link} tabindex="-1" aria-hidden="true">
+                        <Bild src={p.bild} alt={p.bildAlt ?? ''} sizes="(min-width: 48rem) 50vw, 100vw" />
+                      </a>
+                    ) : (
+                      <Bild src={p.bild} alt={p.bildAlt ?? ''} sizes="(min-width: 48rem) 50vw, 100vw" />
+                    )}
+                  </div>
+                  {p.bildText && <figcaption>{p.bildText}</figcaption>}
+                </figure>
+                <div class="projekt__body">
+                  {meta(p) && <p class="projekt__ort">{meta(p)}</p>}
+                  <h2 class="projekt__titel">{link ? <a href={link}>{p.titel}</a> : p.titel}</h2>
+                  <p class="projekt__leistungen">{p.leistungen}</p>
+                  {p.text && <p>{p.text}</p>}
+                  {p.auftraggeber && <p class="projekt__meta">Auftraggeber: {p.auftraggeber}</p>}
+                  {link && (
+                    <a class="projekt__mehr" href={link}>
+                      Projekt ansehen<span class="visually-hidden">: {p.titel}</span> →
+                    </a>
+                  )}
+                </div>
+              </li>
+            );
+          })
         }
       </ul>
     </div>
   </section>
+
+  {
+    weitere.length > 0 && (
+      <section class="section section--alt">
+        <div class="container">
+          <h2 class="weitere__titel" data-reveal>
+            Weitere Projekte
+          </h2>
+          <ul class="weitere" data-reveal>
+            {weitere.map((p) => (
+              <li>
+                <span class="weitere__ort">{meta(p)}</span>
+                <span class="weitere__name">{p.titel}</span>
+                <span class="weitere__leistung">{p.leistungen}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    )
+  }
 
   <section class="section section--slate">
     <div class="container container--narrow center" data-reveal>
@@ -69,7 +108,7 @@ import { projekte } from '@/data/projekte';
     }
   }
 
-  .projekt__media {
+  .projekt__bild {
     aspect-ratio: 4 / 3;
     overflow: hidden;
     background: var(--c-bg-alt);
@@ -110,5 +149,85 @@ import { projekte } from '@/data/projekte';
   .projekt__meta {
     color: var(--c-muted);
     font-size: var(--fs-sm);
+  }
+
+  .projekt__media {
+    margin: 0;
+  }
+
+  .projekt__bild a {
+    display: block;
+    height: 100%;
+  }
+
+  figcaption {
+    margin-top: 0.4rem;
+    color: var(--c-muted);
+    font-size: var(--fs-xs);
+  }
+
+  .projekt__titel a {
+    text-decoration: none;
+  }
+
+  .projekt__titel a:hover {
+    text-decoration: underline;
+  }
+
+  .projekt__mehr {
+    display: inline-block;
+    margin-top: var(--space-xs);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .projekt__mehr:hover {
+    text-decoration: underline;
+  }
+
+  .weitere__titel {
+    margin-bottom: var(--space-l);
+    font-size: var(--fs-h3);
+  }
+
+  .weitere {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--c-line);
+  }
+
+  .weitere li {
+    display: grid;
+    gap: 0.15rem 2rem;
+    padding-block: var(--space-s);
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  @media (min-width: 48rem) {
+    .weitere li {
+      grid-template-columns: 12rem 1fr 1.3fr;
+      align-items: baseline;
+    }
+  }
+
+  .weitere__ort {
+    color: var(--c-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .weitere__name {
+    color: var(--c-ink);
+    font-family: var(--f-serif);
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 </style>

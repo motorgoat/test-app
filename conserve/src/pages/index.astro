@@ -6,14 +6,14 @@ import { site } from '@/data/site';
 import { leistungen } from '@/data/leistungen';
 import { projekte } from '@/data/projekte';
 
-const startseitenProjekte = projekte.filter((p) => p.startseite);
+const startseitenProjekte = projekte.filter((p) => p.startseite && p.bild);
 ---
 
 <BaseLayout>
   <Hero
     full
     title="Denkmalgerecht bewahren.<br />Nachhaltig weiterbauen."
-    subtitle="Bauforschung | Denkmalpflege | Planung"
+    subtitle={site.taetigkeiten.join(' | ')}
     bild="hero-startseite.jpg"
     scrollTo="#ueber"
   >
@@ -56,10 +56,15 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
                 <a href={`/leistungen/#${bereich.id}`}>{bereich.title}</a>
               </h3>
               <ul>
-                {bereich.items.map((item) => (
+                {bereich.items.slice(0, bereich.startseite ?? 4).map((item) => (
                   <li>{item}</li>
                 ))}
               </ul>
+              {bereich.items.length > (bereich.startseite ?? 4) && (
+                <a class="bereich__mehr" href={`/leistungen/#${bereich.id}`}>
+                  Alle {bereich.items.length} Leistungen<span class="visually-hidden"> zu {bereich.title}</span> →
+                </a>
+              )}
             </div>
           ))
         }
@@ -158,6 +163,20 @@ const startseitenProjekte = projekte.filter((p) => p.startseite);
 
   .bereich li {
     padding-block: 0.3rem;
+  }
+
+  .bereich__mehr {
+    display: inline-block;
+    margin-top: 0.4rem;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .bereich__mehr:hover {
+    text-decoration: underline;
   }
 
   .leistungen__aside .statement {

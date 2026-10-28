@@ -1,16 +1,18 @@
 ---
-// Monogramm „CO“ nach dem Entwurf – bei Vorliegen durch das Original-SVG ersetzen.
+// Original-Logo als SVG (public/logo/). variante: "monogramm" = nur „CO“, "wortmarke" = CONSERVE Baudenkmalforschung OG.
+// farbe: "weiss" für dunklen Hintergrund, "dunkel" für hellen.
 interface Props {
+  variante?: 'monogramm' | 'wortmarke';
+  farbe?: 'weiss' | 'dunkel';
   class?: string;
 }
 
-const { class: className } = Astro.props;
+const { variante = 'monogramm', farbe = 'weiss', class: className } = Astro.props;
+const datei = variante === 'monogramm' ? 'co-monogramm' : 'conserve-wortmarke';
+const masse = variante === 'monogramm' ? { width: 192, height: 114 } : { width: 325, height: 77 };
 ---
 
-<svg class:list={['logo', className]} viewBox="0 0 108 64" aria-hidden="true" focusable="false">
-  <path d="M46.5 14.2A26 26 0 1 0 46.5 49.8" fill="none" stroke="currentColor" stroke-width="2.4" />
-  <ellipse cx="72" cy="32" rx="22" ry="27" fill="none" stroke="currentColor" stroke-width="2.4" />
-</svg>
+<img class:list={['logo', className]} src={`/logo/${datei}-${farbe}.svg`} alt="" {...masse} />
 
 <style>
   .logo {

@@ -7,13 +7,9 @@ import { site, team, telHref } from '@/data/site';
 
 <BaseLayout
   title="Über uns"
-  description={`${site.legalName} – seit ${site.founded} widmen wir uns der Erforschung, Bewertung und Weiterentwicklung von Baudenkmälern und Bestandsgebäuden.`}
+  description={`${site.legalName} – ${site.slogan}. Das Team: ${team.map((p) => p.name).join(', ')}.`}
 >
-  <Hero
-    eyebrow="Über uns"
-    title="Verantwortung für historische Bausubstanz"
-    bild="hero-ueber-uns.jpg"
-  />
+  <Hero eyebrow="Über uns" title={site.slogan} subtitle={site.seit} bild="hero-ueber-uns.jpg" />
 
   <section class="section">
     <div class="container container--narrow center" data-reveal>
@@ -24,6 +20,20 @@ import { site, team, telHref } from '@/data/site';
         Baudenkmälern und Bestandsgebäuden. Unser Ziel ist es, die Qualitäten eines Gebäudes sichtbar zu machen und
         daraus tragfähige Grundlagen für Planung, Sanierung und Erhaltung zu entwickeln.
       </p>
+      <dl class="meilensteine">
+        <div>
+          <dt>1992</dt>
+          <dd>Erste Bauforschungs&shy;tätigkeiten im Team</dd>
+        </div>
+        <div>
+          <dt>2001</dt>
+          <dd>Gründung der CONSERVE GesbR</dd>
+        </div>
+        <div>
+          <dt>2011</dt>
+          <dd>Gründung der CONSERVE OG</dd>
+        </div>
+      </dl>
     </div>
   </section>
 
@@ -50,16 +60,30 @@ import { site, team, telHref } from '@/data/site';
     <div class="container">
       <div class="team__head" data-reveal>
         <span class="eyebrow">Team</span>
-        <h2>Ihre Ansprech&shy;partnerinnen</h2>
+        <h2>Unser Team</h2>
       </div>
       <ul class="team">
         {
           team.map((p) => (
             <li class="person" data-reveal>
-              <h3>{p.name}</h3>
-              {p.role && <p class="person__role">{p.role}</p>}
-              <a href={telHref(p.phone)}>{p.phone}</a>
-              {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
+              <div class="person__foto">
+                <Bild src={p.foto} alt={`${p.name} bei der Arbeit`} sizes="(min-width: 64rem) 20vw, (min-width: 40rem) 40vw, 100vw" />
+              </div>
+              <div class="person__text">
+                <h3>{p.name}</h3>
+                {p.role && <p class="person__role">{p.role}</p>}
+                {p.phone && <a href={telHref(p.phone)}>{p.phone}</a>}
+                {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
+                <h4 class="visually-hidden">Werdegang</h4>
+                <dl class="werdegang">
+                  {p.werdegang.map(([jahr, text]) => (
+                    <div>
+                      <dt>{jahr}</dt>
+                      <dd>{text}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
             </li>
           ))
         }
@@ -129,27 +153,130 @@ import { site, team, telHref } from '@/data/site';
     margin-bottom: var(--space-l);
   }
 
+  .meilensteine {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: var(--space-m);
+    margin: var(--space-l) 0 0;
+    text-align: left;
+  }
+
+  .meilensteine div {
+    padding-top: var(--space-s);
+    border-top: 1px solid var(--c-ink);
+  }
+
+  .meilensteine dt {
+    color: var(--c-ink);
+    font-family: var(--f-serif);
+    font-size: var(--fs-h2);
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  .meilensteine dd {
+    margin: 0.25rem 0 0;
+    color: var(--c-muted);
+    font-size: var(--fs-sm);
+  }
+
   .team {
     display: grid;
     gap: var(--space-m);
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
+  @media (min-width: 72rem) {
+    .team {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .person {
     display: grid;
-    align-content: start;
-    gap: 0.25rem;
-    padding: var(--space-l) var(--space-m);
+    grid-template-columns: minmax(0, 1fr);
     background: var(--c-white);
     border-top: 2px solid var(--c-navy);
   }
 
+  @media (min-width: 40rem) {
+    .person {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    }
+  }
+
+  .person__foto {
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    background: var(--c-bg-alt);
+  }
+
+  @media (min-width: 40rem) {
+    .person__foto {
+      aspect-ratio: auto;
+      min-height: 100%;
+      position: relative;
+    }
+
+    .person__foto :global(.bild) {
+      position: absolute;
+      inset: 0;
+    }
+  }
+
+  .person__text {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    padding: var(--space-l) var(--space-m);
+  }
+
   .person h3 {
     margin-bottom: var(--space-xs);
-    font-size: var(--fs-h3);
+    font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+  }
+
+  .werdegang {
+    margin: var(--space-s) 0 0;
+    font-size: var(--fs-sm);
+    line-height: 1.5;
+  }
+
+  .werdegang div {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding-block: 0.4rem;
+    border-top: 1px solid var(--c-line);
+  }
+
+  .werdegang dt {
+    color: var(--c-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .werdegang dd {
+    margin: 0;
+    overflow-wrap: break-word;
+  }
+
+  /* schmale Bildschirme: lange Wörter (z. B. „Sachverständigenkommission“) trennen */
+  @media (max-width: 40rem) {
+    .werdegang dd {
+      hyphens: auto;
+    }
+  }
+
+  /* sehr schmale Bildschirme: Jahr über dem Text */
+  @media (max-width: 26rem) {
+    .werdegang div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
   }
 
   .person__role {

@@ -18,9 +18,9 @@ import { site, team, telHref } from '@/data/site';
       <p>
         E-Mail: <a href={`mailto:${site.email}`}>{site.email}</a><br />
         {
-          team.map((p) => (
+          team.filter((p) => p.phone).map((p) => (
             <>
-              Tel. {p.name}: <a href={telHref(p.phone)}>{p.phone}</a>
+              Tel. {p.name}: <a href={telHref(p.phone!)}>{p.phone}</a>
               <br />
             </>
           ))

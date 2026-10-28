@@ -9,7 +9,7 @@ const year = new Date().getFullYear();
   <div class="container footer__grid">
     <div class="footer__brand">
       <a href="/" class="footer__logo">
-        <Logo />
+        <Logo variante="wortmarke" />
         <span class="visually-hidden">{site.name} – Startseite</span>
       </a>
       <p>{site.claim}</p>
@@ -45,7 +45,7 @@ const year = new Date().getFullYear();
   <div class="container">
     <div class="footer__bottom">
       <span>© {year} {site.name} – Baudenkmalforschung</span>
-      <span>Bauforschung · Denkmalpflege · Planung</span>
+      <span>{site.taetigkeiten.join(' · ')}</span>
     </div>
   </div>
 </footer>

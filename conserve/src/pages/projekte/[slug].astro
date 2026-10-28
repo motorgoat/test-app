@@ -1,0 +1,187 @@
+---
+// Eigene Seite für jedes Projekt mit `galerie` in src/data/projekte.ts
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Hero from '@/components/Hero.astro';
+import Galerie from '@/components/Galerie.astro';
+import { projekte, projektSlug, projektLink, type Projekt } from '@/data/projekte';
+import { findeGalerie } from '@/lib/bilder';
+
+export function getStaticPaths() {
+  const mitSeite = projekte.filter((p) => p.galerie);
+  return mitSeite.map((projekt, i) => ({
+    params: { slug: projektSlug(projekt) },
+    props: { projekt, zurueck: mitSeite[i - 1], weiter: mitSeite[i + 1] },
+  }));
+}
+
+interface Props {
+  projekt: Projekt;
+  zurueck?: Projekt;
+  weiter?: Projekt;
+}
+
+const { projekt, zurueck, weiter } = Astro.props;
+const titelText = projekt.titel.replace(/­/g, '');
+const bilder = findeGalerie(projekt.galerie!);
+const fakten = [
+  ['Ort', projekt.ort],
+  ['Jahr', projekt.jahr],
+  ['Leistungen', projekt.leistungen],
+  ['Auftraggeber', projekt.auftraggeber],
+].filter(([, wert]) => wert) as [string, string | number][];
+---
+
+<BaseLayout
+  title={[titelText, projekt.ort].filter(Boolean).join(', ')}
+  description={`${titelText}${projekt.ort ? `, ${projekt.ort}` : ''}: ${projekt.leistungen}. Ein Projekt von CONSERVE Baudenkmalforschung.`}
+>
+  <Hero eyebrow={projekt.ort ?? 'Projekt'} title={projekt.titel} bild={projekt.bild} />
+
+  <section class="section">
+    <div class="container projekt">
+      <dl class="fakten" data-reveal>
+        {
+          fakten.map(([label, wert]) => (
+            <div>
+              <dt>{label}</dt>
+              <dd>{wert}</dd>
+            </div>
+          ))
+        }
+      </dl>
+      <div class="prose" data-reveal>
+        {projekt.text && <p class="lead">{projekt.text}</p>}
+        {projekt.bildText && <p class="hinweis">{projekt.bildText}</p>}
+      </div>
+    </div>
+  </section>
+
+  {
+    bilder.length > 0 && (
+      <section class="section section--alt" aria-labelledby="galerie-titel">
+        <div class="container">
+          <h2 id="galerie-titel" class="eyebrow">
+            Bilder ({bilder.length})
+          </h2>
+          <Galerie bilder={bilder} titel={titelText} />
+        </div>
+      </section>
+    )
+  }
+
+  <nav class="container blaettern" aria-label="Weitere Projekte">
+    {
+      zurueck ? (
+        <a class="blaettern__projekt" href={projektLink(zurueck)}>
+          ← {zurueck.titel}
+        </a>
+      ) : (
+        <span />
+      )
+    }
+    <a href="/projekte/" class="blaettern__alle">Alle Projekte</a>
+    {
+      weiter ? (
+        <a class="blaettern__projekt blaettern__projekt--weiter" href={projektLink(weiter)}>
+          {weiter.titel} →
+        </a>
+      ) : (
+        <span />
+      )
+    }
+  </nav>
+</BaseLayout>
+
+<style>
+  .projekt {
+    display: grid;
+    gap: var(--space-l);
+  }
+
+  @media (min-width: 56rem) {
+    .projekt {
+      grid-template-columns: 20rem 1fr;
+      gap: var(--space-xl);
+    }
+  }
+
+  .fakten {
+    margin: 0;
+  }
+
+  .fakten div {
+    padding-block: 0.75rem;
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  .fakten div:first-child {
+    border-top: 1px solid var(--c-ink);
+  }
+
+  dt {
+    color: var(--c-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0.15rem 0 0;
+    color: var(--c-ink);
+  }
+
+  .hinweis {
+    color: var(--c-muted);
+    font-size: var(--fs-sm);
+  }
+
+  .blaettern {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: var(--space-m);
+    align-items: center;
+    padding-block: var(--space-l);
+  }
+
+  .blaettern a {
+    text-decoration: none;
+  }
+
+  .blaettern a:hover {
+    text-decoration: underline;
+  }
+
+  .blaettern__projekt {
+    font-family: var(--f-serif);
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .blaettern__projekt--weiter {
+    text-align: right;
+  }
+
+  @media (max-width: 40rem) {
+    .blaettern {
+      grid-template-columns: 1fr;
+    }
+
+    .blaettern__projekt--weiter {
+      text-align: left;
+    }
+
+    .blaettern__alle {
+      order: 3;
+    }
+  }
+
+  .blaettern__alle {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+</style>

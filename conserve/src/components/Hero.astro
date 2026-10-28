@@ -162,6 +162,19 @@ const subItems = subtitle?.split('|').map((s) => s.trim()).filter(Boolean) ?? []
     font-weight: 400;
   }
 
+  /* mittlere Breiten: vier Begriffe als 2 × 2, Trennstrich nur innerhalb der Zeile */
+  @media (min-width: 45rem) and (max-width: 74.99rem) {
+    .hero__subtitle:has(span:nth-child(4)) {
+      display: grid;
+      grid-template-columns: auto auto;
+      justify-content: center;
+    }
+
+    .hero__subtitle:has(span:nth-child(4)) span:nth-child(odd)::before {
+      content: none;
+    }
+  }
+
   /* schmale Bildschirme: Begriffe untereinander, ohne Trennstriche */
   @media (max-width: 44.99rem) {
     .hero__subtitle {
@@ -171,6 +184,10 @@ const subItems = subtitle?.split('|').map((s) => s.trim()).filter(Boolean) ?? []
 
     .hero__subtitle span + span::before {
       content: none;
+    }
+
+    .hero__subtitle span {
+      white-space: normal;
     }
   }
 

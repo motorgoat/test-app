@@ -1,6 +1,6 @@
 ---
 import Bild from '@/components/Bild.astro';
-import type { Projekt } from '@/data/projekte';
+import { projektLink, type Projekt } from '@/data/projekte';
 
 interface Props {
   projekt: Projekt;
@@ -9,15 +9,19 @@ interface Props {
 
 const { projekt, sizes = '(min-width: 64rem) 33vw, 85vw' } = Astro.props;
 const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
+const link = projektLink(projekt);
+const meta = [ort, jahr].filter(Boolean).join(' · ');
 ---
 
-<article class="karte">
+<article class:list={['karte', { 'karte--link': link }]}>
   <div class="karte__media">
     <Bild src={bild} alt={bildAlt ?? ''} sizes={sizes} />
   </div>
   <div class="karte__body">
-    <p class="karte__ort">{ort}{jahr && ` · ${jahr}`}</p>
-    <h3 class="karte__titel">{titel}</h3>
+    {meta && <p class="karte__ort">{meta}</p>}
+    <h3 class="karte__titel">
+      {link ? <a href={link}>{titel}</a> : titel}
+    </h3>
     <p class="karte__leistungen">{leistungen}</p>
     {text && <p class="karte__text">{text}</p>}
   </div>
@@ -67,6 +71,31 @@ const { titel, ort, jahr, leistungen, text, bild, bildAlt } = projekt;
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
+  }
+
+  /* ganze Karte klickbar, Link bleibt im Titel (für Screenreader) */
+  .karte__titel a {
+    text-decoration: none;
+  }
+
+  .karte__titel a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .karte--link:hover .karte__titel a,
+  .karte__titel a:focus-visible {
+    text-decoration: underline;
+  }
+
+  .karte__titel a:focus-visible {
+    outline: none;
+  }
+
+  .karte:has(a:focus-visible) {
+    outline: 2px solid var(--c-ink);
+    outline-offset: 4px;
   }
 
   .karte__titel {
