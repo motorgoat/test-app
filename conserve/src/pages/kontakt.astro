@@ -3,7 +3,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import Hero from '@/components/Hero.astro';
 import { site, team, telHref, fullAddress } from '@/data/site';
 
-const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponent(fullAddress)}`;
+// Nur ein Link (keine eingebettete Karte) – dadurch keine Cookies und kein Cookie-Banner nötig
+const mapsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${site.legalName.replace(/\u00A0/g, ' ')}, ${fullAddress}`)}`;
 ---
 
 <BaseLayout title="Kontakt" description={`Kontakt zu ${site.legalName}, ${fullAddress}. E-Mail: ${site.email}`}>
@@ -27,7 +28,7 @@ const mapsHref = `https://www.openstreetmap.org/search?query=${encodeURIComponen
           <a href={telHref(site.phone)}>{site.phone}</a>
         </p>
         <a class="btn" href={mapsHref} target="_blank" rel="noopener noreferrer">
-          Route planen<span class="visually-hidden"> (öffnet OpenStreetMap in neuem Tab)</span>
+          Route planen<span class="visually-hidden"> (öffnet Google Maps in neuem Tab)</span>
         </a>
       </div>
 

@@ -79,9 +79,30 @@ Vorschaubild für Social Media/Messenger: `src/assets/bilder/og-image.jpg` – b
 - direkt im HTML einer Seite und im `title` des großen Bildes (`<Hero title="…">`): `&shy;`, z. B. `verantwortungs&shy;vollen`. Dort ist auch `<br />` für einen festen Zeilenumbruch erlaubt.
 - in `src/data/*.ts` (Texte in Anführungszeichen): `\u00AD`, z. B. `title: 'Altbau\u00ADsanierung'`. `&shy;` würde dort wörtlich angezeigt.
 
+### Kein Cookie-Banner – und das soll so bleiben
+
+Die Seite setzt keine Cookies, nutzt keinen lokalen Speicher und lädt nichts von fremden Servern (Schriften liegen lokal, keine Analyse-Tools). Deshalb ist **kein Cookie-Banner** nötig. Bei Erweiterungen darauf achten:
+
+- Karten nur **verlinken** (wie „Route planen“ → Google Maps), nicht einbetten.
+- Keine eingebetteten YouTube-/Vimeo-Videos, Social-Media-Widgets, Google Fonts von Google-Servern, Google Analytics o. ä. – all das setzt Cookies oder überträgt Daten.
+- Videos lieber selbst hosten (`<video src="…">`), Statistik höchstens cookielos und serverseitig (z. B. Auswertung der Server-Logfiles).
+- Ein Kontaktformular setzt keine Cookies, braucht aber einen Absatz in der Datenschutzerklärung.
+
 ### Kontaktformular
 
 Ist vorbereitet, aber ausgeblendet. Zum Aktivieren in `src/data/site.ts` bei `formAction` die Adresse eines Formular-Dienstes eintragen (eigenes PHP-Skript, Formspree o. ä.) und die Datenschutzerklärung ergänzen.
+
+## Launch-Checkliste (eigener Server des Kunden)
+
+1. `npm run build` → **Inhalt** von `dist/` per SFTP ins Webverzeichnis laden (z. B. `httpdocs`/`public_html`). Vorher die alte Seite sichern.
+2. `.htaccess` (bei Apache) anlegen – noch offen, benötigt Angaben vom Kunden/Hoster:
+   - 301-Weiterleitungen der alten Adressen (bekannt: `/about.html`, `/contact.html`, `/sauerbrunn.html`, `/admontbichl.html`, `/murgassebr.html` – vollständige Liste vom Server holen)
+   - `ErrorDocument 404 /404.html`
+   - https und www erzwingen (die Seite ist auf `https://www.conserve.at` eingestellt – ohne www: `site` in `astro.config.mjs` und `site.url` ändern)
+   - lange Cache-Dauer für `/_astro/` (Dateinamen enthalten einen Hash)
+3. Den WordPress-Entwurf unter `/wordpress` nach dem Launch löschen oder mit Passwort schützen.
+4. Impressum und Datenschutzerklärung vom Kunden bestätigen lassen.
+5. Bei späteren Updates den Ordner `_astro/` vor dem Hochladen leeren.
 
 ## Offene Punkte
 

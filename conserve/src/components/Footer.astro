@@ -46,6 +46,9 @@ const year = new Date().getFullYear();
     <div class="footer__bottom">
       <span>© {year} {site.name} – Baudenkmalforschung</span>
       <span>{site.taetigkeiten.join(' · ')}</span>
+      <span>
+        Created by <a class="footer__credit" href="https://www.ident-it.at/" target="_blank" rel="noopener">ident-IT</a>
+      </span>
     </div>
   </div>
 </footer>
@@ -128,5 +131,10 @@ const year = new Date().getFullYear();
     font-size: var(--fs-xs);
     letter-spacing: 0.04em;
     color: rgb(255 255 255 / 0.55);
+  }
+
+  .footer__credit {
+    text-decoration: underline;
+    text-decoration-color: rgb(255 255 255 / 0.35);
   }
 </style>
