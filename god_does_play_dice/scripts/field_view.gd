@@ -246,7 +246,7 @@ func _build_content(f: FieldData) -> void:
 					var puff := Node3D.new()
 					puff.position = Vector3(0.02 * k, 0.32 + k * 0.05, 0)
 					_content.add_child(puff)
-					Models.sphere(puff, 0.04, Color(0.5, 0.5, 0.53, 0.8))
+					Models.sphere(puff, 0.04, Color(0.5, 0.5, 0.53, 0.8), Vector3.ZERO)
 					puff.set_meta("base_y", puff.position.y)
 					_smoke.append(puff)
 			else:
@@ -263,7 +263,7 @@ func _build_content(f: FieldData) -> void:
 				var puff := Node3D.new()
 				puff.position = Vector3(0, 0.06, 0)
 				_content.add_child(puff)
-				Models.sphere(puff, 0.05, Color(0.45, 0.42, 0.42, 0.7))
+				Models.sphere(puff, 0.05, Color(0.45, 0.42, 0.42, 0.7), Vector3.ZERO)
 				puff.set_meta("base_y", puff.position.y)
 				_smoke.append(puff)
 	if f.burning:

@@ -383,7 +383,7 @@ static func factory(parent: Node3D, pos: Vector3, big: bool) -> Array:
 		var puff := Node3D.new()
 		puff.position = sp + Vector3(0, 0.3 + i * 0.04, 0)
 		parent.add_child(puff)
-		sphere(puff, 0.035, Color(0.82, 0.82, 0.85, 0.9))
+		sphere(puff, 0.035, Color(0.82, 0.82, 0.85, 0.9), Vector3.ZERO)
 		smoke.append(puff)
 	if big:
 		for k in 2:
