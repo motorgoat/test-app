@@ -1,6 +1,6 @@
 extends SceneTree
-## Regeltests ohne Grafik. Start (im Ordner god_does_play_dice):
-##   godot --headless --import            (einmal, legt den Klassen-Cache an)
+## Regeltests ohne Grafik:
+##   godot --headless --import
 ##   godot --headless --script res://tests/test_rules.gd
 
 var failures := 0
@@ -10,12 +10,13 @@ var checks := 0
 func _init() -> void:
 	test_setup()
 	test_geometry()
-	test_ownership_by_place()
-	test_economy()
-	test_buy_field()
-	test_stage_up()
-	test_clone_independent()
-	test_ai_long_run()
+	test_growth()
+	test_war_and_trade()
+	test_meteor_and_storm()
+	test_fire_and_lake()
+	test_volcano()
+	test_preview_matches()
+	test_long_run()
 	print("")
 	print("%d Prüfungen, %d Fehler" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -29,250 +30,233 @@ func check(cond: bool, what: String) -> void:
 		print("FEHLER: " + what)
 
 
-func new_state(ai := 3, seed_value := 12345) -> GameState:
+func new_state(seed_value := 12345) -> GameState:
 	var gs := GameState.new()
-	gs.setup(ai, seed_value)
+	gs.setup(seed_value)
 	return gs
+
+
+## Leere Welt (nur Wiesen) für gezielte Tests.
+func empty_state() -> GameState:
+	var gs := new_state()
+	for f in gs.fields:
+		f.terrain = "meadow"
+		f.nation = -1
+		f.building = ""
+		f.people = 0
+		f.animals = 0
+		f.burning = false
+		f.volcano = 0
+	gs.hazards.clear()
+	return gs
+
+
+func at(gs: GameState, p: Vector3i, n: Vector3i) -> FieldData:
+	return gs.field_at(p, n)
+
+
+func settle(f: FieldData, nation: int, building: String, people: int) -> void:
+	f.nation = nation
+	f.building = building
+	f.people = people
 
 
 func test_setup() -> void:
 	var gs := new_state()
 	check(gs.fields.size() == 54, "54 Felder")
-	var centers := 0
-	for f in gs.fields:
-		if f.is_center:
-			centers += 1
-	check(centers == 6, "6 Zentren")
-	for pid in 6:
-		var pl: PlayerData = gs.players[pid]
-		var side: Array = []
-		for f in gs.fields:
-			if f.n == GameState.FACE_NORMALS[pid] and not f.is_center:
-				side.append(f.terrain)
-		check(side.size() == 8, "8 Felder pro Seite")
-		for t in Balance.GUARANTEED_TERRAIN:
-			check(side.has(t), "Seite %d hat %s" % [pid, t])
-		if pl.active:
-			check(gs.territory(pid) == (8 if Balance.START_OWNS_SIDE else 0), "Startgebiet Spieler %d" % pid)
-			check(gs.center_of(pid).owner == pid, "Zentrum gehört Spieler %d" % pid)
-	check(gs.players[0].human and gs.players[0].active, "Gelb ist der Mensch")
-	check(not gs.players[4].active and not gs.players[5].active, "bei 3 KI sind Lila und Weiß neutral")
+	check(gs.war_pairs().is_empty(), "kein Krieg am Start")
+	for nation in Balance.NATION_COUNT:
+		check(gs.nation_people(nation) > 0, "Volk %d lebt" % nation)
+	check(gs.total_animals() > 0, "es gibt Tiere")
+	check(gs.hazards.is_empty(), "keine Gefahren am Start")
 
 
 func test_geometry() -> void:
 	var gs := new_state()
-	var center_pos := {}
-	for f in gs.fields:
-		if f.is_center:
-			center_pos[f.id] = [f.p, f.n]
-	# Vier Vierteldrehungen = Ausgangslage
 	var before := []
 	for f in gs.fields:
 		before.append([f.p, f.n])
 	for i in 4:
-		gs.apply_rotation(0, 1, 1)
+		gs.apply_rotation(1, 0, 1)
 	var same := true
 	for f in gs.fields:
 		if before[f.id][0] != f.p or before[f.id][1] != f.n:
 			same = false
-	check(same, "4 × 90° = keine Änderung")
-	# Drehung und Gegendrehung
-	gs.apply_rotation(2, 0, 2)
-	gs.apply_rotation(2, 0, -2)
-	same = true
-	for f in gs.fields:
-		if before[f.id][0] != f.p or before[f.id][1] != f.n:
-			same = false
-	check(same, "180° hin und zurück = keine Änderung")
-	# Viele zufällige Drehungen: Felder bleiben auf der Oberfläche, Zentren bleiben stehen
+	check(same, "4 × 90° = keine Änderung (Mittelscheibe)")
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
+	rng.seed = 3
 	for i in 300:
 		gs.apply_rotation(rng.randi_range(0, 2), rng.randi_range(-1, 1), [1, -1, 2][rng.randi_range(0, 2)])
 	var keys := {}
-	var ok_surface := true
-	var ok_nbrs := true
+	var ok := true
 	for f in gs.fields:
 		keys[GameState.pos_key(f.p, f.n)] = true
 		var a := GameState.axis_of(f.n)
 		if f.p[a] != f.n[a]:
-			ok_surface = false
-		if gs.neighbors(f).size() != 4:
-			ok_nbrs = false
-		if f.is_center:
-			check(center_pos[f.id][0] == f.p and center_pos[f.id][1] == f.n, "Zentrum %d dreht sich nie" % f.id)
-	check(keys.size() == 54, "jeder Platz genau einmal belegt")
-	check(ok_surface, "alle Felder auf der Oberfläche")
-	check(ok_nbrs, "jedes Feld hat 4 Nachbarn")
-	# Ecken haben 2 Nachbarn über die Kante, Kanten 1, Zentren 0
-	for f in gs.fields:
-		var cross := 0
-		for nb in gs.neighbors(f):
-			if nb["cross"]:
-				cross += 1
-		var nonzero := 0
-		for a in 3:
-			if f.p[a] != 0:
-				nonzero += 1
-		check(cross == nonzero - 1, "Kanten-Nachbarn von Feld %d" % f.id)
-
-
-func test_ownership_by_place() -> void:
-	var gs := new_state()
-	# Scheibe x = 1 um die x-Achse: Gelbe Felder (oben) wandern nach vorne (Blau, +z)
-	var moved: Array = []
-	for f in gs.fields:
-		if not f.is_center and f.p.x == 1 and f.n == Vector3i(0, 1, 0):
-			moved.append(f)
-			f.level = 2
-	gs.apply_rotation(0, 1, 1)
-	for f in moved:
-		check(f.n == Vector3i(0, 0, 1), "Feld wandert von oben nach vorne")
-		check(f.owner == 2, "Besitz hängt am Platz: jetzt Blau")
-		check(f.level == 2, "Ausbau wandert mit")
-	# Ein gekaufter Platz bleibt dir: Was dorthin dreht, gehört dir
-	var gs2 := new_state()
-	var f: FieldData = null
-	for x in gs2.fields:
-		if x.owner < 0 and not x.is_center:
-			f = x
-			break
-	var place_p := f.p
-	var place_n := f.n
-	f.owner = 0
-	gs2.pos_owner[GameState.pos_key(place_p, place_n)] = 0
-	var axis := 0
-	for a in 3:
-		if place_n[a] == 0:
-			axis = a
-			break
-	gs2.apply_rotation(axis, place_p[axis], 1)
-	var g := gs2.field_at(place_p, place_n)
-	check(g != f, "anderes Feld auf dem gekauften Platz")
-	check(g.owner == 0, "Feld auf gekauftem Platz gehört dir")
-	check(f.owner == int(gs2.pos_owner.get(GameState.pos_key(f.p, f.n), -1)), "weggedrehtes Feld gehört dem neuen Platz")
-
-
-func test_economy() -> void:
-	var gs := new_state()
-	var me: PlayerData = gs.players[0]
-	var inc := gs.income(0)
-	check(int(inc["gold"]) == Balance.GOLD_PER_CENTER_STAGE, "Start-Einkommen = 1 Gold")
-	var f: FieldData = null
-	for x in gs.fields:
-		if x.owner == 0 and not x.is_center and x.terrain == "forest":
-			f = x
-	check(f != null, "Gelb hat einen Wald")
-	check(gs.upgrade_error(0, f) == "", "Ausbau auf Stufe 1 möglich")
-	var gold_before := int(me.inv["gold"])
-	gs.upgrade_field(0, f)
-	check(f.level == 1, "Stufe 1")
-	check(me.residents == Balance.START_RESIDENTS - 1, "Bewohner verbraucht")
-	check(int(me.inv["gold"]) == gold_before - 3, "3 Gold bezahlt")
-	check(gs.upgrade_error(0, f) != "", "Stufe 2 nur mit Haus")
-	inc = gs.income(0)
-	check(int(inc["wood"]) == 1, "+1 Holz")
-	check(int(inc["gold"]) == 2, "+2 Gold (Zentrum + Feld)")
-	gs.collect_income()
-	check(int(me.inv["wood"]) == 4 - 2 + 1, "Holz gutgeschrieben")
-	# Bewohnerpreis steigt alle 3 Käufe
-	me.inv["gold"] = 100
-	var prices: Array = []
-	for i in 4:
-		prices.append(gs.resident_price(0))
-		gs.buy_resident(0)
-	check(prices == [4, 4, 4, 5], "Bewohnerpreis 4,4,4,5")
-
-
-func test_buy_field() -> void:
-	var gs := new_state()
-	var me: PlayerData = gs.players[0]
-	me.inv["gold"] = 100
-	var same_side: FieldData = null
-	var cross_only: FieldData = null
-	for f in gs.fields:
-		if f.owner >= 0 or f.is_center:
-			continue
-		var touches_same := false
-		var touches_cross := false
-		for nb in gs.neighbors(f):
-			if nb["field"].owner == 0:
-				if nb["cross"]:
-					touches_cross = true
-				else:
-					touches_same = true
-		if touches_same and same_side == null:
-			same_side = f
-		if touches_cross and not touches_same and cross_only == null:
-			cross_only = f
-	if cross_only != null:
-		check(gs.buy_field_error(0, cross_only) != "", "über die Kante erst ab Haus")
-		me.stage = 2
-		check(gs.buy_field_error(0, cross_only) == "", "über die Kante ab Haus möglich")
-		gs.buy_field(0, cross_only)
-		check(cross_only.owner == 0, "Feld gekauft")
-		check(gs.field_price(0, cross_only) == Balance.FIELD_BASE_PRICE + Balance.FIELD_PRICE_STEP, "Preis steigt")
-	# Fremdes Feld nicht kaufbar
-	for f in gs.fields:
-		if f.owner == 1 and not f.is_center:
-			check(gs.buy_field_error(0, f) != "", "fremdes Feld nicht kaufbar")
-			break
-
-
-func test_stage_up() -> void:
-	var gs := new_state()
-	var me: PlayerData = gs.players[0]
-	me.inv = {"gold": 999, "wood": 999, "stone": 999, "food": 0}
-	check(gs.stage_up_error(0) != "", "Wartezeit am Anfang")
-	gs.tick = Balance.STAGE_COOLDOWN_TICKS
-	check(gs.stage_up_error(0) == "", "nach 12 Takten möglich")
-	gs.stage_up(0)
-	check(me.stage == 2 and me.rotations == 1, "Haus + 1 Drehung")
-	check(gs.stage_up_error(0) != "", "wieder Wartezeit")
-	check(gs.trade_error(0, "wood", "food") != "", "Tausch erst ab Marktplatz")
-	me.stage = 3
-	check(gs.trade_error(0, "wood", "food") == "", "Tausch ab Marktplatz")
-	var wood_before := int(me.inv["wood"])
-	gs.trade(0, "wood", "food")
-	check(int(me.inv["food"]) == 1 and int(me.inv["wood"]) == wood_before - 3, "3:1 getauscht")
-
-
-func test_clone_independent() -> void:
-	var gs := new_state()
-	var c := gs.clone()
-	c.apply_rotation(1, -1, 1)
-	c.players[0].inv["gold"] = 999
-	check(gs.fields[0].p == Vector3i(-1, -1, -1) and c.fields[0].p != gs.fields[0].p, "Original unverändert")
-	check(int(gs.players[0].inv["gold"]) == Balance.START_INV["gold"], "Inventar nicht geteilt")
-
-
-func test_ai_long_run() -> void:
-	var gs := new_state(5, 99)
-	var rotations := 0
-	for t in 200:
-		gs.tick += 1
-		gs.collect_income()
-		for pl in gs.players:
-			if not pl.active or pl.human:
-				continue
-			var res := AIPlayer.act(gs, pl.id)
-			var r: Dictionary = res["rotation"]
-			if not r.is_empty():
-				gs.apply_rotation(int(r["axis"]), int(r["layer"]), int(r["turns"]))
-				rotations += 1
-	var ok := true
-	for pl in gs.players:
-		for k in pl.inv:
-			if int(pl.inv[k]) < 0:
-				ok = false
-		if pl.residents < 0:
 			ok = false
-	check(ok, "KI hat nie negative Bestände")
-	var best := 0
-	for pl in gs.players:
-		if pl.active and not pl.human:
-			best = maxi(best, pl.stage)
-	check(best >= 3, "Balancing: KI erreicht in 200 Takten mindestens Marktplatz (beste: %d)" % best)
-	print("KI-Lauf: %d Drehungen, Stufen: %s, Felder: %s" % [rotations,
-		str(gs.players.map(func(p): return p.stage)),
-		str(gs.players.map(func(p): return gs.territory(p.id)))])
+		if gs.neighbors(f).size() != 4:
+			ok = false
+	check(keys.size() == 54, "jeder Platz genau einmal belegt")
+	check(ok, "Felder bleiben auf der Oberfläche und haben 4 Nachbarn")
+	# Mittelscheibe bewegt auch die Mitte (wie beim echten Würfel)
+	var gs2 := new_state()
+	var c := at(gs2, Vector3i(0, 0, 1), Vector3i(0, 0, 1))
+	gs2.apply_rotation(1, 0, 1)
+	check(c.n == Vector3i(1, 0, 0), "Mitte wandert mit der Mittelscheibe")
+
+
+func test_growth() -> void:
+	var gs := empty_state()
+	var v := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	settle(v, 0, "village", 3)
+	gs.end_round()
+	check(v.people == 4, "Dorf mit 4 Wiesen daneben wächst (%d)" % v.people)
+	# Hunger: alle Nachbarn sind Berge
+	var gs2 := empty_state()
+	var v2 := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	settle(v2, 0, "village", 3)
+	for g in gs2.neighbors(v2):
+		g.terrain = "mountain"
+	gs2.end_round()
+	check(v2.people == 2, "Dorf ohne Nahrung schrumpft (%d)" % v2.people)
+	# Ausbreiten
+	var gs3 := empty_state()
+	var v3 := at(gs3, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	settle(v3, 0, "village", Balance.EXPAND_AT)
+	gs3.end_round()
+	var new_villages := 0
+	for g in gs3.neighbors(v3):
+		if g.building == "village":
+			new_villages += 1
+	check(new_villages == 1, "volles Dorf gründet ein neues")
+
+
+func test_war_and_trade() -> void:
+	var gs := empty_state()
+	var a := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	var b := at(gs, Vector3i(1, 1, 0), Vector3i(0, 1, 0))
+	settle(a, 0, "church", 4)
+	settle(b, 1, "church", 4)
+	check(gs.war_pairs().has(GameState.pair_key(0, 1)), "Kirchen nebeneinander: Krieg")
+	gs.end_round()
+	check(a.people == 3 and b.people == 3, "Krieg kostet beide Seiten (%d, %d)" % [a.people, b.people])
+	# Handel
+	var gs2 := empty_state()
+	var m1 := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	var m2 := at(gs2, Vector3i(1, 1, 0), Vector3i(0, 1, 0))
+	settle(m1, 0, "market", 3)
+	settle(m2, 1, "market", 3)
+	check(gs2.trade_pairs().has(GameState.pair_key(0, 1)), "Märkte nebeneinander: Handel")
+	gs2.end_round()
+	check(m1.people == 4 and m2.people == 4, "Handel lässt beide wachsen (%d, %d)" % [m1.people, m2.people])
+	# Krieg verhindert Handel
+	var c1 := at(gs2, Vector3i(-1, 1, 0), Vector3i(0, 1, 0))
+	var c2 := at(gs2, Vector3i(-1, 1, 1), Vector3i(0, 1, 0))
+	settle(c1, 0, "church", 3)
+	settle(c2, 1, "church", 3)
+	check(gs2.trade_pairs().is_empty(), "im Krieg kein Handel")
+	gs2.end_round()
+	check(m1.people == 3 and m2.people == 3, "Märkte im Krieg verlieren statt zu wachsen (%d, %d)" % [m1.people, m2.people])
+
+
+func test_meteor_and_storm() -> void:
+	var gs := empty_state()
+	var v := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	settle(v, 0, "village", 5)
+	gs.hazards.append({"type": "meteor", "p": v.p, "n": v.n, "timer": 2})
+	gs.end_round()
+	check(v.people > 0, "Meteor schlägt noch nicht ein")
+	# wegdrehen: die Ebene y=1 drehen, dann landet ein anderes Feld am Platz
+	gs.apply_rotation(1, 1, 1)
+	var place_field := gs.field_at(Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	check(place_field == v, "Mitte der oberen Seite bleibt bei Drehung um die y-Achse")
+	gs.apply_rotation(1, 1, -1)
+	gs.apply_rotation(0, 0, 1)
+	var hit := gs.field_at(Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	check(hit != v, "Dorf ist weggedreht")
+	var ev := gs.end_round()
+	check(hit.terrain == "crater", "Meteor macht einen Krater")
+	check(v.people > 0, "weggedrehtes Dorf überlebt")
+	var types := []
+	for e in ev:
+		types.append(e["type"])
+	check(types.has("meteor"), "Ereignis Meteor")
+	# Gewitter halbiert
+	var gs2 := empty_state()
+	var w := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	settle(w, 0, "village", 6)
+	w.terrain = "forest"
+	gs2.hazards.append({"type": "storm", "p": w.p, "n": w.n, "timer": 1})
+	gs2.end_round()
+	check(w.people <= 4, "Gewitter halbiert (%d)" % w.people)
+	check(w.burning, "Blitz im Wald: Feuer")
+
+
+func test_fire_and_lake() -> void:
+	var gs := empty_state()
+	var f := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	f.terrain = "forest"
+	f.burning = true
+	var nb: Array = gs.neighbors(f)
+	(nb[0] as FieldData).terrain = "forest"
+	gs.end_round()
+	check(not f.burning and f.terrain == "meadow", "Feuer brennt aus")
+	check((nb[0] as FieldData).burning, "Feuer springt auf Nachbarwald")
+	var gs2 := empty_state()
+	var g := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	g.terrain = "forest"
+	g.burning = true
+	(gs2.neighbors(g)[0] as FieldData).terrain = "lake"
+	gs2.end_round()
+	check(not g.burning and g.terrain == "forest", "See daneben löscht")
+
+
+func test_volcano() -> void:
+	var gs := empty_state()
+	var m := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	m.terrain = "mountain"
+	m.volcano = 1
+	var nb: Array = gs.neighbors(m)
+	settle(nb[0], 0, "village", 6)
+	gs.end_round()
+	check(m.volcano == 0, "Vulkan ist ausgebrochen")
+	check((nb[0] as FieldData).people <= 4, "Nachbarn verlieren die Hälfte")
+
+
+func test_preview_matches() -> void:
+	var gs := new_state(777)
+	gs.hazards.append({"type": "meteor", "p": Vector3i(0, 1, 0), "n": Vector3i(0, 1, 0), "timer": 1})
+	var sim := gs.clone()
+	sim.apply_rotation(2, 1, 1)
+	sim.end_round()
+	gs.apply_rotation(2, 1, 1)
+	gs.end_round()
+	var same := true
+	for f in gs.fields:
+		var g: FieldData = sim.fields[f.id]
+		if f.people != g.people or f.animals != g.animals or f.terrain != g.terrain or f.p != g.p:
+			same = false
+	check(same, "Vorschau = echte Runde")
+
+
+func test_long_run() -> void:
+	for s in [1, 2, 3]:
+		var gs := new_state(s)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = s * 99
+		var rounds := 0
+		for t in 120:
+			gs.apply_rotation(rng.randi_range(0, 2), rng.randi_range(-1, 1), [1, -1][rng.randi_range(0, 1)])
+			gs.end_round()
+			gs.spawn_hazards()
+			rounds += 1
+			if gs.is_over():
+				break
+		var ok := true
+		for f in gs.fields:
+			if f.people < 0 or f.animals < 0 or f.people > Balance.MAX_PEOPLE:
+				ok = false
+			if f.building != "" and f.nation < 0:
+				ok = false
+		check(ok, "Werte bleiben gültig (Seed %d)" % s)
+		print("Zufallsspiel Seed %d: %d Runden, %d Menschen, %d Tiere, Spitze %d" % [s, rounds, gs.total_people(), gs.total_animals(), gs.peak_people])
