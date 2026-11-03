@@ -84,7 +84,8 @@ func _wait(sec: float) -> void:
 func _shot(dir: String, shot_name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	img.save_png("%s/%s.png" % [dir, shot_name])
+	img.resize(img.get_width() / 2, img.get_height() / 2, Image.INTERPOLATE_BILINEAR)
+	img.save_jpg("%s/%s.jpg" % [dir, shot_name], 0.85)
 	print("Screenshot: ", shot_name)
 
 
