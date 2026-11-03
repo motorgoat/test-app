@@ -104,6 +104,8 @@ jobs:
           body: |
             Automatisch gebaut aus `${{ github.sha }}` (Build ${{ github.run_number }}).
 
+            **Beschütze die Völker:** Wisch über eine Reihe, um die Welt zu drehen.
+
             **Am Handy installieren (Android):** `god_does_play_dice.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.
             Neue Testversionen lassen sich über die alte drüber installieren.
