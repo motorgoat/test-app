@@ -429,8 +429,8 @@ func _show_preview(q: int) -> void:
 		if v == null:
 			continue
 		var g: FieldData = ps.fields[f.id]
-		var dp := g.people - f.people
-		var da := g.animals - f.animals
+		var dp: int = g.people - f.people
+		var da: int = g.animals - f.animals
 		var text := ""
 		if dp != 0:
 			text = "%+d" % dp
@@ -553,8 +553,8 @@ func _on_round_resolved(events: Array, before: Dictionary) -> void:
 	var deltas: Array = []
 	for f in gs.fields:
 		var b: Array = before.get(f.id, [f.people, f.animals])
-		var dp := f.people - int(b[0])
-		var da := f.animals - int(b[1])
+		var dp: int = f.people - int(b[0])
+		var da: int = f.animals - int(b[1])
 		if dp != 0 or da != 0:
 			deltas.append({"field": f.id, "people": dp, "animals": da})
 	deltas_shown.emit(deltas)
