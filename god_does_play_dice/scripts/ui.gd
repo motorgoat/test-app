@@ -288,7 +288,7 @@ func _build_help() -> void:
 	help_card = _modal_card("Halte die Welt im Gleichgewicht")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe, um die Welt zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Gleiches nebeneinander bringt Glauben und steigt nach 2 Runden auf: Dorf → Stadt, Wiese → Fluss."))
+	v.add_child(_help_row("up", "Gleiches nebeneinander bringt Glauben. Zwei gleiche Felder gleicher Stufe steigen nach 2 Runden auf: Dorf → Stadt, Wiese → Fluss."))
 	v.add_child(_help_row("hunger", "Siedlungen brauchen Natur daneben, Industrie und Kirchen brauchen Siedlungen."))
 	v.add_child(_help_row("balance", "Nichts darf überhandnehmen. Die Leisten oben zeigen das Gleichgewicht."))
 	v.add_child(_help_row("swords", "Kirchen zweier Völker nebeneinander: Krieg. Städte zweier Völker: Handel."))
@@ -570,7 +570,8 @@ func _refresh_bars(gs: GameState) -> void:
 	var v := float(hm["value"])
 	var txt := "Gleichgewicht %d%%" % int(round(v * 100.0))
 	if gs.bad_rounds > 0:
-		txt += "  ·  noch %d Runden!" % (Balance.LOSE_AFTER_DISHARMONY - gs.bad_rounds)
+		var left := Balance.LOSE_AFTER_DISHARMONY - gs.bad_rounds
+		txt += "  ·  noch %d %s!" % [left, "Runde" if left == 1 else "Runden"]
 	harmony_label.text = txt
 	harmony_label.add_theme_color_override("font_color", Style.BAD if v < 0.4 else (Style.SOFT if v < 0.8 else Style.GOOD))
 
@@ -719,10 +720,11 @@ func _fill_sheet(fid: int) -> void:
 		var fc := gs.field_forecast(f)
 		lines.append("%s · Stufe %d von %d" % [GameState.KIND_NAME[f.kind], f.level, Balance.MAX_LEVEL])
 		if f.level < Balance.MAX_LEVEL:
-			if int(fc["same"]) > 0:
-				lines.append("Neben Gleichem: steigt in %d Runden auf." % maxi(1, Balance.MERGE_ROUNDS - f.bond))
+			if int(fc["same_level"]) > 0:
+				var r := maxi(1, Balance.MERGE_ROUNDS - f.bond)
+				lines.append("Neben gleicher Stufe: steigt in %d %s auf." % [r, "Runde" if r == 1 else "Runden"])
 			else:
-				lines.append("Bring ein gleiches Feld daneben, dann steigt es auf.")
+				lines.append("Bring ein gleiches Feld gleicher Stufe daneben, dann steigt es auf.")
 		else:
 			lines.append("Höchste Stufe: breitet sich alle %d Runden auf ein Nachbarfeld aus." % gs.spread_every())
 		if not bool(fc["need"]):

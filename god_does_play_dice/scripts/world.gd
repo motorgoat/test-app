@@ -182,8 +182,6 @@ func _status_icon(f: FieldData, gs: GameState, _wars: Dictionary) -> Texture2D:
 		return Style.icon("smog")
 	if bool(fc["trade"]):
 		return Style.icon("trade")
-	if int(fc["same"]) > 0 and f.level < Balance.MAX_LEVEL:
-		return Style.icon("up")
 	return null
 
 
@@ -467,9 +465,12 @@ func _show_preview(q: int) -> void:
 		elif b.kind == a.kind and b.level > a.level:
 			text = "▲"
 		else:
-			var pts := arranged.field_points(a)
-			if pts > 0:
-				text = "+%d" % pts
+			var diff := arranged.field_points(a) - Game.state.field_points(f)
+			if diff > 0:
+				text = "+%d" % diff
+			elif diff < 0:
+				text = "−%d" % -diff
+				col = Color("#e5483c")
 		v.set_preview(text, col)
 		v.set_icon(_status_icon(a, arranged, {}))
 	preview_changed.emit(pv)

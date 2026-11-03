@@ -426,10 +426,12 @@ func hazard_at(f: FieldData) -> Dictionary:
 ## Was passiert mit diesem Feld? Für die Info-Karte.
 func field_forecast(f: FieldData) -> Dictionary:
 	var wars := war_pairs()
-	var out := {"same": 0, "need": _need_met(f), "war": false, "polluted": false, "trade": false}
+	var out := {"same": 0, "same_level": 0, "need": _need_met(f), "war": false, "polluted": false, "trade": false}
 	for g in neighbors(f):
 		if same(f, g):
 			out["same"] += 1
+			if g.level == f.level:
+				out["same_level"] += 1
 		if f.has_nation() and g.has_nation() and g.nation != f.nation and wars.has(pair_key(f.nation, g.nation)):
 			out["war"] = true
 		if f.kind == "nature" and g.kind == "industry" and g.level >= Balance.POLLUTION_MIN_LEVEL:
@@ -580,7 +582,7 @@ func end_round() -> Dictionary:
 		var at_war := false
 		var polluted := false
 		for g in neighbors(f):
-			if same(f, g):
+			if same(f, g) and g.level == f.level:
 				has_same = true
 			if f.has_nation() and g.has_nation() and g.nation != f.nation and wars.has(pair_key(f.nation, g.nation)):
 				at_war = true

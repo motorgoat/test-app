@@ -10,9 +10,9 @@ const CONTENT_SCALE := 1.4
 
 const TILE_COLOR = {
 	"nature": ["", "#8fd162", "#6fc65a", "#3e9a4b"],
-	"settlement": ["", "#ecd9a8", "#e3d8c3", "#cfcac2"],
+	"settlement": ["", "#e9c27c", "#d9c3a0", "#c4bcb0"],
 	"industry": ["", "#a49a8c", "#7d828e", "#5f636e"],
-	"faith": ["", "#ece2fb", "#ddd0f7", "#cdbaf4"],
+	"faith": ["", "#d8c6f7", "#c9b2f3", "#b79bef"],
 	"mountain": ["", "#8e8a86", "#8e8a86", "#8e8a86"],
 	"crater": ["", "#6e5242", "#6e5242", "#6e5242"],
 }
@@ -300,9 +300,9 @@ func _build_nature(f: FieldData, rng: RandomNumberGenerator) -> void:
 			for k in spots.size():
 				var g: Color = greens[k % greens.size()].darkened(0.1)
 				if k % 2 == 0:
-					Models.tree(_content, spots[k], rng.randf_range(1.3, 1.7), g)
+					Models.tree(_content, spots[k], rng.randf_range(1.0, 1.2), g)
 				else:
-					Models.pine(_content, spots[k], rng.randf_range(1.3, 1.6), g)
+					Models.pine(_content, spots[k], rng.randf_range(1.0, 1.15), g)
 			Models.sphere(_content, 0.02, Color("#e5483c"), Vector3(0.09, 0.015, 0.06), null, 0.6)
 			_animal("forest", Vector3(0.1, 0, -0.06), rng)
 

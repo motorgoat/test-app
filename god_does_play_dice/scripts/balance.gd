@@ -4,14 +4,14 @@ extends RefCounted
 
 # --- Völker und Start --------------------------------------------------------
 static var NATION_COUNT := 3
-static var START_SETTLEMENTS := 3        # Siedlungen pro Volk (als Gruppe)
+static var START_SETTLEMENTS := 4        # Siedlungen pro Volk (als Gruppe)
 static var START_FAITH := 1              # Kapellen pro Volk
-static var START_INDUSTRY := 5
+static var START_INDUSTRY := 6
 static var START_MOUNTAINS := 6          # Rest wird Natur
 
 # --- Stufen ------------------------------------------------------------------
 static var MAX_LEVEL := 3
-static var MERGE_ROUNDS := 2             # so viele Runden neben Gleichem, dann Stufe höher
+static var MERGE_ROUNDS := 2             # so viele Runden neben Gleichem GLEICHER STUFE, dann Stufe höher
 static var NEED_ROUNDS := 2              # so viele Runden ohne Bedürfnis, dann Stufe tiefer
 static var WAR_ROUNDS := 2               # so viele Runden Krieg an der Grenze, dann Stufe tiefer
 static var POLLUTION_ROUNDS := 2         # so viele Runden neben Fabrik, dann Natur Stufe tiefer
@@ -20,7 +20,7 @@ static var CRATER_REGROW := 6            # nach so vielen Runden wächst auf ein
 static var CHAPEL_EVERY := 3             # jede 3. Ausbreitung einer Stadt wird eine Kapelle
 
 # Ausbreiten (Stufe 3 wächst aufs Nachbarfeld): alle N Runden, wird mit jedem Zeitalter schneller
-static var SPREAD_EVERY := 4
+static var SPREAD_EVERY := 5
 static var SPREAD_EVERY_MIN := 2
 
 # --- Glaube (Punkte) -----------------------------------------------------------
