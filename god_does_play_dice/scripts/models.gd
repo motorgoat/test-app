@@ -322,3 +322,126 @@ static func animal(parent: Node3D, pos: Vector3, kind: String, rot: float) -> No
 			box(n, Vector3(0.006, 0.03, 0.008), Color("#e9e2d8"), Vector3(0.018, 0.068, 0.006))
 			box(n, Vector3(0.006, 0.03, 0.008), Color("#e9e2d8"), Vector3(0.018, 0.068, -0.006))
 	return n
+
+
+# =============================================================================
+# Neue Gebäude (Version „Gleichgewicht“)
+# =============================================================================
+
+static func tower(parent: Node3D, pos: Vector3, w: float, h: float, accent: Color) -> void:
+	rbox(parent, Vector3(w, h, w), 0.012, Color("#f4f1ec"), pos + Vector3(0, h * 0.5, 0))
+	var floors := int(h / 0.05)
+	for i in floors:
+		box(parent, Vector3(w + 0.004, 0.012, w + 0.004), Color("#7fb3d9"), pos + Vector3(0, 0.03 + i * 0.05, 0), Vector3.ZERO,
+			mat(Color("#7fb3d9"), 0.15, 0.25))
+	rbox(parent, Vector3(w * 1.06, 0.02, w * 1.06), 0.006, accent, pos + Vector3(0, h + 0.01, 0))
+
+
+static func chapel(parent: Node3D, pos: Vector3, c: Color) -> void:
+	rbox(parent, Vector3(0.12, 0.09, 0.1), 0.012, WHITE, pos + Vector3(0, 0.045, 0))
+	roof(parent, Vector3(0.14, 0.07, 0.11), c, pos + Vector3(0, 0.09, 0), Vector3(0, 90, 0))
+	rbox(parent, Vector3(0.04, 0.05, 0.04), 0.006, WHITE, pos + Vector3(0.0, 0.17, 0))
+	cone(parent, 0.032, 0.06, c, pos + Vector3(0, 0.195, 0), 4)
+	box(parent, Vector3(0.03, 0.05, 0.006), DARK, pos + Vector3(0, 0.025, 0.052))
+
+
+static func cathedral(parent: Node3D, pos: Vector3, c: Color) -> void:
+	var gold := mat(Color("#ffd75e"), 0.3, 0.5, 0.4)
+	rbox(parent, Vector3(0.26, 0.16, 0.18), 0.018, WHITE, pos + Vector3(0, 0.08, -0.02))
+	roof(parent, Vector3(0.28, 0.11, 0.2), c, pos + Vector3(0, 0.16, -0.02), Vector3(0, 90, 0))
+	for sx in [-0.1, 0.1]:
+		rbox(parent, Vector3(0.07, 0.3, 0.07), 0.01, WHITE, pos + Vector3(sx, 0.15, 0.08))
+		cone(parent, 0.05, 0.14, c, pos + Vector3(sx, 0.3, 0.08), 4)
+		sphere(parent, 0.012, Color.WHITE, pos + Vector3(sx, 0.45, 0.08), gold)
+	cyl(parent, 0.035, 0.035, 0.006, Color.WHITE, pos + Vector3(0, 0.1, 0.07), 16, Vector3(90, 0, 0), gold)
+	box(parent, Vector3(0.05, 0.07, 0.006), DARK, pos + Vector3(0, 0.035, 0.072))
+
+
+static func workshop(parent: Node3D, pos: Vector3) -> void:
+	rbox(parent, Vector3(0.16, 0.09, 0.12), 0.01, Color("#c9a77c"), pos + Vector3(0, 0.045, 0))
+	roof(parent, Vector3(0.18, 0.06, 0.14), Color("#7a5a3a"), pos + Vector3(0, 0.09, 0))
+	box(parent, Vector3(0.05, 0.06, 0.006), DARK, pos + Vector3(0.0, 0.03, 0.062))
+	cyl(parent, 0.012, 0.012, 0.08, WOOD, pos + Vector3(0.12, 0.012, 0.05), 6, Vector3(90, 0, 0))
+	cyl(parent, 0.012, 0.012, 0.08, WOOD, pos + Vector3(0.14, 0.012, 0.03), 6, Vector3(90, 0, 0))
+	rbox(parent, Vector3(0.04, 0.03, 0.025), 0.005, Color("#55585f"), pos + Vector3(-0.12, 0.015, 0.06))
+
+
+static func factory(parent: Node3D, pos: Vector3, big: bool) -> Array:
+	var smoke: Array = []
+	var wall := Color("#b9b2a8") if not big else Color("#a39d95")
+	var w := 0.26 if big else 0.2
+	rbox(parent, Vector3(w, 0.1, 0.16), 0.01, wall, pos + Vector3(0, 0.05, 0))
+	var teeth := 3 if big else 2
+	for i in teeth:
+		var x: float = -w * 0.5 + w / teeth * (i + 0.5)
+		roof(parent, Vector3(w / teeth, 0.05, 0.16), Color("#6f7682"), pos + Vector3(x, 0.1, 0), Vector3(0, 0, 0))
+	var stacks := 2 if big else 1
+	for i in stacks:
+		var sp := pos + Vector3(w * 0.32 - i * 0.09, 0, -0.1)
+		cyl(parent, 0.022, 0.026, 0.26 + i * 0.04, Color("#8d6e63"), sp, 10)
+		box(parent, Vector3(0.05, 0.012, 0.05), Color("#e5483c"), sp + Vector3(0, 0.2, 0))
+		var puff := Node3D.new()
+		puff.position = sp + Vector3(0, 0.3 + i * 0.04, 0)
+		parent.add_child(puff)
+		sphere(puff, 0.035, Color(0.82, 0.82, 0.85, 0.9))
+		smoke.append(puff)
+	if big:
+		for k in 2:
+			cyl(parent, 0.04, 0.04, 0.07, Color("#cfd4da"), pos + Vector3(-0.12 + k * 0.08, 0, 0.14), 14)
+	return smoke
+
+
+static func windmill(parent: Node3D, pos: Vector3) -> Node3D:
+	cyl(parent, 0.07, 0.1, 0.3, WHITE, pos, 12)
+	cone(parent, 0.085, 0.1, Color("#e5483c"), pos + Vector3(0, 0.3, 0), 12)
+	var hub := Node3D.new()
+	hub.position = pos + Vector3(0, 0.27, 0.09)
+	parent.add_child(hub)
+	for i in 4:
+		var blade := Node3D.new()
+		blade.rotation.z = i * PI * 0.5
+		hub.add_child(blade)
+		box(blade, Vector3(0.035, 0.2, 0.006), Color("#f7efe1"), Vector3(0, 0.11, 0))
+	sphere(hub, 0.02, WOOD, Vector3.ZERO)
+	return hub
+
+
+static func lighthouse(parent: Node3D, pos: Vector3) -> MeshInstance3D:
+	for i in 4:
+		var col := Color("#e5483c") if i % 2 == 0 else WHITE
+		cyl(parent, 0.065 - i * 0.008, 0.075 - i * 0.008, 0.09, col, pos + Vector3(0, i * 0.09, 0), 14)
+	var lamp := sphere(parent, 0.05, Color("#fff3a0"), pos + Vector3(0, 0.4, 0), mat(Color("#fff3a0"), 0.2, 3.0))
+	cone(parent, 0.06, 0.06, Color("#e5483c"), pos + Vector3(0, 0.44, 0), 14)
+	return lamp
+
+
+static func world_tree(parent: Node3D, pos: Vector3) -> void:
+	cyl(parent, 0.05, 0.08, 0.22, Color("#8a5a35"), pos, 10)
+	sphere(parent, 0.17, Color("#3f9a4a"), pos + Vector3(0, 0.33, 0), null, 0.85)
+	sphere(parent, 0.11, Color("#56b456"), pos + Vector3(0.1, 0.4, 0.05))
+	sphere(parent, 0.1, Color("#4aa64f"), pos + Vector3(-0.1, 0.38, -0.04))
+	for k in 5:
+		var a: float = k * TAU / 5.0
+		sphere(parent, 0.018, Color("#ff7aa8"), pos + Vector3(cos(a) * 0.15, 0.3 + (k % 2) * 0.08, sin(a) * 0.15))
+
+
+static func stone_circle(parent: Node3D, pos: Vector3) -> MeshInstance3D:
+	for k in 7:
+		var a: float = k * TAU / 7.0
+		rbox(parent, Vector3(0.045, 0.14 + (k % 2) * 0.03, 0.03), 0.01, Color("#a49cb8"), pos + Vector3(cos(a) * 0.2, 0.075, sin(a) * 0.2), Vector3(0, -rad_to_deg(a), 0))
+	return cyl(parent, 0.08, 0.08, 0.01, Color("#b9a8ff"), pos + Vector3(0, 0.005, 0), 20, Vector3.ZERO, mat(Color("#b9a8ff"), 0.3, 2.0))
+
+
+static func pyramid(parent: Node3D, pos: Vector3) -> void:
+	cyl(parent, 0.0, 0.3, 0.3, Color("#f2d15c"), pos, 4, Vector3(0, 45, 0), mat(Color("#f2d15c"), 0.35, 0.0, 0.2))
+	cone(parent, 0.04, 0.04, Color("#fff6c2"), pos + Vector3(0, 0.27, 0), 4).material_override = mat(Color("#fff6c2"), 0.2, 1.5)
+
+
+static func observatory(parent: Node3D, pos: Vector3) -> Node3D:
+	cyl(parent, 0.14, 0.15, 0.14, WHITE, pos, 18)
+	var dome := Node3D.new()
+	dome.position = pos + Vector3(0, 0.14, 0)
+	parent.add_child(dome)
+	sphere(dome, 0.135, Color("#4fb8e8"), Vector3.ZERO, mat(Color("#4fb8e8"), 0.25, 0.0, 0.3), 0.75)
+	cyl(dome, 0.02, 0.025, 0.16, Color("#44506a"), Vector3(0.0, 0.04, 0.04), 10, Vector3(-40, 0, 0))
+	return dome

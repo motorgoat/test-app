@@ -1,27 +1,27 @@
 class_name FieldView
 extends Node3D
-## Darstellung eines Felds: Kachel, Landschaft, Gebäude, Figuren, Tiere, Zahlen-Abzeichen.
+## Darstellung eines Felds: Kachel (Farbe je Art und Stufe), Modelle, Volksrand, Symbole.
 ## Lokales Koordinatensystem: y = Normale der Seite, Feld liegt in x/z (−0,45 … 0,45).
 
 const TILE := 0.9
 const TILE_H := 0.09
 const TOP := 0.09
+const CONTENT_SCALE := 1.4
 
-const TERRAIN_COLOR = {
-	"meadow": "#8fd162",
-	"forest": "#4fae55",
-	"lake": "#f0d595",
-	"mountain": "#8e8a86",
-	"crater": "#7a5c4b",
+const TILE_COLOR = {
+	"nature": ["", "#8fd162", "#6fc65a", "#3e9a4b"],
+	"settlement": ["", "#ecd9a8", "#e3d8c3", "#cfcac2"],
+	"industry": ["", "#a49a8c", "#7d828e", "#5f636e"],
+	"faith": ["", "#ece2fb", "#ddd0f7", "#cdbaf4"],
+	"mountain": ["", "#8e8a86", "#8e8a86", "#8e8a86"],
+	"crater": ["", "#6e5242", "#6e5242", "#6e5242"],
 }
 const WATER := Color("#36aef0")
-const CONTENT_SCALE := 1.4
 
 var field_id := -1
 var _tile: MeshInstance3D
+var _rim: MeshInstance3D
 var _content: Node3D
-var _people_label: Label3D
-var _animal_label: Label3D
 var _preview_label: Label3D
 var _alert_label: Label3D
 var _icon: Sprite3D
@@ -29,20 +29,25 @@ var _sel: MeshInstance3D
 var _shown := ""
 var _bobbers: Array = []
 var _flames: Array = []
+var _smoke: Array = []
+var _spinners: Array = []
+var _glows: Array = []
 var _time := 0.0
 var _labels_on := true
 
 
 func build(f: FieldData) -> void:
 	field_id = f.id
-	_tile = Models.rbox(self, Vector3(TILE, TILE_H, TILE), 0.03, Color(TERRAIN_COLOR[f.terrain]), Vector3(0, TILE_H * 0.5, 0))
+	_tile = Models.rbox(self, Vector3(TILE, TILE_H, TILE), 0.035, Color.WHITE, Vector3(0, TILE_H * 0.5, 0))
+	_rim = Models.rbox(self, Vector3(TILE + 0.02, TILE_H * 0.6, TILE + 0.02), 0.04, Color.WHITE, Vector3(0, TILE_H * 0.3, 0))
+	_rim.visible = false
 	_content = Node3D.new()
 	_content.position.y = TOP
 	_content.scale = Vector3.ONE * CONTENT_SCALE
 	add_child(_content)
 
-	_sel = Models.rbox(self, Vector3(TILE + 0.04, 0.02, TILE + 0.04), 0.03, Color(1, 1, 1, 0.55), Vector3(0, 0.005, 0), Vector3.ZERO,
-		Models.unshaded(Color(1, 1, 1, 0.55)))
+	_sel = Models.rbox(self, Vector3(TILE + 0.06, 0.02, TILE + 0.06), 0.04, Color(1, 1, 1, 0.6), Vector3(0, 0.005, 0), Vector3.ZERO,
+		Models.unshaded(Color(1, 1, 1, 0.6)))
 	_sel.visible = false
 
 	var body := StaticBody3D.new()
@@ -51,26 +56,18 @@ func build(f: FieldData) -> void:
 	var bs := BoxShape3D.new()
 	bs.size = Vector3(1.0, 0.2, 1.0)
 	shape.shape = bs
-	shape.position = Vector3(0, 0.0, 0)
 	body.add_child(shape)
 	add_child(body)
 
-	_people_label = _make_label(64, Vector3(0, 0.55, 0))
-	_people_label.pixel_size = 0.0036
-	_people_label.outline_size = 22
-	_animal_label = _make_label(44, Vector3(0.0, 0.42, 0.0))
-	_animal_label.pixel_size = 0.0032
-	_animal_label.offset = Vector2(56, -20)
-	_preview_label = _make_label(64, Vector3(0, 0.7, 0))
-	_preview_label.outline_size = 18
-	_alert_label = _make_label(60, Vector3(0, 0.8, 0))
+	_preview_label = _make_label(64, Vector3(0, 0.72, 0))
+	_preview_label.outline_size = 20
+	_alert_label = _make_label(64, Vector3(0, 0.82, 0))
 	_alert_label.outline_modulate = Color("#e5483c")
 
 	_icon = Sprite3D.new()
 	_icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_icon.pixel_size = 0.0035
+	_icon.pixel_size = 0.0034
 	_icon.position = Vector3(0, 0.62, 0)
-	_icon.offset = Vector2(-56, 0)
 	_icon.render_priority = 2
 	_icon.visible = false
 	add_child(_icon)
@@ -81,8 +78,8 @@ func _make_label(size: int, pos: Vector3) -> Label3D:
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.font = Style.bold()
 	l.font_size = size
-	l.pixel_size = 0.0028
-	l.outline_size = 14
+	l.pixel_size = 0.0032
+	l.outline_size = 16
 	l.modulate = Color.WHITE
 	l.outline_modulate = Color("#3a3a3a")
 	l.position = pos
@@ -107,61 +104,62 @@ func set_selected(on: bool) -> void:
 
 func set_labels_visible(on: bool) -> void:
 	_labels_on = on
-	_people_label.visible = on and _people_label.text != ""
-	_animal_label.visible = on and _animal_label.text != ""
 	_preview_label.visible = on and _preview_label.text != ""
 	_alert_label.visible = on and _alert_label.text != ""
 	_icon.visible = on and _icon.texture != null
 
 
-## Vorschau-Zahl über dem Feld (+2 / −3). "" blendet aus.
-func set_preview(text: String, good: bool) -> void:
+## Vorschau über dem Feld (+3, ▲, ▼). "" blendet aus.
+func set_preview(text: String, color: Color) -> void:
 	_preview_label.text = text
-	_preview_label.outline_modulate = Color("#2f9e4f") if good else Color("#e5483c")
+	_preview_label.outline_modulate = color
 	_preview_label.visible = _labels_on and text != ""
+	if text != "":
+		_icon.visible = false
 
 
-## Kleines Symbol über dem Feld (Krieg, Handel, Hunger, Feuer). null blendet aus.
+## Kleines Symbol über dem Feld. null blendet aus.
 func set_icon(tex: Texture2D) -> void:
 	_icon.texture = tex
-	_icon.visible = _labels_on and tex != null
+	_icon.visible = _labels_on and tex != null and _preview_label.text == ""
 
 
 func refresh(f: FieldData, gs: GameState) -> void:
-	var key := "%s|%d|%s|%d|%d|%s|%d" % [f.terrain, f.nation, f.building, mini(f.people, 9), mini(f.animals, 3), f.burning, f.volcano]
-	var color := Color.WHITE
-	if f.nation >= 0:
-		color = Color(GameState.NATION_COLORS[f.nation])
+	var key := "%s|%d|%d|%s|%d|%d" % [f.kind, f.level, f.nation, f.burning, f.volcano, mini(f.crater_age, 2)]
 	if key != _shown:
 		var first := _shown == ""
 		_shown = key
-		_tile.material_override = Models.mat(Color(TERRAIN_COLOR.get(f.terrain, "#8fd162")), 0.7)
+		_tile.material_override = Models.mat(_tile_color(f), 0.7)
+		if f.has_nation():
+			_rim.visible = true
+			_rim.material_override = Models.mat(Style.nation_color(f.nation), 0.5)
+		elif f.is_center:
+			_rim.visible = true
+			_rim.material_override = Models.mat(Color.WHITE, 0.4)
+		else:
+			_rim.visible = false
 		for c in _content.get_children():
 			c.queue_free()
 		_bobbers.clear()
 		_flames.clear()
-		_build_content(f, color)
+		_smoke.clear()
+		_spinners.clear()
+		_glows.clear()
+		_build_content(f)
 		if not first:
-			_content.scale = Vector3(0.7, 0.4, 0.7) * CONTENT_SCALE
+			_content.scale = Vector3(0.6, 0.3, 0.6) * CONTENT_SCALE
 			var tw := create_tween()
-			tw.tween_property(_content, "scale", Vector3.ONE * CONTENT_SCALE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-
-	# Abzeichen
-	if f.settled() and f.people > 0:
-		_people_label.text = str(f.people)
-		_people_label.outline_modulate = color.darkened(0.15)
-	else:
-		_people_label.text = ""
-	if f.animals > 0:
-		_animal_label.text = str(f.animals)
-		_animal_label.outline_modulate = Color("#5a9e3a")
-	else:
-		_animal_label.text = ""
-	if f.volcano > 0:
-		_alert_label.text = str(f.volcano)
-	else:
-		_alert_label.text = ""
+			tw.tween_property(_content, "scale", Vector3.ONE * CONTENT_SCALE, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_alert_label.text = str(f.volcano) if f.volcano > 0 else ""
 	set_labels_visible(_labels_on)
+
+
+func _tile_color(f: FieldData) -> Color:
+	if f.is_center:
+		return Color(GameState.LANDMARK_COLOR[maxi(0, f.landmark)]).lerp(Color.WHITE, 0.25)
+	if TILE_COLOR.has(f.kind):
+		return Color(TILE_COLOR[f.kind][clampi(f.level, 1, 3)])
+	return Color("#8fd162")
 
 
 func _process(delta: float) -> void:
@@ -169,16 +167,30 @@ func _process(delta: float) -> void:
 	for i in _bobbers.size():
 		var b: Node3D = _bobbers[i]
 		if is_instance_valid(b):
-			b.position.y = absf(sin(_time * 3.2 + i * 1.7)) * 0.012
+			b.position.y = absf(sin(_time * 2.6 + i * 1.7)) * 0.01
 	for i in _flames.size():
 		var fl: Node3D = _flames[i]
 		if is_instance_valid(fl):
-			var s := 0.85 + 0.2 * sin(_time * 14.0 + i * 2.1)
-			fl.scale = Vector3(1.0, s, 1.0)
+			fl.scale = Vector3(1.0, 0.85 + 0.2 * sin(_time * 14.0 + i * 2.1), 1.0)
+	for i in _smoke.size():
+		var sm: Node3D = _smoke[i]
+		if is_instance_valid(sm):
+			var t: float = fmod(_time * 0.5 + i * 0.37, 1.0)
+			var by: float = sm.get_meta("base_y", 0.0)
+			sm.scale = Vector3.ONE * (0.6 + t * 1.2)
+			sm.position.y = by + t * 0.12
+	for sp in _spinners:
+		var s: Node3D = sp
+		if is_instance_valid(s):
+			s.rotation.z += delta * 1.2
+	for gl in _glows:
+		var g: Node3D = gl
+		if is_instance_valid(g):
+			g.scale = Vector3.ONE * (0.9 + 0.2 * sin(_time * 3.0))
 
 
 # =============================================================================
-# Inhalt bauen
+# Inhalt bauen (Koordinaten im Inhalt: etwa −0,3 … 0,3)
 # =============================================================================
 
 func _rng() -> RandomNumberGenerator:
@@ -187,97 +199,164 @@ func _rng() -> RandomNumberGenerator:
 	return rng
 
 
-func _build_content(f: FieldData, c: Color) -> void:
-	var rng := _rng()
-	var corners := [Vector3(-0.19, 0, -0.19), Vector3(0.19, 0, 0.19), Vector3(0.19, 0, -0.19), Vector3(-0.19, 0, 0.19)]
-	var free_spots: Array = []
-
-	# Gelände-Grundlage
-	match f.terrain:
-		"lake":
-			Models.rbox(_content, Vector3(0.54, 0.02, 0.54), 0.07, WATER, Vector3(0, 0.0, 0), Vector3.ZERO, Models.mat(WATER, 0.1))
-		"crater":
-			Models.rbox(_content, Vector3(0.44, 0.015, 0.44), 0.15, Color("#4e3a2e"), Vector3(0, 0.0, 0))
-			for k in 3:
-				var a := rng.randf() * TAU
-				Models.sphere(_content, 0.03, Color("#6e5a4c"), Vector3(cos(a) * 0.24, 0.015, sin(a) * 0.24), null, 0.6)
-
-	# Gebäude
-	if f.settled():
-		match f.building:
-			"village":
-				var houses := clampi(int(ceil(f.people / 3.0)), 1, 3)
-				var spots := [Vector3(-0.12, 0, -0.11), Vector3(0.13, 0, -0.08), Vector3(-0.04, 0, 0.13)]
-				for k in houses:
-					Models.house(_content, spots[k], c, 1.0, rng.randf_range(-25, 25))
-				free_spots = [corners[1], corners[3]]
-			"church":
-				Models.church(_content, Vector3(0, 0, -0.05), c)
-				free_spots = [corners[1], corners[3]]
-			"market":
-				Models.market(_content, Vector3(0, 0, -0.04), c)
-				free_spots = [corners[1], corners[3]]
-		var n_people := mini(f.people, 4)
-		for k in n_people:
-			var a := TAU * float(k) / maxf(1.0, float(n_people)) + 0.4
-			var pp := Vector3(cos(a) * 0.1, 0, 0.13 + sin(a) * 0.06)
-			var holder := Node3D.new()
-			_content.add_child(holder)
-			Models.person(holder, pp, c)
-			_bobbers.append(holder)
-	else:
-		free_spots = corners.duplicate()
-
-	# Landschaft
-	match f.terrain:
-		"forest":
-			var greens := [Color("#4fa449"), Color("#5cb357"), Color("#3f9443")]
-			var tree_spots: Array = free_spots if f.settled() else [Vector3(-0.17, 0, -0.15), Vector3(0.16, 0, -0.18), Vector3(-0.03, 0, 0.0), Vector3(0.17, 0, 0.14), Vector3(-0.18, 0, 0.17)]
-			for k in tree_spots.size():
-				var sp: Vector3 = tree_spots[k]
-				var g: Color = greens[k % greens.size()]
-				if k % 2 == 0:
-					Models.tree(_content, sp, rng.randf_range(0.9, 1.25), g)
-				else:
-					Models.pine(_content, sp, rng.randf_range(0.9, 1.2), g)
-		"meadow":
-			if not f.settled():
-				for k in 3:
-					var gp := Vector3(rng.randf_range(-0.24, 0.24), 0, rng.randf_range(-0.24, 0.24))
-					Models.cone(_content, 0.03, 0.06, Color("#86c95a"), gp, 6)
-				var flowers := [Color("#ffffff"), Color("#ff9ec4"), Color("#ffe066")]
-				for k in 4:
-					var fp := Vector3(rng.randf_range(-0.25, 0.25), 0.02, rng.randf_range(-0.25, 0.25))
-					Models.sphere(_content, 0.018, flowers[k % 3], fp)
-		"mountain":
-			if f.volcano > 0:
-				Models.cone(_content, 0.18, 0.26, Color("#8c7f74"), Vector3(0, 0, 0), 9)
-				Models.cyl(_content, 0.06, 0.06, 0.02, Color("#ff5a1f"), Vector3(0, 0.23, 0), 10, Vector3.ZERO, Models.mat(Color("#ff5a1f"), 0.5, 2.5))
-				for k in 3:
-					Models.sphere(_content, 0.035 + k * 0.01, Color(0.55, 0.55, 0.58, 0.75), Vector3(0.02 * k, 0.31 + k * 0.06, 0.0))
-			elif not f.settled():
-				Models.rock(_content, Vector3(-0.06, 0, -0.05), rng.randf_range(1.0, 1.2), true)
-				Models.rock(_content, Vector3(0.14, 0, 0.1), rng.randf_range(0.6, 0.8), true)
-			else:
-				Models.rock(_content, corners[1], 0.6, true)
-		"lake":
-			Models.cyl(_content, 0.035, 0.035, 0.006, Color("#5fae4f"), Vector3(-0.13, 0.012, 0.12), 12)
-			Models.cyl(_content, 0.028, 0.028, 0.006, Color("#6fbd5b"), Vector3(0.15, 0.012, -0.15), 12)
-
-	# Tiere
-	var n_animals := mini(f.animals, 3)
-	for k in n_animals:
-		var ap: Vector3 = free_spots[k % maxi(1, free_spots.size())] if not free_spots.is_empty() else Vector3.ZERO
-		ap += Vector3(rng.randf_range(-0.04, 0.04), 0.0, rng.randf_range(-0.04, 0.04)) + Vector3(0.04 * k, 0, -0.03 * k)
-		if f.terrain == "lake":
-			ap.y = 0.012
+func _people(c: Color, count: int, around: Vector3, radius: float) -> void:
+	for k in count:
+		var a: float = TAU * float(k) / maxf(1.0, float(count)) + 0.5
 		var holder := Node3D.new()
 		_content.add_child(holder)
-		Models.animal(holder, ap, f.terrain, rng.randf_range(0, 360))
+		Models.person(holder, around + Vector3(cos(a) * radius, 0, sin(a) * radius * 0.6), c)
 		_bobbers.append(holder)
 
-	# Feuer
+
+func _animal(kind: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	var holder := Node3D.new()
+	_content.add_child(holder)
+	Models.animal(holder, pos, kind, rng.randf_range(0, 360))
+	_bobbers.append(holder)
+
+
+func _build_content(f: FieldData) -> void:
+	var rng := _rng()
+	var c := Style.nation_color(f.nation)
+	if f.is_center:
+		_build_landmark(f)
+		return
+	match f.kind:
+		"nature":
+			_build_nature(f, rng)
+		"settlement":
+			_build_settlement(f, c, rng)
+		"industry":
+			_build_industry(f)
+		"faith":
+			match f.level:
+				1:
+					Models.chapel(_content, Vector3(0, 0, -0.04), c)
+				2:
+					Models.church(_content, Vector3(0, 0, -0.06), c)
+				_:
+					Models.cathedral(_content, Vector3(0, 0, -0.04), c)
+			_people(c, f.level, Vector3(0, 0, 0.17), 0.08)
+		"mountain":
+			if f.volcano > 0:
+				Models.cone(_content, 0.2, 0.28, Color("#7e7068"), Vector3.ZERO, 9)
+				var lava := Models.cyl(_content, 0.06, 0.06, 0.02, Color("#ff5a1f"), Vector3(0, 0.25, 0), 10, Vector3.ZERO, Models.mat(Color("#ff5a1f"), 0.5, 2.5))
+				_glows.append(lava)
+				for k in 2:
+					var puff := Node3D.new()
+					puff.position = Vector3(0.02 * k, 0.32 + k * 0.05, 0)
+					_content.add_child(puff)
+					Models.sphere(puff, 0.04, Color(0.5, 0.5, 0.53, 0.8))
+					puff.set_meta("base_y", puff.position.y)
+					_smoke.append(puff)
+			else:
+				Models.rock(_content, Vector3(-0.06, 0, -0.04), rng.randf_range(1.0, 1.2), true)
+				Models.rock(_content, Vector3(0.14, 0, 0.1), rng.randf_range(0.6, 0.8), true)
+				if rng.randf() < 0.5:
+					_animal("mountain", Vector3(-0.15, 0.0, 0.16), rng)
+		"crater":
+			Models.rbox(_content, Vector3(0.42, 0.015, 0.42), 0.15, Color("#3f2e25"), Vector3.ZERO)
+			for k in 4:
+				var a: float = rng.randf() * TAU
+				Models.sphere(_content, 0.03, Color("#5e4a3c"), Vector3(cos(a) * 0.24, 0.015, sin(a) * 0.24), null, 0.6)
+			if f.crater_age < 2:
+				var puff := Node3D.new()
+				puff.position = Vector3(0, 0.06, 0)
+				_content.add_child(puff)
+				Models.sphere(puff, 0.05, Color(0.45, 0.42, 0.42, 0.7))
+				puff.set_meta("base_y", puff.position.y)
+				_smoke.append(puff)
 	if f.burning:
 		for k in 3:
-			var fp := Vector3(-0.15 + k * 0.15, 0.0, rng.randf_range(-0.15, 0.15))
-			_flames.append(Models.flame(_content, fp, rng.randf_range(1.1, 1.6)))
+			var fp := Vector3(-0.14 + k * 0.14, 0.0, rng.randf_range(-0.14, 0.14))
+			_flames.append(Models.flame(_content, fp, rng.randf_range(1.2, 1.7)))
+
+
+func _build_nature(f: FieldData, rng: RandomNumberGenerator) -> void:
+	var greens := [Color("#4fa449"), Color("#5cb357"), Color("#3f9443")]
+	match f.level:
+		1:
+			# Wiese mit See
+			Models.rbox(_content, Vector3(0.26, 0.016, 0.22), 0.1, WATER, Vector3(0.07, 0.0, 0.06), Vector3.ZERO, Models.mat(WATER, 0.1))
+			Models.tree(_content, Vector3(-0.18, 0, -0.16), 0.9, greens[0])
+			Models.pine(_content, Vector3(0.18, 0, -0.2), 0.8, greens[1])
+			var flowers := [Color("#ffffff"), Color("#ff9ec4"), Color("#ffe066")]
+			for k in 5:
+				var fp := Vector3(rng.randf_range(-0.26, -0.02), 0.015, rng.randf_range(0.0, 0.26))
+				Models.sphere(_content, 0.016, flowers[k % 3], fp)
+			_animal("lake", Vector3(0.08, 0.012, 0.06), rng)
+		2:
+			# Fluss quer über das Feld (verbindet sich optisch mit Nachbarn)
+			Models.rbox(_content, Vector3(0.17, 0.016, 0.66), 0.03, WATER, Vector3(0.0, 0.0, 0.0), Vector3.ZERO, Models.mat(WATER, 0.08))
+			Models.rbox(_content, Vector3(0.24, 0.02, 0.05), 0.01, Models.WOOD, Vector3(0, 0.03, 0.1))
+			for side in [-1, 1]:
+				Models.tree(_content, Vector3(0.2 * side, 0, -0.16), rng.randf_range(0.9, 1.1), greens[0])
+				Models.pine(_content, Vector3(0.21 * side, 0, 0.2), rng.randf_range(0.8, 1.0), greens[1])
+			_animal("lake", Vector3(0.0, 0.012, -0.12), rng)
+		_:
+			# Urwald
+			var spots := [Vector3(-0.18, 0, -0.17), Vector3(0.17, 0, -0.19), Vector3(-0.02, 0, -0.02),
+				Vector3(0.19, 0, 0.14), Vector3(-0.19, 0, 0.17), Vector3(0.03, 0, 0.21)]
+			for k in spots.size():
+				var g: Color = greens[k % greens.size()].darkened(0.1)
+				if k % 2 == 0:
+					Models.tree(_content, spots[k], rng.randf_range(1.3, 1.7), g)
+				else:
+					Models.pine(_content, spots[k], rng.randf_range(1.3, 1.6), g)
+			Models.sphere(_content, 0.02, Color("#e5483c"), Vector3(0.09, 0.015, 0.06), null, 0.6)
+			_animal("forest", Vector3(0.1, 0, -0.06), rng)
+
+
+func _build_settlement(f: FieldData, c: Color, rng: RandomNumberGenerator) -> void:
+	match f.level:
+		1:
+			Models.house(_content, Vector3(-0.1, 0, -0.08), c, 1.0, rng.randf_range(-20, 20))
+			Models.house(_content, Vector3(0.12, 0, -0.04), c, 0.9, rng.randf_range(-20, 20))
+			Models.tree(_content, Vector3(0.18, 0, 0.18), 0.7, Color("#5cb357"))
+			_people(c, 2, Vector3(-0.05, 0, 0.14), 0.06)
+		2:
+			Models.rbox(_content, Vector3(0.2, 0.008, 0.2), 0.05, Color("#c9c1b3"), Vector3(0.02, 0.0, 0.08))
+			Models.house(_content, Vector3(-0.15, 0, -0.14), c, 1.15, 0)
+			Models.house(_content, Vector3(0.0, 0, -0.17), c, 1.0, 0)
+			Models.house(_content, Vector3(0.16, 0, -0.12), c, 1.2, 0)
+			Models.house(_content, Vector3(-0.17, 0, 0.12), c, 0.95, 90)
+			Models.market(_content, Vector3(0.08, 0, 0.12), c)
+			_people(c, 3, Vector3(0.0, 0, 0.06), 0.07)
+		_:
+			Models.tower(_content, Vector3(-0.13, 0, -0.12), 0.11, 0.42, c)
+			Models.tower(_content, Vector3(0.1, 0, -0.14), 0.12, 0.3, c)
+			Models.tower(_content, Vector3(0.14, 0, 0.12), 0.1, 0.22, c)
+			Models.house(_content, Vector3(-0.15, 0, 0.14), c, 1.0, 0)
+			Models.tree(_content, Vector3(-0.0, 0, 0.0), 0.7, Color("#5cb357"))
+			_people(c, 3, Vector3(0.0, 0, 0.16), 0.08)
+
+
+func _build_industry(f: FieldData) -> void:
+	match f.level:
+		1:
+			Models.workshop(_content, Vector3(0, 0, -0.04))
+			_people(Color("#7c8796"), 1, Vector3(0.0, 0, 0.16), 0.04)
+		2:
+			_smoke.append_array(Models.factory(_content, Vector3(0, 0, -0.02), false))
+		_:
+			_smoke.append_array(Models.factory(_content, Vector3(0.02, 0, -0.08), true))
+			Models.workshop(_content, Vector3(-0.15, 0, 0.17))
+	for s in _smoke:
+		var sm: Node3D = s
+		sm.set_meta("base_y", sm.position.y)
+
+
+func _build_landmark(f: FieldData) -> void:
+	match f.landmark:
+		0:
+			_glows.append(Models.lighthouse(_content, Vector3.ZERO))
+		1:
+			_spinners.append(Models.windmill(_content, Vector3.ZERO))
+		2:
+			Models.world_tree(_content, Vector3.ZERO)
+		3:
+			_glows.append(Models.stone_circle(_content, Vector3.ZERO))
+		4:
+			Models.pyramid(_content, Vector3.ZERO)
+		_:
+			Models.observatory(_content, Vector3.ZERO)

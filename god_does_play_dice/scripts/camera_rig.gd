@@ -3,7 +3,7 @@ extends Node3D
 ## Kamera-Halter im Würfelmittelpunkt. Die Kamera schaut immer auf den Ursprung.
 ## Weiches Drehen mit Nachschwung, Abstand passt sich dem Bildschirm an.
 
-const ORBIT_SPEED := 0.0075
+const ORBIT_SPEED := 0.0058
 const FIT_RADIUS := 2.45
 
 var cam: Camera3D
@@ -13,7 +13,7 @@ var _vel := Vector2.ZERO
 var _q_from := Quaternion.IDENTITY
 var _q_to := Quaternion.IDENTITY
 var _anim_t := 1.0
-var _anim_dur := 0.6
+var _anim_dur := 0.85
 var _shake := 0.0
 
 
@@ -72,7 +72,7 @@ func _process(delta: float) -> void:
 		quaternion = _q_from.slerp(_q_to, ease(_anim_t, -2.2)).normalized()
 	elif _vel.length() > 0.5:
 		_rotate_by(_vel * delta)
-		_vel = _vel * exp(-delta * 4.5)
+		_vel = _vel * exp(-delta * 3.2)
 	if _shake > 0.0:
 		_shake = maxf(0.0, _shake - delta * 2.5)
 		_apply()

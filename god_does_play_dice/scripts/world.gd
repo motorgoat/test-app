@@ -6,7 +6,7 @@ extends Node3D
 
 signal field_tapped(fid: int)
 signal preview_changed(info: Dictionary)   # {} = keine Vorschau
-signal deltas_shown(list: Array)          # [{"field": id, "people": int, "animals": int}]
+signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
 
@@ -30,6 +30,7 @@ var _tw_sign := 1               # Drehsinn um die positive Achse
 var _tw_screen_dir := Vector2.RIGHT
 var _tw_px_per_quarter := 100.0
 var _tw_angle := 0.0
+var _tw_display := 0.0
 var _tw_quarter := 0
 var _pivot: Node3D
 var _touches: Dictionary = {}
@@ -46,6 +47,7 @@ func _ready() -> void:
 	Game.new_game_started.connect(rebuild)
 	Game.state_changed.connect(_on_state_changed)
 	Game.round_resolved.connect(_on_round_resolved)
+	Game.tool_used.connect(_on_tool_used)
 	Game.hazards_spawned.connect(_on_hazards_spawned)
 	rebuild()
 
@@ -129,6 +131,14 @@ func rebuild() -> void:
 	_sync_hazards()
 
 
+static func _is_center_cubie(p: Vector3i) -> bool:
+	var c := 0
+	for a in 3:
+		if p[a] != 0:
+			c += 1
+	return c == 1
+
+
 static func _cubie_key(p: Vector3i) -> int:
 	return (p.x + 1) + 3 * (p.y + 1) + 9 * (p.z + 1)
 
@@ -160,16 +170,20 @@ func refresh_all(gs: GameState = null) -> void:
 		v.set_icon(_status_icon(f, gs, wars))
 
 
-func _status_icon(f: FieldData, gs: GameState, wars: Dictionary) -> Texture2D:
-	if not f.settled():
+func _status_icon(f: FieldData, gs: GameState, _wars: Dictionary) -> Texture2D:
+	if not f.scored():
 		return null
 	var fc := gs.field_forecast(f)
-	if int(fc["war"]) > 0:
+	if bool(fc["war"]):
 		return Style.icon("swords")
-	if f.building == "village" and int(fc["food"]) == 0:
+	if not bool(fc["need"]):
 		return Style.icon("hunger")
-	if int(fc["trade"]) > 0:
+	if bool(fc["polluted"]):
+		return Style.icon("smog")
+	if bool(fc["trade"]):
 		return Style.icon("trade")
+	if int(fc["same"]) > 0 and f.level < Balance.MAX_LEVEL:
+		return Style.icon("up")
 	return null
 
 
@@ -203,7 +217,12 @@ func select(fid: int) -> void:
 		views[fid].set_selected(true)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if _mode == "twist" and _pivot != null:
+		_tw_display = lerpf(_tw_display, _tw_angle, 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
+		var ax := Vector3.ZERO
+		ax[_tw_axis] = 1.0
+		_pivot.basis = Basis(ax, _tw_display)
 	var cam_pos := rig.cam.global_position
 	for fid in views:
 		var v: FieldView = views[fid]
@@ -403,6 +422,7 @@ func _begin_twist(drag: Vector2) -> void:
 	_tw_screen_dir = best_dir * sgn
 	_tw_px_per_quarter = maxf(40.0, best_len * Balance.TWIST_FINGER_UNITS)
 	_tw_angle = 0.0
+	_tw_display = 0.0
 	_tw_quarter = 0
 	_pivot = Node3D.new()
 	cube_root.add_child(_pivot)
@@ -417,7 +437,6 @@ func _update_twist(pos: Vector2) -> void:
 	_tw_angle = _tw_sign * along / _tw_px_per_quarter * PI * 0.5
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0
-	_pivot.basis = Basis(ax, _tw_angle)
 	var q := clampi(roundi(_tw_angle / (PI * 0.5)), -2, 2)
 	if q != _tw_quarter:
 		_tw_quarter = q
@@ -429,28 +448,36 @@ func _show_preview(q: int) -> void:
 		_clear_preview()
 		return
 	var pv := Game.preview(_tw_axis, _tw_layer, q)
-	var ps: GameState = pv["state"]
-	var wars := ps.war_pairs()
+	var arranged: GameState = pv["arranged"]
+	var after: GameState = pv["state"]
 	for f in Game.state.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
 			continue
-		var g: FieldData = ps.fields[f.id]
-		var dp: int = g.people - f.people
-		var da: int = g.animals - f.animals
+		var a: FieldData = arranged.fields[f.id]
+		var b: FieldData = after.fields[f.id]
 		var text := ""
-		if dp != 0:
-			text = "%+d" % dp
-		elif da != 0:
-			text = "%+d" % da
-		v.set_preview(text.replace("-", "−"), dp > 0 or (dp == 0 and da > 0))
-		v.set_icon(_status_icon(g, ps, wars))
+		var col := Color("#2f9e4f")
+		if b.kind == "crater" and a.kind != "crater":
+			text = "✕"
+			col = Color("#e5483c")
+		elif b.kind == a.kind and b.level < a.level:
+			text = "▼"
+			col = Color("#e5483c")
+		elif b.kind == a.kind and b.level > a.level:
+			text = "▲"
+		else:
+			var pts := arranged.field_points(a)
+			if pts > 0:
+				text = "+%d" % pts
+		v.set_preview(text, col)
+		v.set_icon(_status_icon(a, arranged, {}))
 	preview_changed.emit(pv)
 
 
 func _clear_preview() -> void:
 	for fid in views:
-		(views[fid] as FieldView).set_preview("", true)
+		(views[fid] as FieldView).set_preview("", Color.WHITE)
 	refresh_all()
 	preview_changed.emit({})
 
@@ -461,17 +488,18 @@ func _finish_twist() -> void:
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0
 	var target := _tw_quarter * PI * 0.5
-	var start := _tw_angle
+	var start := _tw_display
 	var piv := _pivot
 	var setter := func(a: float) -> void:
 		piv.basis = Basis(ax, a)
 	var tw := create_tween()
-	tw.tween_method(setter, start, target, Balance.TWIST_SNAP_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var dur := Balance.TWIST_SNAP_SECONDS * clampf(absf(target - start) / (PI * 0.5) + 0.35, 0.5, 1.6)
+	tw.tween_method(setter, start, target, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await tw.finished
 	piv.basis = Basis(ax, target)
 	_unparent_pivot(piv, _tw_axis, _tw_quarter)
 	for fid in views:
-		(views[fid] as FieldView).set_preview("", true)
+		(views[fid] as FieldView).set_preview("", Color.WHITE)
 	preview_changed.emit({})
 	if _tw_quarter != 0:
 		Game.play_turn(_tw_axis, _tw_layer, _tw_quarter)
@@ -484,7 +512,7 @@ func _slice_cubies(axis: int, layer: int) -> Array:
 	var out: Array = []
 	for cb in cubies:
 		var p: Vector3i = cb.get_meta("pos")
-		if p[axis] == layer:
+		if p[axis] == layer and not _is_center_cubie(p):
 			out.append(cb)
 	return out
 
@@ -533,9 +561,10 @@ func debug_end_twist() -> void:
 # Runde abspielen
 # =============================================================================
 
-func _on_round_resolved(events: Array, before: Dictionary) -> void:
+func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	animating = true
 	var gs := Game.state
+	var events: Array = result["events"]
 	# Einschläge zuerst
 	for e in events:
 		var t: String = e["type"]
@@ -554,20 +583,66 @@ func _on_round_resolved(events: Array, before: Dictionary) -> void:
 			if t == "meteor":
 				await get_tree().create_timer(0.3).timeout
 				rig.shake(1.0)
-			await get_tree().create_timer(0.35).timeout
+			await get_tree().create_timer(0.4).timeout
 	refresh_all()
 	_sync_hazards()
-	var deltas: Array = []
+	var changes: Array = []
 	for f in gs.fields:
-		var b: Array = before.get(f.id, [f.people, f.animals])
-		var dp: int = f.people - int(b[0])
-		var da: int = f.animals - int(b[1])
-		if dp != 0 or da != 0:
-			deltas.append({"field": f.id, "people": dp, "animals": da})
-	deltas_shown.emit(deltas)
-	await get_tree().create_timer(0.25).timeout
+		var b: Array = before.get(f.id, [f.kind, f.level, f.nation])
+		var change := ""
+		if f.kind == "crater" and str(b[0]) != "crater":
+			change = "lost"
+		elif f.kind != str(b[0]):
+			change = "new"
+		elif f.level > int(b[1]):
+			change = "up"
+		elif f.level < int(b[1]):
+			change = "down"
+		if change != "":
+			changes.append({"field": f.id, "change": change})
+	deltas_shown.emit(changes, int(result["gain"]) - int(result["loss"]))
+	await get_tree().create_timer(0.35).timeout
 	animating = false
-	Game.finish_round()
+	Game.finish_round(result)
+
+
+func _on_tool_used(kind: String, fid: int) -> void:
+	var v: FieldView = views.get(fid)
+	if v == null:
+		return
+	animating = true
+	if kind == "lightning":
+		var bolt := Models.box(cube_root, Vector3(0.07, 1.6, 0.07), Color("#fff3a0"), Vector3.ZERO, Vector3.ZERO, Models.mat(Color("#fff3a0"), 0.3, 6.0))
+		bolt.global_transform = Transform3D(v.global_transform.basis, v.global_position + v.world_normal() * 0.9)
+		var flash := OmniLight3D.new()
+		flash.light_color = Color("#eaf2ff")
+		flash.omni_range = 3.0
+		flash.light_energy = 6.0
+		cube_root.add_child(flash)
+		flash.global_position = v.global_position + v.world_normal() * 0.6
+		rig.shake(0.7)
+		var tw := create_tween()
+		tw.tween_interval(0.1)
+		tw.tween_callback(bolt.hide)
+		tw.tween_interval(0.06)
+		tw.tween_callback(bolt.show)
+		tw.tween_interval(0.12)
+		tw.tween_callback(bolt.queue_free)
+		tw.parallel().tween_property(flash, "light_energy", 0.0, 0.35)
+		tw.tween_callback(flash.queue_free)
+		await tw.finished
+	else:
+		for k in 10:
+			var spark := Models.sphere(cube_root, 0.03, Color("#d9c2ff"), v.global_position + v.world_normal() * 0.3,
+				Models.mat(Color("#d9c2ff"), 0.3, 3.0))
+			var dir := (v.world_normal() + Vector3(randf_range(-0.8, 0.8), randf_range(-0.8, 0.8), randf_range(-0.8, 0.8))).normalized()
+			var st := spark.create_tween()
+			st.tween_property(spark, "global_position", spark.global_position + dir * 0.7, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			st.parallel().tween_property(spark, "scale", Vector3.ZERO, 0.7)
+			st.tween_callback(spark.queue_free)
+		await get_tree().create_timer(0.3).timeout
+	animating = false
+	refresh_all()
 
 
 func _eruption_fx(fid: int) -> void:

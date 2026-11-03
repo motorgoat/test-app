@@ -4,47 +4,65 @@ extends RefCounted
 
 # --- Völker und Start --------------------------------------------------------
 static var NATION_COUNT := 3
-static var START_VILLAGES := 2            # Dörfer pro Volk
-static var START_VILLAGE_PEOPLE := 3
-static var START_CHURCH_PEOPLE := 2
-static var START_MARKET_PEOPLE := 2
-static var START_ANIMAL_HERDS := 8
-static var START_ANIMALS := 2
+static var START_SETTLEMENTS := 3        # Siedlungen pro Volk (als Gruppe)
+static var START_FAITH := 1              # Kapellen pro Volk
+static var START_INDUSTRY := 5
+static var START_MOUNTAINS := 6          # Rest wird Natur
 
-# Gelände-Gewichte beim Verteilen
-static var TERRAIN_WEIGHTS := {"meadow": 40, "forest": 26, "lake": 18, "mountain": 16}
+# --- Stufen ------------------------------------------------------------------
+static var MAX_LEVEL := 3
+static var MERGE_ROUNDS := 2             # so viele Runden neben Gleichem, dann Stufe höher
+static var NEED_ROUNDS := 2              # so viele Runden ohne Bedürfnis, dann Stufe tiefer
+static var WAR_ROUNDS := 2               # so viele Runden Krieg an der Grenze, dann Stufe tiefer
+static var POLLUTION_ROUNDS := 2         # so viele Runden neben Fabrik, dann Natur Stufe tiefer
+static var POLLUTION_MIN_LEVEL := 2      # ab dieser Industrie-Stufe wird verschmutzt
+static var CRATER_REGROW := 6            # nach so vielen Runden wächst auf einem Krater wieder Natur
+static var CHAPEL_EVERY := 3             # jede 3. Ausbreitung einer Stadt wird eine Kapelle
 
-# --- Wachsen und Schrumpfen ---------------------------------------------------
-static var MAX_PEOPLE := 9                # pro Feld
-static var MAX_ANIMALS := 6               # pro Feld
-static var GROWTH_FOOD_NEEDED := 2        # Dorf wächst mit so vielen freien Wiesen/Seen daneben
-static var CHURCH_BONUS := 1              # Dorf neben eigener Kirche wächst zusätzlich
-static var TRADE_GAIN := 1                # Markt neben fremdem Markt (kein Krieg): +1
-static var TRADE_MAX := 2
-static var WAR_LOSS := 1                  # pro Berührung mit einem Feind
-static var WAR_MAX := 3
-static var EXPAND_AT := 8                 # ab so vielen Menschen gründet ein Dorf ein neues
-static var EXPAND_COST := 2
-static var NEW_VILLAGE_PEOPLE := 2
+# Ausbreiten (Stufe 3 wächst aufs Nachbarfeld): alle N Runden, wird mit jedem Zeitalter schneller
+static var SPREAD_EVERY := 4
+static var SPREAD_EVERY_MIN := 2
 
-# --- Katastrophen --------------------------------------------------------------
-static var FIRE_DAMAGE := 2
-static var CRATER_TO_LAKE := 5            # nach so vielen Runden füllt sich ein Krater mit Wasser
-static var HAZARD_FREE_ROUNDS := 2        # die ersten Runden sind ruhig
-static var HAZARD_CHANCE_BASE := 0.35
-static var HAZARD_CHANCE_STEP := 0.03     # pro Runde wahrscheinlicher
+# --- Glaube (Punkte) -----------------------------------------------------------
+static var TRADE_POINTS := 3             # Städte zweier Völker nebeneinander, ohne Krieg
+static var DISASTER_LOSS_PER_LEVEL := 4  # Glaube, der pro zerstörter Stufe einer Siedlung verloren geht
+
+# --- Gleichgewicht -------------------------------------------------------------
+# Anteil an allen beweglichen Feldern, der als „gesund“ gilt
+static var IDEAL := {
+	"nature": [0.25, 0.50],
+	"settlement": [0.15, 0.40],
+	"industry": [0.06, 0.25],
+	"faith": [0.04, 0.16],
+}
+static var HARMONY_STRICTNESS := 3.0     # wie stark Abweichungen das Gleichgewicht drücken
+static var HARMONY_DANGER := 0.15        # darunter gilt die Welt als aus dem Gleichgewicht
+static var LOSE_AFTER_DISHARMONY := 3    # so viele Runden aus dem Gleichgewicht = Ende
+
+# --- Werkzeuge ---------------------------------------------------------------------
+static var LIGHTNING_START := 1
+static var LIGHTNING_EVERY := 5          # alle 5 Runden ein neuer Blitz
+static var LIGHTNING_MAX := 3
+static var MIRACLE_EVERY_POINTS := 40    # alle 40 Glaube ein Wunder
+static var MIRACLE_MAX := 2
+
+# --- Gefahren und Zeitalter -----------------------------------------------------
+static var AGE_LENGTH := 10              # Runden pro Zeitalter
+static var HAZARD_FREE_ROUNDS := 3
+static var HAZARD_CHANCE_BASE := 0.3
+static var HAZARD_CHANCE_PER_AGE := 0.12
 static var HAZARD_CHANCE_MAX := 0.9
-static var HAZARD_MAX_BASE := 1           # gleichzeitig aktive Gefahren am Anfang
-static var HAZARD_MAX_EVERY := 6          # alle 6 Runden eine mehr
-static var HAZARD_MAX := 4
-static var HAZARD_WEIGHTS := {"storm": 40, "meteor": 30, "volcano": 30}
-static var HAZARD_TIMER := {"storm": 2, "meteor": 3, "volcano": 3}
-static var HAZARD_TARGET_SETTLED := 0.7   # so oft zielt eine Gefahr auf bewohntes Land
+static var HAZARD_MAX_BASE := 1          # gleichzeitig, plus 1 pro Zeitalter
+static var HAZARD_MAX := 5
+static var HAZARD_WEIGHTS := {"storm": 40, "meteor": 35, "volcano": 25}
+static var HAZARD_TIMER := 3             # Vorwarnung in Runden
+static var HAZARD_TIMER_MIN := 2         # ab Zeitalter 3 eine Runde weniger
 
 # --- Spielende -----------------------------------------------------------------
-static var MAX_ROUNDS := 0                # 0 = endlos, bis alle Menschen tot sind
+static var MAX_ROUNDS := 0               # 0 = endlos
 
-# --- Bedienung -----------------------------------------------------------------
-static var TWIST_SNAP_SECONDS := 0.22
-static var TWIST_FINGER_UNITS := 1.5      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
+# --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) -------------
+static var TWIST_SNAP_SECONDS := 0.42
+static var TWIST_FINGER_UNITS := 2.1     # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
+static var TWIST_FOLLOW := 9.0           # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var DRAG_START_PX := 12.0

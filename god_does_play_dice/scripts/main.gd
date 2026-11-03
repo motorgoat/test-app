@@ -41,10 +41,6 @@ func _shots(dir: String) -> void:
 	ui.debug_close_all()
 	await _wait(1.5)
 	await _shot(dir, "01_start")
-	world.set_postfx(false)
-	await _wait(0.3)
-	await _shot(dir, "01b_ohne_filter")
-	world.set_postfx(true)
 	ui.debug_show_help()
 	await _wait(0.7)
 	await _shot(dir, "02_hilfe")
@@ -52,32 +48,42 @@ func _shots(dir: String) -> void:
 	await _wait(0.3)
 	var fid := _visible_field(true)
 	world.debug_begin_twist(fid, Vector2(1, 0.15), 0.62)
-	await _wait(0.6)
+	await _wait(1.0)
 	await _shot(dir, "03_wischen")
 	world.debug_end_twist()
-	await _wait(2.2)
+	await _wait(2.4)
 	await _shot(dir, "04_nach_drehung")
 	# Eine Gefahr erzwingen, damit man sie sieht
 	var target: FieldData = Game.state.fields[_visible_field(true)]
-	Game.state.hazards.append({"type": "meteor", "p": target.p, "n": target.n, "timer": 3})
+	Game.state.hazards.append({"type": "meteor", "p": target.p, "n": target.n, "timer": 2})
 	var other: FieldData = Game.state.fields[_visible_field(false)]
 	if other != target:
-		Game.state.hazards.append({"type": "storm", "p": other.p, "n": other.n, "timer": 2})
+		Game.state.hazards.append({"type": "storm", "p": other.p, "n": other.n, "timer": 3})
 	Game.state_changed.emit()
 	await _wait(1.0)
 	await _shot(dir, "05_gefahren")
-	for i in 3:
+	for i in 2:
 		world.wait_turn()
-		await _wait(2.0)
+		await _wait(2.2)
 	await _shot(dir, "06_nach_einschlag")
+	for i in 12:
+		world.wait_turn()
+		await _wait(1.6)
+	await _shot(dir, "07_spaeter")
 	ui.debug_show_field(_visible_field(true))
 	await _wait(0.6)
-	await _shot(dir, "07_info")
+	await _shot(dir, "08_info")
+	ui.debug_close_all()
+	Game.state.miracles = 1
+	Game.state_changed.emit()
+	ui.debug_show_pick()
+	await _wait(0.7)
+	await _shot(dir, "09_wunder")
 	ui.debug_close_all()
 	Game.over = true
 	Game.game_over.emit()
 	await _wait(0.7)
-	await _shot(dir, "08_ende")
+	await _shot(dir, "10_ende")
 	get_tree().quit()
 
 
@@ -103,7 +109,7 @@ func _visible_field(settled: bool) -> int:
 		if v == null:
 			continue
 		var score := v.world_normal().dot((cam_pos - v.global_position).normalized())
-		if settled and f.settled():
+		if settled and f.has_nation():
 			score += 0.5
 		if score > best_score:
 			best_score = score

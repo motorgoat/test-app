@@ -10,11 +10,13 @@ var checks := 0
 func _init() -> void:
 	test_setup()
 	test_geometry()
-	test_growth()
+	test_merge()
+	test_needs()
 	test_war_and_trade()
-	test_meteor_and_storm()
-	test_fire_and_lake()
-	test_volcano()
+	test_pollution_and_spread()
+	test_hazards()
+	test_tools()
+	test_harmony()
 	test_preview_matches()
 	test_long_run()
 	print("")
@@ -36,53 +38,56 @@ func new_state(seed_value := 12345) -> GameState:
 	return gs
 
 
-## Leere Welt (nur Wiesen) für gezielte Tests.
+## Welt nur aus Bergen (neutral) für gezielte Tests.
 func empty_state() -> GameState:
 	var gs := new_state()
 	for f in gs.fields:
-		f.terrain = "meadow"
+		if f.is_center:
+			continue
+		f.kind = "mountain"
+		f.level = 1
 		f.nation = -1
-		f.building = ""
-		f.people = 0
-		f.animals = 0
+		f.bond = 0
+		f.need = 0
+		f.damage = 0
+		f.pollution = 0
 		f.burning = false
 		f.volcano = 0
 	gs.hazards.clear()
 	return gs
 
 
-func at(gs: GameState, p: Vector3i, n: Vector3i) -> FieldData:
-	return gs.field_at(p, n)
+## Oberseite: Mitte (0,1,0) ist fest. Benachbarte bewegliche Felder dort.
+func top(gs: GameState, x: int, z: int) -> FieldData:
+	return gs.field_at(Vector3i(x, 1, z), Vector3i(0, 1, 0))
 
 
-func settle(f: FieldData, nation: int, building: String, people: int) -> void:
+func put(f: FieldData, kind: String, level: int = 1, nation: int = -1) -> void:
+	f.kind = kind
+	f.level = level
 	f.nation = nation
-	f.building = building
-	f.people = people
 
 
 func test_setup() -> void:
 	var gs := new_state()
 	check(gs.fields.size() == 54, "54 Felder")
+	var centers := 0
+	for f in gs.fields:
+		if f.is_center:
+			centers += 1
+	check(centers == 6, "6 feste Mitten")
 	check(gs.war_pairs().is_empty(), "kein Krieg am Start")
-	for nation in Balance.NATION_COUNT:
-		check(gs.nation_people(nation) > 0, "Volk %d lebt" % nation)
-	check(gs.total_animals() > 0, "es gibt Tiere")
-	check(gs.hazards.is_empty(), "keine Gefahren am Start")
+	check(gs.settlements() > 0, "es gibt Siedlungen")
+	var hm := gs.harmony()
+	check(float(hm["value"]) > 0.3, "Start ist einigermaßen im Gleichgewicht (%.2f)" % float(hm["value"]))
 
 
 func test_geometry() -> void:
 	var gs := new_state()
-	var before := []
+	var centers := {}
 	for f in gs.fields:
-		before.append([f.p, f.n])
-	for i in 4:
-		gs.apply_rotation(1, 0, 1)
-	var same := true
-	for f in gs.fields:
-		if before[f.id][0] != f.p or before[f.id][1] != f.n:
-			same = false
-	check(same, "4 × 90° = keine Änderung (Mittelscheibe)")
+		if f.is_center:
+			centers[f.id] = [f.p, f.n]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3
 	for i in 300:
@@ -91,150 +96,176 @@ func test_geometry() -> void:
 	var ok := true
 	for f in gs.fields:
 		keys[GameState.pos_key(f.p, f.n)] = true
-		var a := GameState.axis_of(f.n)
-		if f.p[a] != f.n[a]:
-			ok = false
 		if gs.neighbors(f).size() != 4:
 			ok = false
+		if f.is_center and (centers[f.id][0] != f.p or centers[f.id][1] != f.n):
+			ok = false
 	check(keys.size() == 54, "jeder Platz genau einmal belegt")
-	check(ok, "Felder bleiben auf der Oberfläche und haben 4 Nachbarn")
-	# Mittelscheibe bewegt auch die Mitte (wie beim echten Würfel)
-	var gs2 := new_state()
-	var c := at(gs2, Vector3i(0, 0, 1), Vector3i(0, 0, 1))
-	gs2.apply_rotation(1, 0, 1)
-	check(c.n == Vector3i(1, 0, 0), "Mitte wandert mit der Mittelscheibe")
+	check(ok, "Mitten bleiben fest, jedes Feld hat 4 Nachbarn")
 
 
-func test_growth() -> void:
+func test_merge() -> void:
 	var gs := empty_state()
-	var v := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	settle(v, 0, "village", 3)
+	var a := top(gs, 1, 1)
+	var b := top(gs, 1, 0)
+	put(a, "nature")
+	put(b, "nature")
+	check(gs.pairs().size() == 1 and int(gs.pairs()[0]["points"]) == 2, "ein Paar mit 2 Punkten")
 	gs.end_round()
-	check(v.people == 4, "Dorf mit 4 Wiesen daneben wächst (%d)" % v.people)
-	# Hunger: alle Nachbarn sind Berge
+	check(a.level == 1, "nach 1 Runde noch Stufe 1")
+	gs.end_round()
+	check(a.level == 2 and b.level == 2, "nach 2 Runden: Fluss (%d, %d)" % [a.level, b.level])
+	check(gs.field_points(a) == 4, "Paar aus zwei Flüssen: 4 Punkte")
+
+
+func test_needs() -> void:
+	var gs := empty_state()
+	var s := top(gs, 1, 1)
+	put(s, "settlement", 2, 0)
+	gs.end_round()
+	gs.end_round()
+	check(s.level == 1, "Siedlung ohne Natur verliert eine Stufe (%d)" % s.level)
 	var gs2 := empty_state()
-	var v2 := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	settle(v2, 0, "village", 3)
-	for g in gs2.neighbors(v2):
-		g.terrain = "mountain"
+	var s2 := top(gs2, 1, 1)
+	put(s2, "settlement", 2, 0)
+	put(top(gs2, 1, 0), "nature")
 	gs2.end_round()
-	check(v2.people == 2, "Dorf ohne Nahrung schrumpft (%d)" % v2.people)
-	# Ausbreiten
+	gs2.end_round()
+	check(s2.level == 2, "Siedlung mit Natur bleibt (%d)" % s2.level)
 	var gs3 := empty_state()
-	var v3 := at(gs3, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	settle(v3, 0, "village", Balance.EXPAND_AT)
+	var lone := top(gs3, 1, 1)
+	put(lone, "industry", 1)
 	gs3.end_round()
-	var new_villages := 0
-	for g in gs3.neighbors(v3):
-		if g.building == "village":
-			new_villages += 1
-	check(new_villages == 1, "volles Dorf gründet ein neues")
+	gs3.end_round()
+	check(lone.kind == "crater", "Werkstatt ohne Siedlung verfällt zum Krater")
 
 
 func test_war_and_trade() -> void:
 	var gs := empty_state()
-	var a := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	var b := at(gs, Vector3i(1, 1, 0), Vector3i(0, 1, 0))
-	settle(a, 0, "church", 4)
-	settle(b, 1, "church", 4)
+	var c1 := top(gs, 1, 1)
+	var c2 := top(gs, 1, 0)
+	put(c1, "faith", 2, 0)
+	put(c2, "faith", 2, 1)
+	put(top(gs, 0, 1), "settlement", 1, 0)
+	put(top(gs, 1, -1), "settlement", 1, 1)
+	put(top(gs, -1, 1), "nature")
+	put(top(gs, 0, -1), "nature")
 	check(gs.war_pairs().has(GameState.pair_key(0, 1)), "Kirchen nebeneinander: Krieg")
 	gs.end_round()
-	check(a.people == 3 and b.people == 3, "Krieg kostet beide Seiten (%d, %d)" % [a.people, b.people])
-	# Handel
+	gs.end_round()
+	check(c1.level == 1 and c2.level == 1, "Krieg kostet beide eine Stufe (%d, %d)" % [c1.level, c2.level])
+	# Handel zwischen Städten
 	var gs2 := empty_state()
-	var m1 := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	var m2 := at(gs2, Vector3i(1, 1, 0), Vector3i(0, 1, 0))
-	settle(m1, 0, "market", 3)
-	settle(m2, 1, "market", 3)
-	check(gs2.trade_pairs().has(GameState.pair_key(0, 1)), "Märkte nebeneinander: Handel")
-	gs2.end_round()
-	check(m1.people == 4 and m2.people == 4, "Handel lässt beide wachsen (%d, %d)" % [m1.people, m2.people])
+	var t1 := top(gs2, 1, 1)
+	var t2 := top(gs2, 1, 0)
+	put(t1, "settlement", 2, 0)
+	put(t2, "settlement", 2, 1)
+	check(gs2.trade_pairs().has(GameState.pair_key(0, 1)), "Städte zweier Völker: Handel")
 	# Krieg verhindert Handel
-	var c1 := at(gs2, Vector3i(-1, 1, 0), Vector3i(0, 1, 0))
-	var c2 := at(gs2, Vector3i(-1, 1, 1), Vector3i(0, 1, 0))
-	settle(c1, 0, "church", 3)
-	settle(c2, 1, "church", 3)
+	put(top(gs2, -1, 1), "faith", 1, 0)
+	put(top(gs2, -1, 0), "faith", 1, 1)
 	check(gs2.trade_pairs().is_empty(), "im Krieg kein Handel")
-	gs2.end_round()
-	check(m1.people == 3 and m2.people == 3, "Märkte im Krieg verlieren statt zu wachsen (%d, %d)" % [m1.people, m2.people])
 
 
-func test_meteor_and_storm() -> void:
+func test_pollution_and_spread() -> void:
 	var gs := empty_state()
-	var v := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	settle(v, 0, "village", 5)
-	gs.hazards.append({"type": "meteor", "p": v.p, "n": v.n, "timer": 2})
+	var fac := top(gs, 1, 1)
+	var nat := top(gs, 1, 0)
+	put(fac, "industry", 2)
+	put(top(gs, 0, 1), "settlement", 1, 0)
+	put(nat, "nature", 2)
+	put(top(gs, 1, -1), "nature", 2)
 	gs.end_round()
-	check(v.people > 0, "Meteor schlägt noch nicht ein")
-	# wegdrehen: die Ebene y=1 drehen, dann landet ein anderes Feld am Platz
-	gs.apply_rotation(1, 1, 1)
-	var place_field := gs.field_at(Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	check(place_field == v, "Mitte der oberen Seite bleibt bei Drehung um die y-Achse")
-	gs.apply_rotation(1, 1, -1)
-	gs.apply_rotation(0, 0, 1)
-	var hit := gs.field_at(Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	check(hit != v, "Dorf ist weggedreht")
-	var ev := gs.end_round()
-	check(hit.terrain == "crater", "Meteor macht einen Krater")
-	check(v.people > 0, "weggedrehtes Dorf überlebt")
-	var types := []
-	for e in ev:
-		types.append(e["type"])
-	check(types.has("meteor"), "Ereignis Meteor")
-	# Gewitter halbiert
+	gs.end_round()
+	check(nat.level < 2 or nat.kind == "crater", "Fabrik verschmutzt Natur daneben")
+	# Ausbreiten: Stadt Stufe 3 frisst Natur Stufe 1
 	var gs2 := empty_state()
-	var w := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	settle(w, 0, "village", 6)
-	w.terrain = "forest"
-	gs2.hazards.append({"type": "storm", "p": w.p, "n": w.n, "timer": 1})
+	var city := top(gs2, 1, 1)
+	put(city, "settlement", 3, 0)
+	var grass := top(gs2, 1, 0)
+	put(grass, "nature", 1)
+	gs2.turn = gs2.spread_every()
 	gs2.end_round()
-	check(w.people <= 4, "Gewitter halbiert (%d)" % w.people)
-	check(w.burning, "Blitz im Wald: Feuer")
+	check(grass.has_nation() and grass.nation == 0, "Metropole breitet sich auf Natur aus")
 
 
-func test_fire_and_lake() -> void:
+func test_hazards() -> void:
 	var gs := empty_state()
-	var f := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	f.terrain = "forest"
-	f.burning = true
-	var nb: Array = gs.neighbors(f)
-	(nb[0] as FieldData).terrain = "forest"
+	var v := top(gs, 1, 1)
+	put(v, "settlement", 2, 0)
+	put(top(gs, 1, 0), "nature")
+	gs.hazards.append({"type": "meteor", "p": v.p, "n": v.n, "timer": 1})
+	gs.apply_rotation(0, 1, 1)   # Scheibe x=1 dreht: Siedlung wandert weg
+	var hit := gs.field_at(Vector3i(1, 1, 1), Vector3i(0, 1, 0))
+	check(hit != v, "Siedlung ist weggedreht")
 	gs.end_round()
-	check(not f.burning and f.terrain == "meadow", "Feuer brennt aus")
-	check((nb[0] as FieldData).burning, "Feuer springt auf Nachbarwald")
+	check(hit.kind == "crater", "Meteor macht einen Krater")
+	check(v.kind == "settlement", "weggedrehte Siedlung überlebt")
+	# Feuer und Fluss
 	var gs2 := empty_state()
-	var g := at(gs2, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	g.terrain = "forest"
-	g.burning = true
-	(gs2.neighbors(g)[0] as FieldData).terrain = "lake"
+	var f1 := top(gs2, 1, 1)
+	put(f1, "nature", 1)
+	f1.burning = true
+	var f2 := top(gs2, 1, 0)
+	put(f2, "nature", 1)
 	gs2.end_round()
-	check(not g.burning and g.terrain == "forest", "See daneben löscht")
+	check(f1.kind == "crater", "Feuer brennt Natur nieder")
+	check(f2.burning, "Feuer springt über")
+	var gs3 := empty_state()
+	var g1 := top(gs3, 1, 1)
+	put(g1, "nature", 1)
+	g1.burning = true
+	put(top(gs3, 1, 0), "nature", 2)
+	gs3.end_round()
+	check(g1.kind == "nature" and not g1.burning, "Fluss daneben löscht")
 
 
-func test_volcano() -> void:
+func test_tools() -> void:
+	var gs := new_state()
+	var f: FieldData = null
+	for g in gs.fields:
+		if g.kind == "nature":
+			f = g
+			break
+	check(gs.can_lightning(f) == "", "Blitz am Start bereit")
+	gs.use_lightning(f)
+	check(f.kind == "crater" and gs.lightning == Balance.LIGHTNING_START - 1, "Blitz macht Krater")
+	check(gs.can_miracle(f) != "", "ohne Wunder kein Wunder")
+	gs.miracles = 1
+	gs.use_miracle(f, "industry")
+	check(f.kind == "industry" and f.level == 1, "Wunder erschafft Feld nach Wahl")
+	var center: FieldData = null
+	for g in gs.fields:
+		if g.is_center:
+			center = g
+	gs.lightning = 1
+	check(gs.can_lightning(center) != "", "Wahrzeichen sind geschützt")
+
+
+func test_harmony() -> void:
 	var gs := empty_state()
-	var m := at(gs, Vector3i(0, 1, 0), Vector3i(0, 1, 0))
-	m.terrain = "mountain"
-	m.volcano = 1
-	var nb: Array = gs.neighbors(m)
-	settle(nb[0], 0, "village", 6)
+	for f in gs.fields:
+		if not f.is_center:
+			put(f, "industry", 1)
+	check(float(gs.harmony()["value"]) < 0.1, "nur Industrie: kein Gleichgewicht")
 	gs.end_round()
-	check(m.volcano == 0, "Vulkan ist ausgebrochen")
-	check((nb[0] as FieldData).people <= 4, "Nachbarn verlieren die Hälfte")
+	gs.end_round()
+	gs.end_round()
+	check(gs.is_over(), "zu lange aus dem Gleichgewicht: Ende")
 
 
 func test_preview_matches() -> void:
 	var gs := new_state(777)
-	gs.hazards.append({"type": "meteor", "p": Vector3i(0, 1, 0), "n": Vector3i(0, 1, 0), "timer": 1})
+	gs.hazards.append({"type": "meteor", "p": Vector3i(1, 1, 1), "n": Vector3i(0, 1, 0), "timer": 1})
 	var sim := gs.clone()
 	sim.apply_rotation(2, 1, 1)
-	sim.end_round()
+	var r1 := sim.end_round()
 	gs.apply_rotation(2, 1, 1)
-	gs.end_round()
-	var same := true
+	var r2 := gs.end_round()
+	var same := int(r1["gain"]) == int(r2["gain"]) and sim.faith == gs.faith
 	for f in gs.fields:
 		var g: FieldData = sim.fields[f.id]
-		if f.people != g.people or f.animals != g.animals or f.terrain != g.terrain or f.p != g.p:
+		if f.kind != g.kind or f.level != g.level or f.p != g.p:
 			same = false
 	check(same, "Vorschau = echte Runde")
 
@@ -245,7 +276,7 @@ func test_long_run() -> void:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = s * 99
 		var rounds := 0
-		for t in 120:
+		for t in 150:
 			gs.apply_rotation(rng.randi_range(0, 2), rng.randi_range(-1, 1), [1, -1][rng.randi_range(0, 1)])
 			gs.end_round()
 			gs.spawn_hazards()
@@ -254,9 +285,10 @@ func test_long_run() -> void:
 				break
 		var ok := true
 		for f in gs.fields:
-			if f.people < 0 or f.animals < 0 or f.people > Balance.MAX_PEOPLE:
+			if f.level < 1 or f.level > 3:
 				ok = false
-			if f.building != "" and f.nation < 0:
+			if f.has_nation() and f.nation >= Balance.NATION_COUNT:
 				ok = false
 		check(ok, "Werte bleiben gültig (Seed %d)" % s)
-		print("Zufallsspiel Seed %d: %d Runden, %d Menschen, %d Tiere, Spitze %d" % [s, rounds, gs.total_people(), gs.total_animals(), gs.peak_people])
+		var hm := gs.harmony()
+		print("Zufallsspiel Seed %d: %d Runden, Glaube %d, Gleichgewicht %.2f, Anteile %s" % [s, rounds, gs.faith, float(hm["value"]), str(hm["counts"])])
