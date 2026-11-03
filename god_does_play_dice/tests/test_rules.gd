@@ -112,10 +112,11 @@ func test_merge() -> void:
 	put(a, "nature")
 	put(b, "nature")
 	check(gs.pairs().size() == 1 and int(gs.pairs()[0]["points"]) == 2, "ein Paar mit 2 Punkten")
+	for i in Balance.MERGE_ROUNDS - 1:
+		gs.end_round()
+	check(a.level == 1, "kurz vorher noch Stufe 1")
 	gs.end_round()
-	check(a.level == 1, "nach 1 Runde noch Stufe 1")
-	gs.end_round()
-	check(a.level == 2 and b.level == 2, "nach 2 Runden: Fluss (%d, %d)" % [a.level, b.level])
+	check(a.level == 2 and b.level == 2, "nach %d Runden: Fluss (%d, %d)" % [Balance.MERGE_ROUNDS, a.level, b.level])
 	check(gs.field_points(a) == 4, "Paar aus zwei Flüssen: 4 Punkte")
 
 
@@ -123,21 +124,21 @@ func test_needs() -> void:
 	var gs := empty_state()
 	var s := top(gs, 1, 1)
 	put(s, "settlement", 2, 0)
-	gs.end_round()
-	gs.end_round()
+	for i in Balance.NEED_ROUNDS:
+		gs.end_round()
 	check(s.level == 1, "Siedlung ohne Natur verliert eine Stufe (%d)" % s.level)
 	var gs2 := empty_state()
 	var s2 := top(gs2, 1, 1)
 	put(s2, "settlement", 2, 0)
 	put(top(gs2, 1, 0), "nature")
-	gs2.end_round()
-	gs2.end_round()
+	for i in Balance.NEED_ROUNDS:
+		gs2.end_round()
 	check(s2.level == 2, "Siedlung mit Natur bleibt (%d)" % s2.level)
 	var gs3 := empty_state()
 	var lone := top(gs3, 1, 1)
 	put(lone, "industry", 1)
-	gs3.end_round()
-	gs3.end_round()
+	for i in Balance.NEED_ROUNDS:
+		gs3.end_round()
 	check(lone.kind == "crater", "Werkstatt ohne Siedlung verfällt zum Krater")
 
 
@@ -152,8 +153,8 @@ func test_war_and_trade() -> void:
 	put(top(gs, -1, 1), "nature")
 	put(top(gs, 0, -1), "nature")
 	check(gs.war_pairs().has(GameState.pair_key(0, 1)), "Kirchen nebeneinander: Krieg")
-	gs.end_round()
-	gs.end_round()
+	for i in Balance.WAR_ROUNDS:
+		gs.end_round()
 	check(c1.level == 1 and c2.level == 1, "Krieg kostet beide eine Stufe (%d, %d)" % [c1.level, c2.level])
 	# Handel zwischen Städten
 	var gs2 := empty_state()
@@ -176,8 +177,8 @@ func test_pollution_and_spread() -> void:
 	put(top(gs, 0, 1), "settlement", 1, 0)
 	put(nat, "nature", 2)
 	put(top(gs, 1, -1), "nature", 2)
-	gs.end_round()
-	gs.end_round()
+	for i in Balance.POLLUTION_ROUNDS:
+		gs.end_round()
 	check(nat.level < 2 or nat.kind == "crater", "Fabrik verschmutzt Natur daneben")
 	# Ausbreiten: Stadt Stufe 3 frisst Natur Stufe 1
 	var gs2 := empty_state()
@@ -249,9 +250,8 @@ func test_harmony() -> void:
 		if not f.is_center:
 			put(f, "industry", 1)
 	check(float(gs.harmony()["value"]) < 0.1, "nur Industrie: kein Gleichgewicht")
-	gs.end_round()
-	gs.end_round()
-	gs.end_round()
+	for i in Balance.LOSE_AFTER_DISHARMONY:
+		gs.end_round()
 	check(gs.is_over(), "zu lange aus dem Gleichgewicht: Ende")
 
 
