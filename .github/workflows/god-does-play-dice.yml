@@ -1,0 +1,79 @@
+name: God does play dice – Testversion
+
+# Baut bei jedem Push auf den Spiel-Branch:
+# 1. Regeltests (headless), 2. Probelauf des Spiels (~50 s Spielzeit, ohne Grafik),
+# 3. Android-APK. Die APK landet unter Releases → „dice-testversion“.
+
+on:
+  push:
+    branches: [claude/new-session-znknd9]
+    paths:
+      - "god_does_play_dice/**"
+      - ".github/workflows/god-does-play-dice.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: god-does-play-dice
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    env:
+      PROJECT: god_does_play_dice
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot einrichten (Vorlagen, Android-SDK, Debug-Keystore)
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/ ~/.config/
+          cp -r /root/.config/godot ~/.config/godot
+          cp -r /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          ls ~/.config/godot ~/.local/share/godot/export_templates/
+
+      - name: Projekt importieren
+        run: |
+          cd $PROJECT
+          timeout 300 godot --headless --editor --quit 2>&1 | tail -20 || true
+
+      - name: Regeltests
+        run: |
+          cd $PROJECT
+          godot --headless --script res://tests/test_rules.gd 2>&1 | tee ../tests.log
+          if grep -q "SCRIPT ERROR" ../tests.log; then echo "Skriptfehler in den Tests"; exit 1; fi
+          grep -q " 0 Fehler" ../tests.log
+
+      - name: Probelauf des Spiels (3000 Bilder bei 60 fps, ohne Grafik)
+        run: |
+          cd $PROJECT
+          timeout 300 godot --headless --fixed-fps 60 --quit-after 3000 2>&1 | tee ../smoke.log || true
+          if grep -n "SCRIPT ERROR" -A3 ../smoke.log; then echo "Skriptfehler im Probelauf"; exit 1; fi
+
+      - name: Android-APK exportieren
+        run: |
+          cd $PROJECT
+          sed -i "s/^version\/code=.*/version\/code=${GITHUB_RUN_NUMBER}/; s/^version\/name=.*/version\/name=\"0.1.${GITHUB_RUN_NUMBER}\"/" export_presets.cfg
+          mkdir -p build
+          godot --headless --verbose --export-debug "Android" build/god_does_play_dice.apk 2>&1 | tail -40
+          ls -la build
+          test -s build/god_does_play_dice.apk
+
+      - name: Testversion veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dice-testversion
+          name: "God does play dice! – Testversion"
+          prerelease: true
+          make_latest: false
+          body: |
+            Automatisch gebaut aus `${{ github.sha }}` (Build ${{ github.run_number }}).
+
+            **Am Handy installieren (Android):** `god_does_play_dice.apk` antippen, herunterladen, öffnen.
+            Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.
+            Neue Testversionen lassen sich über die alte drüber installieren.
+          files: ${{ env.PROJECT }}/build/god_does_play_dice.apk
