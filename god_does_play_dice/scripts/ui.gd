@@ -185,6 +185,7 @@ func _build_sheet() -> void:
 	sheet_title = _label("", 24, Style.TEXT, true)
 	sheet_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sheet_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sheet_title.custom_minimum_size = Vector2(180, 0)
 	h.add_child(sheet_title)
 	var close := _round_button("", func() -> void: _close_sheet())
 	close.text = "✕"
@@ -192,6 +193,7 @@ func _build_sheet() -> void:
 	h.add_child(close)
 	sheet_body = _label("", 18, Style.TEXT)
 	sheet_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sheet_body.custom_minimum_size = Vector2(280, 0)
 	v.add_child(sheet_body)
 
 
@@ -246,6 +248,7 @@ func _build_over() -> void:
 	over_label = _label("", 19, Style.TEXT)
 	over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	over_label.custom_minimum_size = Vector2(300, 0)
 	v.add_child(over_label)
 	var again := _wide_button("Nochmal", Style.ACCENT, Color.WHITE)
 	again.pressed.connect(_restart)
@@ -686,6 +689,7 @@ func _open_modal(card: PanelContainer) -> void:
 	card.visible = true
 	card.size = Vector2.ZERO
 	card.reset_size()
+	_recenter.call_deferred(card)
 	card.modulate.a = 0.0
 	card.pivot_offset = card.size * 0.5
 	card.scale = Vector2(0.92, 0.92)
@@ -693,6 +697,14 @@ func _open_modal(card: PanelContainer) -> void:
 	tw.tween_property(modal_bg, "modulate:a", 1.0, 0.18)
 	tw.tween_property(card, "modulate:a", 1.0, 0.18)
 	tw.tween_property(card, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _recenter(card: Control) -> void:
+	card.size = Vector2.ZERO
+	card.reset_size()
+	var vs := root.get_viewport_rect().size
+	card.position = (vs - card.size) * 0.5
+	card.pivot_offset = card.size * 0.5
 
 
 func _close_modal() -> void:

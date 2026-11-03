@@ -11,7 +11,7 @@ const TERRAIN_COLOR = {
 	"meadow": "#8fd162",
 	"forest": "#4fae55",
 	"lake": "#f0d595",
-	"mountain": "#b3a999",
+	"mountain": "#8e8a86",
 	"crater": "#7a5c4b",
 }
 const WATER := Color("#36aef0")
@@ -55,8 +55,11 @@ func build(f: FieldData) -> void:
 	body.add_child(shape)
 	add_child(body)
 
-	_people_label = _make_label(54, Vector3(0, 0.52, 0))
-	_animal_label = _make_label(40, Vector3(0.0, 0.4, 0.0))
+	_people_label = _make_label(64, Vector3(0, 0.55, 0))
+	_people_label.pixel_size = 0.0036
+	_people_label.outline_size = 22
+	_animal_label = _make_label(44, Vector3(0.0, 0.42, 0.0))
+	_animal_label.pixel_size = 0.0032
 	_animal_label.offset = Vector2(56, -20)
 	_preview_label = _make_label(64, Vector3(0, 0.7, 0))
 	_preview_label.outline_size = 18
@@ -76,7 +79,7 @@ func build(f: FieldData) -> void:
 func _make_label(size: int, pos: Vector3) -> Label3D:
 	var l := Label3D.new()
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.font = Style.font()
+	l.font = Style.bold()
 	l.font_size = size
 	l.pixel_size = 0.0028
 	l.outline_size = 14

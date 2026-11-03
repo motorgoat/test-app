@@ -224,7 +224,7 @@ static func pine(parent: Node3D, pos: Vector3, s: float, color: Color) -> void:
 static func rock(parent: Node3D, pos: Vector3, s: float, snow: bool) -> void:
 	var h := 0.26 * s
 	var r := 0.13 * s
-	cone(parent, r, h, Color("#a9a196"), pos, 7)
+	cone(parent, r, h, Color("#77736f"), pos, 7)
 	if snow:
 		cone(parent, r * 0.42, h * 0.42, WHITE, pos + Vector3(0, h * 0.58, 0), 7)
 
