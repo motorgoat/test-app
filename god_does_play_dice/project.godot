@@ -1,0 +1,33 @@
+; Engine configuration file.
+; Godot 4.3+
+
+config_version=5
+
+[application]
+
+config/name="God does play dice!"
+config/description="Ein Zauberwürfel ist die Spielwelt. Jede Seite ist ein Land."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+Game="*res://scripts/game.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=760
+window/stretch/mode="disabled"
+window/handheld/orientation=6
+
+[input_devices]
+
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=2
