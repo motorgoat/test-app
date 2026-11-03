@@ -26,3 +26,9 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Gleichgewicht halten: Sonst breitet sich etwas zu stark aus (Natur, Stadt, Industrie …).
 - Man kann und muss mit der Zeit bestimmte Felder vernichten.
 - Alles wird gebraucht, nichts darf überhandnehmen.
+
+## Umgesetzt im Prototyp „Gleichgewicht“
+- Zusammenführen gleicher Felder mit Aufstieg, Natur → Fluss, Ausbreiten, Gleichgewicht, Felder vernichten (Blitz)
+  und neu erschaffen (Wunder), Glaube als Ziel, immer schwerer (Zeitalter), 6 feste Mitten als Wahrzeichen.
+- Noch offen: Glaube sinkt bei Wohlstand ohne Kirche, die Mitten als Heiligtümer der Völker oder als Symbole
+  (Industrie, Natur …) mit eigener Wirkung.

@@ -1,40 +1,58 @@
-# God does play dice! – Prototyp „Beschütze die Völker“
+# God does play dice! – Prototyp „Gleichgewicht“
 
-Die Welt ist ein Zauberwürfel. Darauf leben mehrere Völker und Tiere. Du bist der Gott dieser Welt
-und hast nur ein Werkzeug: **Du drehst die Welt.**
+Die Welt ist ein Zauberwürfel. Du bist ihr Gott und hast vor allem ein Werkzeug: **Du drehst die Welt.**
+Ziel: so viel Glauben wie möglich, und die Welt dabei im Gleichgewicht halten.
 
 Godot 4.3, GDScript, Renderer „Compatibility“ (läuft auf jedem Handy). Hochformat, Handy zuerst.
 
 **Testversion fürs Handy (Android):** GitHub → Releases → `dice-testversion` → `god_does_play_dice.apk`.
-Jeder Push baut sie neu. Aktuelle Screenshots aus dem Build liegen in [`docs/screenshots`](docs/screenshots).
+Jeder Push baut sie neu. Aktuelle Screenshots aus dem Build liegen in [`docs/screenshots`](docs/screenshots),
+gesammelte Ideen in [`docs/IDEEN.md`](docs/IDEEN.md).
 
 ## Spielregeln (Stand Prototyp)
 
-- **Drehen:** Mit dem Finger über eine Reihe wischen. Jede Drehung ist eine Runde. „Warten“ lässt eine Runde ohne Drehung verstreichen.
-- **Vorschau:** Während du ziehst, steht über jedem Feld, wie viele Menschen bzw. Tiere es gewinnt oder verliert, und oben die Summe.
-- **Dörfer** wachsen mit mindestens 2 freien Wiesen/Seen daneben, ohne Nahrung schrumpfen sie. Die eigene Kirche daneben hilft. Volle Dörfer gründen neue.
-- **Kirchen** zweier Völker nebeneinander: **Krieg** zwischen diesen Völkern. Jede Berührung kostet beide Seiten Menschen.
-- **Märkte** zweier Völker nebeneinander: **Handel**, beide wachsen. Völker im Krieg handeln nicht.
-- **Tiere** vermehren sich neben gleichem Land, Dörfer daneben jagen sie.
-- **Gefahren** kündigen sich mit Countdown an:
-  - **Meteorit:** schlägt an einem Platz im Raum ein und löscht das Feld aus (wird zum Krater, später zum See).
-  - **Gewitter:** halbiert Menschen und Tiere, Wald fängt Feuer.
-  - **Vulkan:** ein Berg bricht aus, die Nachbarn verlieren die Hälfte, Wälder brennen.
-  - **Feuer** springt auf Nachbarwälder über, ein See daneben löscht es.
+**Vier Feldarten mit je drei Stufen**
 
-  Meteor und Gewitter zielen auf einen **Platz**: Dreh die Menschen weg. Der Vulkan sitzt auf seinem **Feld**: Dreh ihn weg von den Menschen.
-- **Ende:** endlos, bis alle Menschen tot sind. Gefahren werden mit der Zeit häufiger. Rekord = überlebte Runden.
+| Art | Stufe 1 → 2 → 3 | braucht daneben |
+|---|---|---|
+| Natur | Wiese mit See → Fluss → Urwald | – |
+| Siedlung (Volk) | Dorf → Stadt → Metropole | Natur |
+| Industrie | Werkstatt → Fabrik → Industriegebiet | Siedlung |
+| Glaube (Volk) | Kapelle → Kirche → Kathedrale | Siedlung des eigenen Volkes |
 
-Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd) (z. B. `MAX_ROUNDS` für ein festes Ende).
+Dazu Berge (neutral, hier erwachen Vulkane), Krater und die **6 festen Mitten**: Leuchtturm, Windmühle,
+Weltenbaum, Steinkreis, Pyramide und Sternwarte. Sie drehen sich nie und dienen der Orientierung.
+
+- **Drehen:** über eine Reihe wischen. Jede Drehung ist eine Runde. „Warten“ lässt eine Runde verstreichen.
+- **Zusammenführen:** Gleiche Felder nebeneinander bringen Glauben. Zwei gleiche Felder **gleicher Stufe**
+  steigen nach 3 Runden eine Stufe auf.
+- **Bedürfnisse:** Fehlt 3 Runden lang, was ein Feld braucht, verliert es eine Stufe (Stufe 1 wird zum Krater).
+- **Krieg und Handel:** Kirchen zweier Völker nebeneinander bedeuten Krieg, die Grenze verliert Stufen.
+  Städte zweier Völker nebeneinander handeln (+Glaube), aber nicht im Krieg.
+- **Verschmutzung:** Fabriken ab Stufe 2 schaden der Natur daneben.
+- **Ausbreiten:** Stufe 3 wächst alle paar Runden auf ein Nachbarfeld. Urwald verschluckt Dörfer, Städte und
+  Industrie fressen Natur. Städte gründen dabei auch Kapellen.
+- **Gleichgewicht:** Die Leisten oben zeigen den Anteil jeder Art, grün hinterlegt ist der gesunde Bereich.
+  Glaube pro Runde = Punkte der Paare × Gleichgewicht. Wer 4 Runden in Folge aus dem Gleichgewicht ist, verliert.
+- **Blitz** (alle 5 Runden einer): vernichtet ein Feld, das überhandnimmt.
+- **Wunder** (alle 40 Glaube eines): aus einem Krater wird ein Feld nach Wahl.
+- **Katastrophen** kündigen sich mit Countdown an: Meteorit (Feld wird Krater), Gewitter (eine Stufe weniger,
+  Natur brennt), Vulkan (Nachbarn verlieren eine Stufe). Feuer springt über, ein Fluss daneben löscht.
+- **Zeitalter:** Alle 10 Runden wird es schwerer: mehr Katastrophen, kürzere Vorwarnung, schnelleres Ausbreiten.
+- **Ende:** endlos. Rekord = Glaube.
+
+Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd). Der Test-Bot in `tests/test_rules.gd`
+(wählt immer die beste Drehung, ohne Blitz und Wunder) überlebt derzeit 70 bis 120 Runden, zufälliges Drehen 30 bis 40.
 
 ## Bedienung
 
 | Geste | Wirkung |
 |---|---|
-| Wischen auf dem Würfel | Reihe drehen (mit Vorschau, loslassen rastet ein) |
+| Wischen auf dem Würfel | Reihe drehen (mit Vorschau ▲ ▼ +Glaube, loslassen rastet ein) |
 | Wischen daneben | Ansicht drehen, mit Nachschwung |
 | Zwei Finger / Mausrad | Zoom |
-| Feld antippen | Info-Karte mit Erklärung, was dort gerade passiert |
+| Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
+| Blitz / Wunder unten | Werkzeug wählen, dann Feld antippen |
 | Gefahr oben antippen | Ansicht dreht zur Gefahr |
 
 ## Aufbau
