@@ -539,7 +539,7 @@ func _fill_sheet(fid: int) -> void:
 	var terrain_name: String = GameState.TERRAIN_NAME[f.terrain]
 	if f.settled():
 		var bname: String = GameState.BUILDING_NAME[f.building]
-		sheet_title.text = "%s der %s" % [bname, GameState.NATION_NAMES[f.nation]]
+		sheet_title.text = "%s der %s" % [bname, GameState.NATION_GENITIVE[f.nation]]
 		sheet_icon.texture = Style.icon(f.building)
 		lines.append("%d Menschen · auf %s" % [f.people, terrain_name])
 		match f.building:
@@ -684,6 +684,7 @@ func _open_modal(card: PanelContainer) -> void:
 	modal_bg.visible = true
 	modal_bg.modulate.a = 0.0
 	card.visible = true
+	card.size = Vector2.ZERO
 	card.reset_size()
 	card.modulate.a = 0.0
 	card.pivot_offset = card.size * 0.5

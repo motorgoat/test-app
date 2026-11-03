@@ -12,6 +12,7 @@ extends RefCounted
 ## Danach können neue Gefahren erscheinen (spawn_hazards), immer mit Vorwarnung.
 
 const NATION_NAMES = ["Rote", "Blaue", "Gelbe", "Grüne"]
+const NATION_GENITIVE = ["Roten", "Blauen", "Gelben", "Grünen"]
 const NATION_COLORS = ["#ec5b4f", "#3f86e8", "#f4b72e", "#46b46c"]
 const TERRAIN_NAME = {"meadow": "Wiese", "forest": "Wald", "lake": "See", "mountain": "Berg", "crater": "Krater"}
 const ANIMAL_NAME = {"meadow": "Hasen", "forest": "Hirsche", "lake": "Enten", "mountain": "Steinböcke", "crater": "Tiere"}

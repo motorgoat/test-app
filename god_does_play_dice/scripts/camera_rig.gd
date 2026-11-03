@@ -28,7 +28,7 @@ func _ready() -> void:
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-42, -35, 0)
 	key.light_color = Color("#fff3df")
-	key.light_energy = 1.15
+	key.light_energy = 0.95
 	key.shadow_enabled = true
 	key.shadow_blur = 2.0
 	key.directional_shadow_max_distance = 25.0
@@ -36,7 +36,7 @@ func _ready() -> void:
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-15, 150, 0)
 	fill.light_color = Color("#cfe0ff")
-	fill.light_energy = 0.4
+	fill.light_energy = 0.3
 	add_child(fill)
 	basis = start_basis()
 	_fit()

@@ -34,6 +34,7 @@ var _tw_quarter := 0
 var _pivot: Node3D
 var _touches: Dictionary = {}
 var _pinch_dist := 0.0
+var _postfx: CanvasLayer
 
 
 func _ready() -> void:
@@ -63,16 +64,17 @@ func _setup_environment() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.75
+	env.ambient_light_energy = 0.45
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.05
+	env.tonemap_exposure = 0.95
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	# Miniatur-Unschärfe über der 3D-Welt, unter der Oberfläche
-	var layer := CanvasLayer.new()
-	layer.layer = 0
-	add_child(layer)
+	_postfx = CanvasLayer.new()
+	_postfx.layer = 0
+	add_child(_postfx)
+	var layer := _postfx
 	var rect := ColorRect.new()
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -97,8 +99,8 @@ func rebuild() -> void:
 	_mode = ""
 	var gs := Game.state
 	var by_pos := {}
-	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.14, 4)
-	var body_mat := Models.mat(Color("#f2ebe0"), 0.45)
+	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.12, 4)
+	var body_mat := Models.mat(Color("#3a3d4a"), 0.35)
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
 			for z in [-1, 0, 1]:
@@ -227,6 +229,10 @@ func focus_field(fid: int) -> void:
 	var v: FieldView = views.get(fid)
 	if v != null:
 		rig.focus(v.world_normal())
+
+
+func set_postfx(on: bool) -> void:
+	_postfx.visible = on
 
 
 func focus_place(n: Vector3i) -> void:

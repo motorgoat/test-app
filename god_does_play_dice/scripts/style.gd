@@ -36,7 +36,8 @@ static func _variant(weight: int) -> Font:
 		return ThemeDB.fallback_font
 	var fv := FontVariation.new()
 	fv.base_font = base
-	fv.variation_opentype = {"wght": weight}
+	var tag := TextServerManager.get_primary_interface().name_to_tag("wght")
+	fv.variation_opentype = {tag: weight}
 	return fv
 
 

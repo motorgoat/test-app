@@ -4,17 +4,18 @@ extends Node3D
 ## Lokales Koordinatensystem: y = Normale der Seite, Feld liegt in x/z (−0,45 … 0,45).
 
 const TILE := 0.9
-const TILE_H := 0.07
-const TOP := 0.07
+const TILE_H := 0.09
+const TOP := 0.09
 
 const TERRAIN_COLOR = {
-	"meadow": "#a8dd78",
-	"forest": "#7cc76c",
-	"lake": "#f4e3b5",
-	"mountain": "#cfc7ba",
-	"crater": "#8c705f",
+	"meadow": "#8fd162",
+	"forest": "#4fae55",
+	"lake": "#f0d595",
+	"mountain": "#b3a999",
+	"crater": "#7a5c4b",
 }
-const WATER := Color("#63c6f2")
+const WATER := Color("#36aef0")
+const CONTENT_SCALE := 1.4
 
 var field_id := -1
 var _tile: MeshInstance3D
@@ -37,6 +38,7 @@ func build(f: FieldData) -> void:
 	_tile = Models.rbox(self, Vector3(TILE, TILE_H, TILE), 0.03, Color(TERRAIN_COLOR[f.terrain]), Vector3(0, TILE_H * 0.5, 0))
 	_content = Node3D.new()
 	_content.position.y = TOP
+	_content.scale = Vector3.ONE * CONTENT_SCALE
 	add_child(_content)
 
 	_sel = Models.rbox(self, Vector3(TILE + 0.04, 0.02, TILE + 0.04), 0.03, Color(1, 1, 1, 0.55), Vector3(0, 0.005, 0), Vector3.ZERO,
@@ -130,16 +132,16 @@ func refresh(f: FieldData, gs: GameState) -> void:
 	if key != _shown:
 		var first := _shown == ""
 		_shown = key
-		_tile.material_override = Models.mat(Color(TERRAIN_COLOR.get(f.terrain, "#a8dd78")), 0.55)
+		_tile.material_override = Models.mat(Color(TERRAIN_COLOR.get(f.terrain, "#8fd162")), 0.7)
 		for c in _content.get_children():
 			c.queue_free()
 		_bobbers.clear()
 		_flames.clear()
 		_build_content(f, color)
 		if not first:
-			_content.scale = Vector3(0.7, 0.4, 0.7)
+			_content.scale = Vector3(0.7, 0.4, 0.7) * CONTENT_SCALE
 			var tw := create_tween()
-			tw.tween_property(_content, "scale", Vector3.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tw.tween_property(_content, "scale", Vector3.ONE * CONTENT_SCALE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	# Abzeichen
 	if f.settled() and f.people > 0:
@@ -184,25 +186,25 @@ func _rng() -> RandomNumberGenerator:
 
 func _build_content(f: FieldData, c: Color) -> void:
 	var rng := _rng()
-	var corners := [Vector3(-0.24, 0, -0.24), Vector3(0.24, 0, 0.24), Vector3(0.24, 0, -0.24), Vector3(-0.24, 0, 0.24)]
+	var corners := [Vector3(-0.19, 0, -0.19), Vector3(0.19, 0, 0.19), Vector3(0.19, 0, -0.19), Vector3(-0.19, 0, 0.19)]
 	var free_spots: Array = []
 
 	# Gelände-Grundlage
 	match f.terrain:
 		"lake":
-			Models.rbox(_content, Vector3(0.74, 0.02, 0.74), 0.09, WATER, Vector3(0, 0.0, 0), Vector3.ZERO, Models.mat(WATER, 0.12))
+			Models.rbox(_content, Vector3(0.54, 0.02, 0.54), 0.07, WATER, Vector3(0, 0.0, 0), Vector3.ZERO, Models.mat(WATER, 0.1))
 		"crater":
-			Models.rbox(_content, Vector3(0.6, 0.015, 0.6), 0.2, Color("#5e4637"), Vector3(0, 0.0, 0))
+			Models.rbox(_content, Vector3(0.44, 0.015, 0.44), 0.15, Color("#4e3a2e"), Vector3(0, 0.0, 0))
 			for k in 3:
 				var a := rng.randf() * TAU
-				Models.sphere(_content, 0.03, Color("#6e5a4c"), Vector3(cos(a) * 0.3, 0.015, sin(a) * 0.3), null, 0.6)
+				Models.sphere(_content, 0.03, Color("#6e5a4c"), Vector3(cos(a) * 0.24, 0.015, sin(a) * 0.24), null, 0.6)
 
 	# Gebäude
 	if f.settled():
 		match f.building:
 			"village":
 				var houses := clampi(int(ceil(f.people / 3.0)), 1, 3)
-				var spots := [Vector3(-0.15, 0, -0.14), Vector3(0.17, 0, -0.1), Vector3(-0.05, 0, 0.17)]
+				var spots := [Vector3(-0.12, 0, -0.11), Vector3(0.13, 0, -0.08), Vector3(-0.04, 0, 0.13)]
 				for k in houses:
 					Models.house(_content, spots[k], c, 1.0, rng.randf_range(-25, 25))
 				free_spots = [corners[1], corners[3]]
@@ -215,7 +217,7 @@ func _build_content(f: FieldData, c: Color) -> void:
 		var n_people := mini(f.people, 4)
 		for k in n_people:
 			var a := TAU * float(k) / maxf(1.0, float(n_people)) + 0.4
-			var pp := Vector3(cos(a) * 0.12, 0, 0.16 + sin(a) * 0.08)
+			var pp := Vector3(cos(a) * 0.1, 0, 0.13 + sin(a) * 0.06)
 			var holder := Node3D.new()
 			_content.add_child(holder)
 			Models.person(holder, pp, c)
@@ -227,7 +229,7 @@ func _build_content(f: FieldData, c: Color) -> void:
 	match f.terrain:
 		"forest":
 			var greens := [Color("#4fa449"), Color("#5cb357"), Color("#3f9443")]
-			var tree_spots: Array = free_spots if f.settled() else [Vector3(-0.22, 0, -0.2), Vector3(0.2, 0, -0.24), Vector3(-0.05, 0, 0.0), Vector3(0.22, 0, 0.18), Vector3(-0.24, 0, 0.22)]
+			var tree_spots: Array = free_spots if f.settled() else [Vector3(-0.17, 0, -0.15), Vector3(0.16, 0, -0.18), Vector3(-0.03, 0, 0.0), Vector3(0.17, 0, 0.14), Vector3(-0.18, 0, 0.17)]
 			for k in tree_spots.size():
 				var sp: Vector3 = tree_spots[k]
 				var g: Color = greens[k % greens.size()]
@@ -238,32 +240,32 @@ func _build_content(f: FieldData, c: Color) -> void:
 		"meadow":
 			if not f.settled():
 				for k in 3:
-					var gp := Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3))
+					var gp := Vector3(rng.randf_range(-0.24, 0.24), 0, rng.randf_range(-0.24, 0.24))
 					Models.cone(_content, 0.03, 0.06, Color("#86c95a"), gp, 6)
 				var flowers := [Color("#ffffff"), Color("#ff9ec4"), Color("#ffe066")]
 				for k in 4:
-					var fp := Vector3(rng.randf_range(-0.32, 0.32), 0.02, rng.randf_range(-0.32, 0.32))
+					var fp := Vector3(rng.randf_range(-0.25, 0.25), 0.02, rng.randf_range(-0.25, 0.25))
 					Models.sphere(_content, 0.018, flowers[k % 3], fp)
 		"mountain":
 			if f.volcano > 0:
-				Models.cone(_content, 0.22, 0.3, Color("#8c7f74"), Vector3(0, 0, 0), 9)
-				Models.cyl(_content, 0.07, 0.07, 0.02, Color("#ff5a1f"), Vector3(0, 0.27, 0), 10, Vector3.ZERO, Models.mat(Color("#ff5a1f"), 0.5, 2.5))
+				Models.cone(_content, 0.18, 0.26, Color("#8c7f74"), Vector3(0, 0, 0), 9)
+				Models.cyl(_content, 0.06, 0.06, 0.02, Color("#ff5a1f"), Vector3(0, 0.23, 0), 10, Vector3.ZERO, Models.mat(Color("#ff5a1f"), 0.5, 2.5))
 				for k in 3:
-					Models.sphere(_content, 0.04 + k * 0.012, Color(0.55, 0.55, 0.58, 0.75), Vector3(0.02 * k, 0.36 + k * 0.07, 0.0))
+					Models.sphere(_content, 0.035 + k * 0.01, Color(0.55, 0.55, 0.58, 0.75), Vector3(0.02 * k, 0.31 + k * 0.06, 0.0))
 			elif not f.settled():
-				Models.rock(_content, Vector3(-0.08, 0, -0.06), rng.randf_range(1.1, 1.4), true)
-				Models.rock(_content, Vector3(0.18, 0, 0.12), rng.randf_range(0.7, 0.9), true)
+				Models.rock(_content, Vector3(-0.06, 0, -0.05), rng.randf_range(1.0, 1.2), true)
+				Models.rock(_content, Vector3(0.14, 0, 0.1), rng.randf_range(0.6, 0.8), true)
 			else:
 				Models.rock(_content, corners[1], 0.6, true)
 		"lake":
-			Models.cyl(_content, 0.04, 0.04, 0.006, Color("#5fae4f"), Vector3(-0.18, 0.012, 0.16), 12)
-			Models.cyl(_content, 0.03, 0.03, 0.006, Color("#6fbd5b"), Vector3(0.2, 0.012, -0.2), 12)
+			Models.cyl(_content, 0.035, 0.035, 0.006, Color("#5fae4f"), Vector3(-0.13, 0.012, 0.12), 12)
+			Models.cyl(_content, 0.028, 0.028, 0.006, Color("#6fbd5b"), Vector3(0.15, 0.012, -0.15), 12)
 
 	# Tiere
 	var n_animals := mini(f.animals, 3)
 	for k in n_animals:
 		var ap: Vector3 = free_spots[k % maxi(1, free_spots.size())] if not free_spots.is_empty() else Vector3.ZERO
-		ap += Vector3(rng.randf_range(-0.06, 0.06), 0.0, rng.randf_range(-0.06, 0.06)) + Vector3(0.05 * k, 0, -0.04 * k)
+		ap += Vector3(rng.randf_range(-0.04, 0.04), 0.0, rng.randf_range(-0.04, 0.04)) + Vector3(0.04 * k, 0, -0.03 * k)
 		if f.terrain == "lake":
 			ap.y = 0.012
 		var holder := Node3D.new()
@@ -274,5 +276,5 @@ func _build_content(f: FieldData, c: Color) -> void:
 	# Feuer
 	if f.burning:
 		for k in 3:
-			var fp := Vector3(-0.2 + k * 0.2, 0.0, rng.randf_range(-0.2, 0.2))
+			var fp := Vector3(-0.15 + k * 0.15, 0.0, rng.randf_range(-0.15, 0.15))
 			_flames.append(Models.flame(_content, fp, rng.randf_range(1.1, 1.6)))
