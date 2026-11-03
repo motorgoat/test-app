@@ -569,7 +569,7 @@ func _refresh_bars(gs: GameState) -> void:
 		fill.color = Color(KIND_COLOR[k]) if st == "ok" else Style.BAD
 	var v := float(hm["value"])
 	var txt := "Gleichgewicht %d%%" % int(round(v * 100.0))
-	if gs.bad_rounds > 0:
+	if gs.bad_rounds > 0 and not Game.over:
 		var left := Balance.LOSE_AFTER_DISHARMONY - gs.bad_rounds
 		txt += "  ·  noch %d %s!" % [left, "Runde" if left == 1 else "Runden"]
 	harmony_label.text = txt

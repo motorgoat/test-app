@@ -93,7 +93,7 @@ func finish_round(result: Dictionary) -> void:
 		if t == "volcano":
 			timer = (state.fields[int(h["field"])] as FieldData).volcano
 		message.emit("%s in %d Runden!" % [GameState.HAZARD_NAME[t], timer], "bad")
-	elif state.bad_rounds > 0:
+	elif state.bad_rounds > 0 and not state.is_over():
 		var left := Balance.LOSE_AFTER_DISHARMONY - state.bad_rounds
 		message.emit("Die Welt ist aus dem Gleichgewicht! Noch %d %s." % [left, "Runde" if left == 1 else "Runden"], "bad")
 	if not spawned.is_empty():

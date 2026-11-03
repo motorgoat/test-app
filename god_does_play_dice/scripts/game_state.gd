@@ -125,8 +125,16 @@ func _roll_world() -> void:
 			var f: FieldData = group[i]
 			f.nation = nation
 			f.kind = "faith" if i == group.size() - 1 and group.size() > 1 else "settlement"
+	# Industrie neben Siedlungen (braucht Arbeiter)
 	for i in Balance.START_INDUSTRY:
-		var f := _random_free(free)
+		var spots: Array = []
+		for s in free:
+			if s.kind != "settlement":
+				continue
+			for g in neighbors(s):
+				if not g.is_center and g.kind == "" and not spots.has(g):
+					spots.append(g)
+		var f: FieldData = spots[rng.randi_range(0, spots.size() - 1)] if not spots.is_empty() else _random_free(free)
 		if f != null:
 			f.kind = "industry"
 	for i in Balance.START_MOUNTAINS:

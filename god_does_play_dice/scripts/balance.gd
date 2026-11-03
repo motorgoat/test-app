@@ -11,12 +11,12 @@ static var START_MOUNTAINS := 6          # Rest wird Natur
 
 # --- Stufen ------------------------------------------------------------------
 static var MAX_LEVEL := 3
-static var MERGE_ROUNDS := 2             # so viele Runden neben Gleichem GLEICHER STUFE, dann Stufe höher
-static var NEED_ROUNDS := 2              # so viele Runden ohne Bedürfnis, dann Stufe tiefer
+static var MERGE_ROUNDS := 3             # so viele Runden neben Gleichem GLEICHER STUFE, dann Stufe höher
+static var NEED_ROUNDS := 3              # so viele Runden ohne Bedürfnis, dann Stufe tiefer
 static var WAR_ROUNDS := 2               # so viele Runden Krieg an der Grenze, dann Stufe tiefer
 static var POLLUTION_ROUNDS := 2         # so viele Runden neben Fabrik, dann Natur Stufe tiefer
 static var POLLUTION_MIN_LEVEL := 2      # ab dieser Industrie-Stufe wird verschmutzt
-static var CRATER_REGROW := 6            # nach so vielen Runden wächst auf einem Krater wieder Natur
+static var CRATER_REGROW := 8            # nach so vielen Runden wächst auf einem Krater wieder Natur
 static var CHAPEL_EVERY := 3             # jede 3. Ausbreitung einer Stadt wird eine Kapelle
 
 # Ausbreiten (Stufe 3 wächst aufs Nachbarfeld): alle N Runden, wird mit jedem Zeitalter schneller
@@ -37,7 +37,7 @@ static var IDEAL := {
 }
 static var HARMONY_STRICTNESS := 3.0     # wie stark Abweichungen das Gleichgewicht drücken
 static var HARMONY_DANGER := 0.15        # darunter gilt die Welt als aus dem Gleichgewicht
-static var LOSE_AFTER_DISHARMONY := 3    # so viele Runden aus dem Gleichgewicht = Ende
+static var LOSE_AFTER_DISHARMONY := 4    # so viele Runden aus dem Gleichgewicht = Ende
 
 # --- Werkzeuge ---------------------------------------------------------------------
 static var LIGHTNING_START := 1

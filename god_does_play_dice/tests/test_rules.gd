@@ -19,6 +19,7 @@ func _init() -> void:
 	test_harmony()
 	test_preview_matches()
 	test_long_run()
+	test_bot()
 	print("")
 	print("%d Prüfungen, %d Fehler" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -292,3 +293,38 @@ func test_long_run() -> void:
 		check(ok, "Werte bleiben gültig (Seed %d)" % s)
 		var hm := gs.harmony()
 		print("Zufallsspiel Seed %d: %d Runden, Glaube %d, Gleichgewicht %.2f, Anteile %s" % [s, rounds, gs.faith, float(hm["value"]), str(hm["counts"])])
+
+
+## Ein einfacher Bot wählt jede Runde die Drehung mit dem besten Ergebnis (Glaube + Gleichgewicht).
+## Kein Test im engeren Sinn: zeigt, wie lange ein aufmerksamer Spieler überlebt.
+func test_bot() -> void:
+	for s in [11, 22, 33]:
+		var gs := new_state(s)
+		var rounds := 0
+		for t in 120:
+			var best := [0, 0, 0]
+			var best_score := -INF
+			for axis in 3:
+				for layer in [-1, 0, 1]:
+					for turns in [0, 1, -1, 2]:
+						if turns == 0 and (axis > 0 or layer != -1):
+							continue
+						var sim := gs.clone()
+						if turns != 0:
+							sim.apply_rotation(axis, layer, turns)
+						var r := sim.end_round()
+						var score: float = int(r["gain"]) - int(r["loss"]) + 60.0 * float(sim.harmony()["value"])
+						if sim.is_over():
+							score -= 10000.0
+						if score > best_score:
+							best_score = score
+							best = [axis, layer, turns]
+			if int(best[2]) != 0:
+				gs.apply_rotation(int(best[0]), int(best[1]), int(best[2]))
+			gs.end_round()
+			gs.spawn_hazards()
+			rounds += 1
+			if gs.is_over():
+				break
+		var hm := gs.harmony()
+		print("Bot Seed %d: %d Runden (Zeitalter %d), Glaube %d, Gleichgewicht %.2f, Anteile %s" % [s, rounds, gs.age(), gs.faith, float(hm["value"]), str(hm["counts"])])
