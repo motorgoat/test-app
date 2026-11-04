@@ -20,29 +20,30 @@ gesammelte Ideen in [`docs/IDEEN.md`](docs/IDEEN.md).
 | Industrie | Werkstatt → Fabrik → Industriegebiet | Siedlung |
 | Glaube (Volk) | Kapelle → Kirche → Kathedrale | Siedlung des eigenen Volkes |
 
-Dazu Berge (neutral, hier erwachen Vulkane), Krater und die **6 festen Mitten**: Leuchtturm, Windmühle,
-Weltenbaum, Steinkreis, Pyramide und Sternwarte. Sie drehen sich nie und dienen der Orientierung.
+Dazu Berge (neutral, hier erwachen Vulkane) und Krater. Alle Felder drehen mit, auch die Mitten, wie bei einem echten Zauberwürfel.
 
 - **Drehen:** über eine Reihe wischen. Jede Drehung ist eine Runde. „Warten“ lässt eine Runde verstreichen.
-- **Zusammenführen:** Gleiche Felder nebeneinander bringen Glauben. Zwei gleiche Felder **gleicher Stufe**
-  steigen nach 3 Runden eine Stufe auf.
+- **Drei in einer Reihe:** Drei gleiche Felder (gleiche Art, Stufe und bei Siedlung/Glaube gleiches Volk) in einer
+  Reihe oder Spalte einer Seite verschmelzen **sofort**: Die äußeren fliegen ins mittlere, das steigt eine Stufe auf.
+  Die frei gewordenen Felder füllen sich mit der Art, die gerade am meisten fehlt. Kettenreaktionen zählen als Kombo.
+  Beim Wischen leuchten Reihen, die verschmelzen würden, golden auf.
+- **Glaube** gibt es nur fürs Verschmelzen (10/30/90 je Stufe × Kombo, gedämpft bei schlechtem Gleichgewicht) und für Handel.
 - **Bedürfnisse:** Fehlt 3 Runden lang, was ein Feld braucht, verliert es eine Stufe (Stufe 1 wird zum Krater).
 - **Krieg und Handel:** Kirchen zweier Völker nebeneinander bedeuten Krieg, die Grenze verliert Stufen.
   Städte zweier Völker nebeneinander handeln (+Glaube), aber nicht im Krieg.
 - **Verschmutzung:** Fabriken ab Stufe 2 schaden der Natur daneben.
-- **Ausbreiten:** Stufe 3 wächst alle paar Runden auf ein Nachbarfeld. Urwald verschluckt Dörfer, Städte und
-  Industrie fressen Natur. Städte gründen dabei auch Kapellen.
+- **Ausbreiten:** Stufe 3 wächst alle paar Runden auf ein Nachbarfeld.
 - **Gleichgewicht:** Die Leisten oben zeigen den Anteil jeder Art, grün hinterlegt ist der gesunde Bereich.
-  Glaube pro Runde = Punkte der Paare × Gleichgewicht. Wer 4 Runden in Folge aus dem Gleichgewicht ist, verliert.
-- **Blitz** (alle 5 Runden einer): vernichtet ein Feld, das überhandnimmt.
-- **Wunder** (alle 40 Glaube eines): aus einem Krater wird ein Feld nach Wahl.
-- **Katastrophen** kündigen sich mit Countdown an: Meteorit (Feld wird Krater), Gewitter (eine Stufe weniger,
-  Natur brennt), Vulkan (Nachbarn verlieren eine Stufe). Feuer springt über, ein Fluss daneben löscht.
-- **Zeitalter:** Alle 10 Runden wird es schwerer: mehr Katastrophen, kürzere Vorwarnung, schnelleres Ausbreiten.
+  Wer 4 Runden in Folge aus dem Gleichgewicht ist, verliert.
+- **Katastrophen sind Strafen**, immer mit Countdown angekündigt:
+  zu viel Industrie → Gewitter über einer Fabrik, zu viele Siedlungen → Meteorit auf die größte Siedlung,
+  zu viel Natur → Gewitter mit Waldbrand, zu wenig Glaube → ein Vulkan erwacht. Im Gleichgewicht bleibt es ruhig.
+- **Zeitalter:** Alle 10 Runden wird der gesunde Bereich enger, Strafen kommen schneller und knapper angekündigt.
+- **Blitz** (alle 5 Runden einer): vernichtet ein Feld. **Wunder** (alle 40 Glaube eines): aus einem Krater wird ein Feld nach Wahl.
+- **Tipp:** Wer 10 Sekunden nichts tut, sieht eine lohnende Scheibe golden pulsieren.
 - **Ende:** endlos. Rekord = Glaube.
 
-Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd). Der Test-Bot in `tests/test_rules.gd`
-(wählt immer die beste Drehung, ohne Blitz und Wunder) überlebt derzeit 70 bis 120 Runden, zufälliges Drehen 30 bis 40.
+Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
 
 ## Bedienung
 
