@@ -36,7 +36,7 @@ func new_game(seed_value: int = 0, endless_mode: int = -1) -> void:
 	new_record = false
 	new_game_started.emit()
 	state_changed.emit()
-	message.emit("Endlos-Spiel: Dreh drei gleiche Felder in eine Reihe." if endless else "40 Runden: Dreh drei gleiche Felder in eine Reihe.", "info")
+	message.emit("Dreh drei gleiche Felder in eine Reihe. Jeder 3. Fehlversuch löst einen Brand aus.", "info")
 
 
 func _mode_key() -> String:
@@ -62,11 +62,11 @@ func score() -> int:
 	return state.score
 
 
-## Was würde diese Drehung bewirken? turns = 0: nur warten.
-func preview(axis: int, layer: int, turns: int) -> Dictionary:
+## Was würde diese Drehung bewirken? row: die Felder, über die gewischt wird.
+func preview(axis: int, layer: int, turns: int, row: Array = []) -> Dictionary:
 	var sim := state.clone()
 	if turns != 0:
-		sim.apply_rotation(axis, layer, turns)
+		sim.apply_rotation(axis, layer, turns, row)
 	var arranged := sim.clone()
 	var result := sim.end_round()
 	return {
@@ -84,14 +84,14 @@ static func snapshot(gs: GameState) -> Dictionary:
 	return s
 
 
-## Eine Runde spielen. turns = 0 heißt „Warten“. Die World ruft danach finish_round() auf.
-func play_turn(axis: int, layer: int, turns: int) -> void:
+## Einen Zug spielen. turns = 0 heißt „Warten“. Die World ruft danach finish_round() auf.
+func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	if busy or over:
 		return
 	busy = true
 	var before := snapshot(state)
 	if turns != 0:
-		state.apply_rotation(axis, layer, turns)
+		state.apply_rotation(axis, layer, turns, row)
 	var age_before := state.age()
 	var result := state.end_round()
 	result["new_age"] = state.age() > age_before
@@ -101,16 +101,19 @@ func play_turn(axis: int, layer: int, turns: int) -> void:
 func finish_round(result: Dictionary) -> void:
 	busy = false
 	if bool(result.get("new_age", false)) and not state.is_over():
-		message.emit("Zeitalter %d: ein Leben zurück. Jetzt Natur %d–%d%%, Zivilisation höchstens %d%%." % [
-			state.age(), int(round(state.nature_min() * 100.0)), int(round(state.nature_max() * 100.0)),
-			int(round(state.civilisation_max() * 100.0))], "info")
-	if int(result.get("bonus_gained", 0)) > 0 and not state.is_over():
-		message.emit("Bonus! Setz Regen oder einen Meteoriten auf ein Feld.", "good")
+		message.emit("Zeitalter %d: ein Leben zurück. Zivilisation jetzt höchstens %d%%." % [
+			state.age(), int(round(state.civilisation_max() * 100.0))], "info")
+	var got: Dictionary = result.get("bonus_gained", {})
+	if not state.is_over():
+		if int(got.get("bolt", 0)) > 0:
+			message.emit("Blitz! Er hebt eine ganze Reihe eine Stufe.", "good")
+		elif int(got.get("rain", 0)) > 0:
+			message.emit("Regen! Er hebt ein Feld eine Stufe oder löscht ein Feuer.", "good")
 	for e in result["events"]:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])
-			message.emit("%s! %s. Die Welt hält noch %d %s aus." % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind],
-				state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"], "bad")
+			var tail := "Lösch die Flammen mit Regen." if kind == "fire" else "Die Welt hält noch %d %s aus." % [state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"]
+			message.emit("%s! %s. %s" % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
 	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
 		tutorial_done = true
 		_save_best()
@@ -121,8 +124,8 @@ func finish_round(result: Dictionary) -> void:
 	state_changed.emit()
 
 
-## Bonus auf ein Feld: "rain" oder "meteor". Zählt als Zug; die World spielt ihn ab.
-func use_bonus(kind: String, fid: int) -> bool:
+## Bonus: "rain" auf ein Feld oder "bolt" auf eine Reihe (row, 3 IDs). Zählt als Zug; die World spielt ihn ab.
+func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 	if busy or over:
 		return false
 	var f: FieldData = state.fields[fid]
@@ -132,14 +135,15 @@ func use_bonus(kind: String, fid: int) -> bool:
 		return false
 	busy = true
 	var before := snapshot(state)
-	state.apply_bonus(kind, f)
-	var wet: Array = []
-	for id in state.moved:
-		wet.append(int(id))
+	var hit: Array = row.duplicate() if kind == "bolt" and not row.is_empty() else [fid]
+	state.apply_bonus(kind, f, row)
+	var stages := {}
+	for i in hit:
+		stages[int(i)] = (state.fields[int(i)] as FieldData).stage
 	var age_before := state.age()
 	var result := state.end_round()
 	result["new_age"] = state.age() > age_before
-	result["bonus"] = {"kind": kind, "field": fid, "fields": wet if kind == "rain" else [fid]}
+	result["bonus"] = {"kind": kind, "field": fid, "fields": hit, "stages": stages}
 	round_resolved.emit(result, before)
 	return true
 

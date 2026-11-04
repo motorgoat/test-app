@@ -26,29 +26,25 @@ static var POLLUTION_FROM := 8            # ab dieser Stufe (Großstadt) wird Na
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
 # --- Gleichgewicht ------------------------------------------------------------------
-static var NATURE_MIN := 0.20             # mindestens so viel Natur (Wiese, Wälder), sonst Überschwemmung
-static var NATURE_MAX := 0.75             # höchstens so viel Natur, sonst Waldbrand
 static var CIVILISATION_MAX := 0.40       # höchstens so viel Zivilisation (ab Hütte), sonst Erdbeben
 
-# --- Katastrophen (Strafe, wenn eine Runde außerhalb des Gleichgewichts endet) -------
+# --- Katastrophen ------------------------------------------------------------------------
 static var LIVES := 3                     # so viele Katastrophen hält die Welt aus
-static var QUAKE_DROP := 2                # Erdbeben: die größte Siedlung fällt so viele Stufen, Siedlungen daneben eine
-static var FLOOD_FIELDS := 3              # Überschwemmung: so viele kleinste Siedlungen werden weggespült
+static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
+static var FIRE_COSTS_LIFE := true        # kostet ein Brand ein Leben?
 
-# --- Bonus (Regen oder Meteorit auf ein Feld) -------------------------------------------
-static var BONUS_START := 1               # so viele Boni am Anfang
-static var BONUS_EVERY := 12              # alle so viele Punkte ein Bonus …
-static var BONUS_MAX := 3                 # … bis höchstens so viele auf einmal
-static var RAIN_NEIGHBORS := true         # Regen macht auch die leere Erde daneben zu Wiese
+# --- Boni ------------------------------------------------------------------------------
+static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es
+static var RAIN_EVERY := 12               # alle so viele Punkte ein Regen …
+static var RAIN_MAX := 3                  # … bis höchstens so viele
+static var BOLT_START := 0                # Blitz: hebt eine ganze Reihe eine Stufe
+static var BOLT_EVERY := 40
+static var BOLT_MAX := 2
 
 # --- Modi ------------------------------------------------------------------------------
-# Endlos: alle AGE_LENGTH Runden ein neues Zeitalter: ein Leben zurück, aber der gesunde Bereich wird enger.
+# Endlos: alle AGE_LENGTH Runden ein neues Zeitalter: ein Leben zurück, aber weniger Zivilisation erlaubt.
 static var AGE_LENGTH := 20
-static var NATURE_MIN_STEP := 0.02        # pro Zeitalter mehr Natur nötig …
-static var NATURE_MIN_MAX := 0.30
-static var NATURE_MAX_STEP := 0.03        # … weniger Natur erlaubt (die Menschen brauchen Platz) …
-static var NATURE_MAX_MIN := 0.60
-static var CIVILISATION_MAX_STEP := 0.01  # … und etwas weniger Zivilisation
+static var CIVILISATION_MAX_STEP := 0.01
 static var CIVILISATION_MAX_MIN := 0.35
 # 40 Runden: so viele Punkte wie möglich.
 static var MAX_ROUNDS := 40

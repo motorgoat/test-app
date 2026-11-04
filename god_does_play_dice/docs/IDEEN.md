@@ -57,3 +57,11 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - **Einfaches Handyspiel mit Punkten**: die Leiste oben (Leiter, Balken, Texte) entfernen, nur Punkte zählen.
 - Kirche und Krieg zerstören Felder (Vorschlag im Chat).
 - Umgesetzt: Aufstieg dort, wo das letzte Teil dazugekommen ist. Würfel drehen nur daneben oder nach 1 s Halten.
+
+## Für später (Philipp, 4. November 2026)
+- **Speichern** des Spielstands.
+- **Online-Rangliste** – das Spiel soll auf Android und iOS erscheinen.
+- **Shop für Skins/Themes**, **Werbung** und **Premium**.
+- **Meteorit löscht eine ganze Seite** – noch offen, wie man ihn auslöst. Vielleicht erst ab höherer Schwierigkeit.
+- Umgesetzt: Brand nach jedem 3. Fehlversuch, Regen hebt ein Feld, Blitz hebt eine Reihe, Erdbeben senkt eine Reihe,
+  drei gleiche in einer Reihe entwickeln sich immer.

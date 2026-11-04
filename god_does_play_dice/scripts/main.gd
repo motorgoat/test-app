@@ -66,59 +66,55 @@ func _shots(dir: String) -> void:
 	await _shot(dir, "07_verschmelzen")
 	await _wait(2.2)
 	await _shot(dir, "08_danach")
-	# Boni: Meteorit, dann Regen
-	Game.state.bonus = 2
+	# Boni: Regen auf ein Feld, Blitz auf eine Reihe
+	Game.state.rain = 2
+	Game.state.bolts = 1
 	Game.state_changed.emit()
 	await _wait(0.5)
-	Game.use_bonus("meteor", _visible_field(1))
-	await _wait(0.45)
-	await _shot(dir, "09_meteor_faellt")
-	await _wait(2.4)
-	Game.use_bonus("rain", _visible_field(0))
+	Game.use_bonus("rain", _visible_field(1))
 	await _wait(0.9)
-	await _shot(dir, "10_regen")
+	await _shot(dir, "09_regen")
 	await _wait(2.4)
-	for i in 4:
-		world.wait_turn()
-		await _wait(2.6)
+	var bf := _visible_field(1)
+	Game.use_bonus("bolt", bf, world.screen_row(bf))
+	await _wait(0.35)
+	await _shot(dir, "10_blitz")
+	await _wait(2.4)
 	await _shot(dir, "11_spaeter")
 	ui.debug_show_field(_visible_field())
 	await _wait(0.6)
 	await _shot(dir, "12_info")
 	ui.debug_close_all()
-	# Katastrophen. Vorschau beim Drehen warnt rot (zu viel Natur)
+	# Brand: 3. Fehlversuch. Alles Erde, nur die sichtbare Seite hat 9 verschiedene Stufen (nichts kann verschmelzen)
 	Game.new_game(777)
 	await _wait(1.0)
-	_fill(func(f: FieldData) -> int: return 0 if f.id % 6 == 0 else 2)
+	var face: Vector3i = (Game.state.fields[_visible_field()] as FieldData).n
+	var k := 0
+	for f in Game.state.fields:
+		var fd: FieldData = f
+		fd.stage = 0
+		if fd.n == face:
+			k += 1
+			fd.stage = k
+	Game.state.misses = Balance.FIRE_AFTER - 1
+	Game.state_changed.emit()
 	await _wait(0.8)
 	world.debug_begin_twist(_visible_field(), Vector2(1, 0.15), 0.62)
 	await _wait(1.0)
-	await _shot(dir, "13_gefahr_vorschau")
+	await _shot(dir, "13_brand_vorschau")
 	world.debug_end_twist()
-	await _wait(6.0)
-	# Waldbrand (zu viel Natur)
-	Game.state.lives = 3
-	_fill(func(f: FieldData) -> int: return 0 if f.id % 6 == 0 else 2)
-	await _wait(0.8)
-	world.wait_turn()
-	await _wait(1.0)
-	await _shot(dir, "14_waldbrand")
-	await _wait(3.0)
-	# Erdbeben (zu viel Zivilisation)
-	_fill(func(f: FieldData) -> int: return 6 if f.id % 2 == 0 else 1)
+	await _wait(1.6)
+	await _shot(dir, "14_brand")
+	await _wait(2.5)
+	# Erdbeben: nur Zivilisation, schachbrettartig (keine Dreierreihe)
+	Game.state.lives = 1
+	_fill(func(f: FieldData) -> int: return 4 if (f.p.x + f.p.y + f.p.z) % 2 == 0 else 5)
 	await _wait(0.8)
 	world.wait_turn()
 	await _wait(0.8)
 	await _shot(dir, "15_erdbeben")
 	await _wait(3.0)
-	# Überschwemmung (zu wenig Natur), die dritte Katastrophe: Die Welt stirbt
-	_fill(func(f: FieldData) -> int: return 4 if f.id % 3 == 0 else 0)
-	await _wait(0.8)
-	world.wait_turn()
-	await _wait(0.9)
-	await _shot(dir, "16_flut")
-	await _wait(3.0)
-	await _shot(dir, "17_ende")
+	await _shot(dir, "16_ende")
 	get_tree().quit()
 
 
@@ -126,6 +122,7 @@ func _shots(dir: String) -> void:
 func _fill(stage_of: Callable) -> void:
 	for f in Game.state.fields:
 		(f as FieldData).stage = int(stage_of.call(f))
+		(f as FieldData).burning = false
 	Game.state_changed.emit()
 
 

@@ -117,7 +117,7 @@ jobs:
 
             **So geht's:** Dreh drei gleiche Felder in eine Reihe: Die Mitte steigt auf
             (Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole).
-            Sammle Punkte. Alle 12 Punkte gibt es einen Bonus: Regen (Erde wird Wiese) oder Meteorit (Feld wird Erde). Halte Natur und Zivilisation im Gleichgewicht, sonst kommen Erdbeben, Überschwemmung oder Waldbrand.
+            Sammle Punkte. Jeder 3. Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand. Regen hebt ein Feld (oder löscht), Blitz hebt eine ganze Reihe.
 
             **Am Handy installieren (Android):** `god_does_play_dice.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.

@@ -14,11 +14,12 @@ var stage_label: Label
 var stage_icon: TextureRect
 var danger_label: Label
 var hearts: Array = []
+var miss_icons: Array = []
 var preview_card: PanelContainer
 var preview_label: Label
 var toast: PanelContainer
 var toast_label: Label
-var meteor_btn: Button
+var bolt_btn: Button
 var rain_btn: Button
 var mode_label: Label
 var mode_card: PanelContainer
@@ -34,7 +35,7 @@ var over_label: Label
 var bubble_layer: Control
 var combo_label: Label
 
-var bonus_mode := ""          # "", "rain" oder "meteor": nächstes angetipptes Feld bekommt den Bonus
+var bonus_mode := ""          # "", "rain" oder "bolt": nächstes angetipptes Feld bekommt den Bonus
 var _shown_score := -1
 var _score_display := 0.0
 var _sheet_field := -1
@@ -125,11 +126,28 @@ func _build() -> void:
 	sp_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sp_top)
 	# Leben der Welt (klein)
+	var lv := VBoxContainer.new()
+	lv.add_theme_constant_override("separation", 3)
+	lv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(lv)
 	var hrow := HBoxContainer.new()
 	hrow.add_theme_constant_override("separation", 1)
-	hrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(hrow)
+	lv.add_child(hrow)
+	var mrow := HBoxContainer.new()
+	mrow.add_theme_constant_override("separation", 1)
+	mrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lv.add_child(mrow)
+	for i in Balance.FIRE_AFTER:
+		var m := TextureRect.new()
+		m.texture = Style.icon("fire_off")
+		m.custom_minimum_size = Vector2(18, 18)
+		m.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		m.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mrow.add_child(m)
+		miss_icons.append(m)
 	for i in Balance.LIVES:
 		var h := TextureRect.new()
 		h.texture = Style.icon("heart")
@@ -190,8 +208,8 @@ func _build() -> void:
 	bottom.add_child(brow)
 	rain_btn = _bonus_button("rain")
 	brow.add_child(rain_btn)
-	meteor_btn = _bonus_button("meteor")
-	brow.add_child(meteor_btn)
+	bolt_btn = _bonus_button("lightning")
+	brow.add_child(bolt_btn)
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -237,7 +255,7 @@ func _bonus_button(kind: String) -> Button:
 	b.add_theme_font_override("font", Style.bold())
 	b.add_theme_font_size_override("font_size", 18)
 	_pill_style(b, Color.WHITE)
-	b.pressed.connect(_on_bonus_pressed.bind(kind))
+	b.pressed.connect(_on_bonus_pressed.bind("bolt" if kind == "lightning" else kind))
 	return b
 
 
@@ -296,17 +314,15 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück. Das gibt Punkte. Jede Verbindung zählt nur einmal: Hin- und Herdrehen bringt nichts."))
+	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück. Das gibt Punkte."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
-	v.add_child(_help_row("rain", "Wiese wächst nicht von allein. Alle %d Punkte bekommst du einen Bonus: Regen macht leere Erde (samt leerer Erde daneben) zu Wiese." % Balance.BONUS_EVERY))
-	v.add_child(_help_row("meteor", "Oder du setzt den Bonus als Meteorit ein: Er macht ein einzelnes Feld wieder zu Erde. Ein Bonus zählt als Zug."))
+	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (oben die Flammen). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
+	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Ein Feld steigt eine Stufe auf, ein brennendes wird gelöscht. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
+	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
+	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("metropolis", "Großstädte und Metropolen zerstören jede Runde ein Natur-Feld daneben."))
-	v.add_child(_help_row("balance", "Halte das Gleichgewicht. Endet eine Runde daneben, schlägt eine Katastrophe zu und kostet ein Leben der Welt:"))
-	v.add_child(_help_row("quake", "Zu viel Zivilisation → Erdbeben: Die größte Siedlung stürzt ein."))
-	v.add_child(_help_row("flood", "Zu wenig Natur → Überschwemmung: Die kleinsten Siedlungen werden weggespült."))
-	v.add_child(_help_row("fire", "Zu viel Natur → Waldbrand: Der dichteste Wald brennt nieder."))
-	v.add_child(_help_row("heart", "Die Welt hält %d Katastrophen aus. Leuchtet beim Drehen ein Feld rot, droht dort eine." % Balance.LIVES))
-	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber der gesunde Bereich wird enger. Im Menü gibt es auch 40 Runden: so viele Punkte wie möglich." % Balance.AGE_LENGTH))
+	v.add_child(_help_row("heart", "Brand und Erdbeben kosten je ein Leben der Welt. Ohne Leben ist das Spiel vorbei."))
+	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber es ist weniger Zivilisation erlaubt. Im Menü gibt es auch 40 Runden: so viele Punkte wie möglich." % Balance.AGE_LENGTH))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -493,16 +509,20 @@ func refresh() -> void:
 		_pop(stage_icon)
 	stage_label.text = GameState.STAGE_NAME[best_stage]
 	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
-	rain_btn.text = str(gs.bonus)
-	meteor_btn.text = str(gs.bonus)
+	rain_btn.text = str(gs.rain)
+	bolt_btn.text = str(gs.bolts)
+	for i in miss_icons.size():
+		(miss_icons[i] as TextureRect).texture = Style.icon("fire" if i < gs.misses else "fire_off")
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
 	var th := gs.threat()
-	if th != "" and not Game.over:
-		danger_label.text = "%s! Bring das in Ordnung, sonst: %s" % [GameState.DISASTER_WHY[th], GameState.DISASTER_NAME[th]]
-		danger_label.visible = true
-	else:
-		danger_label.visible = false
+	var warn := ""
+	if th != "":
+		warn = "%s! Bring das in Ordnung, sonst: %s" % [GameState.DISASTER_WHY[th], GameState.DISASTER_NAME[th]]
+	elif gs.misses == Balance.FIRE_AFTER - 1:
+		warn = "Noch ein Fehlversuch, dann brennt die Reihe!"
+	danger_label.text = warn
+	danger_label.visible = warn != "" and not Game.over
 	_update_buttons()
 	if _sheet_field >= 0 and sheet.visible:
 		_fill_sheet(_sheet_field)
@@ -511,8 +531,8 @@ func refresh() -> void:
 func _update_buttons() -> void:
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
-	rain_btn.disabled = blocked or gs.bonus <= 0
-	meteor_btn.disabled = blocked or gs.bonus <= 0
+	rain_btn.disabled = blocked or gs.rain <= 0
+	bolt_btn.disabled = blocked or gs.bolts <= 0
 
 
 func _pop(c: Control) -> void:
@@ -543,9 +563,9 @@ func _set_bonus_mode(kind: String) -> void:
 	bonus_mode = kind
 	mode_card.visible = kind != ""
 	if kind == "rain":
-		mode_label.text = "Tippe auf leere Erde: Dort regnet es"
-	elif kind == "meteor":
-		mode_label.text = "Tippe, wo der Meteorit einschlagen soll"
+		mode_label.text = "Tippe auf ein Feld: Es steigt auf\noder wird gelöscht"
+	elif kind == "bolt":
+		mode_label.text = "Tippe auf ein Feld: Der Blitz\nhebt seine waagrechte Reihe"
 	_close_sheet()
 
 
@@ -559,7 +579,7 @@ func _on_preview(info: Dictionary) -> void:
 		tw.tween_property(preview_card, "modulate:a", 0.0, 0.15)
 		return
 	var arranged: GameState = info["arranged"]
-	var merges := arranged.moved_lines().size()
+	var merges := arranged.lines().size()
 	var kind := ""
 	for e in info["events"]:
 		if str(e["type"]) == "disaster":
@@ -584,7 +604,8 @@ func _on_preview(info: Dictionary) -> void:
 
 func _on_field_tapped(fid: int) -> void:
 	if bonus_mode != "":
-		if Game.use_bonus(bonus_mode, fid):
+		var row: Array = world.screen_row(fid) if bonus_mode == "bolt" else []
+		if Game.use_bonus(bonus_mode, fid, row):
 			_set_bonus_mode("")
 		return
 	if world.selected == fid and sheet.visible:

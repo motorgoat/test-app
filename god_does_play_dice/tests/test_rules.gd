@@ -5,8 +5,6 @@ extends SceneTree
 
 var failures := 0
 var checks := 0
-
-
 var _saved := {}
 
 
@@ -15,14 +13,12 @@ func _init() -> void:
 	calm()
 	test_geometry()
 	test_merge()
-	test_only_new_lines()
-	test_back_and_forth()
 	test_cascade()
 	test_regrow_and_pollution()
+	test_bonus()
 	restore()
-	test_income_and_balance()
-	test_disasters()
-	test_meteor()
+	test_fire()
+	test_quake()
 	test_preview_matches()
 	test_modes()
 	test_bot()
@@ -31,18 +27,16 @@ func _init() -> void:
 	quit(1 if failures > 0 else 0)
 
 
-## Für die reinen Regeltests: Gleichgewicht so weit, dass keine Katastrophe dazwischenfunkt.
+## Für die reinen Regeltests: keine Katastrophe, die dazwischenfunkt.
 func calm() -> void:
-	_saved = {"nmin": Balance.NATURE_MIN, "nmax": Balance.NATURE_MAX, "cmax": Balance.CIVILISATION_MAX}
-	Balance.NATURE_MIN = 0.0
-	Balance.NATURE_MAX = 1.0
+	_saved = {"cmax": Balance.CIVILISATION_MAX, "fire": Balance.FIRE_AFTER}
 	Balance.CIVILISATION_MAX = 1.0
+	Balance.FIRE_AFTER = 999
 
 
 func restore() -> void:
-	Balance.NATURE_MIN = _saved["nmin"]
-	Balance.NATURE_MAX = _saved["nmax"]
 	Balance.CIVILISATION_MAX = _saved["cmax"]
+	Balance.FIRE_AFTER = _saved["fire"]
 
 
 func check(cond: bool, what: String) -> void:
@@ -70,6 +64,20 @@ func empty_state() -> GameState:
 
 func top(gs: GameState, x: int, z: int) -> FieldData:
 	return gs.field_at(Vector3i(x, 1, z), Vector3i(0, 1, 0))
+
+
+func ids(fs: Array) -> Array:
+	var out: Array = []
+	for f in fs:
+		out.append((f as FieldData).id)
+	return out
+
+
+func _disaster_of(r: Dictionary) -> Dictionary:
+	for e in r["events"]:
+		if str(e["type"]) == "disaster":
+			return e
+	return {}
 
 
 func test_setup() -> void:
@@ -130,80 +138,48 @@ func test_merge() -> void:
 	check(gs.lines().is_empty(), "verschiedene Stufen verschmelzen nicht")
 	c.stage = 1
 	check(gs.lines().size() == 1, "drei Wiesen in einer Reihe")
-	check(gs.moved_lines().is_empty(), "ohne Drehung verschmilzt nichts")
-	var waited := gs.clone()
-	waited.end_round()
-	check((waited.fields[b.id] as FieldData).stage == 1, "Warten lässt die Reihe stehen")
 	gs.moved[c.id] = true
 	var r := gs.end_round()
 	check(c.stage == 2, "das zuletzt dazugekommene Feld wird kleiner Wald (%d)" % c.stage)
 	check(a.stage == 0 and b.stage == 0, "die anderen beiden fallen zurück (Wiese → Erde)")
+	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Punkte fürs Verschmelzen (%d)" % int(r["gain"]))
+	# Drei gleiche in einer Reihe entwickeln sich immer, auch ohne Drehung
+	var gw := empty_state()
+	for x in [-1, 0, 1]:
+		top(gw, x, 1).stage = 1
+	gw.end_round()
+	check(top(gw, 0, 1).stage == 2 and top(gw, -1, 1).stage == 0, "Reihe entwickelt sich immer (ohne Drehung: die Mitte)")
+	# Durch eine Drehung: das hineingedrehte Feld steigt auf
+	var gr := empty_state()
+	top(gr, -1, 1).stage = 1
+	top(gr, 0, 1).stage = 1
+	var third := gr.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
+	third.stage = 1
+	gr.apply_rotation(0, 1, 1)
+	check(top(gr, 1, 1) == third, "drittes Feld rückt in die Reihe")
+	var rr := gr.end_round()
+	check(third.stage == 2 and int(rr["gain"]) > 0, "hineingedrehtes Feld steigt auf")
 	var gs4 := empty_state()
 	for x in [-1, 0, 1]:
 		top(gs4, x, 1).stage = 3
 	gs4.moved = {top(gs4, 1, 1).id: true}
 	gs4.resolve_merges([])
-	check(top(gs4, 1, 1).stage == 4 and top(gs4, 0, 1).stage == 2 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte (wo zuletzt dazugekommen) und zwei kleine Wälder")
-	var gs5 := empty_state()
-	for x in [-1, 0, 1]:
-		top(gs5, x, 1).stage = 1
-	for x in [-1, 0, 1]:
-		gs5.moved[top(gs5, x, 1).id] = true
-	gs5.resolve_merges([])
-	check(top(gs5, 0, 1).stage == 2, "ganze Reihe mitgedreht: die Mitte steigt auf")
-	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Wert fürs Verschmelzen (%d)" % int(r["gain"]))
+	check(top(gs4, 1, 1).stage == 4 and top(gs4, 0, 1).stage == 2 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte und zwei kleine Wälder")
 	# Die ganze Leiter hinauf
 	var gs2 := empty_state()
 	var names := []
-	for s in range(1, Balance.MAX_STAGE):
-		top(gs2, -1, -1).stage = s
-		top(gs2, -1, 0).stage = s
-		top(gs2, -1, 1).stage = s
+	for st in range(1, Balance.MAX_STAGE):
+		top(gs2, -1, -1).stage = st
+		top(gs2, -1, 0).stage = st
+		top(gs2, -1, 1).stage = st
 		gs2.moved = {top(gs2, -1, 1).id: true}
 		gs2.resolve_merges([])
 		names.append(top(gs2, -1, 1).stage)
 	check(names == [2, 3, 4, 5, 6, 7, 8, 9], "Leiter Wiese … Metropole (%s)" % str(names))
-	# Nebeneinander allein bringt nichts
 	var gs3 := empty_state()
 	top(gs3, 1, 0).stage = 3
 	top(gs3, 1, 1).stage = 3
-	check(int(gs3.end_round()["gain"]) == 0, "zwei Dörfer nebeneinander bringen nichts")
-
-
-func test_only_new_lines() -> void:
-	# Eine fertige Reihe, die nur als Ganzes mitgedreht wird, verschmilzt nicht
-	var gs := empty_state()
-	for x in [-1, 0, 1]:
-		top(gs, x, 1).stage = 1
-	gs.apply_rotation(2, 1, 1)
-	check(gs.moved_lines().is_empty(), "mitgedrehte fertige Reihe zählt nicht")
-	var r := gs.end_round()
-	check(int(r["gain"]) == 0, "keine Punkte für alte Reihe")
-	# Eine neu verbundene Reihe verschmilzt
-	var gs2 := empty_state()
-	top(gs2, -1, 1).stage = 1
-	top(gs2, 0, 1).stage = 1
-	var third := gs2.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
-	third.stage = 1
-	gs2.apply_rotation(0, 1, 1)
-	var now := top(gs2, 1, 1)
-	check(now == third, "drittes Feld rückt in die Reihe")
-	check(gs2.moved_lines().size() == 1, "neu verbundene Reihe zählt")
-
-
-func test_back_and_forth() -> void:
-	# Reihe wegdrehen und zurückdrehen bringt nichts
-	var gs := empty_state()
-	for x in [-1, 0, 1]:
-		top(gs, x, 1).stage = 1
-	gs.end_round()
-	gs.apply_rotation(0, 1, 1)
-	gs.end_round()
-	gs.apply_rotation(0, 1, -1)
-	check(gs.lines().size() >= 1, "Reihe steht wieder da")
-	check(gs.moved_lines().is_empty(), "hin und her zählt nicht")
-	var r := gs.end_round()
-	check(int(r["gain"]) == 0, "keine Punkte fürs Hin- und Herdrehen")
+	check(int(gs3.end_round()["gain"]) == 0, "zwei gleiche nebeneinander bringen nichts")
 
 
 func test_cascade() -> void:
@@ -248,120 +224,119 @@ func test_regrow_and_pollution() -> void:
 	check(nat.stage == 0, "Fabrik zerstört Natur daneben")
 
 
-func test_income_and_balance() -> void:
+func test_bonus() -> void:
+	# Regen: ein Feld steigt eine Stufe
 	var gs := empty_state()
-	top(gs, 1, 1).stage = 8
-	top(gs, -1, -1).stage = 9
-	check(gs.threat() == "flood", "nur Erde: zu wenig Natur, Überschwemmung droht")
-	for i in Balance.LIVES:
-		check(not gs.is_over(), "Welt lebt noch vor Katastrophe %d" % (i + 1))
-		gs.end_round()
-	check(gs.is_over() and gs.died(), "nach %d Katastrophen stirbt die Welt" % Balance.LIVES)
+	gs.rain = 1
+	var f := top(gs, 0, 0)
+	check(gs.can_bonus("rain", f) == "", "Regen geht")
+	gs.apply_bonus("rain", f)
+	check(f.stage == 1 and gs.rain == 0, "Regen: Erde wird Wiese, Regen verbraucht")
+	var others := 0
+	for g in gs.neighbors(f):
+		others += (g as FieldData).stage
+	check(others == 0, "Regen trifft nur ein Feld")
+	check(gs.can_bonus("rain", f) != "", "ohne Regen kein Regen")
+	gs.end_round()
+	# Blitz: eine ganze Reihe steigt eine Stufe
+	gs.bolts = 1
+	var row := gs.line_through(f, 0)
+	top(gs, -1, 0).stage = 2
+	gs.apply_bonus("bolt", f, row)
+	check(top(gs, -1, 0).stage == 3 and f.stage == 2 and top(gs, 1, 0).stage == 1 and gs.bolts == 0, "Blitz hebt die ganze Reihe")
+	# Regen kann eine Reihe vervollständigen: Dann verschmilzt sie dort
+	var gl := empty_state()
+	gl.rain = 1
+	top(gl, -1, 1).stage = 1
+	top(gl, 0, 1).stage = 1
+	gl.apply_bonus("rain", top(gl, 1, 1))
+	var r := gl.end_round()
+	check(top(gl, 1, 1).stage == 2 and int(r["gain"]) > 0, "Regen macht die dritte Wiese: Sie wird Wald")
+	# Punkte bringen Regen
+	var gp := empty_state()
+	gp.rain = 0
+	gp.score = Balance.RAIN_EVERY - 1
+	for x in [-1, 0, 1]:
+		top(gp, x, -1).stage = 1
+	var rp := gp.end_round()
+	check(gp.rain == 1 and int((rp["bonus_gained"] as Dictionary)["rain"]) == 1, "bei %d Punkten gibt es Regen" % Balance.RAIN_EVERY)
 
 
-func _disaster_of(r: Dictionary) -> Dictionary:
-	for e in r["events"]:
-		if str(e["type"]) == "disaster":
-			return e
-	return {}
-
-
-func test_disasters() -> void:
-	# Erdbeben: zu viel Zivilisation, die größte Siedlung stürzt ein
+func test_fire() -> void:
+	# Oben verschiedene Stufen (ohne Großstadt, die würde Natur zerstören), sonst Erde:
+	# Drehungen der unteren Scheibe verschmelzen nichts
 	var gs := empty_state()
+	var k := 0
 	for f in gs.fields:
-		f.stage = 5 if f.id < 24 else 1
-	var big := top(gs, 0, 0)
-	big.stage = 7
-	check(gs.threat() == "quake", "zu viel Zivilisation: Erdbeben droht")
-	var r := gs.end_round()
+		if f.n == Vector3i(0, 1, 0):
+			k += 1
+			f.stage = k if k < Balance.POLLUTION_FROM else 0
+	var row := ids([top(gs, -1, -1), top(gs, -1, 0), top(gs, -1, 1)])
+	for i in Balance.FIRE_AFTER - 1:
+		gs.apply_rotation(1, -1, 1)
+		var r := gs.end_round()
+		check(_disaster_of(r).is_empty(), "Fehlversuch %d: noch kein Brand" % (i + 1))
+	check(gs.misses == Balance.FIRE_AFTER - 1, "Fehlversuche werden gezählt (%d)" % gs.misses)
+	var before := top(gs, -1, 0).stage
+	gs.apply_rotation(1, -1, 1, row)
+	var rf := gs.end_round()
+	var e := _disaster_of(rf)
+	check(str(e.get("kind", "")) == "fire" and (e["hit"] as Array).size() == 3, "%d. Fehlversuch: die gewischte Reihe brennt" % Balance.FIRE_AFTER)
+	check(top(gs, -1, 0).burning and gs.misses == 0, "Felder brennen, Zähler beginnt von vorn")
+	check(gs.lives == Balance.LIVES - (1 if Balance.FIRE_COSTS_LIFE else 0), "Brand kostet ein Leben (wenn eingestellt)")
+	gs.end_round()
+	check(top(gs, -1, 0).stage == before - 1, "brennendes Feld verliert jeden Zug eine Stufe (%d → %d)" % [before, top(gs, -1, 0).stage])
+	gs.rain = 1
+	var lit := top(gs, -1, 0)
+	var st := lit.stage
+	gs.apply_bonus("rain", lit)
+	check(not lit.burning and lit.stage == st, "Regen löscht das Feuer")
+	gs.end_round()
+	check(lit.stage == st, "gelöschtes Feld brennt nicht weiter")
+	# Ein Erfolg setzt den Zähler nicht zurück
+	var gm := empty_state()
+	gm.misses = 1
+	top(gm, -1, 1).stage = 1
+	top(gm, 0, 1).stage = 1
+	var third := gm.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
+	third.stage = 1
+	gm.apply_rotation(0, 1, 1)
+	var rm := gm.end_round()
+	check(int(rm["gain"]) > 0 and gm.misses == 1, "Erfolg setzt Fehlversuche nicht zurück")
+
+
+func test_quake() -> void:
+	# Lauter Siedlungen im Schachbrett (keine Dreierreihe), oben eine besonders große Reihe
+	var gq := empty_state()
+	for f in gq.fields:
+		f.stage = 4 if absi(f.p.x + f.p.y + f.p.z) % 2 == 0 else 5
+	var big := [top(gq, -1, 1), top(gq, 0, 1), top(gq, 1, 1)]
+	(big[0] as FieldData).stage = 8
+	(big[1] as FieldData).stage = 9
+	(big[2] as FieldData).stage = 8
+	check(gq.lines().is_empty(), "Testaufbau ohne Dreierreihe")
+	check(gq.threat() == "quake", "zu viel Zivilisation: Erdbeben droht")
+	var r := gq.end_round()
 	var e := _disaster_of(r)
-	check(str(e.get("kind", "")) == "quake" and int(e["field"]) == big.id, "Erdbeben trifft die größte Siedlung")
-	check(big.stage == 7 - Balance.QUAKE_DROP, "größte Siedlung fällt %d Stufen" % Balance.QUAKE_DROP)
-	check(gs.lives == Balance.LIVES - 1, "Katastrophe kostet ein Leben")
-	# Waldbrand: zu viel Natur, der dichteste Wald brennt
-	var gf := empty_state()
-	for f in gf.fields:
-		f.stage = 1
-	var forest := top(gf, 0, 0)
-	forest.stage = 3
-	check(gf.threat() == "fire", "zu viel Natur: Waldbrand droht")
-	var rf := gf.end_round()
-	var ef := _disaster_of(rf)
-	check(str(ef.get("kind", "")) == "fire" and (ef["hit"] as Array).size() == 5, "Waldbrand: Wald und 4 Nachbarn brennen")
-	check(forest.stage == 0 and gf.count(0) == 5, "verbrannt ist Erde")
-	gf.end_round()
-	check(forest.stage == 0, "Brandfläche wächst nicht sofort nach")
-	# Überschwemmung: zu wenig Natur, die kleinsten Siedlungen werden weggespült
-	var gw := empty_state()
-	top(gw, 1, 1).stage = 4
-	top(gw, -1, -1).stage = 4
-	top(gw, -1, 1).stage = 4
-	top(gw, 1, -1).stage = 5
-	check(gw.threat() == "flood", "zu wenig Natur: Überschwemmung droht")
-	var rw := gw.end_round()
-	check(str(_disaster_of(rw).get("kind", "")) == "flood", "Überschwemmung kommt")
-	check(gw.count(4) == 0 and top(gw, 1, -1).stage == 5, "die %d kleinsten Siedlungen sind weg" % Balance.FLOOD_FIELDS)
-	# Im Gleichgewicht passiert nichts, neues Zeitalter gibt ein Leben zurück
+	var hit: Array = e.get("hit", [])
+	hit.sort()
+	var want := ids(big)
+	want.sort()
+	check(str(e.get("kind", "")) == "quake" and hit == want, "Erdbeben trifft die Reihe mit der meisten Zivilisation")
+	check((big[1] as FieldData).stage == 8 and (big[0] as FieldData).stage == 7, "die Reihe fällt eine Stufe zurück")
+	check(gq.lives == Balance.LIVES - 1, "Erdbeben kostet ein Leben")
+	# Ohne Leben ist Schluss; neues Zeitalter gibt eines zurück
+	var gd := empty_state()
+	gd.lives = 1
+	for f in gd.fields:
+		f.stage = 4 if absi(f.p.x + f.p.y + f.p.z) % 2 == 0 else 5
+	gd.end_round()
+	check(gd.died() and gd.is_over(), "ohne Leben stirbt die Welt")
 	var ga := new_state(5)
 	ga.lives = 1
 	ga.turn = Balance.AGE_LENGTH
-	var ra := ga.end_round()
-	check(_disaster_of(ra).is_empty(), "im Gleichgewicht keine Katastrophe")
+	ga.end_round()
 	check(ga.lives == 2, "neues Zeitalter: ein Leben zurück")
-
-
-func test_meteor() -> void:
-	# Bonus: Regen und Meteorit auf ein einzelnes Feld
-	var gs := empty_state()
-	gs.bonus = 2
-	var f := top(gs, 0, 0)
-	check(gs.can_bonus("meteor", f) != "", "Meteorit nicht auf leere Erde")
-	check(gs.can_bonus("rain", f) == "", "Regen auf leere Erde geht")
-	gs.apply_bonus("rain", f)
-	var wet := 0
-	for g in [f] + gs.neighbors(f):
-		if (g as FieldData).stage == 1:
-			wet += 1
-	check(f.stage == 1 and wet == (5 if Balance.RAIN_NEIGHBORS else 1), "Regen: Feld (und Erde daneben) wird Wiese (%d)" % wet)
-	check(gs.bonus == 1, "Bonus verbraucht")
-	gs.end_round()
-	var m := top(gs, 1, 1)
-	m.stage = 3
-	check(gs.can_bonus("meteor", m) == "", "Meteorit auf ein Feld geht")
-	var around := {}
-	for g in gs.neighbors(m):
-		around[(g as FieldData).id] = (g as FieldData).stage
-	gs.apply_bonus("meteor", m)
-	var same := true
-	for g in gs.neighbors(m):
-		if int(around[(g as FieldData).id]) != (g as FieldData).stage:
-			same = false
-	check(m.stage == 0 and same, "Meteorit trifft nur ein Feld")
-	check(gs.bonus == 0 and gs.can_bonus("rain", top(gs, -1, -1)) != "", "ohne Bonus geht nichts")
-	gs.end_round()
-	check(m.stage == 0, "frischer Krater bleibt Erde")
-	# Regen kann eine Reihe vervollständigen: Dann verschmilzt sie
-	var gl := empty_state()
-	gl.bonus = 1
-	top(gl, -1, 1).stage = 1
-	top(gl, 0, 1).stage = 1
-	var saved := Balance.RAIN_NEIGHBORS
-	Balance.RAIN_NEIGHBORS = false
-	gl.apply_bonus("rain", top(gl, 1, 1))
-	Balance.RAIN_NEIGHBORS = saved
-	var r := gl.end_round()
-	check(top(gl, 1, 1).stage == 2 and int(r["gain"]) > 0, "Regen macht die dritte Wiese: Sie wird Wald, gibt Punkte")
-	# Punkte bringen Boni
-	var gp := empty_state()
-	gp.bonus = 0
-	gp.score = Balance.BONUS_EVERY - 1
-	top(gp, -1, -1).stage = 1
-	top(gp, -1, 0).stage = 1
-	top(gp, -1, 1).stage = 1
-	gp.moved = {top(gp, -1, 1).id: true}
-	var rp := gp.end_round()
-	check(gp.score >= Balance.BONUS_EVERY and gp.bonus == 1 and int(rp["bonus_gained"]) == 1, "bei %d Punkten gibt es einen Bonus" % Balance.BONUS_EVERY)
 
 
 func test_preview_matches() -> void:
@@ -379,11 +354,11 @@ func test_preview_matches() -> void:
 	check(same, "Vorschau = echte Runde")
 
 
-## Ein einfacher Bot: wählt die beste Drehung (ein Zug voraus), setzt den Meteoriten, wenn das
-## Gleichgewicht kippt. passive = immer nur warten. Zeigt, ob das Spiel lange spielbar ist.
+## Ein einfacher Bot: wählt den besten Zug (ein Zug voraus), auch Regen und Blitz.
 func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 	var gs := new_state(s)
 	var bonuses := 0
+	var fires := 0
 	for t in max_rounds:
 		var best: Array = [0, 0, 0]
 		if not passive:
@@ -393,58 +368,61 @@ func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 				for layer in [-1, 0, 1]:
 					for turns in [1, -1, 2]:
 						moves.append([axis, layer, turns])
-			moves.append([0, 0, 0])
-			if gs.bonus > 0:
+			if gs.rain > 0:
 				for f in gs.fields:
-					if f.stage == 0:
-						moves.append(["rain", f.id, 0])
-					elif f.stage >= 3:
-						moves.append(["meteor", f.id, 0])
+					if f.burning or f.stage < Balance.MAX_STAGE:
+						moves.append(["rain", f.id, []])
+			if gs.bolts > 0:
+				for line in gs.all_rows():
+					moves.append(["bolt", (line[1] as FieldData).id, ids(line)])
 			for mv in moves:
 				var sim := gs.clone()
 				var penalty := 0.0
 				if mv[0] is String:
-					sim.apply_bonus(str(mv[0]), sim.fields[int(mv[1])])
-					penalty = 3.0
-				elif int(mv[2]) != 0:
+					sim.apply_bonus(str(mv[0]), sim.fields[int(mv[1])], mv[2])
+					penalty = 4.0
+				else:
 					sim.apply_rotation(int(mv[0]), int(mv[1]), int(mv[2]))
 				var r := sim.end_round()
 				var score: float = int(r["gain"]) - penalty
 				if sim.lives < gs.lives:
 					score -= 60.0
-				if not sim.in_balance():
-					score -= 10.0
+				for f in sim.fields:
+					if f.burning:
+						score -= 3.0
 				if sim.is_over():
 					score -= 10000.0
 				if score > best_score:
 					best_score = score
 					best = mv
 		if best[0] is String:
-			gs.apply_bonus(str(best[0]), gs.fields[int(best[1])])
+			gs.apply_bonus(str(best[0]), gs.fields[int(best[1])], best[2])
 			bonuses += 1
-		elif int(best[2]) != 0:
+		elif not passive:
 			gs.apply_rotation(int(best[0]), int(best[1]), int(best[2]))
-		gs.end_round()
+		var r2 := gs.end_round()
+		if not _disaster_of(r2).is_empty() and str(_disaster_of(r2)["kind"]) == "fire":
+			fires += 1
 		if gs.is_over():
 			break
 	var counts := []
 	for st in range(0, Balance.MAX_STAGE + 1):
 		counts.append(gs.count(st))
-	return {"rounds": gs.turn - 1, "age": gs.age(), "score": gs.score, "best": gs.best_stage, "bonuses": bonuses,
-		"disasters": gs.disasters, "nature": gs.nature_share(), "civ": gs.civilisation_share(), "counts": counts, "dead": gs.died()}
+	return {"rounds": gs.turn - 1, "score": gs.score, "best": gs.best_stage, "bonuses": bonuses, "fires": fires,
+		"disasters": gs.disasters, "civ": gs.civilisation_share(), "counts": counts, "dead": gs.died()}
 
 
 func test_bot() -> void:
-	var saved := Balance.BONUS_EVERY
-	for every in [12, 20, 30]:
-		Balance.BONUS_EVERY = every
-		print("--- Bonus alle %d Punkte ---" % every)
-		for sd in [11, 22]:
+	var saved := Balance.FIRE_COSTS_LIFE
+	for costs in [true, false]:
+		Balance.FIRE_COSTS_LIFE = costs
+		print("--- Brand kostet ein Leben: %s ---" % ("ja" if costs else "nein"))
+		for sd in [11, 22, 33]:
 			var b := run_bot(sd, false, 100)
-			print("  Bot Seed %d: %d Runden, %d Punkte, Entwicklung %s, Boni %d, Katastrophen %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
-				sd, int(b["rounds"]), int(b["score"]), GameState.stage_name(int(b["best"])), int(b["bonuses"]), int(b["disasters"]),
-				float(b["nature"]) * 100.0, float(b["civ"]) * 100.0, str(b["counts"])])
-	Balance.BONUS_EVERY = saved
+			print("  Bot Seed %d: %d Runden, %d Punkte, Entwicklung %s, Boni %d, Brände %d, Katastrophen %d, Zivilisation %.0f%%, Stufen %s" % [
+				sd, int(b["rounds"]), int(b["score"]), GameState.stage_name(int(b["best"])), int(b["bonuses"]), int(b["fires"]),
+				int(b["disasters"]), float(b["civ"]) * 100.0, str(b["counts"])])
+	Balance.FIRE_COSTS_LIFE = saved
 	var passive := run_bot(11, true, 40)
 	check(int(passive["score"]) == 0, "Nichtstun bringt keine Punkte")
 
@@ -453,10 +431,9 @@ func test_modes() -> void:
 	var gs := GameState.new()
 	gs.setup(5, true)
 	check(gs.age() == 1, "Endlos startet in Zeitalter 1")
-	var nmin := gs.nature_min()
 	gs.turn = Balance.AGE_LENGTH + 1
 	check(gs.age() == 2, "nach %d Runden Zeitalter 2" % Balance.AGE_LENGTH)
-	check(gs.nature_min() > nmin and gs.nature_max() < Balance.NATURE_MAX and gs.civilisation_max() < Balance.CIVILISATION_MAX, "Gleichgewicht wird enger")
+	check(gs.civilisation_max() < Balance.CIVILISATION_MAX, "weniger Zivilisation erlaubt")
 	gs.turn = 999
 	check(not gs.finished(), "Endlos endet nicht nach Runden")
 	var ch := GameState.new()

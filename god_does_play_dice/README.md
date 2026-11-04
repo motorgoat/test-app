@@ -13,25 +13,22 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
-   Natur = Wiese bis großer Wald, Zivilisation = ab Hütte.
-3. **Verschmelzen:** Vervollständigst du mit einer Drehung eine Reihe (oder Spalte) aus 3 gleichen Feldern,
-   steigt das Feld auf, das zuletzt dazugekommen ist. Die beiden anderen fallen eine Stufe zurück.
+3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte) entwickeln sich **immer**:
+   Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück.
    Das gibt Punkte (je höher die Stufe, desto mehr, Kettenreaktionen zählen mehrfach).
-   **Jede Verbindung zählt nur einmal:** Hin- und Herdrehen bringt nichts.
-4. **Wiese wächst nicht von allein.** Alle 12 Punkte gibt es einen **Bonus** (höchstens 3 auf Vorrat):
-   - **Regen:** leere Erde wird Wiese, die leere Erde daneben auch. Vervollständigt das eine Reihe, verschmilzt sie.
-   - **Meteorit:** ein einzelnes Feld wird wieder Erde.
-   Ein Bonus zählt als Zug.
-5. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
-6. **Gleichgewicht:** Natur 20–75 %, Zivilisation höchstens 40 %. Endet ein Zug daneben, schlägt eine Katastrophe zu:
-   - zu viel Zivilisation → **Erdbeben**: Die größte Siedlung fällt 2 Stufen, die Siedlungen daneben je eine.
-   - zu wenig Natur → **Überschwemmung**: Die 3 kleinsten Siedlungen werden weggespült.
-   - zu viel Natur → **Waldbrand**: Der dichteste Wald brennt mit aller Natur daneben nieder.
-   Beim Drehen leuchten die Felder rot, die es treffen würde. Die Welt hat **3 Leben**.
-7. **Modi:** Endlos (alle 20 Runden ein neues Zeitalter: ein Leben zurück, der Bereich wird enger) oder 40 Runden.
+4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die
+   gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
+   Brennende Felder verlieren jeden Zug eine Stufe, bis sie Erde sind oder Regen sie löscht.
+5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld eine Stufe oder löscht ein Feuer.
+   **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
+   Wiese wächst nur durch Regen.
+6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
+7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
+8. Brand und Erdbeben kosten je ein **Leben** der Welt (3 Leben). Ohne Leben ist das Spiel vorbei.
+9. **Modi:** Endlos (alle 20 Runden ein neues Zeitalter: ein Leben zurück, weniger Zivilisation erlaubt) oder 40 Runden.
    Rekord = Punkte.
 
-Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe) und die Leben.
+Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
 
 **Tutorial:** Im allerersten Spiel zeigt der Würfel in den ersten 5 Runden, welche Scheibe sich lohnt,
 und was eine Drehung bringt. Danach nur noch die Warnung vor Katastrophen. Im Menü: „Tutorial nochmal“.
@@ -48,7 +45,7 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Wischen daneben, oder 1 s auf dem Würfel halten und ziehen | Ansicht drehen, mit Nachschwung |
 | Zwei Finger / Mausrad | Zoom |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
-| Regen / Meteorit unten | Bonus wählen, dann das Feld antippen |
+| Regen / Blitz unten | Bonus wählen, dann das Feld antippen (Blitz: dessen waagrechte Reihe) |
 
 ## Aufbau
 

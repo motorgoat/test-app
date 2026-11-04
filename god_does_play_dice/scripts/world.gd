@@ -34,6 +34,7 @@ var _tw_px_per_quarter := 100.0
 var _tw_angle := 0.0
 var _tw_display := 0.0
 var _tw_quarter := 0
+var _tw_row: Array = []         # die drei Felder, über die gewischt wird
 var _pivot: Node3D
 var _touches: Dictionary = {}
 var _pinch_dist := 0.0
@@ -423,6 +424,10 @@ func _begin_twist(drag: Vector2) -> void:
 	_tw_axis = GameState.axis_of(ki)
 	_tw_sign = ki[_tw_axis]
 	_tw_layer = f.p[_tw_axis]
+	_tw_row = []
+	for g in Game.state.fields:
+		if g.n == f.n and g.p[_tw_axis] == _tw_layer:
+			_tw_row.append(g.id)
 	_tw_screen_dir = best_dir * sgn
 	_tw_px_per_quarter = maxf(40.0, best_len * Balance.TWIST_FINGER_UNITS)
 	_tw_angle = 0.0
@@ -451,12 +456,12 @@ func _show_preview(q: int) -> void:
 	if q == 0:
 		_clear_preview()
 		return
-	var pv := Game.preview(_tw_axis, _tw_layer, q)
+	var pv := Game.preview(_tw_axis, _tw_layer, q, _tw_row)
 	var arranged: GameState = pv["arranged"]
 	var lit := {}
 	var mids := {}
 	# Was eine Drehung bringt, zeigt nur das Tutorial. Gefahr zeigt die Vorschau immer.
-	var lines: Array = arranged.moved_lines() if Game.tutorial() else []
+	var lines: Array = arranged.lines() if Game.tutorial() else []
 	for line in lines:
 		for g in line:
 			lit[(g as FieldData).id] = true
@@ -513,7 +518,7 @@ func _finish_twist() -> void:
 		(views[fid] as FieldView).set_danger(false)
 	preview_changed.emit({})
 	if _tw_quarter != 0:
-		Game.play_turn(_tw_axis, _tw_layer, _tw_quarter)
+		Game.play_turn(_tw_axis, _tw_layer, _tw_quarter, _tw_row)
 	else:
 		animating = false
 		refresh_all()
@@ -579,22 +584,24 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	select(-1)
 	var gs := Game.state
 	var events: Array = result["events"]
-	# Bonus zuerst: Meteorit schlägt ein oder Regen fällt
+	# Bonus zuerst: Regen fällt oder der Blitz schlägt ein
 	var bonus_ids := {}
 	if result.has("bonus"):
 		var bd: Dictionary = result["bonus"]
 		var kind := str(bd["kind"])
 		for i in bd["fields"]:
 			bonus_ids[int(i)] = true
-		if kind == "meteor":
-			await _meteor_fx(int(bd["field"]))
+		if kind == "bolt":
+			await _bolt_fx(bd["fields"])
 		else:
 			await _rain_fx(bd["fields"])
+		var stages: Dictionary = bd["stages"]
 		for i in bonus_ids:
 			var v: FieldView = views.get(int(i))
 			if v != null:
 				var shown: FieldData = (gs.fields[int(i)] as FieldData).copy()
-				shown.stage = 0 if kind == "meteor" else 1
+				shown.stage = int(stages.get(int(i), shown.stage))
+				shown.burning = false
 				v.refresh(shown)
 		await get_tree().create_timer(0.35).timeout
 	# Verschmelzen, Kombo für Kombo
@@ -605,6 +612,8 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 		if str(e["type"]) == "disaster":
 			for i in e["hit"]:
 				disaster_ids[int(i)] = true
+		elif str(e["type"]) == "burn":
+			disaster_ids[int(e["field"])] = true
 	for e in events:
 		if str(e["type"]) != "merge":
 			continue
@@ -625,6 +634,18 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			var v: FieldView = views.get(int(e["field"]))
 			if v != null:
 				_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#6b6e78"), 4)
+	# Was brennt, brennt weiter ab
+	var burning: Array = []
+	for e in events:
+		if str(e["type"]) == "burn":
+			burning.append(int(e["field"]))
+	if not burning.is_empty():
+		for i in burning:
+			var v: FieldView = views.get(int(i))
+			if v != null:
+				v.burn(0.8)
+				_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 1.0, Color("#6b6e78"), 3)
+		await get_tree().create_timer(0.9).timeout
 	# Katastrophe
 	for e in events:
 		if str(e["type"]) == "disaster":
@@ -691,19 +712,18 @@ func _disaster_fx(e: Dictionary) -> void:
 		if kind == "quake":
 			v.quake(dur)
 			_sparks(p, Vector3.ZERO, Color("#a5805c"), 6)
-		elif kind == "flood":
-			v.flood(dur * 1.2)
-			_sparks(p, Vector3.ZERO, Color("#7cc8ff"), 6)
 		else:
-			v.burn(dur)
-			_sparks(p, Vector3.ZERO, Color("#ff8a3d"), 7)
+			var lit: FieldData = (Game.state.fields[int(i)] as FieldData).copy()
+			v.refresh(lit)
+			v.burst(Color("#ff8a3d"))
+			_sparks(p, Vector3.ZERO, Color("#ff8a3d"), 9)
 	if kind == "quake":
 		rig.shake(1.6)
 	elif kind == "fire":
 		rig.shake(0.4)
 	else:
 		rig.shake(0.3)
-	await get_tree().create_timer(dur * (1.25 if kind == "flood" else 1.05)).timeout
+	await get_tree().create_timer(dur * 1.05).timeout
 	for i in hit:
 		var v: FieldView = views.get(int(i))
 		if v != null:
@@ -764,6 +784,66 @@ func _meteor_fx(fid: int) -> void:
 	rig.shake(1.2)
 	v.burst(Color("#ff8a3d"))
 	_sparks(target + n * 0.2, Vector3.ZERO, Color("#ff8a3d"), 16)
+
+
+## Blitz: zuckt vom Himmel in die Reihe, alle drei Felder leuchten auf.
+func _bolt_fx(ids: Array) -> void:
+	if ids.is_empty():
+		return
+	var mid: FieldView = views.get(int(ids[ids.size() / 2]))
+	if mid == null:
+		return
+	var n := mid.world_normal()
+	var flash := OmniLight3D.new()
+	flash.light_color = Color("#fff3a0")
+	flash.omni_range = 5.0
+	flash.light_energy = 10.0
+	cube_root.add_child(flash)
+	flash.global_position = mid.global_position + n * 1.2
+	for i in ids:
+		var v: FieldView = views.get(int(i))
+		if v == null:
+			continue
+		var top := v.global_position + v.world_normal() * 2.2
+		var bottom := v.global_position + v.world_normal() * 0.1
+		var seg := 6
+		for k in seg:
+			var a := top.lerp(bottom, float(k) / seg) + Vector3(randf_range(-0.08, 0.08), randf_range(-0.08, 0.08), randf_range(-0.08, 0.08))
+			var spark := Models.sphere(cube_root, 0.045, Color("#fff3a0"), a, Models.mat(Color("#fff3a0"), 0.2, 4.0))
+			var tw := spark.create_tween()
+			tw.tween_interval(0.25)
+			tw.tween_property(spark, "scale", Vector3.ZERO, 0.2)
+			tw.tween_callback(spark.queue_free)
+		v.burst(Color("#ffd23f"))
+		_sparks(bottom, Vector3.ZERO, Color("#ffe066"), 8)
+	rig.shake(0.7)
+	var ft := create_tween()
+	ft.tween_property(flash, "light_energy", 0.0, 0.5)
+	ft.tween_callback(flash.queue_free)
+	await get_tree().create_timer(0.6).timeout
+
+
+## Welche Reihe trifft der Blitz? Die durch das Feld, die auf dem Bildschirm am ehesten waagrecht liegt.
+func screen_row(fid: int) -> Array:
+	var gs := Game.state
+	var f: FieldData = gs.fields[fid]
+	var v: FieldView = views.get(fid)
+	var a := GameState.axis_of(f.n)
+	var best: Array = []
+	var best_dot := -1.0
+	for along in [(a + 1) % 3, (a + 2) % 3]:
+		var row := gs.line_through(f, along)
+		if v == null or row.size() < 3:
+			continue
+		var dir := Vector3.ZERO
+		dir[along] = 1.0
+		var p0 := rig.cam.unproject_position(v.global_position)
+		var p1 := rig.cam.unproject_position(v.global_position + cube_root.global_transform.basis * dir * 0.5)
+		var d := absf((p1 - p0).normalized().x)
+		if d > best_dot:
+			best_dot = d
+			best = row
+	return best
 
 
 ## Regen: eine Wolke zieht über das Feld, Tropfen fallen, alles wird grün.

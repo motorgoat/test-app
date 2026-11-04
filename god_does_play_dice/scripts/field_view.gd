@@ -118,6 +118,17 @@ func set_highlight(on: bool) -> void:
 	_glow_top.visible = on
 
 
+## Das Feld brennt: flackernde Flammen über dem Inhalt.
+func _add_flames() -> void:
+	for k in 4:
+		var pos := Vector3(randf_range(-0.2, 0.2), 0.02, randf_range(-0.2, 0.2))
+		var fl := Models.flame(_content, pos, randf_range(1.1, 1.7))
+		var tw := fl.create_tween().set_loops()
+		var t := randf_range(0.18, 0.3)
+		tw.tween_property(fl, "scale", Vector3(0.85, 1.25, 0.85), t).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(fl, "scale", Vector3(1.1, 0.8, 1.1), t).set_trans(Tween.TRANS_SINE)
+
+
 ## Rotes Leuchten: hier würde gleich eine Katastrophe zuschlagen.
 func set_danger(on: bool) -> void:
 	_danger.visible = on
@@ -212,7 +223,7 @@ func burst(color: Color) -> void:
 
 
 func refresh(f: FieldData) -> void:
-	var key := "%d|%d" % [f.stage, mini(f.fresh, 1)]
+	var key := "%d|%d|%d" % [f.stage, mini(f.fresh, 1), 1 if f.burning else 0]
 	if key == _shown:
 		return
 	var first := _shown == ""
@@ -223,6 +234,8 @@ func refresh(f: FieldData) -> void:
 	_bobbers.clear()
 	_smoke.clear()
 	_build_content(f)
+	if f.burning:
+		_add_flames()
 	_content.position = Vector3(0, TOP, 0)
 	if first:
 		_content.scale = Vector3.ONE * CONTENT_SCALE

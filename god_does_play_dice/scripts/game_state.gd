@@ -3,37 +3,41 @@ extends RefCounted
 ## Reine Spiellogik, getrennt von der Darstellung. Kopierbar (clone) für die Vorschau.
 ##
 ## Regeln:
-##   1. Start: nur leere Erde und Wiesen.
-##   2. Vervollständigt eine Drehung eine NEUE Reihe aus 3 gleichen Feldern, verschmelzen sie:
-##      das Feld, das zuletzt dazugekommen ist, steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt
-##      → Großstadt → Metropole), die beiden äußeren fallen eine Stufe zurück.
-##   3. Wiese entsteht nur durch Regen (Bonus). Nachwachsen von allein ist abschaltbar (REGROW_PER_ROUND).
+##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen.
+##   2. Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist,
+##      steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole),
+##      die beiden anderen fallen eine Stufe zurück. Das gibt Punkte.
+##   3. Wiese wächst nicht von allein (abschaltbar: REGROW_PER_ROUND).
 ##   4. Großstädte und Metropolen zerstören Natur daneben.
-##   5. Endet eine Runde außerhalb des Gleichgewichts, kommt eine Katastrophe:
-##      zu viel Zivilisation → Erdbeben, zu wenig Natur → Überschwemmung, zu viel Natur → Waldbrand.
-##      Jede kostet ein Leben der Welt. Ohne Leben stirbt sie. Jedes neue Zeitalter gibt eines zurück.
-##   6. Punkte gibt es fürs Verschmelzen. Alle paar Punkte gibt es einen Bonus für ein einzelnes Feld:
-##      Regen (Erde wird Wiese) oder Meteorit (das Feld wird wieder Erde). Ein Bonus ist ein Zug.
+##   5. Fehlversuch = Drehung, die nichts verschmilzt. Jeder 3. Fehlversuch (der Zähler läuft weiter) setzt
+##      die zuletzt gedrehte Reihe in Brand: Brennende Felder verlieren jeden Zug eine Stufe, bis Regen sie löscht.
+##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
+##   7. Boni aus Punkten: Regen hebt ein Feld eine Stufe (oder löscht es), Blitz hebt eine ganze Reihe.
+##   8. Katastrophen kosten Leben der Welt (Brand abschaltbar). Jedes neue Zeitalter gibt eines zurück.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_ICON = ["empty", "meadow", "smallforest", "nature", "hut", "house", "village", "town", "bigcity", "metropolis"]
-const DISASTER_NAME = {"quake": "Erdbeben", "flood": "Überschwemmung", "fire": "Waldbrand"}
-const DISASTER_WHY = {"quake": "Zu viel Zivilisation", "flood": "Zu wenig Natur", "fire": "Zu viel Natur"}
+const DISASTER_NAME = {"quake": "Erdbeben", "fire": "Brand"}
+const DISASTER_WHY = {"quake": "Zu viel Zivilisation", "fire": "3 Fehlversuche"}
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
 var turn: int = 1
 var score: int = 0           # Punkte
-var bonus: int = 1            # Boni (Regen oder Meteorit), die du gerade einsetzen kannst
-var next_bonus: int = 0       # ab dieser Punktzahl gibt es den nächsten Bonus
+var rain: int = 1             # Regen-Boni
+var bolts: int = 0            # Blitz-Boni
+var next_rain: int = 0        # ab dieser Punktzahl gibt es den nächsten Regen …
+var next_bolt: int = 0        # … und den nächsten Blitz
+var misses: int = 0           # Fehlversuche seit dem letzten Brand
+var last_row: Array = []      # IDs der zuletzt gedrehten Reihe (brennt beim 3. Fehlversuch)
+var _rotated := false         # dieser Zug war eine Drehung
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
 var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
-var seen: Dictionary = {}     # jede Reihe (drei Felder + Stufe), die es je gab: zählt nie wieder
 var endless := true           # Endlos-Modus oder 40 Runden
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
@@ -51,15 +55,19 @@ func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
 		rng.randomize()
 	turn = 1
 	score = 0
-	bonus = Balance.BONUS_START
-	next_bonus = Balance.BONUS_EVERY
+	rain = Balance.RAIN_START
+	bolts = Balance.BOLT_START
+	next_rain = Balance.RAIN_EVERY
+	next_bolt = Balance.BOLT_EVERY
+	misses = 0
+	last_row = []
+	_rotated = false
 	meteors_used = 0
 	best_stage = 1
 	lives = Balance.LIVES
 	disasters = 0
 	last_disaster = ""
 	moved = {}
-	seen = {}
 	fields.clear()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
@@ -123,15 +131,19 @@ func clone() -> GameState:
 	gs.turn = turn
 	gs.endless = endless
 	gs.score = score
-	gs.bonus = bonus
-	gs.next_bonus = next_bonus
+	gs.rain = rain
+	gs.bolts = bolts
+	gs.next_rain = next_rain
+	gs.next_bolt = next_bolt
+	gs.misses = misses
+	gs.last_row = last_row.duplicate()
+	gs._rotated = _rotated
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
 	gs.disasters = disasters
 	gs.last_disaster = last_disaster
 	gs.moved = moved.duplicate()
-	gs.seen = seen.duplicate()
 	gs.rng.seed = rng.seed
 	gs.rng.state = rng.state
 	for f in fields:
@@ -199,10 +211,11 @@ func neighbors(f: FieldData) -> Array:
 
 
 ## Wie ein echter Zauberwürfel: alle Felder der Scheibe drehen mit, auch die Mitten.
-func apply_rotation(axis: int, layer: int, turns: int) -> void:
+## row: die drei Felder, über die gewischt wurde (brennen beim 3. Fehlversuch). Leer: eine Reihe der Scheibe.
+func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	var d := 1 if turns > 0 else -1
-	if moved.is_empty():
-		remember_lines()
+	_rotated = true
+	last_row = row.duplicate() if not row.is_empty() else slice_row(axis, layer)
 	for f in fields:
 		if f.p[axis] == layer:
 			moved[f.id] = true
@@ -212,6 +225,33 @@ func apply_rotation(axis: int, layer: int, turns: int) -> void:
 				f.p = rv(f.p, axis, d)
 				f.n = rv(f.n, axis, d)
 		rebuild_index()
+
+
+## Die drei Felder der Scheibe auf der ersten Seite, die sie schneidet.
+func slice_row(axis: int, layer: int) -> Array:
+	for nv in FACE_NORMALS:
+		var n: Vector3i = nv
+		if n[axis] != 0:
+			continue
+		var out: Array = []
+		for f in fields:
+			if f.n == n and f.p[axis] == layer:
+				out.append(f.id)
+		if out.size() == 3:
+			return out
+	return []
+
+
+## Die drei Felder einer Reihe durch f auf seiner Seite; along = Achse, entlang der die Reihe läuft.
+func line_through(f: FieldData, along: int) -> Array:
+	var out: Array = []
+	for t in [-1, 0, 1]:
+		var p := f.p
+		p[along] = t
+		var g := field_at(p, f.n)
+		if g != null:
+			out.append(g.id)
+	return out
 
 
 # =============================================================================
@@ -251,32 +291,18 @@ func age() -> int:
 	return 1 + int((turn - 1) / Balance.AGE_LENGTH) if endless else 1
 
 
-func nature_min() -> float:
-	return minf(Balance.NATURE_MIN_MAX, Balance.NATURE_MIN + Balance.NATURE_MIN_STEP * (age() - 1))
-
-
 func civilisation_max() -> float:
 	return maxf(Balance.CIVILISATION_MAX_MIN, Balance.CIVILISATION_MAX - Balance.CIVILISATION_MAX_STEP * (age() - 1))
-
-
-func nature_max() -> float:
-	return maxf(Balance.NATURE_MAX_MIN, Balance.NATURE_MAX - Balance.NATURE_MAX_STEP * (age() - 1))
 
 
 func in_balance() -> bool:
 	return threat() == ""
 
 
-## Was gerade aus dem Gleichgewicht ist: "quake" (zu viel Zivilisation), "flood" (zu wenig Natur),
-## "fire" (zu viel Natur) oder "" (alles gut).
+## Was gerade droht: "quake" (zu viel Zivilisation) oder "" (alles gut).
 func threat() -> String:
 	if civilisation_share() > civilisation_max() + 0.0001:
 		return "quake"
-	var nat := nature_share()
-	if nat < nature_min() - 0.0001:
-		return "flood"
-	if nat > nature_max() + 0.0001:
-		return "fire"
 	return ""
 
 
@@ -321,33 +347,6 @@ func lines(only: Dictionary = {}) -> Array:
 	return out
 
 
-## Schlüssel einer Reihe: die drei Felder und ihre Stufe.
-static func line_key(line: Array) -> String:
-	var ids: Array = []
-	for f in line:
-		ids.append((f as FieldData).id)
-	ids.sort()
-	return "%d|%d|%d@%d" % [ids[0], ids[1], ids[2], (line[0] as FieldData).stage]
-
-
-## Alle Reihen, die gerade bestehen, als „schon da gewesen“ merken.
-func remember_lines() -> void:
-	for line in lines():
-		seen[line_key(line)] = true
-
-
-## Reihen, die die letzte Drehung NEU verbunden hat. Was es je schon gab (auch durch
-## Hin- und Herdrehen oder weil eine Reihe nur mitgedreht wurde), zählt nicht.
-func moved_lines() -> Array:
-	if moved.is_empty():
-		return []
-	var out: Array = []
-	for line in lines(moved):
-		if not seen.has(line_key(line)):
-			out.append(line)
-	return out
-
-
 ## Welches Feld einer Reihe steigt auf? Das, das zuletzt dazugekommen ist (von der Drehung bewegt
 ## bzw. bei einer Kettenreaktion gerade verändert). Liegt die ganze Reihe in der gedrehten Scheibe, die Mitte.
 static func target_index(line: Array, focus: Dictionary) -> int:
@@ -360,10 +359,10 @@ static func target_index(line: Array, focus: Dictionary) -> int:
 	return 1
 
 
-## Punkte, die die letzte Drehung sofort durch Verschmelzen bringt (ohne Kettenreaktion).
+## Punkte, die die Reihen bringen, die gerade dastehen (ohne Kettenreaktion).
 func merge_value() -> int:
 	var pts := 0
-	for line in moved_lines():
+	for line in lines():
 		pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).stage])
 	return pts
 
@@ -372,16 +371,16 @@ func merge_value() -> int:
 # Runde auswerten
 # =============================================================================
 
-## Verschmilzt die Reihen, die die Drehung vervollständigt hat, dann Kettenreaktionen
+## Verschmilzt alle Reihen aus drei gleichen Feldern, dann Kettenreaktionen
 ## (Reihen mit Feldern, die sich gerade verändert haben). Gibt die Punkte zurück.
 func resolve_merges(ev: Array) -> int:
 	var total := 0
 	var combo := 0
 	var focus := moved.duplicate()
 	for pass_i in Balance.MAX_CASCADES:
-		if focus.is_empty():
+		if pass_i > 0 and focus.is_empty():
 			break
-		var found := moved_lines() if pass_i == 0 else lines(focus)
+		var found := lines() if pass_i == 0 else lines(focus)
 		if found.is_empty():
 			break
 		var last_focus := focus
@@ -410,6 +409,7 @@ func resolve_merges(ev: Array) -> int:
 			b.stage = was - 1
 			a.fresh = 0
 			b.fresh = 0
+			mid.burning = false
 			focus[mid.id] = true
 			focus[a.id] = true
 			focus[b.id] = true
@@ -417,11 +417,11 @@ func resolve_merges(ev: Array) -> int:
 	return total
 
 
-## Wertet die Runde aus. Deterministisch (kein Zufall), damit die Vorschau stimmt.
-## Gibt {"events": Array, "gain": int} zurück.
+## Wertet den Zug aus. Deterministisch (kein Zufall), damit die Vorschau stimmt.
+## Gibt {"events": Array, "gain": int, "bonus_gained": {"rain": n, "bolt": n}} zurück.
 func end_round() -> Dictionary:
 	var ev: Array = []
-	# 1. Drei in einer Reihe verschmelzen sofort (nur durch die Drehung vervollständigte)
+	# 1. Drei in einer Reihe verschmelzen sofort
 	var gain := resolve_merges(ev)
 	moved = {}
 
@@ -436,115 +436,128 @@ func end_round() -> Dictionary:
 			if g.is_nature():
 				g.stage = 0
 				g.fresh = 2
+				g.burning = false
 				left -= 1
 				ev.append({"type": "polluted", "field": g.id})
 
-	# 3. Leere Erde wird wieder Wiese (alle gleichzeitig)
-	var grow: Array = []
-	for f in fields:
-		if f.stage != 0 or f.fresh > 0:
-			continue
-		var nat := 0
-		for g in neighbors(f):
-			if g.is_nature():
-				nat += 1
-		if nat >= Balance.REGROW_NEIGHBORS:
-			grow.append([nat, f.id, f])
-	grow.sort_custom(func(x, y): return x[0] > y[0] or (x[0] == y[0] and x[1] < y[1]))
-	grow = grow.slice(0, Balance.REGROW_PER_ROUND)
-	for item in grow:
-		var f: FieldData = item[2]
-		f.stage = 1
-		ev.append({"type": "regrow", "field": f.id})
+	# 3. Leere Erde wird wieder Wiese (nur wenn eingeschaltet)
+	if Balance.REGROW_PER_ROUND > 0:
+		var grow: Array = []
+		for f in fields:
+			if f.stage != 0 or f.fresh > 0:
+				continue
+			var nat := 0
+			for g in neighbors(f):
+				if g.is_nature():
+					nat += 1
+			if nat >= Balance.REGROW_NEIGHBORS:
+				grow.append([nat, f.id, f])
+		grow.sort_custom(func(x, y): return x[0] > y[0] or (x[0] == y[0] and x[1] < y[1]))
+		for item in grow.slice(0, Balance.REGROW_PER_ROUND):
+			var f: FieldData = item[2]
+			f.stage = 1
+			ev.append({"type": "regrow", "field": f.id})
 	for f in fields:
 		if f.fresh > 0:
 			f.fresh -= 1
 
-	# 4. Punkte, Fortschritt, Bonus
+	# 4. Was brennt, brennt eine Stufe weiter ab
+	for f in fields:
+		if not f.burning:
+			continue
+		f.stage = maxi(0, f.stage - 1)
+		ev.append({"type": "burn", "field": f.id})
+		if f.stage == 0:
+			f.burning = false
+
+	# 5. Punkte, Fortschritt, Boni
 	score += gain
 	for f in fields:
 		best_stage = maxi(best_stage, f.stage)
-	var bonus_gained := 0
-	while score >= next_bonus:
-		next_bonus += Balance.BONUS_EVERY
-		if bonus < Balance.BONUS_MAX:
-			bonus += 1
-			bonus_gained += 1
+	var got := {"rain": 0, "bolt": 0}
+	while score >= next_rain:
+		next_rain += Balance.RAIN_EVERY
+		if rain < Balance.RAIN_MAX:
+			rain += 1
+			got["rain"] = int(got["rain"]) + 1
+	while score >= next_bolt:
+		next_bolt += Balance.BOLT_EVERY
+		if bolts < Balance.BOLT_MAX:
+			bolts += 1
+			got["bolt"] = int(got["bolt"]) + 1
 
-	# 5. Gleichgewicht: sonst Katastrophe
-	var kind := threat()
-	if kind != "":
-		disaster(kind, ev)
-		lives -= 1
-		disasters += 1
+	# 6. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
+	if _rotated and gain == 0:
+		misses += 1
+		if misses >= Balance.FIRE_AFTER:
+			misses = 0
+			disaster("fire", ev)
+	_rotated = false
+
+	# 7. Zu viel Zivilisation: Erdbeben
+	if threat() == "quake":
+		disaster("quake", ev)
 	turn += 1
 	# Neues Zeitalter: ein Leben zurück
 	if endless and (turn - 1) % Balance.AGE_LENGTH == 0 and lives > 0:
 		lives = mini(Balance.LIVES, lives + 1)
-	# Alles, was jetzt als Reihe dasteht, ist verbraucht
-	remember_lines()
-	return {"events": ev, "gain": gain, "bonus_gained": bonus_gained}
+	return {"events": ev, "gain": gain, "bonus_gained": got}
 
 
 ## Die Katastrophe trifft (deterministisch, damit die Vorschau stimmt).
-## Ereignis: {"type": "disaster", "kind", "field" (Zentrum oder -1), "hit": [ids]}
+## Ereignis: {"type": "disaster", "kind", "field" (Mitte oder -1), "hit": [ids]}
 func disaster(kind: String, ev: Array) -> void:
 	var hit: Array = []
-	var center: FieldData = null
-	if kind == "quake":
-		# Die größte Siedlung (bei Gleichstand die mit den meisten Siedlungen daneben) bebt
-		var best := -1
-		for f in fields:
-			if not f.is_civilisation():
-				continue
-			var score: int = f.stage * 100 + _count_neighbors(f, "civ")
-			if score > best:
-				best = score
-				center = f
-		if center != null:
-			center.stage = maxi(0, center.stage - Balance.QUAKE_DROP)
-			hit.append(center.id)
-			for g in neighbors(center):
+	if kind == "fire":
+		# Die zuletzt gedrehte Reihe fängt Feuer (leere Erde brennt nicht)
+		for i in last_row:
+			var f: FieldData = fields[int(i)]
+			if f.stage > 0:
+				f.burning = true
+				hit.append(f.id)
+	elif kind == "quake":
+		# Die Reihe mit der meisten Zivilisation fällt eine Stufe zurück
+		var best: Array = []
+		var best_score := 0
+		for line in all_rows():
+			var sc := 0
+			for g in line:
 				var h: FieldData = g
 				if h.is_civilisation():
-					h.stage -= 1
-					hit.append(h.id)
-	elif kind == "flood":
-		# Ohne Wald hält nichts das Wasser: die kleinsten Siedlungen werden weggespült
-		var cand: Array = []
-		for f in fields:
-			if f.is_civilisation():
-				cand.append([f.stage * 10 + _count_neighbors(f, "nature"), f.id, f])
-		cand.sort_custom(func(x, y): return x[0] < y[0] or (x[0] == y[0] and x[1] < y[1]))
-		for item in cand.slice(0, Balance.FLOOD_FIELDS):
-			var f: FieldData = item[2]
-			f.stage = 0
-			f.fresh = 0
-			hit.append(f.id)
-		if not hit.is_empty():
-			center = fields[int(hit[0])]
-	elif kind == "fire":
-		# Der dichteste Wald brennt, mit aller Natur daneben
-		var best := -1
-		for f in fields:
-			if not f.is_nature():
-				continue
-			var score: int = _count_neighbors(f, "nature") * 100 + f.stage
-			if score > best:
-				best = score
-				center = f
-		if center != null:
-			var burn: Array = [center]
-			for g in neighbors(center):
-				if (g as FieldData).is_nature():
-					burn.append(g)
-			for g in burn:
-				var h: FieldData = g
-				h.stage = 0
-				h.fresh = 2
-				hit.append(h.id)
+					sc += 10 + h.stage
+			if sc > best_score:
+				best_score = sc
+				best = line
+		for g in best:
+			var h: FieldData = g
+			h.stage = maxi(0, h.stage - 1)
+			hit.append(h.id)
+	if kind == "quake" or Balance.FIRE_COSTS_LIFE:
+		lives -= 1
+	disasters += 1
 	last_disaster = kind
-	ev.append({"type": "disaster", "kind": kind, "field": center.id if center != null else -1, "hit": hit})
+	var center := int(hit[1]) if hit.size() == 3 else (int(hit[0]) if not hit.is_empty() else -1)
+	ev.append({"type": "disaster", "kind": kind, "field": center, "hit": hit})
+
+
+## Alle Reihen und Spalten (je 3 Felder) auf allen Seiten.
+func all_rows() -> Array:
+	var out: Array = []
+	for nv in FACE_NORMALS:
+		var n: Vector3i = nv
+		var a := axis_of(n)
+		for along in [(a + 1) % 3, (a + 2) % 3]:
+			var other: int = 3 - a - along
+			for c in [-1, 0, 1]:
+				var line: Array = []
+				for t in [-1, 0, 1]:
+					var p := Vector3i.ZERO
+					p[a] = n[a]
+					p[other] = c
+					p[along] = t
+					line.append(field_at(p, n))
+				out.append(line)
+	return out
 
 
 func _count_neighbors(f: FieldData, what: String) -> int:
@@ -557,38 +570,43 @@ func _count_neighbors(f: FieldData, what: String) -> int:
 
 
 # =============================================================================
-# Bonus: Regen oder Meteorit auf ein einzelnes Feld
+# Boni: Regen (ein Feld) und Blitz (eine Reihe)
 # =============================================================================
 
 ## "" = geht, sonst der Grund, warum nicht.
 func can_bonus(kind: String, f: FieldData) -> String:
-	if bonus <= 0:
-		return "Der nächste Bonus kommt bei %d Punkten" % next_bonus
-	if kind == "rain" and f.stage != 0:
-		return "Regen wirkt nur auf leerer Erde"
-	if kind == "meteor" and f.stage == 0:
-		return "Hier ist schon leere Erde"
+	if kind == "rain":
+		if rain <= 0:
+			return "Der nächste Regen kommt bei %d Punkten" % next_rain
+		if not f.burning and f.stage >= Balance.MAX_STAGE:
+			return "Höher geht es nicht"
+	elif kind == "bolt":
+		if bolts <= 0:
+			return "Der nächste Blitz kommt bei %d Punkten" % next_bolt
 	return ""
 
 
-## Regen: Erde wird Wiese, die leere Erde daneben auch (zählt als neu dazugekommen, kann also verschmelzen).
-## Meteorit: das Feld wird wieder leere Erde. Danach wird die Runde ganz normal ausgewertet.
-func apply_bonus(kind: String, f: FieldData) -> void:
-	bonus -= 1
-	if moved.is_empty():
-		remember_lines()
+## Regen: Ein brennendes Feld wird gelöscht, sonst steigt es eine Stufe auf.
+## Blitz: Die ganze Reihe (row, 3 IDs) steigt eine Stufe auf und hört auf zu brennen.
+## Was aufsteigt, zählt als zuletzt dazugekommen und kann verschmelzen. Danach wird der Zug normal ausgewertet.
+func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
+	var targets: Array = [f]
 	if kind == "rain":
-		var wet: Array = [f]
-		if Balance.RAIN_NEIGHBORS:
-			for g in neighbors(f):
-				if (g as FieldData).stage == 0:
-					wet.append(g)
-		for g in wet:
-			var h: FieldData = g
-			h.stage = 1
-			h.fresh = 0
-			moved[h.id] = true
+		rain -= 1
+		if f.burning:
+			f.burning = false
+			return
 	else:
-		f.stage = 0
-		f.fresh = 2
-		meteors_used += 1
+		bolts -= 1
+		targets = []
+		for i in row:
+			targets.append(fields[int(i)])
+		if targets.is_empty():
+			targets = [f]
+	for g in targets:
+		var h: FieldData = g
+		h.burning = false
+		if h.stage < Balance.MAX_STAGE:
+			h.stage += 1
+		h.fresh = 0
+		moved[h.id] = true
