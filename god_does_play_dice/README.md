@@ -16,6 +16,8 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 3. **Verschmelzen:** Vervollständigst du durch eine Drehung eine Reihe (oder Spalte) aus 3 gleichen Feldern,
    verschmelzen sie: Die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine Stufe zurück.
    Was sich dabei ändert, kann eine Kettenreaktion auslösen (Kombo). Beim Warten verschmilzt nichts.
+   **Jede Verbindung zählt nur einmal:** Das Spiel merkt sich jede Reihe (dieselben drei Felder auf derselben Stufe),
+   die es je gab. Hin- und Herdrehen oder eine nur mitgedrehte fertige Reihe bringt deshalb kein Upgrade.
 4. **Nachwachsen:** Leere Erde mit 2 Natur-Nachbarn wird wieder Wiese, höchstens 2 Felder pro Runde.
 5. **Glaube:** fürs Verschmelzen (2/5/12/25/50 je Stufe × Kombo), dazu jede Runde +1 je Stadt und +3 je Fabrik.
 6. **Fabriken** zerstören jede Runde ein Natur-Feld daneben.
