@@ -4,7 +4,7 @@ extends RefCounted
 
 # --- Die Leiter -------------------------------------------------------------------
 # Drei gleiche in einer Reihe verschmelzen, wenn DEINE Drehung die Reihe vervollständigt:
-#   die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine Stufe zurück.
+#   das zuletzt dazugekommene Feld steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
 #   Erde (0) · Wiese (1) → kleiner Wald (2) → großer Wald (3) → Hütte (4) → Haus (5)
 #   → Dorf (6) → Stadt (7) → Großstadt (8) → Metropole (9)
 #   Natur = Stufe 1–3, Zivilisation = ab Stufe 4.
@@ -14,6 +14,7 @@ static var CIVILISATION_FROM := 4
 # Punkte fürs Verschmelzen nach Stufe (Index = Stufe), × Kombo.
 static var MERGE_POINTS := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
 static var MAX_CASCADES := 6
+static var OTHERS_DROP := 0               # um so viele Stufen fallen die beiden anderen Felder der Reihe zurück (0 = bleiben)
 static var FACE_BONUS := 9               # ganze Seite geschafft: Punkte der Stufe × so viel
 
 # --- Start ----------------------------------------------------------------------

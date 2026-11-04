@@ -685,7 +685,8 @@ func _merge_fx(e: Dictionary) -> void:
 		var v: FieldView = views.get(int(o))
 		if v != null:
 			v.set_highlight(true)
-			v.vanish(target.global_position, dur)
+			if Balance.OTHERS_DROP > 0:
+				v.vanish(target.global_position, dur)
 			_sparks(v.global_position + v.world_normal() * 0.3, target.global_position + target.world_normal() * 0.35, Color("#ffd23f"), 5)
 	target.set_highlight(true)
 	await get_tree().create_timer(dur).timeout

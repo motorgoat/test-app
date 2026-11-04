@@ -14,7 +14,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
 3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte) entwickeln sich, sobald sich darin etwas verändert hat:
-   Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück.
+   Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
    Das gibt Punkte (je höher die Stufe, desto mehr, Kettenreaktionen zählen mehrfach).
    **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
 4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die

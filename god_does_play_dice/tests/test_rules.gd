@@ -141,7 +141,7 @@ func test_merge() -> void:
 	gs.moved[c.id] = true
 	var r := gs.end_round()
 	check(c.stage == 2, "das zuletzt dazugekommene Feld wird kleiner Wald (%d)" % c.stage)
-	check(a.stage == 0 and b.stage == 0, "die anderen beiden fallen zurück (Wiese → Erde)")
+	check(a.stage == 1 and b.stage == 1, "die anderen beiden bleiben Wiesen")
 	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Punkte fürs Verschmelzen (%d)" % int(r["gain"]))
 	# Hat sich die ganze Reihe verändert (z. B. mitgedreht), steigt die Mitte auf
 	var gw := empty_state()
@@ -149,7 +149,7 @@ func test_merge() -> void:
 		top(gw, x, 1).stage = 1
 		gw.moved[top(gw, x, 1).id] = true
 	gw.end_round()
-	check(top(gw, 0, 1).stage == 2 and top(gw, -1, 1).stage == 0, "ganze Reihe verändert: die Mitte steigt auf")
+	check(top(gw, 0, 1).stage == 2 and top(gw, -1, 1).stage == 1, "ganze Reihe verändert: die Mitte steigt auf")
 	# Ganze Seite aus 9 gleichen: die ganze Seite steigt auf und bleibt stehen
 	var gf := empty_state()
 	for f in gf.fields:
@@ -179,7 +179,7 @@ func test_merge() -> void:
 		top(gs4, x, 1).stage = 3
 	gs4.moved = {top(gs4, 1, 1).id: true}
 	gs4.resolve_merges([])
-	check(top(gs4, 1, 1).stage == 4 and top(gs4, 0, 1).stage == 2 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte und zwei kleine Wälder")
+	check(top(gs4, 1, 1).stage == 4 and top(gs4, 0, 1).stage == 3 and top(gs4, -1, 1).stage == 3, "3 große Wälder → Hütte, die anderen bleiben große Wälder")
 	# Die ganze Leiter hinauf
 	var gs2 := empty_state()
 	var names := []

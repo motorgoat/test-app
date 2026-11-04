@@ -6,7 +6,7 @@ extends RefCounted
 ##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen.
 ##   2. Drei gleiche Felder in einer Reihe verschmelzen, sobald sich darin etwas verändert hat: Das Feld, das zuletzt dazugekommen ist,
 ##      steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole),
-##      die beiden anderen fallen eine Stufe zurück. Das gibt Punkte.
+##      die beiden anderen bleiben, wie sie sind (OTHERS_DROP). Das gibt Punkte.
 ##   3. Wiese wächst nicht von allein (abschaltbar: REGROW_PER_ROUND).
 ##   4. Großstädte und Metropolen zerstören Natur daneben.
 ##   5. Fehlversuch = Drehung, die nichts verschmilzt. Jeder 3. Fehlversuch (der Zähler läuft weiter) setzt
@@ -456,14 +456,13 @@ func resolve_merges(ev: Array) -> int:
 			var was := mid.stage
 			if mid.stage < Balance.MAX_STAGE:
 				mid.stage += 1
-			a.stage = was - 1
-			b.stage = was - 1
-			a.fresh = 0
-			b.fresh = 0
 			mid.burning = false
 			focus[mid.id] = true
-			focus[a.id] = true
-			focus[b.id] = true
+			if Balance.OTHERS_DROP > 0:
+				a.stage = maxi(0, was - Balance.OTHERS_DROP)
+				b.stage = maxi(0, was - Balance.OTHERS_DROP)
+				focus[a.id] = true
+				focus[b.id] = true
 			ev.append({"type": "merge", "field": mid.id, "others": [a.id, b.id], "points": pts, "combo": combo, "stage": mid.stage})
 	return total
 

@@ -315,7 +315,7 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück. Das gibt Punkte."))
+	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (oben die Flammen). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Ein Feld steigt eine Stufe auf, ein brennendes wird gelöscht. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
@@ -642,8 +642,7 @@ func _fill_sheet(fid: int) -> void:
 	elif f.stage >= Balance.MAX_STAGE:
 		lines.append("Höchste Stufe.")
 	else:
-		lines.append("Dreh 3 davon in eine neue Reihe: Die Mitte wird %s, die beiden äußeren werden %s." % [
-			GameState.stage_name(f.stage + 1), GameState.stage_name(f.stage - 1)])
+		lines.append("Dreh 3 davon in eine Reihe: Das zuletzt dazugekommene wird %s." % GameState.stage_name(f.stage + 1))
 	if f.stage >= Balance.POLLUTION_FROM:
 		lines.append("Zerstört jede Runde ein Natur-Feld daneben.")
 	if f.is_nature():
