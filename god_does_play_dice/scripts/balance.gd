@@ -11,7 +11,10 @@ static var START_MOUNTAINS := 6          # Rest wird Natur
 
 # --- Stufen ------------------------------------------------------------------
 static var MAX_LEVEL := 3
-static var MERGE_ROUNDS := 3             # so viele Runden neben Gleichem GLEICHER STUFE, dann Stufe höher
+# Drei Gleiche (gleiche Art, Stufe, Volk) in einer Reihe oder Spalte einer Seite verschmelzen sofort.
+static var MERGE_POINTS := [0, 10, 30, 90]   # Glaube je Stufe der verschmolzenen Felder (× Kombo)
+static var MERGE_HARMONY_MIN := 0.5      # bei Gleichgewicht 0 zählt eine Verschmelzung nur halb
+static var MAX_CASCADES := 6
 static var NEED_ROUNDS := 3              # so viele Runden ohne Bedürfnis, dann Stufe tiefer
 static var WAR_ROUNDS := 2               # so viele Runden Krieg an der Grenze, dann Stufe tiefer
 static var POLLUTION_ROUNDS := 2         # so viele Runden neben Fabrik, dann Natur Stufe tiefer

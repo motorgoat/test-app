@@ -6,6 +6,7 @@ extends Node3D
 
 signal field_tapped(fid: int)
 signal preview_changed(info: Dictionary)   # {} = keine Vorschau
+signal merged(fid: int, points: int, combo: int)
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -448,6 +449,13 @@ func _show_preview(q: int) -> void:
 	var pv := Game.preview(_tw_axis, _tw_layer, q)
 	var arranged: GameState = pv["arranged"]
 	var after: GameState = pv["state"]
+	var lit := {}
+	var mids := {}
+	for line in arranged.lines():
+		for g in line:
+			lit[(g as FieldData).id] = true
+		var mid: FieldData = line[1]
+		mids[mid.id] = int(Balance.MERGE_POINTS[mid.level])
 	for f in Game.state.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
@@ -455,23 +463,17 @@ func _show_preview(q: int) -> void:
 		var a: FieldData = arranged.fields[f.id]
 		var b: FieldData = after.fields[f.id]
 		var text := ""
-		var col := Color("#2f9e4f")
-		if b.kind == "crater" and a.kind != "crater":
+		var col := Color("#d99a00")
+		if mids.has(f.id):
+			text = "+%d" % int(mids[f.id])
+		elif not lit.has(f.id) and b.kind == "crater" and a.kind != "crater":
 			text = "✕"
 			col = Color("#e5483c")
-		elif b.kind == a.kind and b.level < a.level:
+		elif not lit.has(f.id) and b.kind == a.kind and b.level < a.level:
 			text = "▼"
 			col = Color("#e5483c")
-		elif b.kind == a.kind and b.level > a.level:
-			text = "▲"
-		else:
-			var diff := arranged.field_points(a) - Game.state.field_points(f)
-			if diff > 0:
-				text = "+%d" % diff
-			elif diff < 0:
-				text = "−%d" % -diff
-				col = Color("#e5483c")
 		v.set_preview(text, col)
+		v.set_highlight(lit.has(f.id))
 		v.set_icon(_status_icon(a, arranged, {}))
 	preview_changed.emit(pv)
 
@@ -479,6 +481,7 @@ func _show_preview(q: int) -> void:
 func _clear_preview() -> void:
 	for fid in views:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
+		(views[fid] as FieldView).set_highlight(false)
 	refresh_all()
 	preview_changed.emit({})
 
@@ -501,6 +504,7 @@ func _finish_twist() -> void:
 	_unparent_pivot(piv, _tw_axis, _tw_quarter)
 	for fid in views:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
+		(views[fid] as FieldView).set_highlight(false)
 	preview_changed.emit({})
 	if _tw_quarter != 0:
 		Game.play_turn(_tw_axis, _tw_layer, _tw_quarter)
@@ -513,7 +517,7 @@ func _slice_cubies(axis: int, layer: int) -> Array:
 	var out: Array = []
 	for cb in cubies:
 		var p: Vector3i = cb.get_meta("pos")
-		if p[axis] == layer and not _is_center_cubie(p):
+		if p[axis] == layer:
 			out.append(cb)
 	return out
 
@@ -566,7 +570,21 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	animating = true
 	var gs := Game.state
 	var events: Array = result["events"]
-	# Einschläge zuerst
+	# Verschmelzen zuerst, Kombo für Kombo
+	var last_combo := 0
+	for e in events:
+		if str(e["type"]) != "merge":
+			continue
+		var combo := int(e["combo"])
+		if combo != last_combo and last_combo > 0:
+			refresh_all()
+			await get_tree().create_timer(0.35).timeout
+		last_combo = combo
+		await _merge_fx(e)
+	if last_combo > 0:
+		refresh_all()
+		await get_tree().create_timer(0.45).timeout
+	# Dann die Einschläge
 	for e in events:
 		var t: String = e["type"]
 		if t != "meteor" and t != "storm" and t != "eruption":
@@ -587,8 +605,16 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			await get_tree().create_timer(0.4).timeout
 	refresh_all()
 	_sync_hazards()
+	var merged_ids := {}
+	for e in events:
+		if str(e["type"]) == "merge":
+			merged_ids[int(e["field"])] = true
+			for o in e["others"]:
+				merged_ids[int(o)] = true
 	var changes: Array = []
 	for f in gs.fields:
+		if merged_ids.has(f.id):
+			continue
 		var b: Array = before.get(f.id, [f.kind, f.level, f.nation])
 		var change := ""
 		if f.kind == "crater" and str(b[0]) != "crater":
@@ -605,6 +631,49 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	await get_tree().create_timer(0.35).timeout
 	animating = false
 	Game.finish_round(result)
+
+
+func _merge_fx(e: Dictionary) -> void:
+	var target: FieldView = views.get(int(e["field"]))
+	if target == null:
+		return
+	var dur := 0.32
+	var others: Array = e["others"]
+	for o in others:
+		var v: FieldView = views.get(int(o))
+		if v != null:
+			v.set_highlight(true)
+			v.vanish(target.global_position, dur)
+			_sparks(v.global_position + v.world_normal() * 0.3, target.global_position + target.world_normal() * 0.35, Color("#ffd23f"), 5)
+	target.set_highlight(true)
+	await get_tree().create_timer(dur).timeout
+	for o in others:
+		var v: FieldView = views.get(int(o))
+		if v != null:
+			v.set_highlight(false)
+	target.set_highlight(false)
+	target.burst(Color("#ffd23f"))
+	_sparks(target.global_position + target.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 10)
+	rig.shake(0.25 + 0.15 * int(e["combo"]))
+	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]))
+	await get_tree().create_timer(0.12).timeout
+
+
+## Funken: fliegen von a nach b (oder bei b == ZERO in alle Richtungen nach außen).
+func _sparks(a: Vector3, b: Vector3, color: Color, count: int) -> void:
+	var m := Models.mat(color, 0.3, 3.0)
+	for k in count:
+		var spark := Models.sphere(cube_root, 0.025, color, a, m)
+		var to := b
+		if b == Vector3.ZERO:
+			var out := (a - Vector3.ZERO).normalized()
+			to = a + (out + Vector3(randf_range(-0.7, 0.7), randf_range(-0.7, 0.7), randf_range(-0.7, 0.7))).normalized() * 0.6
+		else:
+			to = b + Vector3(randf_range(-0.08, 0.08), randf_range(-0.08, 0.08), randf_range(-0.08, 0.08))
+		var tw := spark.create_tween()
+		tw.tween_property(spark, "global_position", to, randf_range(0.3, 0.5)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(spark, "scale", Vector3.ZERO, 0.5).set_ease(Tween.EASE_IN)
+		tw.tween_callback(spark.queue_free)
 
 
 func _on_tool_used(kind: String, fid: int) -> void:

@@ -53,6 +53,23 @@ func _shots(dir: String) -> void:
 	world.debug_end_twist()
 	await _wait(2.4)
 	await _shot(dir, "04_nach_drehung")
+	# Eine Dreierreihe auf der sichtbaren Seite bauen und verschmelzen lassen
+	var row := _visible_row()
+	for f in row:
+		(f as FieldData).kind = "settlement"
+		(f as FieldData).level = 1
+		(f as FieldData).nation = 1
+		(f as FieldData).burning = false
+	Game.state_changed.emit()
+	await _wait(0.8)
+	await _shot(dir, "04b_reihe")
+	world.wait_turn()
+	await _wait(0.3)
+	await _shot(dir, "04c_verschmelzen")
+	await _wait(0.5)
+	await _shot(dir, "04d_ring")
+	await _wait(1.8)
+	await _shot(dir, "04e_danach")
 	# Eine Gefahr erzwingen, damit man sie sieht
 	var target: FieldData = Game.state.fields[_visible_field(true)]
 	Game.state.hazards.append({"type": "meteor", "p": target.p, "n": target.n, "timer": 2})
@@ -115,3 +132,29 @@ func _visible_field(settled: bool) -> int:
 			best_score = score
 			best = f.id
 	return best
+
+
+## Die oberste Reihe der Seite, die am meisten zur Kamera schaut.
+func _visible_row() -> Array:
+	var cam_dir := world.rig.cam.global_position.normalized()
+	var best := Vector3i(0, 1, 0)
+	var best_dot := -INF
+	for n in GameState.FACE_NORMALS:
+		var nv: Vector3i = n
+		var d := Vector3(nv).dot(cam_dir)
+		if d > best_dot:
+			best_dot = d
+			best = nv
+	var a := GameState.axis_of(best)
+	var u := (a + 1) % 3
+	var v := (a + 2) % 3
+	var out: Array = []
+	for t in [-1, 0, 1]:
+		var p := Vector3i.ZERO
+		p[a] = best[a]
+		p[u] = t
+		p[v] = 1 if a != 1 else 0
+		var f := Game.state.field_at(p, best)
+		if f != null:
+			out.append(f)
+	return out

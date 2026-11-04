@@ -37,6 +37,7 @@ var over_card: PanelContainer
 var over_label: Label
 var pick_card: PanelContainer
 var bubble_layer: Control
+var combo_label: Label
 
 var tool_mode := ""             # "", "lightning", "miracle"
 var _pick_field := -1
@@ -54,6 +55,7 @@ func setup(w: World) -> void:
 	world.field_tapped.connect(_on_field_tapped)
 	world.preview_changed.connect(_on_preview)
 	world.deltas_shown.connect(_on_deltas)
+	world.merged.connect(_on_merged)
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -189,6 +191,16 @@ func _build() -> void:
 	bubble_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(bubble_layer)
 
+	combo_label = _label("", 44, Color("#ffb400"), true)
+	combo_label.add_theme_color_override("font_outline_color", Color.WHITE)
+	combo_label.add_theme_constant_override("outline_size", 14)
+	combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	combo_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	combo_label.offset_top = 260
+	combo_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	combo_label.modulate.a = 0.0
+	root.add_child(combo_label)
+
 	_build_sheet()
 	modal_bg = ColorRect.new()
 	modal_bg.color = Color(0.12, 0.13, 0.18, 0.45)
@@ -288,9 +300,9 @@ func _build_help() -> void:
 	help_card = _modal_card("Halte die Welt im Gleichgewicht")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe, um die Welt zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Gleiches nebeneinander bringt Glauben. Zwei gleiche Felder gleicher Stufe steigen nach 2 Runden auf: Dorf → Stadt, Wiese → Fluss."))
+	v.add_child(_help_row("up", "Dreh 3 gleiche Felder in eine Reihe: Sie verschmelzen sofort zu etwas Größerem (Dorf → Stadt, Wiese → Fluss) und bringen Glauben."))
 	v.add_child(_help_row("hunger", "Siedlungen brauchen Natur daneben, Industrie und Kirchen brauchen Siedlungen."))
-	v.add_child(_help_row("balance", "Nichts darf überhandnehmen. Die Leisten oben zeigen das Gleichgewicht."))
+	v.add_child(_help_row("balance", "Nichts darf überhandnehmen. Die Leisten oben zeigen das Gleichgewicht. Frei gewordene Felder füllen sich mit dem, was fehlt."))
 	v.add_child(_help_row("swords", "Kirchen zweier Völker nebeneinander: Krieg. Städte zweier Völker: Handel."))
 	v.add_child(_help_row("lightning", "Blitz: vernichtet ein Feld. Wunder: macht aus einem Krater ein neues Feld."))
 	v.add_child(_help_row("meteor", "Katastrophen kündigen sich an. Es wird mit jedem Zeitalter schwerer."))
@@ -720,11 +732,7 @@ func _fill_sheet(fid: int) -> void:
 		var fc := gs.field_forecast(f)
 		lines.append("%s · Stufe %d von %d" % [GameState.KIND_NAME[f.kind], f.level, Balance.MAX_LEVEL])
 		if f.level < Balance.MAX_LEVEL:
-			if int(fc["same_level"]) > 0:
-				var r := maxi(1, Balance.MERGE_ROUNDS - f.bond)
-				lines.append("Neben gleicher Stufe: steigt in %d %s auf." % [r, "Runde" if r == 1 else "Runden"])
-			else:
-				lines.append("Bring ein gleiches Feld gleicher Stufe daneben, dann steigt es auf.")
+			lines.append("Dreh 3 davon (gleiche Stufe) in eine Reihe, dann verschmelzen sie zur nächsten Stufe.")
 		else:
 			lines.append("Höchste Stufe: breitet sich alle %d Runden auf ein Nachbarfeld aus." % gs.spread_every())
 		if not bool(fc["need"]):
@@ -764,6 +772,22 @@ func _fill_sheet(fid: int) -> void:
 # =============================================================================
 # Blasen, Meldungen, Modale
 # =============================================================================
+
+func _on_merged(fid: int, points: int, combo: int) -> void:
+	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
+	if combo >= 2:
+		combo_label.text = "Kombo ×%d!" % combo
+	else:
+		combo_label.text = "Verschmolzen!"
+	combo_label.pivot_offset = combo_label.size * 0.5
+	combo_label.scale = Vector2(0.5, 0.5)
+	combo_label.modulate.a = 1.0
+	var tw := combo_label.create_tween()
+	tw.tween_property(combo_label, "scale", Vector2(1.1, 1.1), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(combo_label, "scale", Vector2.ONE, 0.12)
+	tw.tween_interval(0.6)
+	tw.tween_property(combo_label, "modulate:a", 0.0, 0.35)
+
 
 func _on_deltas(list: Array, gain: int) -> void:
 	for d in list:

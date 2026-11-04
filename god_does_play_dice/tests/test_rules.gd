@@ -72,11 +72,7 @@ func put(f: FieldData, kind: String, level: int = 1, nation: int = -1) -> void:
 func test_setup() -> void:
 	var gs := new_state()
 	check(gs.fields.size() == 54, "54 Felder")
-	var centers := 0
-	for f in gs.fields:
-		if f.is_center:
-			centers += 1
-	check(centers == 6, "6 feste Mitten")
+	check(gs.lines().is_empty(), "am Start keine fertigen Dreierreihen")
 	check(gs.war_pairs().is_empty(), "kein Krieg am Start")
 	check(gs.settlements() > 0, "es gibt Siedlungen")
 	var hm := gs.harmony()
@@ -85,10 +81,6 @@ func test_setup() -> void:
 
 func test_geometry() -> void:
 	var gs := new_state()
-	var centers := {}
-	for f in gs.fields:
-		if f.is_center:
-			centers[f.id] = [f.p, f.n]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3
 	for i in 300:
@@ -99,25 +91,47 @@ func test_geometry() -> void:
 		keys[GameState.pos_key(f.p, f.n)] = true
 		if gs.neighbors(f).size() != 4:
 			ok = false
-		if f.is_center and (centers[f.id][0] != f.p or centers[f.id][1] != f.n):
-			ok = false
 	check(keys.size() == 54, "jeder Platz genau einmal belegt")
-	check(ok, "Mitten bleiben fest, jedes Feld hat 4 Nachbarn")
+	check(ok, "jedes Feld hat 4 Nachbarn")
+	var gs2 := new_state()
+	var c := gs2.field_at(Vector3i(0, 1, 0), Vector3i(0, 1, 0))
+	gs2.apply_rotation(0, 0, 1)
+	check(c.n != Vector3i(0, 1, 0), "Mitte dreht mit der Mittelscheibe mit")
 
 
 func test_merge() -> void:
 	var gs := empty_state()
-	var a := top(gs, 1, 1)
+	var a := top(gs, 1, -1)
 	var b := top(gs, 1, 0)
+	var c := top(gs, 1, 1)
 	put(a, "nature")
 	put(b, "nature")
-	check(gs.pairs().size() == 1 and int(gs.pairs()[0]["points"]) == 2, "ein Paar mit 2 Punkten")
-	for i in Balance.MERGE_ROUNDS - 1:
-		gs.end_round()
-	check(a.level == 1, "kurz vorher noch Stufe 1")
-	gs.end_round()
-	check(a.level == 2 and b.level == 2, "nach %d Runden: Fluss (%d, %d)" % [Balance.MERGE_ROUNDS, a.level, b.level])
-	check(gs.field_points(a) == 4, "Paar aus zwei Flüssen: 4 Punkte")
+	check(gs.lines().is_empty(), "zwei reichen nicht")
+	put(c, "nature", 2)
+	check(gs.lines().is_empty(), "verschiedene Stufen verschmelzen nicht")
+	put(c, "nature", 1)
+	check(gs.lines().size() == 1, "drei gleiche in einer Reihe")
+	var r := gs.end_round()
+	check(b.kind == "nature" and b.level == 2, "Mitte wird zum Fluss (%s %d)" % [b.kind, b.level])
+	check(a.kind != "nature" or a.level == 1, "Außen wird neu belegt")
+	check(int(r["gain"]) > 0 and gs.faith > 0, "Verschmelzen bringt Glauben (%d)" % gs.faith)
+	var merges := 0
+	for e in r["events"]:
+		if e["type"] == "merge":
+			merges += 1
+	check(merges >= 1, "Ereignis merge")
+	# Völker: nur gleiches Volk verschmilzt
+	var gs2 := empty_state()
+	put(top(gs2, 1, -1), "settlement", 1, 0)
+	put(top(gs2, 1, 0), "settlement", 1, 1)
+	put(top(gs2, 1, 1), "settlement", 1, 0)
+	check(gs2.lines().is_empty(), "verschiedene Völker verschmelzen nicht")
+	# Ohne Verschmelzen kein Glaube
+	var gs3 := empty_state()
+	put(top(gs3, 1, 0), "nature")
+	put(top(gs3, 1, 1), "nature")
+	var r3 := gs3.end_round()
+	check(int(r3["gain"]) == 0, "nebeneinander allein bringt nichts mehr")
 
 
 func test_needs() -> void:
@@ -236,12 +250,6 @@ func test_tools() -> void:
 	gs.miracles = 1
 	gs.use_miracle(f, "industry")
 	check(f.kind == "industry" and f.level == 1, "Wunder erschafft Feld nach Wahl")
-	var center: FieldData = null
-	for g in gs.fields:
-		if g.is_center:
-			center = g
-	gs.lightning = 1
-	check(gs.can_lightning(center) != "", "Wahrzeichen sind geschützt")
 
 
 func test_harmony() -> void:
@@ -250,8 +258,7 @@ func test_harmony() -> void:
 		if not f.is_center:
 			put(f, "industry", 1)
 	check(float(gs.harmony()["value"]) < 0.1, "nur Industrie: kein Gleichgewicht")
-	for i in Balance.LOSE_AFTER_DISHARMONY:
-		gs.end_round()
+	gs.bad_rounds = Balance.LOSE_AFTER_DISHARMONY
 	check(gs.is_over(), "zu lange aus dem Gleichgewicht: Ende")
 
 

@@ -26,6 +26,8 @@ var _preview_label: Label3D
 var _alert_label: Label3D
 var _icon: Sprite3D
 var _sel: MeshInstance3D
+var _glow: MeshInstance3D
+var _glow_on := false
 var _shown := ""
 var _bobbers: Array = []
 var _flames: Array = []
@@ -49,6 +51,9 @@ func build(f: FieldData) -> void:
 	_sel = Models.rbox(self, Vector3(TILE + 0.06, 0.02, TILE + 0.06), 0.04, Color(1, 1, 1, 0.6), Vector3(0, 0.005, 0), Vector3.ZERO,
 		Models.unshaded(Color(1, 1, 1, 0.6)))
 	_sel.visible = false
+	_glow = Models.rbox(self, Vector3(TILE + 0.08, 0.03, TILE + 0.08), 0.05, Color("#ffd23f"), Vector3(0, 0.01, 0), Vector3.ZERO,
+		Models.mat(Color("#ffd23f"), 0.3, 2.2))
+	_glow.visible = false
 
 	var body := StaticBody3D.new()
 	body.set_meta("field_id", f.id)
@@ -100,6 +105,48 @@ func label_world_pos() -> Vector3:
 
 func set_selected(on: bool) -> void:
 	_sel.visible = on
+
+
+## Goldenes Leuchten: dieses Feld würde gleich verschmelzen.
+func set_highlight(on: bool) -> void:
+	_glow_on = on
+	_glow.visible = on
+
+
+## Inhalt wird ins Nachbarfeld „eingesaugt“ (Verschmelzen). Danach wird neu gebaut.
+func vanish(toward: Vector3, dur: float) -> void:
+	_shown = "x"
+	var local_dir := to_local(toward)
+	local_dir.y = 0.0
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(_content, "position", Vector3(local_dir.x * 0.6, TOP + 0.15, local_dir.z * 0.6), dur).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(_content, "scale", Vector3.ONE * 0.05, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await tw.finished
+	_content.position = Vector3(0, TOP, 0)
+
+
+## Ring, der sich ausbreitet, und ein kurzes Hüpfen (Aufstieg).
+func burst(color: Color) -> void:
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.3
+	torus.outer_radius = 0.36
+	torus.rings = 32
+	torus.ring_segments = 6
+	var ring := MeshInstance3D.new()
+	ring.mesh = torus
+	var m := Models.mat(color, 0.3, 3.0).duplicate() as StandardMaterial3D
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring.material_override = m
+	ring.position = Vector3(0, TOP + 0.05, 0)
+	ring.scale = Vector3(0.5, 0.3, 0.5)
+	add_child(ring)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(ring, "scale", Vector3(1.9, 0.3, 1.9), 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.6)
+	tw.chain().tween_callback(ring.queue_free)
+	var hop := create_tween()
+	hop.tween_property(self, "position", position + Vector3(0, 0, 0) + basis.y * 0.12, 0.15).set_ease(Tween.EASE_OUT)
+	hop.tween_property(self, "position", position, 0.35).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 
 
 func set_labels_visible(on: bool) -> void:
@@ -218,9 +265,6 @@ func _animal(kind: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
 func _build_content(f: FieldData) -> void:
 	var rng := _rng()
 	var c := Style.nation_color(f.nation)
-	if f.is_center:
-		_build_landmark(f)
-		return
 	match f.kind:
 		"nature":
 			_build_nature(f, rng)

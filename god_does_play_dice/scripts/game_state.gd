@@ -74,18 +74,11 @@ func setup(seed_value: int = 0) -> void:
 					f.id = fields.size()
 					f.p = p
 					f.n = unit(a, p[a])
-					var nz := 0
-					for b in 3:
-						if p[b] != 0:
-							nz += 1
-					f.is_center = nz == 1
-					if f.is_center:
-						f.kind = "center"
-						f.landmark = FACE_NORMALS.find(f.n)
 					fields.append(f)
 	rebuild_index()
 	for attempt in 100:
 		_roll_world()
+		_break_lines()
 		if war_pairs().is_empty() and _all_needs_met_at_start():
 			break
 
@@ -382,22 +375,121 @@ func pairs() -> Array:
 	return out
 
 
-## Glaube, den die aktuelle Anordnung pro Runde bringt (vor Verlusten).
-func round_points() -> int:
-	var pts := 0
-	for pr in pairs():
-		pts += int(pr["points"])
-	pts += trade_links().size() * Balance.TRADE_POINTS
-	return int(round(pts * float(harmony()["value"])))
-
-
-## Punkte, die ein Feld zu Paaren beiträgt (für die Vorschau-Zahl).
+## Punkte, die ein Feld zu Paaren beiträgt.
 func field_points(f: FieldData) -> int:
 	var pts := 0
 	for g in neighbors(f):
 		if same(f, g):
 			pts += f.level + g.level
 	return pts
+
+
+# =============================================================================
+# Drei in einer Reihe
+# =============================================================================
+
+## Alle Reihen/Spalten aus 3 gleichen Feldern (gleiche Art, Stufe und Volk) auf einer Seite.
+## Jede Reihe ist ein Array aus 3 FieldData, das mittlere Feld an Index 1.
+func lines() -> Array:
+	var out: Array = []
+	for n in FACE_NORMALS:
+		var nv: Vector3i = n
+		var a := axis_of(nv)
+		var u := (a + 1) % 3
+		var v := (a + 2) % 3
+		for fixed in [u, v]:
+			var run: int = v if fixed == u else u
+			for c in [-1, 0, 1]:
+				var line: Array = []
+				for t in [-1, 0, 1]:
+					var p := Vector3i.ZERO
+					p[a] = nv[a]
+					p[fixed] = c
+					p[run] = t
+					line.append(field_at(p, nv))
+				if _line_ok(line):
+					out.append(line)
+	return out
+
+
+func _line_ok(line: Array) -> bool:
+	var f0: FieldData = line[0]
+	if f0 == null or not f0.scored() or f0.burning:
+		return false
+	for i in [1, 2]:
+		var g: FieldData = line[i]
+		if g == null or g.burning or not same(f0, g) or g.level != f0.level:
+			return false
+	return true
+
+
+## Verschmilzt alle Reihen, auch Kettenreaktionen. Gibt die Punkte zurück (ohne Gleichgewicht).
+func resolve_merges(ev: Array) -> int:
+	var total := 0
+	var combo := 0
+	for pass_i in Balance.MAX_CASCADES:
+		var found := lines()
+		if found.is_empty():
+			break
+		combo += 1
+		var used := {}
+		for line in found:
+			var skip := false
+			for f in line:
+				if used.has((f as FieldData).id):
+					skip = true
+			if skip:
+				continue
+			for f in line:
+				used[(f as FieldData).id] = true
+			var mid: FieldData = line[1]
+			var a: FieldData = line[0]
+			var b: FieldData = line[2]
+			var pts: int = int(Balance.MERGE_POINTS[mid.level]) * combo
+			total += pts
+			if mid.level < Balance.MAX_LEVEL:
+				mid.level += 1
+			mid.need = 0
+			mid.damage = 0
+			mid.pollution = 0
+			_refill(a)
+			_refill(b)
+			ev.append({"type": "merge", "field": mid.id, "others": [a.id, b.id], "points": pts, "combo": combo})
+	return total
+
+
+## Ein frei gewordenes Feld bekommt die Art, die gerade am meisten fehlt.
+func _refill(f: FieldData) -> void:
+	_reset(f)
+	var hm := harmony()
+	var shares: Dictionary = hm["shares"]
+	var best := "nature"
+	var best_gap := INF
+	for k in KINDS:
+		var lo: float = Balance.IDEAL[k][0]
+		var hi: float = Balance.IDEAL[k][1]
+		var gap := float(shares[k]) - (lo + hi) * 0.5
+		if gap < best_gap:
+			best_gap = gap
+			best = k
+	f.kind = best
+	f.level = 1
+	if best == "settlement" or best == "faith":
+		f.nation = _nearest_nation(f)
+
+
+## Am Start keine fertigen Reihen (sonst gäbe es Punkte geschenkt).
+func _break_lines() -> void:
+	for guard in 40:
+		var found := lines()
+		if found.is_empty():
+			return
+		var mid: FieldData = found[0][1]
+		if mid.kind == "nature":
+			mid.kind = "mountain"
+		else:
+			mid.kind = "nature"
+			mid.nation = -1
 
 
 func settlements() -> int:
@@ -514,6 +606,8 @@ func _nearest_nation(f: FieldData) -> int:
 func end_round() -> Dictionary:
 	var ev: Array = []
 	var loss := 0
+	# 0. Drei in einer Reihe verschmelzen sofort
+	var merge_points := resolve_merges(ev)
 	var burning_before: Array = []
 	for f in fields:
 		if f.burning:
@@ -581,17 +675,13 @@ func end_round() -> Dictionary:
 
 	# 2. Zusammenführen, Bedürfnisse, Krieg, Verschmutzung (alle aus demselben Zustand)
 	var wars := war_pairs()
-	var up: Array = []
 	var down: Array = []
 	for f in fields:
 		if not f.scored():
 			continue
-		var has_same := false
 		var at_war := false
 		var polluted := false
 		for g in neighbors(f):
-			if same(f, g) and g.level == f.level:
-				has_same = true
 			if f.has_nation() and g.has_nation() and g.nation != f.nation and wars.has(pair_key(f.nation, g.nation)):
 				at_war = true
 			if f.kind == "nature" and g.kind == "industry" and g.level >= Balance.POLLUTION_MIN_LEVEL:
@@ -606,11 +696,8 @@ func end_round() -> Dictionary:
 		f.pollution = f.pollution + 1 if polluted else 0
 		if f.pollution >= Balance.POLLUTION_ROUNDS:
 			drop = true
-		f.bond = f.bond + 1 if has_same else 0
 		if drop:
 			down.append(f)
-		elif f.bond >= Balance.MERGE_ROUNDS and f.level < Balance.MAX_LEVEL:
-			up.append(f)
 		if at_war:
 			ev.append({"type": "war", "field": f.id})
 	for f in down:
@@ -619,10 +706,6 @@ func end_round() -> Dictionary:
 		f.pollution = 0
 		f.bond = 0
 		_level_down(f, ev)
-	for f in up:
-		f.level += 1
-		f.bond = 0
-		ev.append({"type": "upgrade", "field": f.id})
 
 	# 3. Ausbreiten (Stufe 3)
 	if turn % spread_every() == 0:
@@ -668,7 +751,8 @@ func end_round() -> Dictionary:
 
 	# 4. Glaube
 	var hm := harmony()
-	var gain := round_points()
+	var factor: float = Balance.MERGE_HARMONY_MIN + (1.0 - Balance.MERGE_HARMONY_MIN) * float(hm["value"])
+	var gain := int(round(merge_points * factor)) + trade_links().size() * Balance.TRADE_POINTS
 	faith = maxi(0, faith + gain - loss)
 	if float(hm["value"]) < Balance.HARMONY_DANGER:
 		bad_rounds += 1
