@@ -18,7 +18,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    steigt das Feld auf, das zuletzt dazugekommen ist. Die beiden anderen fallen eine Stufe zurück.
    Das gibt Punkte (je höher die Stufe, desto mehr, Kettenreaktionen zählen mehrfach).
    **Jede Verbindung zählt nur einmal:** Hin- und Herdrehen bringt nichts.
-4. **Wiese wächst nicht von allein.** Alle 20 Punkte gibt es einen **Bonus** (höchstens 3 auf Vorrat):
+4. **Wiese wächst nicht von allein.** Alle 12 Punkte gibt es einen **Bonus** (höchstens 3 auf Vorrat):
    - **Regen:** leere Erde wird Wiese, die leere Erde daneben auch. Vervollständigt das eine Reihe, verschmilzt sie.
    - **Meteorit:** ein einzelnes Feld wird wieder Erde.
    Ein Bonus zählt als Zug.

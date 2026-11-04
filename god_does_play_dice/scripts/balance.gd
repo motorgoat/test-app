@@ -37,7 +37,7 @@ static var FLOOD_FIELDS := 3              # Überschwemmung: so viele kleinste S
 
 # --- Bonus (Regen oder Meteorit auf ein Feld) -------------------------------------------
 static var BONUS_START := 1               # so viele Boni am Anfang
-static var BONUS_EVERY := 20              # alle so viele Punkte ein Bonus …
+static var BONUS_EVERY := 12              # alle so viele Punkte ein Bonus …
 static var BONUS_MAX := 3                 # … bis höchstens so viele auf einmal
 static var RAIN_NEIGHBORS := true         # Regen macht auch die leere Erde daneben zu Wiese
 
