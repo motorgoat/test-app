@@ -28,6 +28,9 @@ var _icon: Sprite3D
 var _sel: MeshInstance3D
 var _glow: MeshInstance3D
 var _glow_on := false
+var _hint: MeshInstance3D
+var _hint_mat: StandardMaterial3D
+var _hint_on := false
 var _shown := ""
 var _bobbers: Array = []
 var _flames: Array = []
@@ -54,6 +57,9 @@ func build(f: FieldData) -> void:
 	_glow = Models.rbox(self, Vector3(TILE + 0.08, 0.03, TILE + 0.08), 0.05, Color("#ffd23f"), Vector3(0, 0.01, 0), Vector3.ZERO,
 		Models.mat(Color("#ffd23f"), 0.3, 2.2))
 	_glow.visible = false
+	_hint_mat = Models.mat(Color(1.0, 0.86, 0.3, 0.6), 0.3, 1.5).duplicate() as StandardMaterial3D
+	_hint = Models.rbox(self, Vector3(TILE + 0.06, 0.025, TILE + 0.06), 0.05, Color.WHITE, Vector3(0, 0.008, 0), Vector3.ZERO, _hint_mat)
+	_hint.visible = false
 
 	var body := StaticBody3D.new()
 	body.set_meta("field_id", f.id)
@@ -105,6 +111,12 @@ func label_world_pos() -> Vector3:
 
 func set_selected(on: bool) -> void:
 	_sel.visible = on
+
+
+## Sanftes Pulsieren: Tipp, diese Scheibe zu drehen.
+func set_hint(on: bool) -> void:
+	_hint_on = on
+	_hint.visible = on
 
 
 ## Goldenes Leuchten: dieses Feld würde gleich verschmelzen.
@@ -211,6 +223,8 @@ func _tile_color(f: FieldData) -> Color:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _hint_on:
+		_hint_mat.albedo_color.a = 0.15 + 0.45 * (0.5 + 0.5 * sin(_time * 3.0))
 	for i in _bobbers.size():
 		var b: Node3D = _bobbers[i]
 		if is_instance_valid(b):

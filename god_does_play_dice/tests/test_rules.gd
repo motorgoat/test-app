@@ -15,6 +15,7 @@ func _init() -> void:
 	test_war_and_trade()
 	test_pollution_and_spread()
 	test_hazards()
+	test_punishment()
 	test_tools()
 	test_harmony()
 	test_preview_matches()
@@ -335,3 +336,33 @@ func test_bot() -> void:
 				break
 		var hm := gs.harmony()
 		print("Bot Seed %d: %d Runden (Zeitalter %d), Glaube %d, Gleichgewicht %.2f, Anteile %s" % [s, rounds, gs.age(), gs.faith, float(hm["value"]), str(hm["counts"])])
+
+
+func test_punishment() -> void:
+	var gs := new_state()
+	gs.turn = 10
+	var none := true
+	for i in 30:
+		if not gs.spawn_hazards().is_empty():
+			none = false
+	check(none, "im Gleichgewicht keine Katastrophen")
+	# Zu viel Industrie: Strafe trifft eine Fabrik
+	var gs2 := new_state()
+	gs2.turn = 10
+	var k := 0
+	for f in gs2.fields:
+		if f.kind == "nature" and k < 14:
+			f.kind = "industry"
+			k += 1
+	check(gs2.harmony()["status"]["industry"] == "high", "zu viel Industrie erkannt")
+	var spawned: Array = []
+	for i in 30:
+		spawned = gs2.spawn_hazards()
+		if not spawned.is_empty():
+			break
+	check(not spawned.is_empty(), "Strafe kommt")
+	if not spawned.is_empty():
+		var h: Dictionary = spawned[0]
+		check(str(h["cause"]) == "industry", "Grund: Industrie")
+		var target := gs2.field_at(h["p"], h["n"])
+		check(target != null and target.kind == "industry", "Ziel ist eine Fabrik")

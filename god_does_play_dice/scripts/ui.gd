@@ -46,6 +46,7 @@ var _bubbles: Array = []
 var _toast_until := 0.0
 var _time := 0.0
 var _shown_faith := -1
+var _faith_display := 0.0
 
 
 func setup(w: World) -> void:
@@ -536,7 +537,8 @@ func refresh() -> void:
 	var gs := Game.state
 	round_label.text = "Runde %d" % gs.turn
 	age_label.text = "ZEITALTER %d" % gs.age()
-	faith_label.text = str(gs.faith)
+	if _shown_faith < 0:
+		_faith_display = gs.faith
 	if _shown_faith >= 0 and gs.faith != _shown_faith:
 		_pop(faith_label)
 	_shown_faith = gs.faith
@@ -567,8 +569,9 @@ func _refresh_bars(gs: GameState) -> void:
 		var back: ColorRect = b["back"]
 		var w := back.size.x
 		var s := float(shares[k])
-		var lo: float = Balance.IDEAL[k][0]
-		var hi: float = Balance.IDEAL[k][1]
+		var rr := gs.ideal(k)
+		var lo := rr.x
+		var hi := rr.y
 		var fill: ColorRect = b["fill"]
 		var ideal: ColorRect = b["ideal"]
 		fill.size = Vector2(maxf(2.0, w * minf(1.0, s / 0.6)), 8)
@@ -619,6 +622,10 @@ func _process(delta: float) -> void:
 	if toast.modulate.a > 0.0 and _time > _toast_until:
 		toast.modulate.a = maxf(0.0, toast.modulate.a - delta * 3.0)
 	_update_bubbles(delta)
+	if Game.state != null and faith_label != null:
+		var target := float(Game.state.faith)
+		_faith_display = move_toward(_faith_display, target, maxf(1.0, absf(target - _faith_display)) * delta * 4.0)
+		faith_label.text = str(int(round(_faith_display)))
 	if wait_btn != null and Game.state != null:
 		_update_buttons()
 		_refresh_bars(Game.state)
@@ -762,8 +769,10 @@ func _fill_sheet(fid: int) -> void:
 	if not h.is_empty():
 		var t: String = h["type"]
 		sheet_icon.texture = Style.icon(t)
+		if h.has("cause"):
+			lines.append("Strafe: " + str(GameState.CAUSE_TEXT.get(str(h["cause"]), "")) + ".")
 		if t == "meteor":
-			lines.append("Meteorit in %d Runden genau hier: das Feld wird zum Krater. Dreh es weg!" % int(h["timer"]))
+			lines.append("Meteorit in %d Runden genau hier: das Feld wird zum Krater. Dreh es weg oder bring die Welt ins Gleichgewicht!" % int(h["timer"]))
 		else:
 			lines.append("Gewitter in %d Runden genau hier: eine Stufe weniger, Natur fängt Feuer." % int(h["timer"]))
 	sheet_body.text = "\n".join(lines)
@@ -822,6 +831,7 @@ func _bubble(fid: int, text: String, icon_name: String, color: Color) -> void:
 	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bubble_layer.add_child(b)
 	_bubbles.append({"node": b, "fid": fid, "t": 0.0, "dur": 1.8})
+	_update_bubbles(0.0)
 
 
 func _update_bubbles(delta: float) -> void:

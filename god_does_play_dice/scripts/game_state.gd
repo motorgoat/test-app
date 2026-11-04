@@ -30,6 +30,12 @@ const NATION_COLORS = ["#ec5b4f", "#3f86e8", "#f4b72e", "#46b46c"]
 const LANDMARK_NAME = ["Leuchtturm", "Windmühle", "Weltenbaum", "Steinkreis", "Pyramide", "Sternwarte"]
 const LANDMARK_COLOR = ["#ff6f61", "#ffb547", "#57c46b", "#8f7cf0", "#f2d15c", "#4fb8e8"]
 const HAZARD_NAME = {"meteor": "Meteorit", "storm": "Gewitter", "volcano": "Vulkan"}
+const CAUSE_TEXT = {
+	"industry": "Zu viel Industrie! Ein Gewitter zieht über die Fabriken",
+	"settlement": "Zu viele Siedlungen! Ein Meteorit nähert sich",
+	"nature": "Zu viel Wildnis! Ein Gewitter bringt Waldbrand",
+	"faith": "Zu wenig Glaube! Ein Vulkan erwacht",
+}
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
@@ -264,6 +270,15 @@ func age() -> int:
 	return 1 + int((turn - 1) / Balance.AGE_LENGTH)
 
 
+## Gesunder Bereich einer Art (wird mit jedem Zeitalter etwas enger).
+func ideal(k: String) -> Vector2:
+	var lo: float = Balance.IDEAL[k][0]
+	var hi: float = Balance.IDEAL[k][1]
+	var shrink := minf(Balance.TOLERANCE_SHRINK_MAX, Balance.TOLERANCE_SHRINK_PER_AGE * (age() - 1))
+	var mid := (lo + hi) * 0.5
+	return Vector2(minf(lo + shrink, mid - 0.01), maxf(hi - shrink, mid + 0.01))
+
+
 func spread_every() -> int:
 	return maxi(Balance.SPREAD_EVERY_MIN, Balance.SPREAD_EVERY - (age() - 1))
 
@@ -349,8 +364,9 @@ func harmony() -> Dictionary:
 	for k in KINDS:
 		var s := float(counts[k]) / float(maxi(1, total))
 		shares[k] = s
-		var lo: float = Balance.IDEAL[k][0]
-		var hi: float = Balance.IDEAL[k][1]
+		var r := ideal(k)
+		var lo := r.x
+		var hi := r.y
 		if s < lo:
 			status[k] = "low"
 			deviation += lo - s
@@ -466,8 +482,9 @@ func _refill(f: FieldData) -> void:
 	var best := "nature"
 	var best_gap := INF
 	for k in KINDS:
-		var lo: float = Balance.IDEAL[k][0]
-		var hi: float = Balance.IDEAL[k][1]
+		var r := ideal(k)
+		var lo := r.x
+		var hi := r.y
 		var gap := float(shares[k]) - (lo + hi) * 0.5
 		if gap < best_gap:
 			best_gap = gap
@@ -802,7 +819,8 @@ func _level_down(f: FieldData, ev: Array) -> void:
 		_to_crater(f)
 
 
-## Neue Gefahren (mit Zufall), mit jedem Zeitalter häufiger und knapper angekündigt.
+## Neue Gefahren: nur als Strafe, wenn eine Art aus dem gesunden Bereich gerät.
+## Gibt die neuen zurück: [{"type", "cause", "timer", "p","n"} oder {"type": "volcano", "field", "cause"}]
 func spawn_hazards() -> Array:
 	if turn <= Balance.HAZARD_FREE_ROUNDS + 1:
 		return []
@@ -813,46 +831,66 @@ func spawn_hazards() -> Array:
 	var max_h := mini(Balance.HAZARD_MAX, Balance.HAZARD_MAX_BASE + age() - 1)
 	if active >= max_h:
 		return []
-	var chance := minf(Balance.HAZARD_CHANCE_MAX, Balance.HAZARD_CHANCE_BASE + Balance.HAZARD_CHANCE_PER_AGE * (age() - 1))
+	var status: Dictionary = harmony()["status"]
+	var causes: Array = []
+	for k in ["industry", "settlement", "nature"]:
+		if status[k] == "high":
+			causes.append(k)
+	if status["faith"] == "low":
+		causes.append("faith")
+	if causes.is_empty():
+		return []
+	var chance := minf(Balance.PUNISH_CHANCE_MAX, Balance.PUNISH_CHANCE + Balance.PUNISH_CHANCE_PER_AGE * (age() - 1))
 	if rng.randf() > chance:
 		return []
+	var cause: String = causes[rng.randi_range(0, causes.size() - 1)]
 	var timer := Balance.HAZARD_TIMER if age() < 3 else maxi(Balance.HAZARD_TIMER_MIN, Balance.HAZARD_TIMER - 1)
-	var t := _roll_hazard_type()
-	if t == "volcano":
-		var mountains: Array = []
-		for f in fields:
-			if f.kind == "mountain" and f.volcano == 0:
-				mountains.append(f)
-		if mountains.is_empty():
-			t = "storm"
-		else:
-			var m: FieldData = mountains[rng.randi_range(0, mountains.size() - 1)]
+	if cause == "faith":
+		var m := _volcano_near_people()
+		if m != null:
 			m.volcano = timer
-			return [{"type": "volcano", "field": m.id}]
-	var pool: Array = []
-	for f in fields:
-		if not f.is_center and (f.kind == "settlement" or f.kind == "faith" or f.kind == "industry") and hazard_at(f).is_empty():
-			pool.append(f)
-	if pool.is_empty() or rng.randf() < 0.3:
-		pool.clear()
-		for f in fields:
-			if not f.is_center and hazard_at(f).is_empty():
-				pool.append(f)
-	if pool.is_empty():
+			return [{"type": "volcano", "field": m.id, "cause": cause, "timer": timer}]
+		cause = "settlement"
+	var kind := cause
+	var t := "meteor" if cause == "settlement" else "storm"
+	var target := _biggest(kind)
+	if target == null:
 		return []
-	var target: FieldData = pool[rng.randi_range(0, pool.size() - 1)]
-	var hz := {"type": t, "p": target.p, "n": target.n, "timer": timer}
+	var hz := {"type": t, "p": target.p, "n": target.n, "timer": timer, "cause": cause}
 	hazards.append(hz)
 	return [hz]
 
 
-func _roll_hazard_type() -> String:
-	var total := 0
-	for k in Balance.HAZARD_WEIGHTS:
-		total += int(Balance.HAZARD_WEIGHTS[k])
-	var r := rng.randi_range(1, maxi(total, 1))
-	for k in Balance.HAZARD_WEIGHTS:
-		r -= int(Balance.HAZARD_WEIGHTS[k])
-		if r <= 0:
-			return str(k)
-	return "storm"
+## Ein Feld dieser Art mit der höchsten Stufe (ohne schon bedrohte), zufällig unter Gleichen.
+func _biggest(kind: String) -> FieldData:
+	var best: Array = []
+	var best_level := 0
+	for f in fields:
+		if f.kind != kind or not hazard_at(f).is_empty():
+			continue
+		if f.level > best_level:
+			best_level = f.level
+			best = [f]
+		elif f.level == best_level:
+			best.append(f)
+	if best.is_empty():
+		return null
+	return best[rng.randi_range(0, best.size() - 1)]
+
+
+## Ein ruhiger Berg, möglichst neben einer Siedlung.
+func _volcano_near_people() -> FieldData:
+	var near: Array = []
+	var any: Array = []
+	for f in fields:
+		if f.kind != "mountain" or f.volcano > 0:
+			continue
+		any.append(f)
+		for g in neighbors(f):
+			if g.kind == "settlement":
+				near.append(f)
+				break
+	var pool := near if not near.is_empty() else any
+	if pool.is_empty():
+		return null
+	return pool[rng.randi_range(0, pool.size() - 1)]

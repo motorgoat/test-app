@@ -51,15 +51,24 @@ static var MIRACLE_MAX := 2
 
 # --- Gefahren und Zeitalter -----------------------------------------------------
 static var AGE_LENGTH := 10              # Runden pro Zeitalter
-static var HAZARD_FREE_ROUNDS := 3
-static var HAZARD_CHANCE_BASE := 0.3
-static var HAZARD_CHANCE_PER_AGE := 0.12
-static var HAZARD_CHANCE_MAX := 0.9
+# Katastrophen sind STRAFEN: Sie kommen nur, wenn etwas aus dem gesunden Bereich gerät.
+#   zu viel Industrie → Gewitter über einer Fabrik
+#   zu viele Siedlungen → Meteorit auf die größte Siedlung
+#   zu viel Natur → Gewitter mit Waldbrand
+#   zu wenig Glaube → ein Vulkan erwacht
+static var HAZARD_FREE_ROUNDS := 2
+static var PUNISH_CHANCE := 0.55         # Chance pro Runde, wenn etwas aus dem Gleichgewicht ist
+static var PUNISH_CHANCE_PER_AGE := 0.1
+static var PUNISH_CHANCE_MAX := 0.95
 static var HAZARD_MAX_BASE := 1          # gleichzeitig, plus 1 pro Zeitalter
-static var HAZARD_MAX := 5
-static var HAZARD_WEIGHTS := {"storm": 40, "meteor": 35, "volcano": 25}
+static var HAZARD_MAX := 4
 static var HAZARD_TIMER := 3             # Vorwarnung in Runden
 static var HAZARD_TIMER_MIN := 2         # ab Zeitalter 3 eine Runde weniger
+static var TOLERANCE_SHRINK_PER_AGE := 0.01   # der gesunde Bereich wird jedes Zeitalter enger
+static var TOLERANCE_SHRINK_MAX := 0.05
+
+# --- Tipp ----------------------------------------------------------------------
+static var HINT_AFTER_SECONDS := 10.0     # so lange nichts getan, dann pulsiert eine lohnende Scheibe
 
 # --- Spielende -----------------------------------------------------------------
 static var MAX_ROUNDS := 0               # 0 = endlos

@@ -37,6 +37,9 @@ var _pivot: Node3D
 var _touches: Dictionary = {}
 var _pinch_dist := 0.0
 var _postfx: CanvasLayer
+var _idle := 0.0
+var _hinted := false
+var _hint_views: Array = []
 
 
 func _ready() -> void:
@@ -93,6 +96,9 @@ func _setup_environment() -> void:
 # =============================================================================
 
 func rebuild() -> void:
+	_hint_views.clear()
+	_hinted = false
+	_idle = 0.0
 	for c in cube_root.get_children():
 		c.queue_free()
 	cubies.clear()
@@ -217,6 +223,12 @@ func select(fid: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if _mode == "" and not animating and not Game.busy and not Game.over:
+		_idle += delta
+		if _idle > Balance.HINT_AFTER_SECONDS and not _hinted:
+			_show_hint()
+	else:
+		_idle = 0.0
 	if _mode == "twist" and _pivot != null:
 		_tw_display = lerpf(_tw_display, _tw_angle, 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
 		var ax := Vector3.ZERO
@@ -313,7 +325,41 @@ func _touch_dist() -> float:
 	return (pts[0] as Vector2).distance_to(pts[1] as Vector2)
 
 
+func _show_hint() -> void:
+	_hinted = true
+	var best := []
+	var best_pts := 0
+	for axis in 3:
+		for layer in [-1, 0, 1]:
+			for turns in [1, -1, 2]:
+				var sim := Game.state.clone()
+				sim.apply_rotation(axis, layer, turns)
+				var pts := 0
+				for line in sim.lines():
+					pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).level])
+				if pts > best_pts:
+					best_pts = pts
+					best = [axis, layer]
+	if best.is_empty():
+		return
+	for cb in _slice_cubies(int(best[0]), int(best[1])):
+		for child in (cb as Node3D).get_children():
+			if child is FieldView:
+				(child as FieldView).set_hint(true)
+				_hint_views.append(child)
+
+
+func _clear_hint() -> void:
+	_idle = 0.0
+	_hinted = false
+	for v in _hint_views:
+		if is_instance_valid(v):
+			(v as FieldView).set_hint(false)
+	_hint_views.clear()
+
+
 func _press(pos: Vector2) -> void:
+	_clear_hint()
 	_press_pos = pos
 	_last_move_ms = Time.get_ticks_msec()
 	rig.stop()
@@ -541,6 +587,7 @@ func _unparent_pivot(piv: Node3D, axis: int, turns: int) -> void:
 func wait_turn() -> void:
 	if animating or Game.busy or Game.over:
 		return
+	_clear_hint()
 	animating = true
 	select(-1)
 	Game.play_turn(0, 0, 0)

@@ -70,6 +70,10 @@ func _shots(dir: String) -> void:
 	await _shot(dir, "04d_ring")
 	await _wait(1.8)
 	await _shot(dir, "04e_danach")
+	world._show_hint()
+	await _wait(0.6)
+	await _shot(dir, "04f_tipp")
+	world._clear_hint()
 	# Eine Gefahr erzwingen, damit man sie sieht
 	var target: FieldData = Game.state.fields[_visible_field(true)]
 	Game.state.hazards.append({"type": "meteor", "p": target.p, "n": target.n, "timer": 2})

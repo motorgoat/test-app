@@ -88,11 +88,10 @@ func finish_round(result: Dictionary) -> void:
 		message.emit("Zeitalter %d beginnt. Die Welt wird unruhiger." % state.age(), "bad")
 	elif not spawned.is_empty():
 		var h: Dictionary = spawned[0]
-		var t: String = h["type"]
 		var timer := int(h.get("timer", 0))
-		if t == "volcano":
-			timer = (state.fields[int(h["field"])] as FieldData).volcano
-		message.emit("%s in %d Runden!" % [GameState.HAZARD_NAME[t], timer], "bad")
+		var cause: String = h.get("cause", "")
+		var why: String = GameState.CAUSE_TEXT.get(cause, GameState.HAZARD_NAME[str(h["type"])])
+		message.emit("%s (in %d %s)." % [why, timer, "Runde" if timer == 1 else "Runden"], "bad")
 	elif state.bad_rounds > 0 and not state.is_over():
 		var left := Balance.LOSE_AFTER_DISHARMONY - state.bad_rounds
 		message.emit("Die Welt ist aus dem Gleichgewicht! Noch %d %s." % [left, "Runde" if left == 1 else "Runden"], "bad")
