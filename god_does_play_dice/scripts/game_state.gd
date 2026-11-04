@@ -450,7 +450,7 @@ func disaster(kind: String, ev: Array) -> void:
 		for f in fields:
 			if not f.is_civilisation():
 				continue
-			var score := f.stage * 100 + _count_neighbors(f, "civ")
+			var score: int = f.stage * 100 + _count_neighbors(f, "civ")
 			if score > best:
 				best = score
 				center = f
@@ -482,7 +482,7 @@ func disaster(kind: String, ev: Array) -> void:
 		for f in fields:
 			if not f.is_nature():
 				continue
-			var score := _count_neighbors(f, "nature") * 100 + f.stage
+			var score: int = _count_neighbors(f, "nature") * 100 + f.stage
 			if score > best:
 				best = score
 				center = f
