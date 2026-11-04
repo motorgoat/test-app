@@ -39,9 +39,9 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
 
-**Tutorial** (wie in Handyspielen üblich): Im ersten Spiel zeigt eine animierte Hand den ersten Zug, nur dieser ist erlaubt,
-oben steht ein Satz dazu. Danach „Super! … Tippe irgendwo“. Alles Weitere erklärt sich im richtigen Moment mit einer
-kleinen Sprechblase am Knopf (erster Fehlversuch, erster Regen, Blitz, Monsun, Feuer), jede nur einmal.
+**Tutorial** (wie in Handyspielen üblich): Im ersten Spiel dreht sich der Würfel zur leuchtenden Reihe, dann spielt sich der
+erste Zug von selbst und drei Wiesen verschmelzen. Danach „Jetzt du!“. Alles Weitere erklärt sich im richtigen Moment mit
+einer kleinen Sprechblase am Knopf (erster Fehlversuch, erster Regen, Blitz, Monsun, Feuer), jede nur einmal.
 Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
 **Tutorial:** Das allererste Spiel ist „Einfach“ (dort zählen auch Wiesen diagonal). Der erste Zug wird vorgezeigt
 (Finger wischt, Scheibe dreht an). Eine Karte führt Schritt für Schritt durch Drehen, Verschmelzen, Fehlversuche, Regen,

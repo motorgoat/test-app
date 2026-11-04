@@ -398,6 +398,9 @@ func _clear_hint() -> void:
 
 
 func _press(pos: Vector2) -> void:
+	# Tutorial: der erste Zug spielt sich selbst, so lange ist der Würfel gesperrt
+	if Game.tutorial() and Game.tutorial_step == 0:
+		return
 	_clear_hint()
 	_press_pos = pos
 	_press_ms = Time.get_ticks_msec()
@@ -678,6 +681,8 @@ func _finish_twist() -> void:
 		piv.basis = Basis(ax, a)
 	var tw := create_tween()
 	var dur := Balance.TWIST_SNAP_SECONDS * clampf(absf(target - start) / (PI * 0.5) + 0.35, 0.5, 1.6)
+	if Game.tutorial() and Game.tutorial_step == 0:
+		dur *= 2.4      # der vorgeführte Zug langsam, damit man sieht, was passiert
 	tw.tween_method(setter, start, target, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await tw.finished
 	piv.basis = Basis(ax, target)
@@ -727,6 +732,27 @@ func wait_turn() -> void:
 	animating = true
 	select(-1)
 	Game.play_turn(0, 0, 0)
+
+
+## Tutorial: die Scheibe dreht sich von selbst und spielt den Zug (damit man gleich ein Upgrade sieht).
+func auto_twist(axis: int, layer: int, turns: int) -> bool:
+	if _mode != "" or animating or Game.busy:
+		return false
+	_clear_hint()
+	_tw_axis = axis
+	_tw_layer = layer
+	_tw_sign = 1
+	_tw_row = Game.state.slice_row(axis, layer)
+	_pivot = Node3D.new()
+	cube_root.add_child(_pivot)
+	for cb in _slice_cubies(axis, layer):
+		(cb as Node3D).reparent(_pivot, true)
+	_tw_display = 0.0
+	_tw_angle = 0.0
+	_tw_quarter = turns
+	_mode = "twist"
+	_finish_twist()
+	return true
 
 
 ## Tutorial: eine Scheibe ein Stück andrehen und zurück (zeigt, wie man dreht). Kein Zug.

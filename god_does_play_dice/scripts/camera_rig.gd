@@ -32,8 +32,12 @@ func _ready() -> void:
 	key.light_color = Color("#fff3df")
 	key.light_energy = 0.78
 	key.shadow_enabled = true
-	key.shadow_blur = 2.0
-	key.directional_shadow_max_distance = 25.0
+	key.shadow_blur = 1.5
+	# ruhiger Schatten: eine einzige, enge Schattenkarte und genug Abstand gegen Flimmern
+	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	key.directional_shadow_max_distance = 16.0
+	key.shadow_bias = 0.06
+	key.shadow_normal_bias = 1.8
 	add_child(key)
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-15, 150, 0)

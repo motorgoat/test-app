@@ -56,10 +56,11 @@ var coach: PanelContainer
 var coach_label: Label
 var _coach_queue: Array = []
 var _demo_at := 0.0
+var _auto_at := INF
 var _tut_merged := false
 const TUT_STEPS = [
-	{"wait": "merge", "text": "Wisch über die leuchtende Reihe\nund bring drei Wiesen zusammen."},
-	{"wait": "tap", "text": "Super! Drei gleiche verschmelzen und steigen auf.\nTippe irgendwo, um weiterzuspielen."},
+	{"wait": "auto", "text": "Schau: Drei gleiche Wiesen in einer Reihe\nverschmelzen und steigen auf."},
+	{"wait": "twist", "text": "Jetzt du! Wisch über eine Reihe,\num sie zu drehen."},
 ]
 const COACH = {
 	"miss": "Fehlversuch! Drehungen ohne Verschmelzen zählen hier. Beim dritten brennt die gedrehte Reihe.",
@@ -122,8 +123,13 @@ func _build() -> void:
 	add_child(root)
 
 	# --- Oben ---
+	# Abstand zu den Rändern, inklusive Notch oben und Gestenleiste unten
+	var insets := _safe_insets()
 	var top := VBoxContainer.new()
-	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE, Control.PRESET_MODE_MINSIZE, 14)
+	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE, Control.PRESET_MODE_MINSIZE, 20)
+	top.offset_top = 26.0 + insets.x
+	top.offset_left = 20.0
+	top.offset_right = -20.0
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_theme_constant_override("separation", 8)
 	root.add_child(top)
@@ -144,7 +150,7 @@ func _build() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	cv.add_child(row)
-	var menu_b := _round_button("menu", func() -> void: _open_modal(menu_card), 50)
+	var menu_b := _round_button("menu", func() -> void: _open_modal(menu_card), 58)
 	menu_b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(menu_b)
 	var spl := Control.new()
@@ -155,10 +161,10 @@ func _build() -> void:
 	sv.add_theme_constant_override("separation", -8)
 	sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sv)
-	score_label = _label("0", 54, Style.TEXT, true)
+	score_label = _label("0", 66, Style.TEXT, true)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sv.add_child(score_label)
-	round_label = _label("Punkte", 13, Style.SOFT, true)
+	round_label = _label("Punkte", 15, Style.SOFT, true)
 	round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sv.add_child(round_label)
 	var spr := Control.new()
@@ -170,7 +176,7 @@ func _build() -> void:
 	cb.add_theme_constant_override("icon_max_width", 24)
 	cb.add_theme_font_override("font", Style.bold())
 	cb.add_theme_font_size_override("font_size", 18)
-	cb.custom_minimum_size = Vector2(76, 50)
+	cb.custom_minimum_size = Vector2(96, 58)
 	cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_pill_style(cb, Color.WHITE)
 	cb.pressed.connect(_on_credits_pressed)
@@ -194,12 +200,12 @@ func _build() -> void:
 	ah.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	age_chip.add_child(ah)
 	stage_icon = TextureRect.new()
-	stage_icon.custom_minimum_size = Vector2(26, 26)
+	stage_icon.custom_minimum_size = Vector2(32, 32)
 	stage_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	stage_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	stage_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ah.add_child(stage_icon)
-	stage_label = _label("Urzeit", 15, Style.TEXT, true)
+	stage_label = _label("Urzeit", 18, Style.TEXT, true)
 	stage_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	ah.add_child(stage_label)
 	# Fehlversuche: drei Flammen
@@ -215,7 +221,7 @@ func _build() -> void:
 	for i in Balance.FIRE_AFTER:
 		var fl := TextureRect.new()
 		fl.texture = Style.icon("fire_off")
-		fl.custom_minimum_size = Vector2(28, 28)
+		fl.custom_minimum_size = Vector2(34, 34)
 		fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -233,7 +239,7 @@ func _build() -> void:
 	for i in Balance.LIVES:
 		var h := TextureRect.new()
 		h.texture = Style.icon("heart")
-		h.custom_minimum_size = Vector2(22, 22)
+		h.custom_minimum_size = Vector2(28, 28)
 		h.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		h.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		h.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -257,12 +263,15 @@ func _build() -> void:
 	top.add_child(preview_card)
 	# Tutorial: ein großer Satz oben über dem Würfel (keine Knöpfe)
 	tut_card = PanelContainer.new()
-	var ts := _sb(Color(0.118, 0.133, 0.169, 0.94), 22, 14)
-	ts.content_margin_left = 20
-	ts.content_margin_right = 20
+	var ts := _sb(Color(1, 1, 1, 0.96), 28, 18)
+	ts.content_margin_left = 24
+	ts.content_margin_right = 24
+	ts.shadow_size = 22
+	ts.shadow_color = Color(0.1, 0.12, 0.2, 0.14)
+	ts.shadow_offset = Vector2(0, 6)
 	tut_card.add_theme_stylebox_override("panel", ts)
 	tut_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tut_label = _label("", 19, Color.WHITE, true)
+	tut_label = _label("", 21, Style.TEXT, true)
 	tut_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tut_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tut_label.custom_minimum_size = Vector2(380, 0)
@@ -279,9 +288,15 @@ func _build() -> void:
 	root.add_child(tap_catcher)
 	# Hinweis im richtigen Moment: kleine Sprechblase am Knopf
 	coach = PanelContainer.new()
-	coach.add_theme_stylebox_override("panel", _sb(Color(0.118, 0.133, 0.169, 0.96), 18, 12))
+	var cs := _sb(Color(1, 1, 1, 0.97), 24, 16)
+	cs.shadow_size = 20
+	cs.shadow_color = Color(0.1, 0.12, 0.2, 0.16)
+	cs.shadow_offset = Vector2(0, 5)
+	cs.border_width_left = 6
+	cs.border_color = Style.WATER
+	coach.add_theme_stylebox_override("panel", cs)
 	coach.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coach_label = _label("", 16, Color.WHITE, true)
+	coach_label = _label("", 18, Style.TEXT, true)
 	coach_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	coach_label.custom_minimum_size = Vector2(280, 0)
 	coach.add_child(coach_label)
@@ -310,7 +325,10 @@ func _build() -> void:
 
 	# --- Unten ---
 	var bottom := VBoxContainer.new()
-	bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 16)
+	bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 20)
+	bottom.offset_bottom = -(26.0 + insets.y)
+	bottom.offset_left = 20.0
+	bottom.offset_right = -20.0
 	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_theme_constant_override("separation", 10)
@@ -318,7 +336,7 @@ func _build() -> void:
 	toast = _card(Color(0.118, 0.133, 0.169, 0.92))
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE    # unsichtbare Meldung darf keine Berührungen abfangen
 	toast.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	toast_label = _label("", 15, Color.WHITE)
+	toast_label = _label("", 17, Style.TEXT, true)
 	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.custom_minimum_size = Vector2(260, 0)
@@ -352,9 +370,11 @@ func _build() -> void:
 	bottom.add_child(mode_card)
 	# Unten: Booster-Leiste über die ganze Breite, große runde Knöpfe mit Beschriftung und Zähler
 	var bar := PanelContainer.new()
-	var bs := _sb(Color(1, 1, 1, 0.96), 28, 10, true)
-	bs.shadow_size = 10
-	bs.shadow_color = Color(0.1, 0.12, 0.2, 0.06)
+	# schwebende, abgerundete Leiste mit weichem Schatten
+	var bs := _sb(Color(1, 1, 1, 0.94), 38, 16)
+	bs.shadow_size = 22
+	bs.shadow_color = Color(0.1, 0.12, 0.2, 0.12)
+	bs.shadow_offset = Vector2(0, 6)
 	bar.add_theme_stylebox_override("panel", bs)
 	bottom.add_child(bar)
 	var bh := HBoxContainer.new()
@@ -408,9 +428,9 @@ func _slot(parent: Control, icon_name: String, title: String, cb: Callable, tint
 	parent.add_child(v)
 	var b := Button.new()
 	b.icon = Style.icon(icon_name)
-	b.add_theme_constant_override("icon_max_width", 40)
+	b.add_theme_constant_override("icon_max_width", 48)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	b.custom_minimum_size = Vector2(70, 70)
+	b.custom_minimum_size = Vector2(86, 86)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	b.set_meta("tint", tint)
 	b.set_meta("slot", v)
@@ -420,32 +440,32 @@ func _slot(parent: Control, icon_name: String, title: String, cb: Callable, tint
 	var badge := PanelContainer.new()
 	badge.name = "Badge"
 	badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	badge.offset_left = -22
+	badge.offset_left = -26
 	badge.offset_right = 4
 	badge.offset_top = -4
-	badge.offset_bottom = 22
+	badge.offset_bottom = 26
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.visible = false
 	b.add_child(badge)
-	var bl := _label("", 13, Color.WHITE, true)
+	var bl := _label("", 15, Color.WHITE, true)
 	bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	badge.add_child(bl)
-	var lab := _label(title, 13, Style.SOFT, true)
+	var lab := _label(title, 15, Style.TEXT, true)
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(lab)
 	return b
 
 
 func _circle_style(b: Button, bg: Color, ring: bool) -> void:
-	var n := _sb(bg, 35, 6)
+	var n := _sb(bg, 43, 6)
 	if ring:
-		n.set_border_width_all(3)
+		n.set_border_width_all(4)
 		n.border_color = Style.TEXT
 	b.add_theme_stylebox_override("normal", n)
 	b.add_theme_stylebox_override("hover", n)
-	b.add_theme_stylebox_override("pressed", _sb(bg.darkened(0.08), 35, 6))
-	b.add_theme_stylebox_override("disabled", _sb(Color(bg.r, bg.g, bg.b, 0.5), 35, 6))
+	b.add_theme_stylebox_override("pressed", _sb(bg.darkened(0.08), 43, 6))
+	b.add_theme_stylebox_override("disabled", _sb(Color(bg.r, bg.g, bg.b, 0.5), 43, 6))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
@@ -772,6 +792,18 @@ func _on_over_undo() -> void:
 
 # --- Bausteine ---------------------------------------------------------------
 
+## Abstand oben (x) und unten (y) für Notch und Gestenleiste, in Oberflächen-Einheiten.
+func _safe_insets() -> Vector2:
+	var win := DisplayServer.window_get_size()
+	var safe := DisplayServer.get_display_safe_area()
+	var csf := get_tree().root.content_scale_factor
+	if csf <= 0.0 or safe.size.y <= 0:
+		return Vector2.ZERO
+	var t := maxf(0.0, float(safe.position.y)) / csf
+	var b := maxf(0.0, float(win.y - safe.end.y)) / csf
+	return Vector2(clampf(t, 0.0, 80.0), clampf(b, 0.0, 80.0))
+
+
 func _make_theme() -> Theme:
 	var t := Theme.new()
 	t.default_font = Style.font()
@@ -984,10 +1016,9 @@ func _process(delta: float) -> void:
 	_update_bubbles(delta)
 	if Game.state == null or score_label == null:
 		return
-	var w := _tut_wait()
-	if (w == "twist" or w == "merge") and _time > _demo_at and not world.animating and not Game.busy and modal_bg != null and not modal_bg.visible:
-		_demo_at = _time + 4.0
-		_play_demo()
+	if _tut_wait() == "auto" and _time > _auto_at and not Game.busy and modal_bg != null and not modal_bg.visible:
+		if world.auto_twist(0, 1, 1):
+			_auto_at = INF
 	if rain_ready.visible:
 		rain_ready.pivot_offset = rain_ready.size * 0.5
 		var k := 0.5 + 0.5 * sin(_time * 3.0)
@@ -1072,16 +1103,19 @@ func _tutorial_show() -> void:
 	tut_card.visible = true
 	tut_card.modulate.a = 0.0
 	tut_card.create_tween().tween_property(tut_card, "modulate:a", 1.0, 0.25)
-	tap_catcher.visible = str(st["wait"]) == "tap"
-	_demo_at = _time + 0.8
+	tap_catcher.visible = false
 	_place_tut.call_deferred()
+	if str(st["wait"]) == "auto":
+		# Würfel dreht sich zu den leuchtenden Feldern, dann spielt sich der erste Zug von selbst
+		world.focus_place(Vector3i(0, 1, 0))
+		_auto_at = _time + 2.0
 
 
 ## Satz oben, unter der Kopfzeile.
 func _place_tut() -> void:
 	var vs := root.get_viewport_rect().size
 	tut_card.size = tut_card.get_combined_minimum_size()
-	tut_card.position = Vector2((vs.x - tut_card.size.x) * 0.5, 150.0)
+	tut_card.position = Vector2((vs.x - tut_card.size.x) * 0.5, 190.0 + _safe_insets().x)
 
 
 func _on_tap_catcher(ev: InputEvent) -> void:
@@ -1174,8 +1208,14 @@ func _tut_wait() -> String:
 	return str(TUT_STEPS[Game.tutorial_step]["wait"])
 
 
-func _on_move_done(_kind: String) -> void:
+func _on_move_done(kind: String) -> void:
 	_tut_merged = false
+	var w := _tut_wait()
+	if w == "auto":
+		Game.tutorial_next()
+	elif w == "twist" and kind == "twist":
+		Game.end_tutorial()
+		_on_message("Super! %s Die Welt gehört dir." % Game.praise(), "good")
 
 
 func _on_twist_state(on: bool) -> void:
@@ -1272,9 +1312,6 @@ func _fill_sheet(fid: int) -> void:
 
 func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 	_tut_merged = true
-	if _tut_wait() == "merge":
-		_tut_merged = false
-		Game.tutorial_next.call_deferred()
 	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
 	if combo >= 2:
 		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]
@@ -1394,12 +1431,17 @@ func _update_bubbles(delta: float) -> void:
 
 func _on_message(text: String, kind: String) -> void:
 	toast_label.text = text
-	var bg := Color(0.118, 0.133, 0.169, 0.92)
+	var fg := Style.TEXT
 	if kind == "bad":
-		bg = Color("#b8372e")
+		fg = Style.BAD
 	elif kind == "good":
-		bg = Color("#2a7d4b")
-	toast.add_theme_stylebox_override("panel", _sb(bg, 14, 10))
+		fg = Style.GOOD
+	toast_label.add_theme_color_override("font_color", fg)
+	var tsb := _sb(Color(1, 1, 1, 0.96), 22, 14)
+	tsb.shadow_size = 16
+	tsb.shadow_color = Color(0.1, 0.12, 0.2, 0.12)
+	tsb.shadow_offset = Vector2(0, 4)
+	toast.add_theme_stylebox_override("panel", tsb)
 	toast.modulate.a = 1.0
 	_toast_until = _time + 3.0
 	toast.pivot_offset = toast.size * 0.5

@@ -342,12 +342,12 @@ func _build_content(f: FieldData) -> void:
 			var grass := [Color("#6fb544"), Color("#86c95a"), Color("#5ea83c")]
 			for k in 9:
 				var gp := Vector3(rng.randf_range(-0.27, 0.27), 0.0, rng.randf_range(-0.27, 0.27))
-				Models.cone(_content, 0.022, rng.randf_range(0.05, 0.08), grass[k % 3], gp, 4)
-				Models.cone(_content, 0.016, rng.randf_range(0.04, 0.06), grass[(k + 1) % 3], gp + Vector3(0.018, 0, 0.01), 4)
+				Models.cone(_content, 0.022, rng.randf_range(0.05, 0.08), grass[k % 3], gp, 4).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				Models.cone(_content, 0.016, rng.randf_range(0.04, 0.06), grass[(k + 1) % 3], gp + Vector3(0.018, 0, 0.01), 4).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			var flowers := [Color("#ffffff"), Color("#ff9ec4"), Color("#ffe066"), Color("#b58cff")]
 			for k in 7:
 				var fp := Vector3(rng.randf_range(-0.26, 0.26), 0.03, rng.randf_range(-0.26, 0.26))
-				Models.sphere(_content, 0.02, flowers[k % 4], fp)
+				Models.sphere(_content, 0.02, flowers[k % 4], fp).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			_animal("meadow", Vector3(0.1, 0.0, 0.08), rng)
 		2:
 			# Kleiner Wald: vier Bäume, deutlich als Wald erkennbar (die Wiese hat keine Bäume)
