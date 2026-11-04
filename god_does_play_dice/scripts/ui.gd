@@ -876,7 +876,8 @@ func _on_game_over() -> void:
 		title.text = "Die Welt ist gestorben"
 		lines.append("Zu viele Katastrophen.")
 		if gs.last_disaster != "":
-			lines.append("Zuletzt: %s (%s)." % [GameState.DISASTER_NAME[gs.last_disaster], GameState.DISASTER_WHY[gs.last_disaster].to_lower()])
+			var why: String = GameState.DISASTER_WHY[gs.last_disaster]
+			lines.append("Zuletzt: %s (%s)." % [GameState.DISASTER_NAME[gs.last_disaster], why.left(1).to_lower() + why.substr(1)])
 	else:
 		title.text = "Geschafft!"
 	lines.append("")
