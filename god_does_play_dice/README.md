@@ -34,7 +34,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
    **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
    Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
-11. **Stufen** (Menü): **Einfach** – eine Reihe (auch diagonal) löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen; **Mittel** – Reihen und
+11. **Stufen** (Menü): **Einfach** – eine neue Reihe löst aus, die ganze zusammenhängende Gruppe verschmilzt ins neue Feld, die übrigen Felder füllen sich neu mit Erde oder Wiese (wie bei Candy Crush); **Mittel** – Reihen und
    Diagonalen; **Schwer** – nur gerade Reihen; **Profi** – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp.
    Dazu der Modus 40 Runden. Rekord = Punkte je Stufe.
 

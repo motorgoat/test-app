@@ -528,7 +528,7 @@ func _build_help() -> void:
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß ein Feld der gerade niedrigsten Stufe (zuerst Erde, dann Wiese …), es steigt eine Stufe. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
-	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – eine Reihe (auch diagonal) löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
+	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – eine neue Reihe löst aus, dann verschmilzt die ganze zusammenhängende Gruppe ins neue Feld; die übrigen Felder füllen sich neu mit Erde oder Wiese (wie bei Candy Crush). Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
@@ -553,7 +553,7 @@ func _build_menu() -> void:
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	v.add_child(grid)
-	var subs := ["ganze Gruppe steigt", "auch diagonal", "nur gerade", "ohne Gadgets"]
+	var subs := ["Gruppen + Nachschub", "auch diagonal", "nur gerade", "ohne Gadgets"]
 	for i in 4:
 		var b := _wide_button("%s\n%s" % [Game.LEVELS[i], subs[i]], Color.WHITE, Style.TEXT)
 		b.add_theme_font_size_override("font_size", 15)

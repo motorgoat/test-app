@@ -535,7 +535,9 @@ func resolve_merges(ev: Array) -> int:
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			var mid: FieldData = line[ti]
 			if easy:
-				# Einfach: Eine Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen
+				# Einfach (wie Candy Crush): Eine neue Reihe löst aus. Die ganze zusammenhängende Gruppe
+				# verschmilzt ins zuletzt dazugekommene Feld; die übrigen sind verbraucht und werden mit
+				# Erde oder Wiese neu aufgefüllt. So wächst nichts endlos durch Hin- und Herschieben.
 				combo += 1
 				var st0 := mid.stage
 				var grp := group_of(mid)
@@ -546,13 +548,16 @@ func resolve_merges(ev: Array) -> int:
 				var gids: Array = []
 				for g in grp:
 					var h: FieldData = g
-					h.stage = mini(Balance.MAX_STAGE, st0 + 1)
 					h.burning = false
 					done[h.id] = true
-					focus[h.id] = true
-					if h != mid:
+					if h == mid:
+						h.stage = mini(Balance.MAX_STAGE, st0 + 1)
+						focus[h.id] = true
+					else:
+						h.stage = 1 if rng.randf() < Balance.EASY_REFILL_MEADOW else 0
+						h.fresh = 0
 						gids.append(h.id)
-				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "all": true})
+				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "consume": true})
 				continue
 			var rest: Array = []
 			for i in line.size():
