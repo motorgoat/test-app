@@ -102,7 +102,7 @@ func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 func finish_round(result: Dictionary) -> void:
 	busy = false
 	if bool(result.get("new_age", false)) and not state.is_over():
-		message.emit("%s Die Welt erreicht %s. Ein Leben zurück." % [praise(), state.age_name()], "good")
+		message.emit("%s Die Welt erreicht %s.%s" % [praise(), state.age_name(), " Ein Leben zurück." if Balance.LIVES > 0 else ""], "good")
 	var got: Dictionary = result.get("bonus_gained", {})
 	if not state.is_over():
 		if int(got.get("bolt", 0)) > 0:
@@ -112,7 +112,9 @@ func finish_round(result: Dictionary) -> void:
 	for e in result["events"]:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])
-			var tail := "Lösch die Flammen mit Regen." if kind == "fire" else "Die Welt hält noch %d %s aus." % [state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"]
+			var tail := "Gieß ein brennendes Feld, das löscht den ganzen Brand." if kind == "fire" else "Die Reihe mit der meisten Zivilisation fällt zurück."
+			if kind == "quake" and Balance.LIVES > 0:
+				tail = "Die Welt hält noch %d %s aus." % [state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"]
 			message.emit("%s %s! %s. %s" % [gasp(), GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
 	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
 		tutorial_done = true

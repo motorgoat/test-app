@@ -85,7 +85,14 @@ func _build() -> void:
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_theme_constant_override("separation", 8)
 	root.add_child(top)
-	var card := _card()
+	# Oben ohne Kasten: Punkte und Zeitalter stehen frei auf dem Hintergrund
+	var card := PanelContainer.new()
+	var clear := StyleBoxEmpty.new()
+	clear.content_margin_left = 10
+	clear.content_margin_right = 4
+	clear.content_margin_top = 6
+	card.add_theme_stylebox_override("panel", clear)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(card)
 	var cv := VBoxContainer.new()
 	cv.add_theme_constant_override("separation", 10)
@@ -99,7 +106,7 @@ func _build() -> void:
 	sv.add_theme_constant_override("separation", -4)
 	sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sv)
-	score_label = _label("0", 38, Style.TEXT, true)
+	score_label = _label("0", 44, Style.TEXT, true)
 	sv.add_child(score_label)
 	round_label = _label("Punkte", 12, Style.SOFT, true)
 	sv.add_child(round_label)
@@ -113,7 +120,7 @@ func _build() -> void:
 	st.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(st)
 	stage_icon = TextureRect.new()
-	stage_icon.custom_minimum_size = Vector2(40, 40)
+	stage_icon.custom_minimum_size = Vector2(34, 34)
 	stage_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	stage_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	stage_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -125,7 +132,7 @@ func _build() -> void:
 	stv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	st.add_child(stv)
 	stv.add_child(_label("Zeitalter", 12, Style.SOFT, true))
-	stage_label = _label("Wiese", 20, Style.TEXT, true)
+	stage_label = _label("Wiese", 18, Style.TEXT, true)
 	stv.add_child(stage_label)
 	var sp_top := Control.new()
 	sp_top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -174,9 +181,9 @@ func _build() -> void:
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_theme_constant_override("separation", 10)
 	root.add_child(bottom)
-	toast = _card(Color(0.17, 0.19, 0.25, 0.9))
+	toast = _card(Color(0.118, 0.133, 0.169, 0.92))
 	toast.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	toast_label = _label("", 17, Color.WHITE)
+	toast_label = _label("", 15, Color.WHITE)
 	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.custom_minimum_size = Vector2(260, 0)
@@ -236,9 +243,9 @@ func _build() -> void:
 	bubble_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(bubble_layer)
 
-	combo_label = _label("", 44, Color("#ffb400"), true)
+	combo_label = _label("", 34, Color("#e0a100"), true)
 	combo_label.add_theme_color_override("font_outline_color", Color.WHITE)
-	combo_label.add_theme_constant_override("outline_size", 14)
+	combo_label.add_theme_constant_override("outline_size", 8)
 	combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	combo_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	combo_label.offset_top = 330
@@ -355,12 +362,12 @@ func _build_help() -> void:
 	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (oben die Flammen). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
-	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf, ein brennendes wird gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
+	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf. Gießt du ein brennendes Feld, ist der ganze Brand gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
-	v.add_child(_help_row("heart", "Ein Erdbeben kostet ein Leben der Welt. Ohne Leben, oder wenn nichts mehr zu verbinden ist, ist das Spiel vorbei."))
-	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf), Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Runden."))
+	v.add_child(_help_row("trophy", "Das Spiel endet, wenn nichts mehr zu verbinden ist (keine Stufe mit 3 Feldern, kein Regen, kein Blitz)."))
+	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf), Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Im Menü gibt es auch 40 Runden."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -413,11 +420,15 @@ func _on_hint_pressed() -> void:
 
 
 func _use_hint() -> void:
-	var sim_has := world.show_hint()
-	if not sim_has:
-		_on_message("Gerade bringt keine Drehung etwas. Probier Regen oder Blitz.", "info")
+	var best := world.show_hint()
+	if best.is_empty():
+		_on_message("Auch in zwei Zügen bringt keine Drehung etwas. Probier Regen oder Blitz.", "info")
 		return
 	Game.spend_hint()
+	if int(best["steps"]) == 2:
+		_on_message("Diese Scheibe drehen: Danach kannst du verschmelzen.", "info")
+	else:
+		_on_message("Diese Scheibe drehen: Das verschmilzt sofort.", "info")
 	refresh()
 
 
@@ -448,12 +459,12 @@ func _make_theme() -> Theme:
 	t.default_font = Style.font()
 	t.default_font_size = 18
 	t.set_color("font_color", "Label", Style.TEXT)
-	t.set_stylebox("panel", "PanelContainer", _sb(Style.PANEL, 22, 14))
-	var normal := _sb(Color.WHITE, 30, 10)
+	t.set_stylebox("panel", "PanelContainer", _sb(Style.PANEL, 18, 14))
+	var normal := _sb(Color.WHITE, 16, 10, true)
 	t.set_stylebox("normal", "Button", normal)
 	t.set_stylebox("hover", "Button", normal)
-	t.set_stylebox("pressed", "Button", _sb(Color("#f1ece4"), 30, 10))
-	t.set_stylebox("disabled", "Button", _sb(Color("#eeeae4"), 30, 10))
+	t.set_stylebox("pressed", "Button", _sb(Color("#f0ede8"), 16, 10, true))
+	t.set_stylebox("disabled", "Button", _sb(Color(1, 1, 1, 0.5), 16, 10, true))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
 	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		t.set_color(c, "Button", Style.TEXT)
@@ -461,9 +472,12 @@ func _make_theme() -> Theme:
 	return t
 
 
-func _sb(bg: Color, radius: int, pad: int) -> StyleBoxFlat:
+func _sb(bg: Color, radius: int, pad: int, border: bool = false) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = bg
+	if border:
+		s.set_border_width_all(1)
+		s.border_color = Style.LINE
 	s.set_corner_radius_all(radius)
 	s.corner_detail = 10
 	s.anti_aliasing = true
@@ -476,10 +490,10 @@ func _sb(bg: Color, radius: int, pad: int) -> StyleBoxFlat:
 
 func _card(bg: Color = Style.PANEL, radius: int = 22) -> PanelContainer:
 	var p := PanelContainer.new()
-	var s := _sb(bg, radius, 12)
-	s.shadow_size = 12
-	s.shadow_color = Color(0.1, 0.12, 0.2, 0.12)
-	s.shadow_offset = Vector2(0, 4)
+	var s := _sb(bg, mini(radius, 18), 12, true)
+	s.shadow_size = 6
+	s.shadow_color = Color(0.1, 0.12, 0.2, 0.05)
+	s.shadow_offset = Vector2(0, 2)
 	p.add_theme_stylebox_override("panel", s)
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	return p
@@ -526,14 +540,11 @@ func _round_button(icon_name: String, cb: Callable, size: int = 60) -> Button:
 
 
 func _pill_style(b: Button, bg: Color) -> void:
-	var n := _sb(bg, 30, 10)
-	n.shadow_size = 10
-	n.shadow_color = Color(0.1, 0.12, 0.2, 0.16)
-	n.shadow_offset = Vector2(0, 3)
+	var n := _sb(bg, 16, 8, true)
 	b.add_theme_stylebox_override("normal", n)
 	b.add_theme_stylebox_override("hover", n)
-	b.add_theme_stylebox_override("pressed", _sb(bg.darkened(0.08), 30, 10))
-	b.add_theme_stylebox_override("disabled", _sb(Color(1, 1, 1, 0.55), 30, 10))
+	b.add_theme_stylebox_override("pressed", _sb(bg.darkened(0.06), 16, 8, true))
+	b.add_theme_stylebox_override("disabled", _sb(Color(1, 1, 1, 0.45), 16, 8, true))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
@@ -762,7 +773,7 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]
 	else:
 		combo_label.text = GameState.stage_name(stage) + "!"
-	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
+	combo_label.add_theme_color_override("font_color", Color("#e0a100"))
 	_pop_banner()
 
 
@@ -775,7 +786,7 @@ func _on_miss(fid: int, count: int) -> void:
 func _on_face(fid: int, points: int, stage: int) -> void:
 	combo_label.text = "Ganze Seite: %s!" % GameState.stage_name(stage)
 	_on_message(Game.praise(), "good")
-	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
+	combo_label.add_theme_color_override("font_color", Color("#e0a100"))
 	_pop_banner()
 	if fid >= 0:
 		_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
@@ -817,7 +828,7 @@ func _bubble(fid: int, text: String, icon_name: String, color: Color) -> void:
 	b.icon = Style.icon(icon_name)
 	b.add_theme_constant_override("icon_max_width", 18)
 	b.add_theme_font_override("font", Style.bold())
-	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_font_size_override("font_size", 13)
 	b.add_theme_color_override("font_color", Color.WHITE)
 	var s := _sb(color, 14, 3)
 	s.content_margin_left = 6
@@ -852,12 +863,12 @@ func _update_bubbles(delta: float) -> void:
 
 func _on_message(text: String, kind: String) -> void:
 	toast_label.text = text
-	var bg := Color(0.17, 0.19, 0.25, 0.92)
+	var bg := Color(0.118, 0.133, 0.169, 0.92)
 	if kind == "bad":
-		bg = Color("#e5483c")
+		bg = Color("#b8372e")
 	elif kind == "good":
-		bg = Color("#34a853")
-	toast.add_theme_stylebox_override("panel", _sb(bg, 22, 12))
+		bg = Color("#2a7d4b")
+	toast.add_theme_stylebox_override("panel", _sb(bg, 14, 10))
 	toast.modulate.a = 1.0
 	_toast_until = _time + 3.0
 	toast.pivot_offset = toast.size * 0.5

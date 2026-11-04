@@ -19,6 +19,7 @@ func _init() -> void:
 	restore()
 	test_fire()
 	test_quake()
+	test_hint()
 	test_preview_matches()
 	test_modes()
 	test_bot()
@@ -314,7 +315,7 @@ func test_fire() -> void:
 	var lit := top(gs, -1, 0)
 	var st := lit.stage
 	gs.apply_bonus("rain", lit)
-	check(not lit.burning and lit.stage == st, "Regen löscht das Feuer")
+	check(not lit.burning and lit.stage == st and not top(gs, -1, 1).burning, "ein Guss löscht den ganzen Brand")
 	gs.end_round()
 	check(lit.stage == st, "gelöschtes Feld brennt nicht weiter")
 	# Ein Erfolg setzt den Zähler nicht zurück
@@ -349,14 +350,14 @@ func test_quake() -> void:
 	want.sort()
 	check(str(e.get("kind", "")) == "quake" and hit == want, "Erdbeben trifft die Reihe mit der meisten Zivilisation")
 	check((big[1] as FieldData).stage == 8 and (big[0] as FieldData).stage == 7, "die Reihe fällt eine Stufe zurück")
-	check(gq.lives == Balance.LIVES - 1, "Erdbeben kostet ein Leben")
+	check(gq.lives == Balance.LIVES - (1 if Balance.LIVES > 0 else 0), "Erdbeben kostet ein Leben (wenn es Leben gibt)")
 	# Ohne Leben ist Schluss; neues Zeitalter gibt eines zurück
 	var gd := empty_state()
 	gd.lives = 1
 	for f in gd.fields:
 		f.stage = 4 if absi(f.p.x + f.p.y + f.p.z) % 2 == 0 else 5
 	gd.end_round()
-	check(gd.died() and gd.is_over(), "ohne Leben stirbt die Welt")
+	check(gd.died() == (Balance.LIVES > 0), "ohne Leben stirbt die Welt (nur wenn es Leben gibt)")
 	var gx := empty_state()
 	gx.rain = 0
 	gx.bolts = 0
@@ -369,7 +370,32 @@ func test_quake() -> void:
 	ga.lives = 1
 	top(ga, 0, 0).stage = 4
 	var ra := ga.end_round()
-	check(ga.lives == 2 and bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit, ein Leben zurück")
+	check(bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit")
+	check(Balance.LIVES == 0 or ga.lives == 2, "neues Zeitalter: ein Leben zurück (wenn es Leben gibt)")
+
+
+func test_hint() -> void:
+	var gs := empty_state()
+	check(gs.best_move().is_empty(), "nur Erde: kein Tipp")
+	top(gs, -1, 1).stage = 1
+	top(gs, 0, 1).stage = 1
+	gs.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).stage = 1
+	var b := gs.best_move()
+	check(not b.is_empty() and int(b["steps"]) == 1, "Tipp findet die Drehung, die sofort verschmilzt")
+	var g2 := empty_state()
+	top(g2, -1, 1).stage = 1
+	top(g2, 0, 1).stage = 1
+	g2.field_at(Vector3i(1, -1, -1), Vector3i(0, 0, -1)).stage = 1
+	var b2 := g2.best_move()
+	var direct := 0
+	for axis in 3:
+		for layer in [-1, 0, 1]:
+			for turns in [1, -1, 2]:
+				var sim := g2.clone()
+				sim.moved = {}
+				sim.apply_rotation(axis, layer, turns)
+				direct += sim.merge_value()
+	check(not b2.is_empty() and (int(b2["steps"]) == 1) == (direct > 0), "Tipp schaut zwei Züge voraus, wenn sofort nichts geht (%s)" % str(b2))
 
 
 func test_preview_matches() -> void:

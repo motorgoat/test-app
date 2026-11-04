@@ -332,7 +332,7 @@ func stuck() -> bool:
 
 
 func died() -> bool:
-	return lives <= 0
+	return Balance.LIVES > 0 and lives <= 0
 
 
 func finished() -> bool:
@@ -571,7 +571,7 @@ func end_round() -> Dictionary:
 	turn += 1
 	# Neues Zeitalter: ein Leben zurück
 	var new_age := age() > age_before
-	if new_age and lives > 0:
+	if new_age and Balance.LIVES > 0 and lives > 0:
 		lives = mini(Balance.LIVES, lives + 1)
 	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": new_age}
 
@@ -604,7 +604,7 @@ func disaster(kind: String, ev: Array) -> void:
 			var h: FieldData = g
 			h.stage = maxi(0, h.stage - 1)
 			hit.append(h.id)
-	if kind == "quake" or Balance.FIRE_COSTS_LIFE:
+	if Balance.LIVES > 0 and (kind == "quake" or Balance.FIRE_COSTS_LIFE):
 		lives -= 1
 	disasters += 1
 	last_disaster = kind
@@ -645,6 +645,44 @@ func _count_neighbors(f: FieldData, what: String) -> int:
 # Boni: Regen (ein Feld) und Blitz (eine Reihe)
 # =============================================================================
 
+## Die beste Drehung für den Tipp. Schaut zwei Züge voraus: Bringt keine Drehung sofort etwas,
+## sucht er die Drehung, nach der eine zweite verschmelzen kann.
+## {"axis", "layer", "turns", "points", "steps"} oder {} wenn nichts geht.
+func best_move() -> Dictionary:
+	var moves: Array = []
+	for axis in 3:
+		for layer in [-1, 0, 1]:
+			for turns in [1, -1, 2]:
+				moves.append([axis, layer, turns])
+	var best := {}
+	var best_pts := 0
+	for m in moves:
+		var sim := clone()
+		sim.moved = {}
+		sim.apply_rotation(int(m[0]), int(m[1]), int(m[2]))
+		var pts := sim.merge_value()
+		if pts > best_pts:
+			best_pts = pts
+			best = {"axis": m[0], "layer": m[1], "turns": m[2], "points": pts, "steps": 1}
+	if not best.is_empty():
+		return best
+	for m in moves:
+		var sim := clone()
+		sim.moved = {}
+		sim.apply_rotation(int(m[0]), int(m[1]), int(m[2]))
+		for m2 in moves:
+			if int(m2[0]) == int(m[0]) and int(m2[1]) == int(m[1]):
+				continue
+			var sim2 := sim.clone()
+			sim2.moved = {}
+			sim2.apply_rotation(int(m2[0]), int(m2[1]), int(m2[2]))
+			var pts := sim2.merge_value()
+			if pts > best_pts:
+				best_pts = pts
+				best = {"axis": m[0], "layer": m[1], "turns": m[2], "points": pts, "steps": 2}
+	return best
+
+
 ## Wo lohnt sich Regen gerade? Brennende Felder (löschen) und Felder, deren Aufstieg eine Reihe vervollständigt.
 func rain_spots() -> Dictionary:
 	var out := {}
@@ -677,7 +715,8 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	return ""
 
 
-## Regen: Ein brennendes Feld wird gelöscht, sonst steigt es eine Stufe auf.
+## Regen: Auf ein brennendes Feld gegossen, löscht er den ganzen Brand (alle brennenden Felder, die zusammenhängen).
+## Sonst steigt das Feld eine Stufe auf.
 ## Blitz: Die ganze Reihe (row, 3 IDs) steigt eine Stufe auf und hört auf zu brennen.
 ## Was aufsteigt, zählt als zuletzt dazugekommen und kann verschmelzen. Danach wird der Zug normal ausgewertet.
 func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
@@ -685,7 +724,15 @@ func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
 	if kind == "rain":
 		rain -= 1
 		if f.burning:
-			f.burning = false
+			var todo: Array = [f]
+			while not todo.is_empty():
+				var h: FieldData = todo.pop_back()
+				if not h.burning:
+					continue
+				h.burning = false
+				for g in neighbors(h):
+					if (g as FieldData).burning:
+						todo.append(g)
 			return
 	else:
 		bolts -= 1

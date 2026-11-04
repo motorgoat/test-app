@@ -322,33 +322,24 @@ func _touch_dist() -> float:
 	return (pts[0] as Vector2).distance_to(pts[1] as Vector2)
 
 
-## Pulsiert die Scheibe, deren Drehung jetzt am meisten bringt. false = keine Drehung bringt etwas.
-func show_hint() -> bool:
+## Pulsiert die Scheibe, deren Drehung am meisten bringt (zwei Züge voraus).
+## Gibt den Zug zurück ({} = keine Drehung bringt etwas).
+func show_hint() -> Dictionary:
 	_clear_hint()
-	_show_hint()
-	return not _hint_views.is_empty()
+	return _show_hint()
 
 
-func _show_hint() -> void:
+func _show_hint() -> Dictionary:
 	_hinted = true
-	var best := []
-	var best_pts := 0
-	for axis in 3:
-		for layer in [-1, 0, 1]:
-			for turns in [1, -1, 2]:
-				var sim := Game.state.clone()
-				sim.apply_rotation(axis, layer, turns)
-				var pts := sim.merge_value()
-				if pts > best_pts:
-					best_pts = pts
-					best = [axis, layer]
+	var best := Game.state.best_move()
 	if best.is_empty():
-		return
-	for cb in _slice_cubies(int(best[0]), int(best[1])):
+		return best
+	for cb in _slice_cubies(int(best["axis"]), int(best["layer"])):
 		for child in (cb as Node3D).get_children():
 			if child is FieldView:
 				(child as FieldView).set_hint(true)
 				_hint_views.append(child)
+	return best
 
 
 func _clear_hint() -> void:
