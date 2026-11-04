@@ -10,6 +10,9 @@ signal merged(fid: int, points: int, combo: int, stage: int)
 signal disaster_shown(kind: String, fid: int)
 signal face_completed(fid: int, points: int, stage: int)
 signal miss_shown(fid: int, count: int)
+signal twist_state(on: bool)               # eine Drehung läuft (unten erscheint „Abbrechen“)
+signal cancel_hover(on: bool)              # Finger ist über „Abbrechen“
+signal bolt_drawn(fid: int, row: Array)    # Blitz über eine Reihe gezogen
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -37,6 +40,10 @@ var _tw_angle := 0.0
 var _tw_display := 0.0
 var _tw_quarter := 0
 var _tw_row: Array = []         # die drei Felder, über die gewischt wird
+var cancel_zone: Control = null # „Abbrechen“-Knopf der Oberfläche: Finger dort loslassen = Drehung abbrechen
+var _over_cancel := false
+var bolt_mode := false          # Blitz gewählt: Wischen zeichnet die Reihe statt zu drehen
+var _bolt_row: Array = []
 var _pivot: Node3D
 var _touches: Dictionary = {}
 var _pinch_dist := 0.0
@@ -357,7 +364,12 @@ func _press(pos: Vector2) -> void:
 	_last_move_ms = _press_ms
 	rig.stop()
 	var hit := _raycast(pos)
-	if not hit.is_empty() and not animating and not Game.busy and not Game.over:
+	if bolt_mode and not hit.is_empty() and not animating and not Game.busy and not Game.over:
+		_mode = "bolt"
+		_hit_field = int(hit["field"])
+		_hit_point = hit["point"]
+		_bolt_row = []
+	elif not hit.is_empty() and not animating and not Game.busy and not Game.over:
 		_mode = "pending"
 		_hit_field = int(hit["field"])
 		_hit_point = hit["point"]
@@ -383,6 +395,9 @@ func _motion(pos: Vector2, rel: Vector2) -> void:
 				_mode = "blocked"
 		"twist":
 			_update_twist(pos)
+		"bolt":
+			if pos.distance_to(_press_pos) > Balance.DRAG_START_PX:
+				_set_bolt_row(_drag_row(pos - _press_pos))
 		"orbit", "hold_orbit":
 			rig.orbit(rel, dt)
 
@@ -393,7 +408,16 @@ func _release(pos: Vector2) -> void:
 			if pos.distance_to(_press_pos) <= Balance.DRAG_START_PX:
 				field_tapped.emit(_hit_field)
 		"twist":
+			if _over_cancel:
+				_tw_quarter = 0
 			_finish_twist()
+		"bolt":
+			var row := _bolt_row
+			_set_bolt_row([])
+			if row.size() == 3:
+				bolt_drawn.emit(_hit_field, row)
+			elif pos.distance_to(_press_pos) <= Balance.DRAG_START_PX:
+				field_tapped.emit(_hit_field)
 		"orbit", "hold_orbit":
 			if Time.get_ticks_msec() - _last_move_ms > 90:
 				rig.stop()
@@ -471,10 +495,60 @@ func _begin_twist(drag: Vector2) -> void:
 	for cb in _slice_cubies(_tw_axis, _tw_layer):
 		(cb as Node3D).reparent(_pivot, true)
 	_mode = "twist"
+	_over_cancel = false
 	select(-1)
+	twist_state.emit(true)
+
+
+## Die Reihe durch das angetippte Feld, die am besten zur Wischrichtung passt (für den Blitz).
+func _drag_row(drag: Vector2) -> Array:
+	var f: FieldData = Game.state.fields[_hit_field]
+	var cam := rig.cam
+	var s0 := cam.unproject_position(_hit_point)
+	var best_axis := -1
+	var best_dot := 0.0
+	for a in 3:
+		if f.n[a] != 0:
+			continue
+		var t := Vector3.ZERO
+		t[a] = 0.5
+		var st := cam.unproject_position(_hit_point + cube_root.global_transform.basis * t) - s0
+		if st.length() < 2.0:
+			continue
+		var dd := absf(drag.normalized().dot(st.normalized()))
+		if dd > best_dot:
+			best_dot = dd
+			best_axis = a
+	if best_axis < 0:
+		return []
+	return Game.state.line_through(f, best_axis)
+
+
+func _set_bolt_row(row: Array) -> void:
+	for i in _bolt_row:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_highlight(false)
+	_bolt_row = row
+	for i in _bolt_row:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_highlight(true)
 
 
 func _update_twist(pos: Vector2) -> void:
+	# Finger über „Abbrechen“? Dann zeigt die Vorschau nichts, Loslassen bricht ab
+	var over := cancel_zone != null and cancel_zone.visible and cancel_zone.get_global_rect().grow(24.0).has_point(pos)
+	if over != _over_cancel:
+		_over_cancel = over
+		cancel_hover.emit(over)
+		if over:
+			_clear_preview()
+		else:
+			_tw_quarter = 99
+	if _over_cancel:
+		_tw_angle = 0.0      # Scheibe kehrt sichtbar zurück
+		return
 	var along := (pos - _press_pos).dot(_tw_screen_dir)
 	_tw_angle = _tw_sign * along / _tw_px_per_quarter * PI * 0.5
 	var ax := Vector3.ZERO
@@ -531,6 +605,8 @@ func _clear_preview() -> void:
 
 func _finish_twist() -> void:
 	_mode = ""
+	_over_cancel = false
+	twist_state.emit(false)
 	animating = true
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0

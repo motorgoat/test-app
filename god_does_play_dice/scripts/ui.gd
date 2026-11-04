@@ -41,6 +41,7 @@ var undo_btn: Button
 var credits_btn: Button
 var ad_label: Label
 var rain_ready: Button
+var cancel_btn: Button
 var _pending: Callable = Callable()
 var _pending_cost := 0
 var over_label: Label
@@ -67,6 +68,10 @@ func setup(w: World) -> void:
 	world.disaster_shown.connect(_on_disaster)
 	world.face_completed.connect(_on_face)
 	world.miss_shown.connect(_on_miss)
+	world.twist_state.connect(_on_twist_state)
+	world.cancel_hover.connect(_on_cancel_hover)
+	world.bolt_drawn.connect(_on_bolt_drawn)
+	world.cancel_zone = cancel_btn
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -222,6 +227,19 @@ func _build() -> void:
 	toast.add_child(toast_label)
 	toast.modulate.a = 0.0
 	bottom.add_child(toast)
+	# Beim Drehen: Finger hierher ziehen und loslassen = Drehung abbrechen
+	cancel_btn = Button.new()
+	cancel_btn.text = "  Abbrechen"
+	cancel_btn.icon = Style.icon("undo")
+	cancel_btn.add_theme_constant_override("icon_max_width", 24)
+	cancel_btn.add_theme_font_override("font", Style.bold())
+	cancel_btn.add_theme_font_size_override("font_size", 17)
+	cancel_btn.custom_minimum_size = Vector2(190, 64)
+	cancel_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	cancel_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pill_style(cancel_btn, Color.WHITE)
+	cancel_btn.visible = false
+	bottom.add_child(cancel_btn)
 	mode_card = _card(Color("#2f3442"))
 	mode_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var mh := HBoxContainer.new()
@@ -366,9 +384,12 @@ func _sheet_bonus(kind: String) -> void:
 	var fid := _sheet_field
 	if fid < 0:
 		return
-	var row: Array = world.screen_row(fid) if kind == "bolt" else []
 	_close_sheet()
-	if Game.use_bonus(kind, fid, row):
+	if kind == "bolt":
+		_set_bonus_mode("bolt")
+		_on_message("Zieh den Finger über die Reihe, die der Blitz treffen soll.", "info")
+		return
+	if Game.use_bonus(kind, fid, []):
 		_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
 
 
@@ -392,12 +413,12 @@ func _modal_card(title: String) -> PanelContainer:
 func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
-	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
+	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde. Willst du doch nicht: Finger unten auf „Abbrechen“ ziehen."))
 	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. Ab dem kleinen Wald zählen auch Diagonalen (quer über die Seite)."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf, ein brennendes Feld wird gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
-	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
+	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Wähl den Blitz und zieh den Finger über eine Reihe, in jede Richtung. Die ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
 	v.add_child(_help_row("heart", "Herzen sind die Leben der Welt. Ein Erdbeben (mehr als %d%% Zivilisation) kostet eines, jedes neue Zeitalter gibt eines zurück. Sind alle weg oder ist nichts mehr zu verbinden, ist das Spiel vorbei. Einmal kannst du mit Werbung weiterspielen." % int(round(Balance.CIVILISATION_MAX * 100.0))))
@@ -754,12 +775,13 @@ func _set_bonus_mode(kind: String) -> void:
 	bonus_mode = kind
 	mode_card.visible = kind != ""
 	world.show_rain_spots(kind == "rain")
+	world.bolt_mode = kind == "bolt"
 	if rain_ready != null:
 		rain_ready.visible = kind == "" and Game.state.rain > 0 and not Game.over
 	if kind == "rain":
 		mode_label.text = "Tippe auf ein Feld (Wolke = lohnt sich):\nEs steigt auf oder wird gelöscht"
 	elif kind == "bolt":
-		mode_label.text = "Tippe auf ein Feld: Der Blitz\nhebt seine waagrechte Reihe"
+		mode_label.text = "Zieh den Finger über eine Reihe:\nDer Blitz hebt sie eine Stufe"
 	_close_sheet()
 
 
@@ -796,9 +818,33 @@ func _on_preview(info: Dictionary) -> void:
 # Info-Karte
 # =============================================================================
 
+func _on_twist_state(on: bool) -> void:
+	cancel_btn.visible = on
+	_on_cancel_hover(false)
+	if on:
+		cancel_btn.modulate.a = 0.0
+		cancel_btn.create_tween().tween_property(cancel_btn, "modulate:a", 1.0, 0.15)
+
+
+func _on_cancel_hover(on: bool) -> void:
+	_pill_style(cancel_btn, Color("#fde3df") if on else Color.WHITE)
+	cancel_btn.add_theme_color_override("font_color", Style.BAD if on else Style.TEXT)
+	cancel_btn.pivot_offset = cancel_btn.size * 0.5
+	cancel_btn.scale = Vector2.ONE * (1.1 if on else 1.0)
+
+
+func _on_bolt_drawn(fid: int, row: Array) -> void:
+	if Game.use_bonus("bolt", fid, row):
+		_set_bonus_mode("")
+		_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
+
+
 func _on_field_tapped(fid: int) -> void:
+	if bonus_mode == "bolt":
+		_on_message("Zieh den Finger über die Reihe, die der Blitz treffen soll.", "info")
+		return
 	if bonus_mode != "":
-		var row: Array = world.screen_row(fid) if bonus_mode == "bolt" else []
+		var row: Array = []
 		if Game.use_bonus(bonus_mode, fid, row):
 			_set_bonus_mode("")
 			_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
@@ -856,7 +902,7 @@ func _fill_sheet(fid: int) -> void:
 		sheet_rain.text = "Höchste Stufe"
 	sheet_bolt.visible = gs.bolts > 0
 	sheet_bolt.disabled = blocked
-	sheet_bolt.text = "Blitz auf Reihe (%d)" % gs.bolts
+	sheet_bolt.text = "Blitz (%d)" % gs.bolts
 	(sheet_rain.get_parent() as Control).visible = sheet_rain.visible or sheet_bolt.visible
 
 

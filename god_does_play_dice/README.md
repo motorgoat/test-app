@@ -53,10 +53,11 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Zwei Finger / Mausrad | Zoom; zwei Finger verschieben = schwenken, drehen = um die Blickachse drehen |
 | Handy schwenken | Würfel neigt sich leicht mit |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
-| Feld antippen | Info-Karte mit „Gießen“ / „Löschen“ und „Blitz auf Reihe“ (wenn vorhanden) |
+| Feld antippen | Info-Karte mit „Gießen“ / „Löschen“ und „Blitz“ (wenn vorhanden) |
 | „Regen bereit“ über dem Würfel | du kannst gießen: antippen, dann ein Feld wählen |
 | 🔥 1/3 unten | Fehlversuche bis zum nächsten Brand |
-| Regen / Blitz unten | Bonus wählen, dann das Feld antippen (Blitz: dessen waagrechte Reihe) |
+| Regen / Blitz unten | Regen: wählen, dann Feld antippen. Blitz: wählen, dann Finger über die Reihe ziehen (jede Richtung) |
+| Beim Drehen auf „Abbrechen“ ziehen | Drehung abbrechen, zählt nicht als Zug |
 
 ## Aufbau
 
