@@ -40,6 +40,7 @@ var _tw_angle := 0.0
 var _tw_display := 0.0
 var _tw_quarter := 0
 var _tw_row: Array = []         # die drei Felder, über die gewischt wird
+var _tw_last_pos := Vector2.ZERO
 var cancel_zone: Control = null # „Abbrechen“-Knopf der Oberfläche: Finger dort loslassen = Drehung abbrechen
 var _over_cancel := false
 var bolt_mode := false          # Blitz gewählt: Wischen zeichnet die Reihe statt zu drehen
@@ -240,6 +241,15 @@ func _process(delta: float) -> void:
 		var tw := cube_root.create_tween()
 		tw.tween_property(cube_root, "scale", Vector3.ONE * 0.96, 0.08)
 		tw.tween_property(cube_root, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Finger am Bildschirmrand gehalten: die Scheibe dreht von selbst weiter (mehrere Viertel in einem Zug)
+	if _mode == "twist" and not _over_cancel:
+		var vs := get_viewport().get_visible_rect().size
+		var along := (_tw_last_pos - _press_pos).dot(_tw_screen_dir)
+		var dir := _tw_screen_dir * signf(along)
+		var ahead := _tw_last_pos + dir * Balance.TWIST_EDGE_PX
+		if absf(along) > Balance.DRAG_START_PX and (ahead.x < 0.0 or ahead.y < 0.0 or ahead.x > vs.x or ahead.y > vs.y):
+			_press_pos -= dir * _tw_px_per_quarter / Balance.TWIST_EDGE_SECONDS * delta
+			_update_twist(_tw_last_pos)
 	if _mode == "twist" and _pivot != null:
 		_tw_display = lerpf(_tw_display, _detent(_tw_angle), 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
 		var ax := Vector3.ZERO
@@ -589,10 +599,17 @@ func _update_twist(pos: Vector2) -> void:
 	_tw_angle = _tw_sign * along / _tw_px_per_quarter * PI * 0.5
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0
-	var q := clampi(roundi(_tw_angle / (PI * 0.5)), -2, 2)
+	_tw_last_pos = pos
+	var q := roundi(_tw_angle / (PI * 0.5))
 	if q != _tw_quarter:
 		_tw_quarter = q
-		_show_preview(q)
+		_show_preview(_norm_turns(q))
+
+
+## Vierteldrehungen auf -1, 0, 1, 2 zurückführen (3 Viertel = 1 zurück, 4 = gar nichts).
+static func _norm_turns(q: int) -> int:
+	var m := ((q % 4) + 4) % 4
+	return -1 if m == 3 else m
 
 
 func _show_preview(q: int) -> void:
@@ -656,14 +673,15 @@ func _finish_twist() -> void:
 	tw.tween_method(setter, start, target, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await tw.finished
 	piv.basis = Basis(ax, target)
-	_unparent_pivot(piv, _tw_axis, _tw_quarter)
+	var turns := _norm_turns(_tw_quarter)
+	_unparent_pivot(piv, _tw_axis, turns)
 	for fid in views:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
 		(views[fid] as FieldView).set_highlight(false)
 		(views[fid] as FieldView).set_danger(false)
 	preview_changed.emit({})
-	if _tw_quarter != 0:
-		Game.play_turn(_tw_axis, _tw_layer, _tw_quarter, _tw_row)
+	if turns != 0:
+		Game.play_turn(_tw_axis, _tw_layer, turns, _tw_row)
 	else:
 		animating = false
 		refresh_all()

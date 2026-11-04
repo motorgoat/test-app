@@ -1086,10 +1086,31 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 	_pop_banner()
 
 
-func _on_miss(fid: int, count: int) -> void:
-	_pop(miss_pill)
-	if fid >= 0:
-		_bubble(fid, "Fehlversuch %d/%d" % [count, Balance.FIRE_AFTER], "fire", Color("#e8772e"))
+## Fehlversuch: groß einblenden, dann fliegt eine Flamme oben in ihren Platz.
+func _on_miss(_fid: int, count: int) -> void:
+	combo_label.text = "Fehlversuch %d/%d" % [count, Balance.FIRE_AFTER] if count < Balance.FIRE_AFTER else "Fehlversuch – es brennt!"
+	combo_label.add_theme_color_override("font_color", Color("#e8772e"))
+	_pop_banner()
+	var slot: Control = miss_flames[clampi(count - 1, 0, miss_flames.size() - 1)]
+	var fl := TextureRect.new()
+	fl.texture = Style.icon("fire")
+	fl.size = Vector2(72, 72)
+	fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gift_layer.add_child(fl)
+	var vs := root.get_viewport_rect().size
+	fl.position = Vector2(vs.x * 0.5 - 36, combo_label.position.y + 60)
+	fl.pivot_offset = Vector2(36, 36)
+	fl.scale = Vector2.ZERO
+	var tw := fl.create_tween()
+	tw.tween_property(fl, "scale", Vector2.ONE * 1.2, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.45)
+	var to := slot.get_global_rect().get_center() - Vector2(36, 36)
+	tw.tween_property(fl, "position", to, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(fl, "scale", Vector2.ONE * 0.4, 0.5)
+	tw.tween_callback(func() -> void: _pop(miss_pill))
+	tw.tween_callback(fl.queue_free)
 
 
 func _on_face(fid: int, points: int, stage: int) -> void:

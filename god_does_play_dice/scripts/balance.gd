@@ -62,6 +62,8 @@ static var TWIST_FINGER_UNITS := 2.5      # Fingerweg (in Würfelfeldern) für e
 static var TWIST_FOLLOW := 6.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var TWIST_DETENT := 2.4            # wie stark die Scheibe zur nächsten Rastung zieht (1 = gar nicht)
 static var DRAG_START_PX := 12.0
+static var TWIST_EDGE_PX := 70.0           # Finger so nah am Rand gehalten: die Scheibe dreht von selbst weiter …
+static var TWIST_EDGE_SECONDS := 0.6        # … eine Vierteldrehung in so vielen Sekunden
 static var TILT_MAX := 0.3                # Handy schwenken: so weit (Bogenmaß, ~17°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
 # Credits: eine Währung für alle Hilfen. Es gibt sie für eine kurze Werbung (später auch im Shop).
