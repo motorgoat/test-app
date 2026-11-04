@@ -44,6 +44,24 @@ func _shots(dir: String) -> void:
 	await _wait(4.5)
 	await _shot(dir, "00b_tutorial_nach_auto")
 	print("TUTORIAL-CHECK step=%d score=%d" % [Game.tutorial_step, Game.state.score])
+	# Schritt 2: der eigene Zug (hier vom Skript gespielt). Danach erblüht die Erde, man spielt gleich weiter.
+	for i in 30:
+		if not Game.tutorial() or world.auto_twist(0, 1, 1):
+			break
+		await _wait(0.2)
+	await _wait(2.6)
+	if Game.tutorial():
+		push_warning("Screenshots: Tutorial-Zug lief nicht, beende das Tutorial direkt")
+		Game.finish_tutorial()
+	await _wait(1.6)
+	await _shot(dir, "00c_nach_tutorial")
+	print("BLOOM-CHECK tutorial=%s erde=%d natur=%.0f%% punkte=%d" % [str(Game.tutorial()), Game.state.count(0), Game.state.nature_share() * 100.0, Game.state.score])
+	# Langes Drücken auf Regen: die Erklärkarte
+	ui.debug_show_tooltip("rain")
+	await _wait(0.6)
+	await _shot(dir, "00d_erklaerung")
+	ui.debug_close_all()
+	ui.debug_reveal_all()          # ab hier wie ein Spieler, der schon alles kennt
 	Game.new_game(4242)
 	ui.debug_close_all()
 	await _wait(1.5)

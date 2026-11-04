@@ -78,9 +78,9 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - **Regen und Blitz kaufbar** (Shop, später).
 - Umgesetzt: „quer“ = Diagonalen zählen ab dem kleinen Wald.
 - Umgesetzt: **Einfacher Modus** (alle gleichen Felder, die sich berühren, ab drei).
-- **Schwerer Modus**: ohne Gadgets (kein Regen, Blitz, Monsun, Tipp).
 - Gestrichen: Gleichgewicht Natur/Zivilisation (Erdbeben, Überschwemmung, Waldbrand).
-- Umgesetzt: Stufen Einfach / Mittel / Schwer / Profi (ohne Gadgets).
+- Umgesetzt: Stufen Einfach / Mittel / Schwer (alle mit Gadgets und 3 Herzen) und die Challenge 40 Drehungen (Mittel).
+  Gestrichen: Profi (ohne Gadgets) und der eigene Modus „Überleben“ (Herzen gibt es jetzt überall).
 - **Neue Themes** (Shop/Einstellungen), statt Natur und Siedlungen:
   - nur mit **Zahlen** (Stufe als Zahl auf dem Feld),
   - **Schwarz-Weiß**,

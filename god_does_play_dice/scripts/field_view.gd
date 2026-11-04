@@ -32,6 +32,11 @@ var _time := 0.0
 var _labels_on := true
 var _badge: Sprite3D             # Abzeichen über dem Feld (z. B. Tropfen: hier lohnt sich Gießen)
 var _badge_name := ""
+var _target: MeshInstance3D      # Ziel eines Bonus: Ring um das Feld (Regen blau, Blitz gelb)
+var _target_top: MeshInstance3D
+var _target_mat: StandardMaterial3D
+var _target_top_mat: StandardMaterial3D
+var _target_on := false
 
 
 func build(f: FieldData) -> void:
@@ -131,6 +136,34 @@ func set_preview(text: String, color: Color) -> void:
 func set_hint(on: bool) -> void:
 	_hint_on = on
 	_hint.visible = on
+
+
+## Ziel eines Bonus: weicher, pulsierender Ring in der Bonusfarbe (hier kann man gießen / blitzen).
+func set_target(on: bool, color: Color = Color("#3B8EEA")) -> void:
+	if on and _target == null:
+		_target_mat = Models.unshaded(Color(color, 0.8)).duplicate() as StandardMaterial3D
+		_target = Models.rbox(self, Vector3(TILE + 0.1, 0.026, TILE + 0.1), 0.05, Color.WHITE, Vector3(0, 0.012, 0), Vector3.ZERO, _target_mat)
+		_target_top_mat = Models.unshaded(Color(color, 0.3)).duplicate() as StandardMaterial3D
+		_target_top = Models.rbox(self, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.005, 0), Vector3.ZERO, _target_top_mat)
+	_target_on = on
+	if _target == null:
+		return
+	if on:
+		_target_mat.albedo_color = Color(color, 0.8)
+		_target_top_mat.albedo_color = Color(color, 0.3)
+	_target.visible = on
+	_target_top.visible = on
+
+
+## Kurz wackeln (z. B. hier geht der gewählte Bonus nicht).
+func nudge() -> void:
+	var tw := create_tween()
+	var base := Vector3(0, TOP, 0)
+	var side := Vector3(0.05, 0.0, 0.0)
+	tw.tween_property(_content, "position", base + side, 0.05)
+	tw.tween_property(_content, "position", base - side, 0.08)
+	tw.tween_property(_content, "position", base + side * 0.5, 0.07)
+	tw.tween_property(_content, "position", base, 0.06)
 
 
 ## Goldenes Leuchten: dieses Feld würde gleich verschmelzen.
@@ -274,6 +307,10 @@ func _process(delta: float) -> void:
 		_badge.scale = Vector3.ONE * (0.9 + 0.15 * k)
 	if _hint_on:
 		_hint_mat.albedo_color.a = 0.1 + 0.5 * (0.5 + 0.5 * sin(_time * 3.5))
+	if _target_on and _target_mat != null:
+		var pk := 0.5 + 0.5 * sin(_time * 3.0)
+		_target_mat.albedo_color.a = 0.45 + 0.45 * pk
+		_target_top_mat.albedo_color.a = 0.12 + 0.22 * pk
 	for i in _bobbers.size():
 		var b: Node3D = _bobbers[i]
 		if is_instance_valid(b):

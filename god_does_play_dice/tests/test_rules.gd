@@ -19,6 +19,9 @@ func _init() -> void:
 	restore()
 	test_fire()
 	test_hint()
+	test_hint_ignores_seen()
+	test_start_no_ready_lines()
+	test_tutorial_flow()
 	test_easy()
 	test_preview_matches()
 	test_modes()
@@ -397,7 +400,7 @@ func test_fire() -> void:
 	var e := _disaster_of(rf)
 	check(str(e.get("kind", "")) == "fire" and (e["hit"] as Array).size() == 3, "%d. Fehlversuch: die gewischte Reihe brennt" % Balance.FIRE_AFTER)
 	check(top(gs, -1, 0).burning and gs.misses == 0, "Felder brennen, Zähler beginnt von vorn")
-	check(gs.lives == 0 and not gs.died(), "Endlos: Brand kostet kein Herz, die Welt stirbt nicht")
+	check(gs.lives == Balance.LIVES - 1 and not gs.died(), "Brand kostet ein Herz (noch %d)" % gs.lives)
 	gs.rain = 1
 	var saved_f := top(gs, -1, 1)
 	var saved_st := saved_f.stage
@@ -468,6 +471,82 @@ func test_hint() -> void:
 				sim.apply_rotation(axis, layer, turns)
 				direct += sim.merge_value()
 	check(not b2.is_empty() and (int(b2["steps"]) == 1) == (direct > 0), "Tipp schaut zwei Züge voraus, wenn sofort nichts geht (%s)" % str(b2))
+
+
+## Eine Reihe, die schon da war, bringt nichts: Der Tipp schlägt sie nicht vor.
+func test_hint_ignores_seen() -> void:
+	var gs := empty_state()
+	top(gs, -1, 1).stage = 2
+	top(gs, 0, 1).stage = 2
+	top(gs, 1, 1).stage = 2
+	gs.end_round()       # merkt die Reihe als „schon da gewesen“
+	check(gs.best_move().is_empty(), "Tipp ignoriert Reihen, die es schon gab (%s)" % str(gs.best_move()))
+	var sim := gs.clone()
+	sim.moved = {}
+	sim.apply_rotation(1, 1, 1)
+	check(sim.merge_value() == 0, "Verschieben einer alten Reihe zählt nicht")
+
+
+## Am Start nie eine fertige Reihe, auch keine schräge aus Wiesen (Einfach zählt Wiesen schräg).
+func test_start_no_ready_lines() -> void:
+	var bad := 0
+	for sd in range(1, 61):
+		for lv in [0, 1, 2]:
+			var g := GameState.new()
+			g.setup(sd, true, lv)
+			if not g.lines().is_empty():
+				bad += 1
+	check(bad == 0, "Start: keine fertige Reihe in 180 Würfen (%d mit Reihe)" % bad)
+	var e := GameState.new()
+	e.setup(7, true, 0)
+	check(e.nature_share() >= Balance.START_NATURE - 0.08, "Start Einfach: trotzdem genug Natur (%.0f%%)" % (e.nature_share() * 100.0))
+
+
+## Tutorial: zwei Züge auf dem vorbereiteten Würfel, dann erblüht die Erde und man spielt weiter.
+func test_tutorial_flow() -> void:
+	var gs := GameState.new()
+	gs.setup(4242, true, 0)
+	gs.setup_tutorial_board()
+	gs.no_fire = true
+	check(gs.lines().is_empty(), "Tutorial-Würfel: keine fertige Reihe")
+	gs.apply_rotation(0, 1, 1)
+	var r1 := gs.end_round()
+	check(int(r1["gain"]) > 0, "Tutorial: der vorgeführte Zug lässt etwas wachsen")
+	var bm := gs.best_move()
+	check(not bm.is_empty() and int(bm["steps"]) == 1 and int(bm["points"]) > 0, "Tutorial: der Tipp findet danach eine Drehung, die sofort wächst (%s)" % str(bm))
+	var miss := gs.clone()
+	for i in Balance.FIRE_AFTER:
+		miss.apply_rotation(1, -1, 1)
+		miss.end_round()
+	check(miss.misses == 0 and miss.disasters == 0, "Tutorial: Fehlversuche zählen nicht, nichts brennt")
+	gs.apply_rotation(0, 1, 1)
+	var r2 := gs.end_round()
+	check(int(r2["gain"]) > 0, "Tutorial: dieselbe Drehung noch einmal wächst wieder")
+	var score_before := gs.score
+	var grown := 0
+	for f in gs.fields:
+		if (f as FieldData).stage >= 2:
+			grown += 1
+	var erde_before := gs.count(0)
+	gs.no_fire = false
+	var bloomed := gs.fill_after_tutorial()
+	check(not bloomed.is_empty(), "nach dem Tutorial: die Erde erblüht (%d neue Wiesen)" % bloomed.size())
+	check(gs.count(0) < erde_before and gs.count(0) <= int(gs.fields.size() * 0.66), "nach dem Tutorial: nicht mehr fast alles Erde (%d → %d)" % [erde_before, gs.count(0)])
+	check(gs.score == score_before, "nach dem Tutorial: die Punkte bleiben")
+	var kept := 0
+	for f in gs.fields:
+		if (f as FieldData).stage >= 2:
+			kept += 1
+	check(kept == grown, "nach dem Tutorial: was gewachsen ist, bleibt")
+	check(gs.misses == 0, "nach dem Tutorial: keine Flamme")
+	var fresh := true
+	for ln in gs.lines():
+		if not gs.seen.has(GameState.line_key(ln)):
+			fresh = false
+	check(fresh, "nach dem Tutorial: keine fertige neue Reihe")
+	check(gs.nature_share() >= 0.3, "nach dem Tutorial: genug Natur (%.0f%%)" % (gs.nature_share() * 100.0))
+	var bm2 := gs.best_move()
+	check(not bm2.is_empty() and int(bm2["steps"]) == 1, "nach dem Tutorial: eine Drehung wächst sofort (%s)" % str(bm2))
 
 
 func test_preview_matches() -> void:
@@ -582,29 +661,32 @@ func test_modes() -> void:
 	top(ga, 0, 0).stage = 4
 	var ra := ga.end_round()
 	check(bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit")
-	# Stufen
-	var pro := GameState.new()
-	pro.setup(5, true, 3)
-	check(not pro.gadgets and pro.rain == 0 and not pro.diagonals, "Profi: ohne Gadgets, nur gerade Reihen")
+	# Stufen: Einfach, Mittel, Schwer – alle mit Regen, Blitz, Monsun und 3 Herzen
+	for lv in [0, 1, 2]:
+		var g := GameState.new()
+		g.setup(5, true, lv)
+		check(g.gadgets and g.rain == Balance.RAIN_START and g.lives == Balance.LIVES and g.hearts, "Stufe %d: mit Gadgets und %d Herzen" % [lv, Balance.LIVES])
+	var four := GameState.new()
+	four.setup(5, true, 3)
+	check(four.gadgets and not four.diagonals, "es gibt keine 4. Stufe mehr (wird Schwer)")
 	var hard := GameState.new()
 	hard.setup(5, true, 2)
 	check(hard.gadgets and not hard.diagonals and not hard.easy, "Schwer: nur gerade Reihen")
 	var ch := GameState.new()
 	ch.setup(5, false)
 	check(not ch.finished(), "40 Drehungen: läuft noch")
+	check(ch.hearts and ch.lives == Balance.LIVES and ch.diagonals and not ch.easy, "40 Drehungen: mit Herzen")
 	for i in Balance.MAX_TWISTS:
 		ch.apply_rotation(1, -1, 1)
 		ch.end_round()
 	check(ch.finished() and ch.twists == Balance.MAX_TWISTS, "nach 40 Drehungen ist Schluss")
-	# Überleben: 3 Herzen, jeder Brand kostet eines, nach dem 3. ist die Welt tot
-	var sv := GameState.new()
-	sv.setup(5, true, 1, true)
-	check(sv.survival and sv.lives == Balance.LIVES, "Überleben startet mit %d Herzen" % Balance.LIVES)
-	for i in Balance.LIVES:
-		check(not sv.is_over(), "Überleben: lebt noch vor Brand %d" % (i + 1))
-		sv.last_row = [0, 1, 2]
-		sv.disaster("fire", [])
-	check(sv.died() and sv.is_over(), "Überleben: nach dem %d. Brand ist die Welt tot" % Balance.LIVES)
-	var en := new_state(5)
-	en.lives = 0
-	check(not en.is_over(), "Endlos: die Welt kann nicht sterben")
+	# Alle Modi: 3 Herzen, jeder Brand kostet eines, nach dem 3. ist die Welt tot
+	for endless_mode in [true, false]:
+		var sv := GameState.new()
+		sv.setup(5, endless_mode, 1)
+		check(sv.hearts and sv.lives == Balance.LIVES, "startet mit %d Herzen (%s)" % [Balance.LIVES, "offen" if endless_mode else "40 Drehungen"])
+		for i in Balance.LIVES:
+			check(not sv.is_over(), "lebt noch vor Brand %d" % (i + 1))
+			sv.last_row = [0, 1, 2]
+			sv.disaster("fire", [])
+		check(sv.died() and sv.is_over(), "nach dem %d. Brand ist die Welt tot" % Balance.LIVES)

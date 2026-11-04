@@ -11,7 +11,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 ## Spielregeln (einfaches Punkte-Spiel)
 
-1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
+1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen und keine fertige Reihe (auch nicht schräg).
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
 3. **Verschmelzen:** Bildest du durch einen Zug eine **neue** Reihe aus drei gleichen Feldern (oder Spalte; diagonal in Einfach schon ab der Wiese, in Mittel ab dem kleinen Wald), entwickeln sie sich. Reihen, die schon dastanden, zählen nicht:
    Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
@@ -24,28 +24,33 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    **Blitz**: gibt es für drei gleiche Felder an einer Würfelecke. Auf ein Eckfeld getippt, hebt er die Diagonale dieser Seite (3 Felder). Blitz und Monsun zählen als Zug, Regen nicht: Man kann mehrmals hintereinander gießen; beim Drehen ist der Regen wieder abgewählt.
    Wiese wächst nur durch Regen.
    **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
-   Kein Bonus da? Antippen und mit Credits kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
+   Ist Regen gewählt, leuchten alle Felder, die man gießen kann (blauer Ring); beim Blitz die Eckfelder.
+   Kein Bonus da? Antippen: Es steht da, wann der nächste kommt, und man kann ihn mit Münzen kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
 6. **Nach unten geht es nur durch Brände.** (Ein Gleichgewicht Natur/Zivilisation gibt es nicht mehr.)
-8. **Endlos kann die Welt nicht sterben**; ist nichts mehr zu verbinden, gibt es einen Regen geschenkt.
-   **Überleben**: 3 Herzen, jeder Brand kostet eines, nach dem 3. ist die Welt tot (einmal für Credits weiterspielen).
+8. **Herzen in allen Modi:** Jede Welt hat 3 Herzen, jeder Brand kostet eines, nach dem 3. ist die Welt tot
+   (einmal für Münzen weiterspielen). Ist nichts mehr zu verbinden, gibt es einen Regen geschenkt.
 9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf),
    Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole).
-10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
-   **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
-   Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
-11. **Stufen** (Menü): **Einfach** – eine neue Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen (jede Reihe zählt nur einmal); **Mittel** – Reihen und
-   Diagonalen; **Schwer** – nur gerade Reihen; **Profi** – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp.
-   Dazu die Modi 40 Drehungen (gezählt werden nur Drehungen) und Überleben (3 Herzen). Rekord = Punkte je Stufe.
+10. **Münzen** (oben rechts, erscheinen, sobald man sie braucht): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Zurück** (1),
+   **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Münzen gibt es für ein kurzes Video (im Prototyp ein
+   Platzhalter), später auch im Shop.
+11. **Spielarten** (Menü, je mit Rekord): **Einfach** – eine neue Reihe löst aus, dann steigen alle gleichen Felder auf, die damit
+   zusammenhängen (jede Reihe zählt nur einmal; Wiesen zählen schon schräg); **Mittel** – Reihen und Diagonalen (ab dem kleinen Wald);
+   **Schwer** – nur gerade Reihen. Alle drei laufen offen, bis die Welt verbrennt. Dazu die Challenge **40 Drehungen · Mittel**
+   (gezählt werden nur Drehungen). Regen, Blitz und Monsun gibt es überall. Rekord = Punkte je Spielart.
 
-Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
+Oben stehen die Punkte, das Zeitalter, die Flammen (Fehlversuche) und die Herzen. **Halten** auf einem Symbol erklärt es.
+Menü: Weiterspielen, die vier Spielarten mit Rekord, Schalter **Musik** und **Effekte** (Effekte aus = auch keine Vibration;
+gespeichert in `user://einstellungen.cfg`, Busse „Music“ und „SFX“), **Profil** (kommt bald), **Hilfe**, **Tutorial**.
+Tippen neben eine Karte schließt sie (nicht beim Spielende).
 
-**Tutorial** (wie in Handyspielen üblich): Im ersten Spiel dreht sich der Würfel zur leuchtenden Reihe, dann spielt sich der
-erste Zug von selbst und drei Wiesen verschmelzen. Danach „Jetzt du!“. Alles Weitere erklärt sich im richtigen Moment mit
-einer kleinen Sprechblase am Knopf (erster Fehlversuch, erster Regen, Blitz, Monsun, Feuer), jede nur einmal.
+**Tutorial** (wie in Handyspielen üblich): Das allererste Spiel ist „Einfach“. Der Würfel dreht sich zur leuchtenden Reihe,
+dann spielt sich der erste Zug von selbst und drei Wiesen wachsen. Danach „Jetzt du!“: Die Hand zeigt den Wisch, man dreht
+selbst (Fehlversuche zählen im Tutorial nicht). Danach erblüht die leere Erde zu einem normalen Start, das Dock gleitet herein
+und man spielt einfach weiter – kein Dialog. Neues erscheint erst, wenn man es braucht (Flammen beim ersten Fehlversuch,
+Zurück nach dem ersten Feuer, Blitz beim ersten Blitz, Tipp und Münzen, wenn man feststeckt), jeweils mit einer kleinen
+Sprechblase, die nie im Weg ist. In den ersten Minuten leuchtet nach einer Pause gratis die passende Reihe. Im Menü: „Tutorial nochmal“.
 Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
-**Tutorial:** Das allererste Spiel ist „Einfach“ (dort zählen auch Wiesen diagonal). Der erste Zug wird vorgezeigt
-(Finger wischt, Scheibe dreht an). Eine Karte führt Schritt für Schritt durch Drehen, Verschmelzen, Fehlversuche, Regen,
-Blitz und Credits. Es geht erst weiter, wenn man die erklärte Aktion ausführt oder „Weiter“ tippt. Im Menü: „Tutorial nochmal“.
 
 ## Bedienung
 
@@ -55,12 +60,11 @@ Blitz und Credits. Es geht erst weiter, wenn man die erklärte Aktion ausführt 
 | Wischen daneben, oder 1 s auf dem Würfel halten und ziehen | Ansicht drehen, mit Nachschwung |
 | Zwei Finger / Mausrad | Zoom; zwei Finger verschieben = schwenken, drehen = um die Blickachse drehen |
 | Handy schwenken | Würfel neigt sich leicht mit |
-| Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
 | Feld antippen | Info-Karte mit „Gießen“ / „Löschen“ und „Blitz“ (wenn vorhanden) |
-| „Regen bereit“ über dem Würfel | du kannst gießen: antippen, dann ein Feld wählen |
-| 🔥 1/3 unten | Fehlversuche bis zum nächsten Brand |
-| Dock unten (Mitte): Regen / Blitz / Monsun, daneben die Flammen | Bonus wählen (Regen: Erde antippen, mehrmals; Blitz: Eckfeld antippen). Links „Zurück“, rechts „Tipp“, Hilfe im Menü |
-| Beim Drehen auf „Abbrechen“ ziehen | Drehung abbrechen, zählt nicht als Zug |
+| Symbol halten | Erklärung (auch bei Knöpfen, die gerade nicht gehen) |
+| Dock unten: Zurück · Regen · Blitz · Monsun · Tipp | Bonus wählen, dann ein leuchtendes Feld antippen (Regen mehrmals hintereinander) |
+| Beim Drehen den Finger neben dem Würfel halten (links/rechts, oben/unten) | die Scheibe dreht von selbst weiter |
+| Beim Drehen nach ganz oben auf den roten Streifen ziehen | Drehung abbrechen, zählt nicht als Zug |
 
 ## Aufbau
 

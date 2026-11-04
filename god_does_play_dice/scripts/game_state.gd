@@ -3,7 +3,7 @@ extends RefCounted
 ## Reine Spiellogik, getrennt von der Darstellung. Kopierbar (clone) für die Vorschau.
 ##
 ## Regeln:
-##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen.
+##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen und keine fertige Reihe (auch nicht schräg).
 ##   2. Drei gleiche Felder in einer Reihe (ab dem kleinen Wald auch diagonal) verschmelzen, sobald sich darin etwas verändert hat: Das Feld, das zuletzt dazugekommen ist,
 ##      steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole),
 ##      die beiden anderen bleiben, wie sie sind (OTHERS_DROP). Das gibt Punkte.
@@ -12,20 +12,19 @@ extends RefCounted
 ##   5. Fehlversuch = Drehung, die nichts verschmilzt. Jeder 3. Fehlversuch (der Zähler läuft weiter) setzt
 ##      die zuletzt gedrehte Reihe in Brand: Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist
 ##      das Feuer aus. Regen vorher rettet ein Feld.
-##   7. Boni aus Punkten: Regen macht leere Erde zur Wiese (oder löscht ein Feuer), Blitz hebt eine ganze Reihe.
-##   8. Ein Brand kostet ein Leben der Welt (Herz). Nach unten geht es nur durch Brände.
-##      Stufen: Einfach (alles, was sich berührt), Mittel (Reihen + Diagonalen), Schwer (nur Reihen),
-##      Profi (nur Reihen, ohne Regen, Blitz, Monsun und Tipp).
-##      Das Zeitalter folgt der höchsten erreichten Stufe (Hütte = Steinzeit …); jedes neue gibt ein Leben zurück.
-##  10. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
-##   9. Die Welt kann nicht sterben. Endlos endet nie; der andere Modus endet nach 40 Drehungen.
+##   7. Boni: Regen lässt ein Feld der niedrigsten Stufe wachsen (oder löscht ein Feuer), Blitz hebt eine Diagonale.
+##   8. Jede Welt hat 3 Herzen: Jeder Brand kostet eines, nach dem 3. ist die Welt tot. Nach unten geht es nur durch Brände.
+##      Stufen: Einfach (alles, was sich berührt), Mittel (Reihen + Diagonalen), Schwer (nur Reihen).
+##      Das Zeitalter folgt der höchsten erreichten Stufe (Hütte = Steinzeit …).
+##   9. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
+##  10. Die drei Stufen laufen offen, bis die Welt verbrennt; die Challenge endet nach 40 Drehungen (Mittel).
 ##      Ist nichts mehr zu verbinden, gibt es einen Regen geschenkt.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_ICON = ["empty", "meadow", "smallforest", "nature", "hut", "house", "village", "town", "bigcity", "metropolis"]
-const DISASTER_NAME = {"fire": "Brand"}
-const DISASTER_WHY = {"fire": "3 Fehlversuche"}
+const DISASTER_NAME = {"fire": "Feuer"}
+const DISASTER_WHY = {"fire": "3 Flammen"}
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
@@ -46,15 +45,16 @@ var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Versch
 var seen := {}                # jede Reihe (Felder + Stufe), die es je gab: zählt nur beim ersten Mal (kein Hin- und Herschieben)
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
-var lives: int = 3            # Überleben: so viele Brände hält die Welt noch aus
-var survival := false         # Überleben-Modus: 3 Brände, und die Welt ist tot
+var lives: int = 3            # Herzen: so viele Brände hält die Welt noch aus
+var hearts := true            # mit Herzen (alle Modi): nach dem 3. Brand ist die Welt tot
+var no_fire := false          # Tutorial: Fehlversuche zählen nicht, nichts brennt
 var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var endless := true           # Endlos-Modus oder 40 Runden
 var easy := false             # Einfach: Eine Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen
 var diagonals := true         # Mittel: auch Diagonalen (ab dem kleinen Wald)
-var gadgets := true           # ohne Gadgets (Profi): kein Regen, Blitz, Monsun
+var gadgets := true           # Regen, Blitz, Monsun (in allen Stufen an)
 var diag_from := 2            # ab dieser Stufe zählen Diagonalen (Einfach: schon Wiesen)
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
@@ -64,13 +64,15 @@ var _index: Dictionary = {}
 # Aufbau
 # =============================================================================
 
-## level: 0 Einfach, 1 Mittel, 2 Schwer, 3 Profi. survival_mode: 3 Herzen, jeder Brand kostet eines.
-func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, survival_mode: bool = false) -> void:
+## level: 0 Einfach, 1 Mittel, 2 Schwer. with_hearts: 3 Herzen, jeder Brand kostet eines (Standard in allen Modi).
+func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, with_hearts: bool = true) -> void:
+	level = clampi(level, 0, 2)
 	endless = endless_mode
-	survival = survival_mode
+	hearts = with_hearts
+	no_fire = false
 	easy = level == 0
 	diagonals = level <= 1
-	gadgets = level < 3
+	gadgets = true
 	diag_from = 1 if easy else Balance.DIAGONAL_FROM
 	if seed_value != 0:
 		rng.seed = seed_value
@@ -91,7 +93,7 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, survi
 	_rotated = false
 	meteors_used = 0
 	best_stage = 1
-	lives = Balance.LIVES if survival else 0
+	lives = Balance.LIVES if hearts else 0
 	disasters = 0
 	last_disaster = ""
 	moved = {}
@@ -138,6 +140,23 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, survi
 			break
 		if f.stage == 0 and _meadow_allowed(f):
 			f.stage = 1
+			if not lines({f.id: true}).is_empty():
+				f.stage = 0          # keine fertige Reihe am Start (auch nicht schräg)
+	_break_ready_lines()
+
+
+## Steht irgendwo schon eine fertige Reihe (z. B. eine schräge aus 3 Wiesen)? Dann ein Feld davon zu Erde.
+## Reihen, die schon gezählt wurden (seen), bleiben stehen.
+func _break_ready_lines() -> void:
+	for guard in 60:
+		var hit: Array = []
+		for ln in lines():
+			if not seen.has(line_key(ln)):
+				hit = ln
+				break
+		if hit.is_empty():
+			return
+		(hit[1] as FieldData).stage = 0
 
 
 ## Darf hier am Start eine Wiese hin, ohne dass drei Wiesen beisammen liegen?
@@ -178,7 +197,8 @@ func clone() -> GameState:
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
-	gs.survival = survival
+	gs.hearts = hearts
+	gs.no_fire = no_fire
 	gs.disasters = disasters
 	gs.last_disaster = last_disaster
 	gs.moved = moved.duplicate()
@@ -282,8 +302,65 @@ func setup_tutorial_board() -> void:
 	field_at(Vector3i(1, 0, -1), Vector3i(1, 0, 0)).stage = 1
 	field_at(Vector3i(-1, -1, -1), Vector3i(-1, 0, 0)).stage = 1
 	field_at(Vector3i(0, -1, -1), Vector3i(0, -1, 0)).stage = 1
+	# Zweites Paar: Dieselbe Drehung noch einmal (x = 1, eine Vierteldrehung) macht oben eine neue Wiesen-Reihe
+	field_at(Vector3i(-1, 1, -1), Vector3i(0, 1, 0)).stage = 1
+	field_at(Vector3i(0, 1, -1), Vector3i(0, 1, 0)).stage = 1
+	field_at(Vector3i(1, -1, 1), Vector3i(0, -1, 0)).stage = 1    # kommt bei der 2. Drehung nach oben (1, 1, -1)
 	moved = {}
 	seen = {}
+
+
+## Nach dem Tutorial: Die leere Erde erblüht zu einem normalen Start (wie in setup()).
+## Behält alles, was schon gewachsen ist (und die Punkte). Keine fertige Dreierreihe, aber möglichst
+## eine Drehung, die sofort wächst. Gibt die IDs der neuen Wiesen zurück (für die Animation).
+func fill_after_tutorial() -> Array:
+	var picked: Array = []
+	for attempt in 12:
+		picked = _bloom_once()
+		moved = {}
+		if has_quick_move():
+			break
+		if attempt < 11:
+			for i in picked:
+				(fields[int(i)] as FieldData).stage = 0
+	# Eine neue fertige Reihe gibt es nicht (was schon gewachsen ist, bleibt)
+	_break_ready_lines()
+	var out: Array = []
+	for i in picked:
+		if (fields[int(i)] as FieldData).stage > 0:
+			out.append(i)
+	misses = 0
+	last_row = []
+	moved = {}
+	tapped = -1
+	_rotated = false
+	_record_lines()
+	return out
+
+
+func _bloom_once() -> Array:
+	var out: Array = []
+	var order: Array = []
+	for g in fields:
+		if (g as FieldData).stage == 0:
+			order.append(g)
+	for i in range(order.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = order[i]
+		order[i] = order[j]
+		order[j] = tmp
+	for g in order:
+		var f: FieldData = g
+		if nature_share() >= Balance.START_NATURE:
+			break
+		if not _meadow_allowed(f):
+			continue
+		f.stage = 1
+		if not lines({f.id: true}).is_empty():
+			f.stage = 0
+			continue
+		out.append(f.id)
+	return out
 
 
 ## Die drei Felder der Scheibe auf der ersten Seite, die sie schneidet.
@@ -358,7 +435,7 @@ func age_name() -> String:
 	return str(Balance.AGES[age() - 1])
 
 
-## Endlos endet nie, 40 Drehungen nach der 40., Überleben nach dem 3. Brand.
+## Vorbei nach dem 3. Brand (alle Modi) oder nach der 40. Drehung (Challenge).
 func is_over() -> bool:
 	return finished() or died()
 
@@ -374,7 +451,7 @@ func stuck() -> bool:
 
 
 func died() -> bool:
-	return survival and lives <= 0
+	return hearts and lives <= 0
 
 
 func finished() -> bool:
@@ -487,9 +564,12 @@ static func target_index(line: Array, focus: Dictionary, prefer: int = -1) -> in
 
 
 ## Punkte, die die Reihen bringen, die sich gerade verändert haben (ohne Kettenreaktion).
+## Reihen, die es so schon gab, zählen nicht (sie wachsen auch nicht).
 func merge_value() -> int:
 	var pts := 0
 	for line in lines(moved):
+		if seen.has(line_key(line)):
+			continue
 		pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).stage])
 	return pts
 
@@ -679,7 +759,7 @@ func end_round() -> Dictionary:
 	# 6. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
 	if _rotated:
 		twists += 1
-	if _rotated and gain == 0:
+	if _rotated and gain == 0 and not no_fire:
 		misses += 1
 		var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
 		ev.append({"type": "miss", "count": misses, "field": mid_id})
@@ -790,7 +870,7 @@ func disaster(kind: String, ev: Array) -> void:
 			if f.stage > 0:
 				f.burning = true
 				hit.append(f.id)
-	if survival:
+	if hearts and Balance.FIRE_COSTS_LIFE:
 		lives -= 1
 	disasters += 1
 	last_disaster = kind
@@ -869,6 +949,37 @@ func best_move() -> Dictionary:
 	return best
 
 
+## Alle Felder, auf die Regen gerade geht: id -> "fire" (brennt: löschen), "useful" (Wachsen macht eine Reihe
+## fertig) oder "grow" (kann wachsen). Damit leuchten die Ziele, ohne dass man „Stufe“ verstehen muss.
+func rain_targets() -> Dictionary:
+	var out := {}
+	if rain <= 0:
+		return out
+	var useful := rain_spots()
+	var low := lowest_stage()
+	for f in fields:
+		if f.burning:
+			out[f.id] = "fire"
+		elif useful.has(f.id):
+			out[f.id] = "useful"
+		elif f.stage == low and f.stage < Balance.MAX_STAGE:
+			out[f.id] = "grow"
+	return out
+
+
+## Gibt es eine Drehung, die sofort etwas wachsen lässt? (Schneller als best_move, nur ein Zug.)
+func has_quick_move() -> bool:
+	for axis in 3:
+		for layer in [-1, 0, 1]:
+			for turns in [1, -1, 2]:
+				var sim := clone()
+				sim.moved = {}
+				sim.apply_rotation(axis, layer, turns)
+				if sim.merge_value() > 0:
+					return true
+	return false
+
+
 ## Wo lohnt sich Regen gerade? Brennende Felder (löschen) und Felder, deren Aufstieg eine Reihe vervollständigt.
 func rain_spots() -> Dictionary:
 	var out := {}
@@ -893,17 +1004,17 @@ func rain_spots() -> Dictionary:
 func can_bonus(kind: String, f: FieldData) -> String:
 	if kind == "rain":
 		if rain <= 0:
-			return "Der nächste Regen kommt bei %d Punkten" % next_rain
+			return "Nächster Regen bei %d Punkten." % next_rain
 		if not f.burning and (f.stage != lowest_stage() or f.stage >= Balance.MAX_STAGE):
-			return "Regen hebt nur Felder der niedrigsten Stufe (gerade: %s)" % stage_name(lowest_stage())
+			return "Hier geht kein Regen. Tippe auf ein leuchtendes Feld."
 	elif kind == "bolt":
 		if bolts <= 0:
-			return "Einen Blitz bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen"
+			return "Einen Blitz gibt es, wenn sich an einer Ecke 3 gleiche treffen."
 		if corner_diagonal(f).is_empty():
-			return "Tippe ein Eckfeld an: Der Blitz hebt die Diagonale"
+			return "Tippe auf ein leuchtendes Eckfeld."
 	elif kind == "monsoon":
 		if monsoons <= 0:
-			return "Kein Monsun da"
+			return "Gerade ist kein Monsun da."
 	return ""
 
 

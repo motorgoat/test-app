@@ -10,8 +10,8 @@ signal merged(fid: int, points: int, combo: int, stage: int)
 signal disaster_shown(kind: String, fid: int)
 signal face_completed(fid: int, points: int, stage: int)
 signal miss_shown(fid: int, count: int)
-signal twist_state(on: bool)               # eine Drehung läuft (unten erscheint „Abbrechen“)
-signal cancel_hover(on: bool)              # Finger ist über „Abbrechen“
+signal twist_state(on: bool)               # eine Drehung läuft (oben erscheint der Abbrechen-Streifen)
+signal cancel_hover(on: bool)              # Finger ist über dem Abbrechen-Streifen
 signal bolt_drawn(fid: int, row: Array)    # Blitz über eine Reihe gezogen
 signal tutorial_tap                        # im vorgeführten ersten Zug auf den Würfel getippt
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
@@ -42,8 +42,12 @@ var _tw_display := 0.0
 var _tw_quarter := 0
 var _tw_row: Array = []         # die drei Felder, über die gewischt wird
 var _tw_last_pos := Vector2.ZERO
-var cancel_zone: Control = null # „Abbrechen“-Knopf der Oberfläche: Finger dort loslassen = Drehung abbrechen
+var cancel_zone: Control = null # Abbrechen-Streifen oben (ganze Breite): Finger dort loslassen = Drehung abbrechen
 var _over_cancel := false
+var _tw_live := false           # die Drehung kommt vom Finger (nicht vorgeführt / Screenshot)
+var _tw_auto := false           # Finger neben dem Würfel gehalten: die Scheibe dreht von selbst weiter
+var _tw_out_t := 0.0            # so lange liegt der Finger schon neben dem Würfel / am Rand
+var _demo_tw: Tween = null      # Tutorial: die Hand-Vorführung (beim Antippen sofort abbrechen)
 var bolt_mode := false          # Blitz gewählt: Wischen zeichnet die Reihe statt zu drehen
 var _bolt_row: Array = []
 var _pivot: Node3D
@@ -66,6 +70,7 @@ func _ready() -> void:
 	Game.new_game_started.connect(rebuild)
 	Game.state_changed.connect(_on_state_changed)
 	Game.round_resolved.connect(_on_round_resolved)
+	Game.tutorial_bloom.connect(bloom)
 	_add_clouds()
 	rebuild()
 
@@ -209,9 +214,75 @@ func _add_clouds() -> void:
 
 ## Regensymbole auf den Feldern, wo Gießen etwas bringt (nur solange man den Regen gewählt hat).
 func show_rain_spots(on: bool) -> void:
-	var spots := Game.state.rain_spots() if on else {}
+	show_targets("rain" if on else "")
+
+
+## Ziele eines Bonus leuchten: "rain" = jedes Feld, das man gießen kann (blauer Ring; wo es eine Reihe
+## fertig macht oder löscht, zusätzlich die Wolke), "bolt" = alle Eckfelder (gelber Ring), "" = aus.
+func show_targets(kind: String) -> void:
+	var gs := Game.state
+	var tg := {}
+	var col := Style.WATER
+	if gs != null and kind == "rain":
+		tg = gs.rain_targets()
+	elif gs != null and kind == "bolt":
+		col = Style.SUN
+		for f in gs.fields:
+			if not gs.corner_diagonal(f).is_empty():
+				tg[f.id] = "corner"
 	for fid in views:
-		(views[fid] as FieldView).set_badge("rain" if spots.has(int(fid)) else "")
+		var v: FieldView = views[fid]
+		var t: String = str(tg.get(int(fid), ""))
+		v.set_target(t != "", col)
+		v.set_badge("rain" if t == "useful" or t == "fire" else "")
+
+
+## Kurz wackeln: Hier geht der gewählte Bonus nicht.
+func nudge(fid: int) -> void:
+	var v: FieldView = views.get(fid)
+	if v != null:
+		v.nudge()
+	_buzz(20)
+
+
+## Nach dem Tutorial: Die neuen Wiesen wachsen nacheinander aus der Erde, die nächsten zuerst.
+## Währenddessen ist die Eingabe gesperrt (animating); danach geht es sofort weiter.
+var _bloom_cam := Vector3.ZERO
+var _bloom_gen := 0
+
+
+func bloom(ids: Array) -> void:
+	_bloom_gen += 1
+	var gen := _bloom_gen
+	animating = true
+	_clear_hint()
+	select(-1)
+	var gs := Game.state
+	var order: Array = ids.duplicate()
+	_bloom_cam = rig.cam.global_position
+	order.sort_custom(_bloom_closer)
+	await get_tree().create_timer(0.25).timeout
+	for i in order:
+		if gen != _bloom_gen or gs != Game.state:
+			return
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.refresh(gs.fields[int(i)])
+			v.burst(Color("#8fd162"))
+		await get_tree().create_timer(0.035).timeout
+	await get_tree().create_timer(0.45).timeout
+	if gen != _bloom_gen or gs != Game.state:
+		return
+	animating = false
+	refresh_all()
+
+
+func _bloom_closer(a, b) -> bool:
+	var va: FieldView = views.get(int(a))
+	var vb: FieldView = views.get(int(b))
+	if va == null or vb == null:
+		return int(a) < int(b)
+	return va.global_position.distance_squared_to(_bloom_cam) < vb.global_position.distance_squared_to(_bloom_cam)
 
 
 func select(fid: int) -> void:
@@ -233,23 +304,30 @@ func _process(delta: float) -> void:
 		_idle += delta
 		if Game.tutorial() and _idle > 1.2 and not _hinted:
 			_show_hint()
+		elif Game.onboarding and not Game.tutorial() and _idle > Balance.ONBOARD_HINT_SECONDS and not _hinted:
+			_show_free_hint()      # die ersten Minuten: nach einer Pause leuchtet die passende Reihe (ohne Text)
 	else:
 		_idle = 0.0
 	# Auf dem Würfel halten (ohne Bewegen): danach dreht Ziehen die Ansicht statt einer Reihe
-	if (_mode == "pending" or _mode == "pending_tap") and Time.get_ticks_msec() - _press_ms > int(Balance.HOLD_TO_ORBIT_SECONDS * 1000.0):
+	if not Game.tutorial() and (_mode == "pending" or _mode == "pending_tap") and Time.get_ticks_msec() - _press_ms > int(Balance.HOLD_TO_ORBIT_SECONDS * 1000.0):
 		_mode = "hold_orbit"
-		Input.vibrate_handheld(30)
+		_buzz(30)
 		var tw := cube_root.create_tween()
 		tw.tween_property(cube_root, "scale", Vector3.ONE * 0.96, 0.08)
 		tw.tween_property(cube_root, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	# Finger am Bildschirmrand gehalten: die Scheibe dreht von selbst weiter (mehrere Viertel in einem Zug)
-	if _mode == "twist" and not _over_cancel:
-		var vs := get_viewport().get_visible_rect().size
-		var along := (_tw_last_pos - _press_pos).dot(_tw_screen_dir)
-		var dir := _tw_screen_dir * signf(along)
-		var ahead := _tw_last_pos + dir * Balance.TWIST_EDGE_PX
-		if absf(along) > Balance.DRAG_START_PX and (ahead.x < 0.0 or ahead.y < 0.0 or ahead.x > vs.x or ahead.y > vs.y):
-			_press_pos -= dir * _tw_px_per_quarter / Balance.TWIST_EDGE_SECONDS * delta
+	# Finger neben dem Würfel (in Drehrichtung: links/rechts wie oben/unten) oder am Bildschirmrand gehalten:
+	# die Scheibe dreht gleichmäßig von selbst weiter, Viertel für Viertel. Zurück auf den Würfel = stopp.
+	if _mode == "twist" and _tw_live and _pivot != null:
+		var raw := 0 if _over_cancel else _auto_side()
+		if raw != 0:
+			_tw_out_t += delta
+		else:
+			_tw_out_t = 0.0
+		# erst nach kurzem Halten draußen (kein ungewolltes Extra-Viertel beim Loslassen)
+		var side := raw if (_tw_auto or _tw_out_t >= Balance.TWIST_AUTO_DWELL_SECONDS) else 0
+		_tw_auto = side != 0
+		if _tw_auto:
+			_press_pos -= _tw_screen_dir * float(side) * _tw_px_per_quarter / Balance.TWIST_AUTO_SECONDS * delta
 			_update_twist(_tw_last_pos)
 	if _mode == "twist" and _pivot != null:
 		_tw_display = lerpf(_tw_display, _detent(_tw_angle), 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
@@ -291,6 +369,23 @@ func focus_place(n: Vector3i) -> void:
 # =============================================================================
 # Eingabe
 # =============================================================================
+
+## Während einer Drehung gehört der Finger dem Würfel: Bewegen und Loslassen kommen hier an, auch über
+## Knöpfen der Leiste und über dem Abbrechen-Streifen oben (die Oberfläche würde sie sonst schlucken).
+func _input(event: InputEvent) -> void:
+	if _mode != "twist" or not _tw_live:
+		return
+	if event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if _touches.size() < 2:
+			_motion(mm.position, mm.relative)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+			_release(mb.position)
+			get_viewport().set_input_as_handled()
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
@@ -376,8 +471,8 @@ func show_hint() -> Dictionary:
 func _show_hint() -> Dictionary:
 	_hinted = true
 	var best := Game.state.best_move()
-	# Tutorial: genau der vorgezeigte (und einzig erlaubte) erste Zug leuchtet
-	if Game.tutorial() and Game.tutorial_step == 0:
+	# Tutorial: genau der vorgezeigte Zug leuchtet (derselbe in beiden Schritten, wie die Hand ihn zeigt)
+	if Game.tutorial() and Game.tutorial_step <= 1:
 		best = {"axis": 0, "layer": 1, "turns": 1, "points": 0, "steps": 1}
 	if best.is_empty():
 		return best
@@ -387,6 +482,19 @@ func _show_hint() -> Dictionary:
 				(child as FieldView).set_hint(true)
 				_hint_views.append(child)
 	return best
+
+
+## Gratis-Tipp in der Eingewöhnung: nur, wenn eine Drehung sofort etwas wachsen lässt.
+func _show_free_hint() -> void:
+	_hinted = true
+	var best := Game.state.best_move()
+	if best.is_empty() or int(best["steps"]) != 1:
+		return
+	for cb in _slice_cubies(int(best["axis"]), int(best["layer"])):
+		for child in (cb as Node3D).get_children():
+			if child is FieldView:
+				(child as FieldView).set_hint(true)
+				_hint_views.append(child)
 
 
 func _clear_hint() -> void:
@@ -403,6 +511,8 @@ func _press(pos: Vector2) -> void:
 	if Game.tutorial() and Game.tutorial_step == 0:
 		tutorial_tap.emit()
 		return
+	if _mode == "twist" and not _tw_live:
+		_abort_demo()        # die Hand führt gerade vor: sofort weg, derselbe Finger dreht gleich selbst
 	_clear_hint()
 	_press_pos = pos
 	_press_ms = Time.get_ticks_msec()
@@ -434,6 +544,7 @@ func _motion(pos: Vector2, rel: Vector2) -> void:
 			if pos.distance_to(_press_pos) > Balance.DRAG_START_PX:
 				_begin_twist(pos - _press_pos)
 				if _mode == "twist":
+					_tw_live = true
 					_update_twist(pos)
 		"pending_tap":
 			if pos.distance_to(_press_pos) > Balance.DRAG_START_PX:
@@ -453,8 +564,8 @@ func _release(pos: Vector2) -> void:
 			if pos.distance_to(_press_pos) <= Balance.DRAG_START_PX:
 				field_tapped.emit(_hit_field)
 		"twist":
-			if _over_cancel:
-				_tw_quarter = 0
+			if _over_cancel or _cancel_hit(pos):
+				_tw_quarter = 0      # über dem Streifen losgelassen: die Scheibe gleitet zurück, kein Zug
 			_finish_twist()
 		"bolt":
 			var row := _bolt_row
@@ -541,6 +652,10 @@ func _begin_twist(drag: Vector2) -> void:
 		(cb as Node3D).reparent(_pivot, true)
 	_mode = "twist"
 	_over_cancel = false
+	_tw_live = false
+	_tw_auto = false
+	_tw_out_t = 0.0
+	_tw_last_pos = _press_pos
 	select(-1)
 	twist_state.emit(true)
 
@@ -591,12 +706,15 @@ func _detent(a: float) -> float:
 
 
 func _update_twist(pos: Vector2) -> void:
-	# Finger über „Abbrechen“? Dann zeigt die Vorschau nichts, Loslassen bricht ab
-	var over := cancel_zone != null and cancel_zone.visible and cancel_zone.get_global_rect().grow(24.0).has_point(pos)
+	_tw_last_pos = pos
+	# Finger über dem Abbrechen-Streifen? Dann zeigt die Vorschau nichts, Loslassen bricht ab
+	var over := _cancel_hit(pos)
 	if over != _over_cancel:
 		_over_cancel = over
 		cancel_hover.emit(over)
 		if over:
+			_tw_auto = false
+			_buzz(18)
 			_clear_preview()
 		else:
 			_tw_quarter = 99
@@ -605,13 +723,81 @@ func _update_twist(pos: Vector2) -> void:
 		return
 	var along := (pos - _press_pos).dot(_tw_screen_dir)
 	_tw_angle = _tw_sign * along / _tw_px_per_quarter * PI * 0.5
-	var ax := Vector3.ZERO
-	ax[_tw_axis] = 1.0
-	_tw_last_pos = pos
 	var q := roundi(_tw_angle / (PI * 0.5))
 	if q != _tw_quarter:
+		if _tw_auto and _tw_quarter != 99:
+			_buzz(10)        # dreht sie von selbst weiter, spürt man jede Rastung
 		_tw_quarter = q
 		_show_preview(_norm_turns(q))
+
+
+## Liegt der Finger auf dem Abbrechen-Streifen? Der Streifen geht über die ganze Breite oben,
+## darum zählt alles bis zu seiner Unterkante (auch über den Bildschirmrand hinaus gezogen).
+func _cancel_hit(pos: Vector2) -> bool:
+	if cancel_zone == null or not is_instance_valid(cancel_zone) or not cancel_zone.is_visible_in_tree():
+		return false
+	var r := cancel_zone.get_global_rect()
+	if r.size.y < 1.0:
+		return false
+	var slack := Balance.CANCEL_LEAVE_PX if _over_cancel else Balance.CANCEL_ENTER_PX
+	var vs := get_viewport().get_visible_rect().size
+	if r.position.y < vs.y * 0.4:
+		return pos.y <= r.end.y + slack
+	return r.grow(slack).has_point(pos)
+
+
+## Läuft die Scheibe gerade von selbst weiter? +1 / -1 = Richtung entlang _tw_screen_dir, 0 = nein.
+## Ja, wenn der Finger in Drehrichtung deutlich neben dem Würfel liegt (links/rechts wie oben/unten)
+## oder nah am Bildschirmrand gehalten wird.
+func _auto_side() -> int:
+	var pos := _tw_last_pos
+	var center := rig.cam.unproject_position(cube_root.global_transform.origin)
+	var ext := _cube_extent(_tw_screen_dir, center)
+	var margin := Balance.TWIST_AUTO_MARGIN_PX * (0.5 if _tw_auto else 1.0)   # kleine Hysterese, kein Flackern
+	var f := (pos - center).dot(_tw_screen_dir)
+	# neben dem Würfel erst, wenn die Hand schon fast ein Viertel gedreht hat
+	var far_ok := _tw_auto or absf(_tw_angle) >= PI * 0.5 * Balance.TWIST_AUTO_MIN_QUARTER
+	if far_ok and f > ext.y + margin:
+		return 1
+	if far_ok and f < ext.x - margin:
+		return -1
+	var along := (pos - _press_pos).dot(_tw_screen_dir)
+	if absf(along) <= Balance.DRAG_START_PX:
+		return 0
+	var s := 1 if along > 0.0 else -1
+	var ahead := pos + _tw_screen_dir * float(s) * Balance.TWIST_EDGE_PX
+	var vs := get_viewport().get_visible_rect().size
+	if ahead.x < 0.0 or ahead.y < 0.0 or ahead.x > vs.x or ahead.y > vs.y:
+		return s
+	return 0
+
+
+## Wie weit der Würfel auf dem Bildschirm entlang dir reicht, gemessen vom Mittelpunkt: Vector2(min, max).
+## Aus den 8 Würfelecken; die Projektion des Umrisses auf eine Richtung ist genau ihr Min/Max.
+func _cube_extent(dir: Vector2, center: Vector2) -> Vector2:
+	var cam := rig.cam
+	var xf := cube_root.global_transform
+	var lo := INF
+	var hi := -INF
+	for i in 8:
+		var c := Vector3(float((i & 1) * 2 - 1), float(((i >> 1) & 1) * 2 - 1), float(((i >> 2) & 1) * 2 - 1)) * Balance.CUBE_HALF
+		var wp := xf * c
+		if cam.is_position_behind(wp):
+			continue
+		var d := (cam.unproject_position(wp) - center).dot(dir)
+		lo = minf(lo, d)
+		hi = maxf(hi, d)
+	if lo > hi:
+		return Vector2.ZERO
+	return Vector2(lo, hi)
+
+
+## Kurz vibrieren – nur, wenn die Effekte an sind (Effekte aus = Bus „SFX“ stumm = auch keine Vibration).
+func _buzz(ms: int) -> void:
+	var b := AudioServer.get_bus_index("SFX")
+	if b >= 0 and AudioServer.is_bus_mute(b):
+		return
+	Input.vibrate_handheld(ms)
 
 
 ## Vierteldrehungen auf -1, 0, 1, 2 zurückführen (3 Viertel = 1 zurück, 4 = gar nichts).
@@ -631,6 +817,8 @@ func _show_preview(q: int) -> void:
 	# Was eine Drehung bringt, zeigt nur das Tutorial. Gefahr zeigt die Vorschau immer.
 	var lines: Array = arranged.lines(arranged.moved) if Game.tutorial() else []
 	for line in lines:
+		if arranged.seen.has(GameState.line_key(line)):
+			continue      # gab es schon: wächst nicht
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[GameState.target_index(line, arranged.moved, arranged.tapped)]
@@ -666,13 +854,17 @@ func _clear_preview() -> void:
 
 func _finish_twist() -> void:
 	_mode = ""
+	if _over_cancel:
+		cancel_hover.emit(false)
 	_over_cancel = false
+	_tw_live = false
+	_tw_auto = false
 	twist_state.emit(false)
 	# Tutorial: im ersten Zug ist nur die gezeigte Drehung erlaubt
 	if Game.tutorial() and Game.tutorial_step == 0 and _tw_quarter != 0:
 		if not (_tw_axis == 0 and _tw_layer == 1 and _norm_turns(_tw_quarter) == 1):
 			_tw_quarter = 0
-			Game.message.emit("Probier die leuchtende Reihe, so wie die Hand es zeigt.", "info")
+			Game.message.emit("Probier die leuchtende Reihe – so wie die Hand es zeigt.", "info")
 	animating = true
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0
@@ -770,20 +962,46 @@ func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int) -> Vec
 		_cancel_drag()
 		return Vector2.ZERO
 	var dir := _tw_screen_dir * float(_tw_sign)
+	if _demo_tw != null and _demo_tw.is_valid():
+		_demo_tw.kill()
 	var tw := create_tween()
-	var setter := func(a: float) -> void:
-		if _mode == "twist":
-			_tw_angle = a
-	tw.tween_method(setter, 0.0, PI * 0.5 * 0.42, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_demo_tw = tw
+	tw.tween_method(_demo_set_angle, 0.0, PI * 0.5 * 0.42, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(0.25)
-	tw.tween_method(setter, PI * 0.5 * 0.42, 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_method(_demo_set_angle, PI * 0.5 * 0.42, 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(_demo_end)
 	return dir
 
 
+func _demo_set_angle(a: float) -> void:
+	if _mode == "twist" and not _tw_live:
+		_tw_angle = a
+
+
 func _demo_end() -> void:
-	if _mode == "twist":
+	_demo_tw = null
+	if _mode == "twist" and not _tw_live:
 		_cancel_drag()
+
+
+## Die Hand-Vorführung sofort beenden (der Spieler tippt): Scheibe ohne Animation zurück, kein Zug.
+func _abort_demo() -> void:
+	if _demo_tw != null and _demo_tw.is_valid():
+		_demo_tw.kill()
+	_demo_tw = null
+	if _pivot != null and is_instance_valid(_pivot):
+		_pivot.basis = Basis()
+		_unparent_pivot(_pivot, _tw_axis, 0)
+	_pivot = null
+	_mode = ""
+	_tw_angle = 0.0
+	_tw_display = 0.0
+	_tw_quarter = 0
+	_over_cancel = false
+	_tw_auto = false
+	_tw_out_t = 0.0
+	preview_changed.emit({})
+	twist_state.emit(false)
 
 
 ## Für die automatischen Screenshots: eine Drehung mitten im Ziehen zeigen.

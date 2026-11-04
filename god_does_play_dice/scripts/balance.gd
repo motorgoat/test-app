@@ -29,9 +29,9 @@ static var POLLUTION_FROM := 99           # ab dieser Stufe wird Natur daneben z
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
 # --- Katastrophen ------------------------------------------------------------------------
-static var LIVES := 3                     # Überleben-Modus: so viele Herzen; jeder Brand kostet eines
+static var LIVES := 3                     # Herzen in jedem Modus: jeder Brand kostet eines, beim letzten ist die Welt tot
 static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
-static var FIRE_COSTS_LIFE := false       # kostet ein Brand ein Leben?
+static var FIRE_COSTS_LIFE := true        # kostet ein Brand ein Herz? (ja, in allen Modi)
 
 # --- Boni ------------------------------------------------------------------------------
 static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es
@@ -49,9 +49,10 @@ static var BOLT_COST := 3
 static var MONSOON_COST := 5
 
 # --- Modi ------------------------------------------------------------------------------
-# Zeitalter: bestimmt die höchste erreichte Stufe. Jedes neue Zeitalter gibt ein Leben zurück.
+# Zeitalter: bestimmt die höchste erreichte Stufe.
 static var AGES := ["Urzeit", "Steinzeit", "Antike", "Mittelalter", "Neuzeit", "Industriezeitalter", "Moderne"]
 static var AGE_FROM_STAGE := [1, 4, 5, 6, 7, 8, 9]   # Hütte = Steinzeit, Haus = Antike, Dorf = Mittelalter, Stadt = Neuzeit …
+# Stufen: Einfach, Mittel, Schwer (offen, bis die Welt verbrennt). Challenge: 40 Drehungen nach Mittel-Regeln.
 # 40 Drehungen: so viele Punkte wie möglich (gezählt werden nur Drehungen).
 static var MAX_TWISTS := 40
 
@@ -61,8 +62,14 @@ static var TWIST_FINGER_UNITS := 2.5      # Fingerweg (in Würfelfeldern) für e
 static var TWIST_FOLLOW := 6.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var TWIST_DETENT := 2.4            # wie stark die Scheibe zur nächsten Rastung zieht (1 = gar nicht)
 static var DRAG_START_PX := 12.0
-static var TWIST_EDGE_PX := 70.0           # Finger so nah am Rand gehalten: die Scheibe dreht von selbst weiter …
-static var TWIST_EDGE_SECONDS := 0.6        # … eine Vierteldrehung in so vielen Sekunden
+static var TWIST_AUTO_MARGIN_PX := 56.0    # Finger so weit neben dem Würfel gehalten (in Drehrichtung, auch oben/unten): die Scheibe dreht von selbst weiter …
+static var TWIST_EDGE_PX := 70.0           # … ebenso, wenn er so nah am Bildschirmrand gehalten wird …
+static var TWIST_AUTO_SECONDS := 0.6       # … gleichmäßig eine Vierteldrehung in so vielen Sekunden (mit Rastung)
+static var TWIST_AUTO_DWELL_SECONDS := 0.25 # … aber erst, wenn der Finger so lange draußen liegt …
+static var TWIST_AUTO_MIN_QUARTER := 0.75   # … und (neben dem Würfel) die Hand schon so viel von einem Viertel gedreht hat
+static var CUBE_HALF := 1.5                # halbe Würfelkante (Weltmaß) für den Umriss auf dem Bildschirm
+static var CANCEL_ENTER_PX := 6.0          # Abbrechen-Streifen oben: so weit unter seiner Unterkante zählt der Finger schon als „drauf“ …
+static var CANCEL_LEAVE_PX := 26.0         # … und erst so weit darunter wieder als „weg“ (kein Flackern)
 static var TILT_MAX := 0.3                # Handy schwenken: so weit (Bogenmaß, ~17°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
 # Credits: eine Währung für alle Hilfen. Es gibt sie für eine kurze Werbung (später auch im Shop).
@@ -71,3 +78,7 @@ static var UNDO_COST := 1                 # einen Schritt zurück
 static var CONTINUE_COST := 2             # nach dem Spielende weiterspielen (einmal pro Spiel)
 static var CREDITS_PER_AD := 1            # so viele Credits bringt eine Werbung
 static var CREDITS_START := 3             # so viele Credits zum Ausprobieren
+# Neue Spieler: die ersten Minuten nach dem Tutorial
+static var ONBOARD_MERGES := 2            # so oft selbst etwas wachsen lassen, dann ist die Eingewöhnung vorbei …
+static var ONBOARD_TWISTS := 12           # … oder nach so vielen Drehungen
+static var ONBOARD_HINT_SECONDS := 6.0    # in der Eingewöhnung leuchtet nach so langer Pause die passende Reihe (gratis)
