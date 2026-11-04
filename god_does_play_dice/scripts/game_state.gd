@@ -41,6 +41,7 @@ var misses: int = 0           # Fehlversuche seit dem letzten Brand
 var last_row: Array = []      # IDs der zuletzt gedrehten Reihe (brennt beim 3. Fehlversuch)
 var _rotated := false         # dieser Zug war eine Drehung
 var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Verschmelzen bevorzugt auf
+var before_lines := {}        # Reihen, die vor diesem Zug schon dastanden: lösen nichts aus (nur neue Reihen zählen)
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
@@ -164,6 +165,7 @@ func clone() -> GameState:
 	gs.last_row = last_row.duplicate()
 	gs._rotated = _rotated
 	gs.tapped = tapped
+	gs.before_lines = before_lines.duplicate()
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
@@ -241,6 +243,7 @@ func neighbors(f: FieldData) -> Array:
 func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	var d := 1 if turns > 0 else -1
 	_rotated = true
+	_remember_before()
 	last_row = row.duplicate() if not row.is_empty() else slice_row(axis, layer)
 	for f in fields:
 		if f.p[axis] == layer:
@@ -391,6 +394,32 @@ func lines(only: Dictionary = {}) -> Array:
 	return out
 
 
+## Schlüssel einer Reihe: ihre Felder und ihre Stufe.
+static func line_key(line: Array) -> String:
+	var ids: Array = []
+	for g in line:
+		ids.append((g as FieldData).id)
+	ids.sort()
+	return "%s@%d" % [str(ids), (line[0] as FieldData).stage]
+
+
+## Vor der ersten Änderung eines Zugs merken, welche Reihen schon dastehen.
+func _remember_before() -> void:
+	if not moved.is_empty():
+		return
+	before_lines = {}
+	for ln in lines():
+		before_lines[line_key(ln)] = true
+
+
+## Die aktuell niedrigste Stufe auf dem Würfel (nur die hebt der Regen).
+func lowest_stage() -> int:
+	var low := Balance.MAX_STAGE
+	for f in fields:
+		low = mini(low, f.stage)
+	return low
+
+
 ## Alle gleichen Felder, die mit f zusammenhängen (über Kanten, auch über die Würfelkante).
 func group_of(f: FieldData) -> Array:
 	var comp: Array = []
@@ -483,7 +512,12 @@ func resolve_merges(ev: Array) -> int:
 	for pass_i in Balance.MAX_CASCADES:
 		if focus.is_empty():
 			break
-		var found := lines(focus)
+		var found: Array = []
+		for ln in lines(focus):
+			# nur neu gebildete Reihen lösen aus (im ersten Durchgang)
+			if pass_i == 0 and before_lines.has(line_key(ln)):
+				continue
+			found.append(ln)
 		if found.is_empty():
 			break
 		var last_focus := focus
@@ -615,7 +649,8 @@ func end_round() -> Dictionary:
 			disaster("fire", ev)
 	_rotated = false
 
-	moved = dirty
+	moved = {}
+	before_lines = {}
 	turn += 1
 	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": bool(pr["new_age"])}
 
@@ -688,6 +723,7 @@ func resolve_now() -> Dictionary:
 	var gain := resolve_merges(ev)
 	moved = {}
 	tapped = -1
+	before_lines = {}
 	var pr := _progress(gain, corners)
 	return {"events": ev, "gain": gain, "bonus_gained": pr["got"], "new_age": bool(pr["new_age"])}
 
@@ -803,11 +839,12 @@ func rain_spots() -> Dictionary:
 	var out := {}
 	if rain <= 0:
 		return out
+	var low := lowest_stage()
 	for f in fields:
 		if f.burning:
 			out[f.id] = "fire"
 			continue
-		if f.stage != 0:
+		if f.stage != low or f.stage >= Balance.MAX_STAGE:
 			continue
 		f.stage += 1
 		var hit := not lines({f.id: true}).is_empty()
@@ -822,8 +859,8 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	if kind == "rain":
 		if rain <= 0:
 			return "Der nächste Regen kommt bei %d Punkten" % next_rain
-		if not f.burning and f.stage != 0:
-			return "Regen macht nur leere Erde zur Wiese (oder löscht ein Feuer)"
+		if not f.burning and (f.stage != lowest_stage() or f.stage >= Balance.MAX_STAGE):
+			return "Regen hebt nur Felder der niedrigsten Stufe (gerade: %s)" % stage_name(lowest_stage())
 	elif kind == "bolt":
 		if bolts <= 0:
 			return "Einen Blitz bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen"
@@ -845,10 +882,11 @@ func grant(kind: String) -> void:
 		monsoons += 1
 
 
-## Regen: Ein brennendes Feld wird gelöscht (nur dieses), sonst wird leere Erde zur Wiese (nur die unterste Stufe).
+## Regen: Ein brennendes Feld wird gelöscht (nur dieses), sonst steigt ein Feld der aktuell niedrigsten Stufe eine Stufe.
 ## Blitz: Die ganze Reihe (row, 3 IDs) steigt eine Stufe auf und hört auf zu brennen.
 ## Was aufsteigt, zählt als zuletzt dazugekommen und kann verschmelzen. Danach wird der Zug normal ausgewertet.
 func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
+	_remember_before()
 	tapped = f.id
 	var targets: Array = [f]
 	if kind == "rain":

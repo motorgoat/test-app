@@ -180,6 +180,12 @@ func test_merge() -> void:
 	check(top(gr, 1, 1) == third, "drittes Feld rückt in die Reihe")
 	var rr := gr.end_round()
 	check(third.stage == 2 and int(rr["gain"]) > 0, "hineingedrehtes Feld steigt auf")
+	# Eine Reihe, die schon dastand und nur mitgedreht wird, löst nichts aus
+	var gn := empty_state()
+	for x in [-1, 0, 1]:
+		top(gn, x, 1).stage = 1
+	gn.apply_rotation(2, 1, 1)
+	check(int(gn.end_round()["gain"]) == 0, "nur neu gebildete Reihen lösen aus (mitgedreht zählt nicht)")
 	var gs4 := empty_state()
 	for x in [-1, 0, 1]:
 		top(gs4, x, 1).stage = 3
@@ -324,6 +330,18 @@ func test_bonus() -> void:
 	gr2.apply_bonus("rain", top(gr2, 1, 0))
 	gr2.resolve_now()
 	check(gr2.turn == t0 and top(gr2, 0, 0).stage == 1 and top(gr2, 1, 0).stage == 1, "zweimal gießen hintereinander, ohne Zug")
+	# Regen hebt nur die aktuell niedrigste Stufe
+	var gl2 := empty_state()
+	gl2.rain = 2
+	top(gl2, 0, 0).stage = 1
+	check(gl2.can_bonus("rain", top(gl2, 0, 0)) != "", "Regen nicht auf Wiese, solange es Erde gibt")
+	for fd in gl2.fields:
+		if fd.stage == 0:
+			fd.stage = 1
+	top(gl2, 0, 0).stage = 2
+	check(gl2.can_bonus("rain", top(gl2, 1, 1)) == "" and gl2.can_bonus("rain", top(gl2, 0, 0)) != "", "ohne Erde: Regen hebt Wiesen, nicht den Wald")
+	gl2.apply_bonus("rain", top(gl2, 1, 1))
+	check(top(gl2, 1, 1).stage == 2, "Regen: Wiese wird kleiner Wald")
 	# Regen kann eine Reihe vervollständigen: Dann verschmilzt sie dort
 	var gl := empty_state()
 	gl.rain = 1

@@ -523,10 +523,10 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde. Willst du doch nicht: Finger unten auf „Abbrechen“ ziehen."))
-	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
+	v.add_child(_help_row("up", "Bildest du eine neue Reihe aus drei gleichen Feldern, verschmelzen sie: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. In der Stufe Mittel zählen ab dem kleinen Wald auch Diagonalen."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
-	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß leere Erde, sie wird zur Wiese. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
+	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß ein Feld der gerade niedrigsten Stufe (zuerst Erde, dann Wiese …), es steigt eine Stufe. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
 	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – eine Reihe (auch diagonal) löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
@@ -643,7 +643,7 @@ func _on_hint_pressed() -> void:
 
 func _hint_gives_rain() -> void:
 	Game.grant("rain")
-	_on_message("Gerade bringt keine Drehung etwas. Hier ist ein Regen: Gieß leere Erde zur Wiese.", "good")
+	_on_message("Gerade bringt keine Drehung etwas. Hier ist ein Regen: Gieß ein Feld der niedrigsten Stufe.", "good")
 
 
 func _use_hint() -> void:
@@ -926,7 +926,7 @@ func _set_bonus_mode(kind: String) -> void:
 	if rain_ready != null:
 		rain_ready.visible = kind == "" and Game.state.rain > 0 and not Game.over
 	if kind == "rain":
-		mode_label.text = "Tippe leere Erde an (Wolke = lohnt sich):\nSie wird Wiese. Feuer wird gelöscht"
+		mode_label.text = "Tippe ein Feld der niedrigsten Stufe an:\nEs steigt auf. Feuer wird gelöscht"
 	elif kind == "bolt":
 		mode_label.text = "Tippe ein Eckfeld an: Der Blitz\nhebt die Diagonale dieser Seite"
 	elif kind == "monsoon":
@@ -1047,8 +1047,8 @@ func _fill_sheet(fid: int) -> void:
 	if f.burning:
 		sheet_rain.text = "Löschen (%d)" % gs.rain
 	else:
-		sheet_rain.text = "Gießen: Wiese (%d)" % gs.rain
-	sheet_rain.visible = gs.rain > 0 and (f.burning or f.stage == 0)
+		sheet_rain.text = "Gießen: %s (%d)" % [GameState.STAGE_SHORT[mini(f.stage + 1, Balance.MAX_STAGE)], gs.rain]
+	sheet_rain.visible = gs.rain > 0 and (f.burning or (f.stage == gs.lowest_stage() and f.stage < Balance.MAX_STAGE))
 	sheet_bolt.visible = gs.bolts > 0 and not gs.corner_diagonal(f).is_empty()
 	sheet_bolt.disabled = blocked
 	sheet_bolt.text = "Blitz: Diagonale (%d)" % gs.bolts

@@ -13,14 +13,14 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
-3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte, in der Stufe Mittel ab dem kleinen Wald auch diagonal) entwickeln sich, sobald sich darin etwas verändert hat:
+3. **Verschmelzen:** Bildest du durch einen Zug eine **neue** Reihe aus drei gleichen Feldern (oder Spalte, in der Stufe Mittel ab dem kleinen Wald auch diagonal), entwickeln sie sich. Reihen, die schon dastanden, zählen nicht:
    Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
    Das gibt Punkte (je höher die Stufe, desto mehr). **Kombo:** Jede weitere Verschmelzung im selben Zug zählt mehr (×2, ×3 …).
    **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
 4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die
    gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
    Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist das Feuer aus. Regen vorher rettet ein Feld.
-5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) macht leere Erde zur Wiese (nur die unterste Stufe) oder löscht ein Feuer.
+5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld der gerade niedrigsten Stufe eine Stufe (erst Erde, dann Wiese …) oder löscht ein Feuer.
    **Blitz**: gibt es für drei gleiche Felder an einer Würfelecke. Auf ein Eckfeld getippt, hebt er die Diagonale dieser Seite (3 Felder). Blitz und Monsun zählen als Zug, Regen nicht: Man kann mehrmals hintereinander gießen; beim Drehen ist der Regen wieder abgewählt.
    Wiese wächst nur durch Regen.
    **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
