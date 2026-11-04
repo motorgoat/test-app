@@ -56,7 +56,7 @@ static var TWIST_SNAP_SECONDS := 0.42
 static var TWIST_FINGER_UNITS := 2.1      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
 static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var DRAG_START_PX := 12.0
-static var TILT_MAX := 0.16               # Handy schwenken: so weit (Bogenmaß, ~9°) neigt sich die Ansicht höchstens. 0 = aus
+static var TILT_MAX := 0.3                # Handy schwenken: so weit (Bogenmaß, ~17°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
 # Credits: eine Währung für alle Hilfen. Es gibt sie für eine kurze Werbung (später auch im Shop).
 static var HINT_COST := 1                 # Tipp: die lohnendste Drehung leuchtet auf

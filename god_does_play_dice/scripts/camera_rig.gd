@@ -91,7 +91,7 @@ func _update_tilt(delta: float) -> void:
 			_g_base = g
 		_g_base = _g_base.lerp(g, 1.0 - exp(-delta * 0.6))
 		var d := (g - _g_base) / 9.81
-		target = Vector2(clampf(-d.x * 1.6, -1.0, 1.0), clampf(d.z * 1.6, -1.0, 1.0)) * Balance.TILT_MAX
+		target = Vector2(clampf(-d.x * 2.6, -1.0, 1.0), clampf(d.z * 2.6, -1.0, 1.0)) * Balance.TILT_MAX
 	_tilt = _tilt.lerp(target, 1.0 - exp(-delta * 6.0))
 
 

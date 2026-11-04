@@ -34,6 +34,10 @@ var ad_card: PanelContainer
 var sheet_rain: Button
 var sheet_bolt: Button
 var miss_pill: Button
+var miss_flames: Array = []
+var gift_layer: Control
+var _last_rain := -1
+var _last_bolts := -1
 var hint_btn: Button
 var continue_btn: Button
 var over_undo_btn: Button
@@ -199,9 +203,10 @@ func _build() -> void:
 	top.add_child(preview_card)
 	# Ein Hinweis über dem Würfel: Regen ist bereit (statt Symbolen auf jedem Feld)
 	rain_ready = Button.new()
-	rain_ready.text = "Regen bereit: Feld antippen"
 	rain_ready.icon = Style.icon("rain")
-	rain_ready.add_theme_constant_override("icon_max_width", 26)
+	rain_ready.add_theme_constant_override("icon_max_width", 36)
+	rain_ready.custom_minimum_size = Vector2(60, 48)
+	rain_ready.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rain_ready.add_theme_font_override("font", Style.bold())
 	rain_ready.add_theme_font_size_override("font_size", 15)
 	rain_ready.add_theme_color_override("font_color", Style.WATER)
@@ -266,14 +271,23 @@ func _build() -> void:
 	brow.add_child(sp2)
 	# Fehlversuche: groß und eindeutig
 	miss_pill = Button.new()
-	miss_pill.icon = Style.icon("fire")
-	miss_pill.add_theme_constant_override("icon_max_width", 26)
-	miss_pill.custom_minimum_size = Vector2(76, 50)
-	miss_pill.add_theme_font_override("font", Style.bold())
-	miss_pill.add_theme_font_size_override("font_size", 18)
-	miss_pill.add_theme_color_override("font_color", Style.BAD)
-	miss_pill.add_theme_color_override("font_disabled_color", Style.BAD)
-	miss_pill.tooltip_text = "Fehlversuche"
+	miss_pill.custom_minimum_size = Vector2(100, 50)
+	var flames := HBoxContainer.new()
+	flames.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	flames.alignment = BoxContainer.ALIGNMENT_CENTER
+	flames.add_theme_constant_override("separation", 2)
+	flames.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	miss_pill.add_child(flames)
+	for i in Balance.FIRE_AFTER:
+		var fl := TextureRect.new()
+		fl.texture = Style.icon("fire_off")
+		fl.custom_minimum_size = Vector2(26, 26)
+		fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		flames.add_child(fl)
+		miss_flames.append(fl)
 	miss_pill.pressed.connect(func() -> void: _on_message("Fehlversuche: Drehungen, die nichts verschmelzen. Beim %d. fängt die gedrehte Reihe Feuer." % Balance.FIRE_AFTER, "info"))
 	brow.add_child(miss_pill)
 	var sp4 := Control.new()
@@ -290,6 +304,10 @@ func _build() -> void:
 	brow.add_child(hint_btn)
 	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 54))
 
+	gift_layer = Control.new()
+	gift_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	gift_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(gift_layer)
 	bubble_layer = Control.new()
 	bubble_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bubble_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -322,12 +340,69 @@ func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.icon = Style.icon(icon_name)
 	b.add_theme_constant_override("icon_max_width", 30)
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.expand_icon = false
 	b.custom_minimum_size = Vector2(72, 54)
+	# Punkte unten im Knopf: so viele hast du (statt einer Zahl)
+	var pips := HBoxContainer.new()
+	pips.name = "Pips"
+	pips.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	pips.offset_top = -10
+	pips.offset_bottom = -4
+	pips.offset_left = -24
+	pips.offset_right = 24
+	pips.alignment = BoxContainer.ALIGNMENT_CENTER
+	pips.add_theme_constant_override("separation", 3)
+	pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(pips)
 	b.add_theme_font_override("font", Style.bold())
 	b.add_theme_font_size_override("font_size", 18)
 	_pill_style(b, Color.WHITE)
 	b.pressed.connect(cb)
 	return b
+
+
+func _set_pips(b: Button, have: int, most: int, color: Color) -> void:
+	var pips: HBoxContainer = b.get_node("Pips")
+	while pips.get_child_count() < most:
+		var d := TextureRect.new()
+		d.texture = Style.icon("dot")
+		d.custom_minimum_size = Vector2(7, 7)
+		d.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pips.add_child(d)
+	for i in pips.get_child_count():
+		(pips.get_child(i) as TextureRect).modulate = color if i < have else Color(0, 0, 0, 0.12)
+
+
+## Neuer Bonus: ein Geschenk springt auf, zeigt den Bonus und fliegt in seinen Knopf.
+func _show_gift(icon_name: String, target: Control) -> void:
+	var box := TextureRect.new()
+	box.texture = Style.icon("gift")
+	box.custom_minimum_size = Vector2(96, 96)
+	box.size = Vector2(96, 96)
+	box.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	box.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gift_layer.add_child(box)
+	var vs := root.get_viewport_rect().size
+	box.position = Vector2(vs.x * 0.5 - 48, vs.y * 0.42)
+	box.pivot_offset = Vector2(48, 48)
+	box.scale = Vector2.ZERO
+	var tw := box.create_tween()
+	tw.tween_property(box, "scale", Vector2.ONE * 1.15, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	for k in 3:
+		tw.tween_property(box, "rotation", 0.18, 0.06)
+		tw.tween_property(box, "rotation", -0.18, 0.06)
+	tw.tween_property(box, "rotation", 0.0, 0.05)
+	tw.tween_callback(func() -> void: box.texture = Style.icon(icon_name))
+	tw.tween_property(box, "scale", Vector2.ONE * 1.35, 0.15)
+	tw.tween_interval(0.35)
+	var to := target.get_global_rect().get_center() - Vector2(48, 48)
+	tw.tween_property(box, "position", to, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(box, "scale", Vector2.ONE * 0.35, 0.45)
+	tw.tween_callback(func() -> void: _pop(target))
+	tw.tween_callback(box.queue_free)
 
 
 func _on_bonus_pressed(kind: String) -> void:
@@ -709,15 +784,18 @@ func refresh() -> void:
 		_pop(stage_icon)
 	stage_label.text = gs.age_name()
 	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
-	if rain_btn.text != "" and gs.rain > int(rain_btn.text):
-		_pop(rain_btn)
-	if bolt_btn.text != "" and gs.bolts > int(bolt_btn.text):
-		_pop(bolt_btn)
 	credits_btn.text = str(Game.credits)
 	rain_ready.visible = gs.rain > 0 and not Game.over and bonus_mode == ""
-	rain_btn.text = str(gs.rain)
-	bolt_btn.text = str(gs.bolts)
-	miss_pill.text = "%d/%d" % [gs.misses, Balance.FIRE_AFTER]
+	_set_pips(rain_btn, gs.rain, Balance.RAIN_MAX, Style.WATER)
+	_set_pips(bolt_btn, gs.bolts, Balance.BOLT_MAX, Color("#e0a100"))
+	if _last_rain >= 0 and gs.rain > _last_rain:
+		_show_gift("rain", rain_btn)
+	if _last_bolts >= 0 and gs.bolts > _last_bolts:
+		_show_gift("lightning", bolt_btn)
+	_last_rain = gs.rain
+	_last_bolts = gs.bolts
+	for i in miss_flames.size():
+		(miss_flames[i] as TextureRect).texture = Style.icon("fire" if i < gs.misses else "fire_off")
 	_pill_style(miss_pill, Color("#ffe1d6") if gs.misses >= Balance.FIRE_AFTER - 1 else Color.WHITE)
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
@@ -725,8 +803,11 @@ func refresh() -> void:
 	var warn := ""
 	if th != "":
 		warn = "%s! Bring das in Ordnung, sonst: %s" % [GameState.DISASTER_WHY[th], GameState.DISASTER_NAME[th]]
-	elif gs.misses == Balance.FIRE_AFTER - 1:
-		warn = "Noch ein Fehlversuch, dann brennt die Reihe!"
+	if gs.misses == Balance.FIRE_AFTER - 1 and not Game.over:
+		var t := miss_pill.create_tween()
+		miss_pill.pivot_offset = miss_pill.size * 0.5
+		t.tween_property(miss_pill, "scale", Vector2.ONE * 1.12, 0.15)
+		t.tween_property(miss_pill, "scale", Vector2.ONE, 0.2)
 	danger_label.text = warn
 	danger_label.visible = warn != "" and not Game.over
 	_update_buttons()
@@ -1083,6 +1164,8 @@ func _on_new_game() -> void:
 	sheet.visible = false
 	_sheet_field = -1
 	_shown_score = -1
+	_last_rain = -1
+	_last_bolts = -1
 	for bd in _bubbles:
 		(bd["node"] as Control).queue_free()
 	_bubbles.clear()

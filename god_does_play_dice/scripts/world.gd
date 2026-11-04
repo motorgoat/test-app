@@ -280,7 +280,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			rig.orbit(c - _two_center, 0.0)
 			_two_center = c
 			var ang := _touch_angle()
-			rig.roll(wrapf(ang - _two_angle, -PI, PI))
+			rig.roll(-wrapf(ang - _two_angle, -PI, PI))
 			_two_angle = ang
 		return
 	if event is InputEventMouseButton:
