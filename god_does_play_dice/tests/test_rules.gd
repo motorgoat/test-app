@@ -407,21 +407,20 @@ func test_easy() -> void:
 	gs.setup(12345, true, 0)
 	for f in gs.fields:
 		f.stage = 0
-	# drei Wiesen über Eck (keine Reihe): im einfachen Modus verschmelzen sie
+	# drei Wiesen über Eck (keine Reihe): lösen nichts aus
 	top(gs, 0, 0).stage = 1
 	top(gs, 1, 0).stage = 1
 	top(gs, 1, 1).stage = 1
 	gs.moved = {top(gs, 1, 1).id: true}
+	check(int(gs.end_round()["gain"]) == 0, "einfacher Modus: ohne Reihe passiert nichts")
+	# eine Reihe löst aus: alle gleichen, die damit zusammenhängen, steigen auf (auch die Wiese daneben)
+	top(gs, -1, 0).stage = 1
+	gs.moved = {top(gs, -1, 0).id: true}
 	var r := gs.end_round()
-	check(int(r["gain"]) > 0 and top(gs, 1, 1).stage == 2 and top(gs, 0, 0).stage == 2 and top(gs, 1, 0).stage == 2, "einfacher Modus: alle drei sich berührenden Wiesen steigen auf")
+	var all2 := top(gs, -1, 0).stage == 2 and top(gs, 0, 0).stage == 2 and top(gs, 1, 0).stage == 2 and top(gs, 1, 1).stage == 2
+	check(int(r["gain"]) > 0 and all2, "einfacher Modus: Reihe löst aus, alle zusammenhängenden steigen auf")
 	var r2 := gs.end_round()
-	check(int(r2["gain"]) == 0 and top(gs, 0, 0).stage == 2, "aufgestiegene Gruppe steigt nicht von allein weiter")
-	var gn := empty_state()
-	top(gn, 0, 0).stage = 1
-	top(gn, 1, 0).stage = 1
-	top(gn, 1, 1).stage = 1
-	gn.moved = {top(gn, 1, 1).id: true}
-	check(int(gn.end_round()["gain"]) == 0, "normaler Modus: über Eck zählt nicht")
+	check(int(r2["gain"]) == 0, "aufgestiegene Gruppe steigt nicht von allein weiter")
 
 
 func test_hint() -> void:

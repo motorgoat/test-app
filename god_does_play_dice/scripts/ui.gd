@@ -35,6 +35,7 @@ var ad_card: PanelContainer
 var sheet_rain: Button
 var sheet_bolt: Button
 var miss_pill: Button
+var dock_divider: ColorRect
 var miss_flames: Array = []
 var gift_layer: Control
 var _last_rain := -1
@@ -259,24 +260,43 @@ func _build() -> void:
 	mh.add_child(cancel)
 	mode_card.visible = false
 	bottom.add_child(mode_card)
+	# Unten: in der Mitte ein schlichtes Dock (Regen, Blitz, Monsun | Fehlversuche),
+	# links „Zurück“, rechts „Tipp“. Die Hilfe ist im Menü.
 	var brow := HBoxContainer.new()
-	brow.add_theme_constant_override("separation", 6)
+	brow.alignment = BoxContainer.ALIGNMENT_CENTER
+	brow.add_theme_constant_override("separation", 12)
 	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_child(brow)
+	undo_btn = _round_button("undo", _on_undo_pressed, 46)
+	undo_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	brow.add_child(undo_btn)
+	var dock := PanelContainer.new()
+	var ds := _sb(Color(1, 1, 1, 0.95), 26, 6, true)
+	ds.content_margin_left = 8
+	ds.content_margin_right = 8
+	dock.add_theme_stylebox_override("panel", ds)
+	brow.add_child(dock)
+	var dh := HBoxContainer.new()
+	dh.add_theme_constant_override("separation", 2)
+	dh.alignment = BoxContainer.ALIGNMENT_CENTER
+	dock.add_child(dh)
 	rain_btn = _bonus_button("rain", _on_bonus_pressed.bind("rain"))
-	brow.add_child(rain_btn)
+	dh.add_child(rain_btn)
 	bolt_btn = _bonus_button("lightning", _on_bonus_pressed.bind("bolt"))
-	brow.add_child(bolt_btn)
+	dh.add_child(bolt_btn)
 	monsoon_btn = _bonus_button("monsoon", _on_bonus_pressed.bind("monsoon"))
 	monsoon_btn.visible = false
-	brow.add_child(monsoon_btn)
-	var sp2 := Control.new()
-	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	brow.add_child(sp2)
-	# Fehlversuche: groß und eindeutig
+	dh.add_child(monsoon_btn)
+	dock_divider = ColorRect.new()
+	dock_divider.color = Style.LINE
+	dock_divider.custom_minimum_size = Vector2(1, 38)
+	dock_divider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	dock_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dh.add_child(dock_divider)
+	# Fehlversuche: drei Flammen
 	miss_pill = Button.new()
-	miss_pill.custom_minimum_size = Vector2(104, 60)
+	miss_pill.custom_minimum_size = Vector2(108, 60)
+	_flat_style(miss_pill, Color(0, 0, 0, 0))
 	var flames := HBoxContainer.new()
 	flames.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	flames.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -294,20 +314,10 @@ func _build() -> void:
 		flames.add_child(fl)
 		miss_flames.append(fl)
 	miss_pill.pressed.connect(func() -> void: _on_message("Fehlversuche: Drehungen, die nichts verschmelzen. Beim %d. fängt die gedrehte Reihe Feuer." % Balance.FIRE_AFTER, "info"))
-	brow.add_child(miss_pill)
-	var sp4 := Control.new()
-	sp4.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp4.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	brow.add_child(sp4)
-	var sp3 := Control.new()
-	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	brow.add_child(sp3)
-	undo_btn = _round_button("undo", _on_undo_pressed, 44)
-	brow.add_child(undo_btn)
-	hint_btn = _round_button("bulb", _on_hint_pressed, 44)
+	dh.add_child(miss_pill)
+	hint_btn = _round_button("bulb", _on_hint_pressed, 46)
+	hint_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	brow.add_child(hint_btn)
-	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 44))
 
 	gift_layer = Control.new()
 	gift_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -347,7 +357,7 @@ func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	b.add_theme_constant_override("icon_max_width", 40)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.expand_icon = false
-	b.custom_minimum_size = Vector2(68, 64)
+	b.custom_minimum_size = Vector2(64, 60)
 	# Punkte unten im Knopf: so viele hast du (statt einer Zahl)
 	var pips := HBoxContainer.new()
 	pips.name = "Pips"
@@ -362,9 +372,19 @@ func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	b.add_child(pips)
 	b.add_theme_font_override("font", Style.bold())
 	b.add_theme_font_size_override("font_size", 18)
-	_pill_style(b, Color.WHITE)
+	_flat_style(b, Color(0, 0, 0, 0))
 	b.pressed.connect(cb)
 	return b
+
+
+## Knopf im Dock: ohne eigenen Rahmen, nur beim Drücken ein leichter Hintergrund.
+func _flat_style(b: Button, bg: Color) -> void:
+	var n := _sb(bg, 18, 6)
+	b.add_theme_stylebox_override("normal", n)
+	b.add_theme_stylebox_override("hover", n)
+	b.add_theme_stylebox_override("pressed", _sb(Color(0, 0, 0, 0.06), 18, 6))
+	b.add_theme_stylebox_override("disabled", n)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
 func _set_pips(b: Button, have: int, most: int, color: Color) -> void:
@@ -508,7 +528,7 @@ func _build_help() -> void:
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß leere Erde, sie wird zur Wiese. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
-	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – alle gleichen Felder, die sich berühren (ab drei), steigen gemeinsam auf. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
+	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – eine Reihe (auch diagonal) löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
@@ -533,7 +553,7 @@ func _build_menu() -> void:
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	v.add_child(grid)
-	var subs := ["berühren reicht", "auch diagonal", "nur gerade", "ohne Gadgets"]
+	var subs := ["ganze Gruppe steigt", "auch diagonal", "nur gerade", "ohne Gadgets"]
 	for i in 4:
 		var b := _wide_button("%s\n%s" % [Game.LEVELS[i], subs[i]], Color.WHITE, Style.TEXT)
 		b.add_theme_font_size_override("font_size", 15)
@@ -832,6 +852,7 @@ func refresh() -> void:
 	rain_btn.visible = gs.gadgets
 	bolt_btn.visible = gs.gadgets
 	hint_btn.visible = gs.gadgets
+	dock_divider.visible = gs.gadgets
 	if _last_monsoons >= 0 and gs.monsoons > _last_monsoons:
 		_show_gift("monsoon", monsoon_btn)
 	_last_monsoons = gs.monsoons
@@ -843,7 +864,7 @@ func refresh() -> void:
 	_last_bolts = gs.bolts
 	for i in miss_flames.size():
 		(miss_flames[i] as TextureRect).texture = Style.icon("fire" if i < gs.misses else "fire_off")
-	_pill_style(miss_pill, Color("#ffe1d6") if gs.misses >= Balance.FIRE_AFTER - 1 else Color.WHITE)
+	_flat_style(miss_pill, Color("#ffe1d6") if gs.misses >= Balance.FIRE_AFTER - 1 else Color(0, 0, 0, 0))
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
 	var warn := ""

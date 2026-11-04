@@ -34,7 +34,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
    **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
    Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
-11. **Stufen** (Menü): **Einfach** – alle gleichen Felder, die sich berühren (ab drei), steigen gemeinsam auf; **Mittel** – Reihen und
+11. **Stufen** (Menü): **Einfach** – eine Reihe (auch diagonal) löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen; **Mittel** – Reihen und
    Diagonalen; **Schwer** – nur gerade Reihen; **Profi** – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp.
    Dazu der Modus 40 Runden. Rekord = Punkte je Stufe.
 
@@ -59,7 +59,7 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Feld antippen | Info-Karte mit „Gießen“ / „Löschen“ und „Blitz“ (wenn vorhanden) |
 | „Regen bereit“ über dem Würfel | du kannst gießen: antippen, dann ein Feld wählen |
 | 🔥 1/3 unten | Fehlversuche bis zum nächsten Brand |
-| Regen / Blitz unten | Regen: wählen, dann Erde antippen (mehrmals möglich). Blitz: wählen, dann ein Eckfeld antippen |
+| Dock unten (Mitte): Regen / Blitz / Monsun, daneben die Flammen | Bonus wählen (Regen: Erde antippen, mehrmals; Blitz: Eckfeld antippen). Links „Zurück“, rechts „Tipp“, Hilfe im Menü |
 | Beim Drehen auf „Abbrechen“ ziehen | Drehung abbrechen, zählt nicht als Zug |
 
 ## Aufbau

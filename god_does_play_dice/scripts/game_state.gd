@@ -48,7 +48,7 @@ var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var endless := true           # Endlos-Modus oder 40 Runden
-var easy := false             # Einfach: alle gleichen Felder, die sich berühren (ab 3), verschmelzen
+var easy := false             # Einfach: Eine Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen
 var diagonals := true         # Mittel: auch Diagonalen (ab dem kleinen Wald)
 var gadgets := true           # ohne Gadgets (Profi): kein Regen, Blitz, Monsun
 var rng := RandomNumberGenerator.new()
@@ -351,8 +351,6 @@ func finished() -> bool:
 ## Mit only: nur Reihen, die mindestens eines dieser Felder enthalten.
 ## Jede Reihe ist ein Array aus 3 FieldData, das mittlere Feld an Index 1.
 func lines(only: Dictionary = {}) -> Array:
-	if easy:
-		return groups(only)
 	var out: Array = []
 	for n in FACE_NORMALS:
 		var nv: Vector3i = n
@@ -393,33 +391,20 @@ func lines(only: Dictionary = {}) -> Array:
 	return out
 
 
-## Einfacher Modus: zusammenhängende gleiche Felder (über Kanten, ab EASY_GROUP Stück).
-func groups(only: Dictionary = {}) -> Array:
-	var out: Array = []
-	var seen := {}
-	for f in fields:
-		if f.stage <= 0 or seen.has(f.id):
-			continue
-		var comp: Array = []
-		var todo: Array = [f]
-		seen[f.id] = true
-		while not todo.is_empty():
-			var h: FieldData = todo.pop_back()
-			comp.append(h)
-			for g in neighbors(h):
-				var k: FieldData = g
-				if k.stage == f.stage and not seen.has(k.id):
-					seen[k.id] = true
-					todo.append(k)
-		if comp.size() < Balance.EASY_GROUP:
-			continue
-		var hit := only.is_empty()
-		for g in comp:
-			if only.has((g as FieldData).id):
-				hit = true
-		if hit:
-			out.append(comp)
-	return out
+## Alle gleichen Felder, die mit f zusammenhängen (über Kanten, auch über die Würfelkante).
+func group_of(f: FieldData) -> Array:
+	var comp: Array = []
+	var seen := {f.id: true}
+	var todo: Array = [f]
+	while not todo.is_empty():
+		var h: FieldData = todo.pop_back()
+		comp.append(h)
+		for g in neighbors(h):
+			var k: FieldData = g
+			if k.stage == f.stage and not seen.has(k.id):
+				seen[k.id] = true
+				todo.append(k)
+	return comp
 
 
 ## Welches Feld einer Reihe steigt auf? Das, das zuletzt dazugekommen ist (von der Drehung bewegt
@@ -516,13 +501,16 @@ func resolve_merges(ev: Array) -> int:
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			var mid: FieldData = line[ti]
 			if easy:
-				# Berühr-Modus: alle gleichen Felder, die sich berühren, steigen gemeinsam auf
+				# Einfach: Eine Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen
 				combo += 1
 				var st0 := mid.stage
-				var gpts: int = int(Balance.MERGE_POINTS[st0]) * combo * line.size() / 3
+				var grp := group_of(mid)
+				for g in grp:
+					used[(g as FieldData).id] = true
+				var gpts: int = int(Balance.MERGE_POINTS[st0]) * combo * grp.size() / 3
 				total += gpts
 				var gids: Array = []
-				for g in line:
+				for g in grp:
 					var h: FieldData = g
 					h.stage = mini(Balance.MAX_STAGE, st0 + 1)
 					h.burning = false
