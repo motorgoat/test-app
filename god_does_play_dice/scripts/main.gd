@@ -45,66 +45,47 @@ func _shots(dir: String) -> void:
 	await _wait(0.7)
 	await _shot(dir, "02_hilfe")
 	ui.debug_close_all()
-	await _wait(0.3)
-	var fid := _visible_field(true)
+	await _wait(2.0)
+	await _shot(dir, "03_tipp")
+	var fid := _visible_field()
 	world.debug_begin_twist(fid, Vector2(1, 0.15), 0.62)
 	await _wait(1.0)
-	await _shot(dir, "03_wischen")
+	await _shot(dir, "04_wischen")
 	world.debug_end_twist()
-	await _wait(2.4)
-	await _shot(dir, "04_nach_drehung")
-	# Eine Dreierreihe auf der sichtbaren Seite bauen und verschmelzen lassen
-	var row := _visible_row()
-	for f in row:
-		(f as FieldData).kind = "settlement"
-		(f as FieldData).level = 1
-		(f as FieldData).nation = 1
-		(f as FieldData).burning = false
+	await _wait(2.6)
+	await _shot(dir, "05_nach_drehung")
+	# Eine Dreierreihe Wiesen auf der sichtbaren Seite bauen und verschmelzen lassen
+	for f in _visible_row():
+		(f as FieldData).stage = 1
 	Game.state_changed.emit()
 	await _wait(0.8)
-	await _shot(dir, "04b_reihe")
+	await _shot(dir, "06_reihe")
 	world.wait_turn()
 	await _wait(0.3)
-	await _shot(dir, "04c_verschmelzen")
+	await _shot(dir, "07_verschmelzen")
+	await _wait(2.2)
+	await _shot(dir, "08_danach")
+	# Meteorit
+	Game.state.faith = 120
+	Game.state_changed.emit()
 	await _wait(0.5)
-	await _shot(dir, "04d_ring")
-	await _wait(1.8)
-	await _shot(dir, "04e_danach")
-	world._show_hint()
-	await _wait(0.6)
-	await _shot(dir, "04f_tipp")
-	world._clear_hint()
-	# Eine Gefahr erzwingen, damit man sie sieht
-	var target: FieldData = Game.state.fields[_visible_field(true)]
-	Game.state.hazards.append({"type": "meteor", "p": target.p, "n": target.n, "timer": 2})
-	var other: FieldData = Game.state.fields[_visible_field(false)]
-	if other != target:
-		Game.state.hazards.append({"type": "storm", "p": other.p, "n": other.n, "timer": 3})
-	Game.state_changed.emit()
-	await _wait(1.0)
-	await _shot(dir, "05_gefahren")
-	for i in 2:
+	Game.use_meteor(_visible_field())
+	await _wait(0.45)
+	await _shot(dir, "09_meteor_faellt")
+	await _wait(1.2)
+	await _shot(dir, "10_meteor_danach")
+	for i in 10:
 		world.wait_turn()
-		await _wait(2.2)
-	await _shot(dir, "06_nach_einschlag")
-	for i in 12:
-		world.wait_turn()
-		await _wait(1.6)
-	await _shot(dir, "07_spaeter")
-	ui.debug_show_field(_visible_field(true))
+		await _wait(1.4)
+	await _shot(dir, "11_spaeter")
+	ui.debug_show_field(_visible_field())
 	await _wait(0.6)
-	await _shot(dir, "08_info")
-	ui.debug_close_all()
-	Game.state.miracles = 1
-	Game.state_changed.emit()
-	ui.debug_show_pick()
-	await _wait(0.7)
-	await _shot(dir, "09_wunder")
+	await _shot(dir, "12_info")
 	ui.debug_close_all()
 	Game.over = true
 	Game.game_over.emit()
 	await _wait(0.7)
-	await _shot(dir, "10_ende")
+	await _shot(dir, "13_ende")
 	get_tree().quit()
 
 
@@ -120,8 +101,8 @@ func _shot(dir: String, shot_name: String) -> void:
 	print("Screenshot: ", shot_name)
 
 
-## Ein gut sichtbares Feld (zur Kamera gewandt), wahlweise bewohnt.
-func _visible_field(settled: bool) -> int:
+## Ein gut sichtbares Feld (zur Kamera gewandt).
+func _visible_field() -> int:
 	var cam_pos := world.rig.cam.global_position
 	var best := 0
 	var best_score := -INF
@@ -130,8 +111,6 @@ func _visible_field(settled: bool) -> int:
 		if v == null:
 			continue
 		var score := v.world_normal().dot((cam_pos - v.global_position).normalized())
-		if settled and f.has_nation():
-			score += 0.5
 		if score > best_score:
 			best_score = score
 			best = f.id

@@ -1,6 +1,6 @@
 class_name World
 extends Node3D
-## Würfel, Felder, Gefahren, Kamera und Eingabe.
+## Würfel, Felder, Kamera, Eingabe und Effekte (Verschmelzen, Meteorit).
 ## Wischen auf dem Würfel dreht eine Reihe (wie bei einem echten Zauberwürfel),
 ## Wischen daneben dreht die Ansicht. Antippen zeigt die Feld-Info.
 
@@ -15,7 +15,6 @@ var rig: CameraRig
 var cube_root: Node3D
 var cubies: Array = []          # Node3D mit meta "pos" (Vector3i)
 var views: Dictionary = {}      # Feld-ID -> FieldView
-var hazard_views: Dictionary = {}  # Platz-Schlüssel -> HazardView
 var selected := -1
 var animating := false
 
@@ -51,8 +50,7 @@ func _ready() -> void:
 	Game.new_game_started.connect(rebuild)
 	Game.state_changed.connect(_on_state_changed)
 	Game.round_resolved.connect(_on_round_resolved)
-	Game.tool_used.connect(_on_tool_used)
-	Game.hazards_spawned.connect(_on_hazards_spawned)
+	Game.meteor_struck.connect(_on_meteor)
 	rebuild()
 
 
@@ -103,7 +101,6 @@ func rebuild() -> void:
 		c.queue_free()
 	cubies.clear()
 	views.clear()
-	hazard_views.clear()
 	selected = -1
 	animating = false
 	_mode = ""
@@ -135,7 +132,6 @@ func rebuild() -> void:
 		v.build(f)
 		views[f.id] = v
 	refresh_all()
-	_sync_hazards()
 
 
 static func _is_center_cubie(p: Vector3i) -> bool:
@@ -161,57 +157,17 @@ func _on_state_changed() -> void:
 	if animating or _mode == "twist":
 		return
 	refresh_all()
-	_sync_hazards()
 
 
 func refresh_all(gs: GameState = null) -> void:
 	if gs == null:
 		gs = Game.state
-	var wars := gs.war_pairs()
 	for f in gs.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
 			continue
-		v.refresh(f, gs)
+		v.refresh(f)
 		v.set_selected(f.id == selected)
-		v.set_icon(_status_icon(f, gs, wars))
-
-
-func _status_icon(f: FieldData, gs: GameState, _wars: Dictionary) -> Texture2D:
-	if not f.scored():
-		return null
-	var fc := gs.field_forecast(f)
-	if bool(fc["war"]):
-		return Style.icon("swords")
-	if not bool(fc["need"]):
-		return Style.icon("hunger")
-	if bool(fc["polluted"]):
-		return Style.icon("smog")
-	if bool(fc["trade"]):
-		return Style.icon("trade")
-	return null
-
-
-func _sync_hazards() -> void:
-	var gs := Game.state
-	var keep := {}
-	for h in gs.hazards:
-		var k := GameState.pos_key(h["p"], h["n"])
-		keep[k] = true
-		var hv: HazardView = hazard_views.get(k)
-		if hv == null or not is_instance_valid(hv):
-			hv = HazardView.new()
-			cube_root.add_child(hv)
-			hv.setup(h)
-			hazard_views[k] = hv
-		else:
-			hv.set_timer(int(h["timer"]))
-	for k in hazard_views.keys():
-		if not keep.has(k):
-			var hv: HazardView = hazard_views[k]
-			if is_instance_valid(hv):
-				hv.queue_free()
-			hazard_views.erase(k)
 
 
 func select(fid: int) -> void:
@@ -225,7 +181,8 @@ func select(fid: int) -> void:
 func _process(delta: float) -> void:
 	if _mode == "" and not animating and not Game.busy and not Game.over:
 		_idle += delta
-		if _idle > Balance.HINT_AFTER_SECONDS and not _hinted:
+		var wait_for := 1.2 if Game.state.turn <= Balance.TUTORIAL_HINT_ROUNDS else Balance.HINT_AFTER_SECONDS
+		if _idle > wait_for and not _hinted:
 			_show_hint()
 	else:
 		_idle = 0.0
@@ -239,10 +196,6 @@ func _process(delta: float) -> void:
 		var v: FieldView = views[fid]
 		var to_cam := (cam_pos - v.global_position).normalized()
 		v.set_labels_visible(v.world_normal().dot(to_cam) > 0.2)
-	for k in hazard_views:
-		var hv: HazardView = hazard_views[k]
-		if is_instance_valid(hv):
-			hv.set_label_visible(hv.world_normal().dot((cam_pos - hv.global_position).normalized()) > -0.2)
 
 
 ## Bildschirmposition eines Felds. {"pos": Vector2, "visible": bool}
@@ -334,9 +287,7 @@ func _show_hint() -> void:
 			for turns in [1, -1, 2]:
 				var sim := Game.state.clone()
 				sim.apply_rotation(axis, layer, turns)
-				var pts := 0
-				for line in sim.lines():
-					pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).level])
+				var pts := sim.merge_value()
 				if pts > best_pts:
 					best_pts = pts
 					best = [axis, layer]
@@ -494,33 +445,19 @@ func _show_preview(q: int) -> void:
 		return
 	var pv := Game.preview(_tw_axis, _tw_layer, q)
 	var arranged: GameState = pv["arranged"]
-	var after: GameState = pv["state"]
 	var lit := {}
 	var mids := {}
 	for line in arranged.lines():
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[1]
-		mids[mid.id] = int(Balance.MERGE_POINTS[mid.level])
+		mids[mid.id] = int(Balance.MERGE_POINTS[mid.stage])
 	for f in Game.state.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
 			continue
-		var a: FieldData = arranged.fields[f.id]
-		var b: FieldData = after.fields[f.id]
-		var text := ""
-		var col := Color("#d99a00")
-		if mids.has(f.id):
-			text = "+%d" % int(mids[f.id])
-		elif not lit.has(f.id) and b.kind == "crater" and a.kind != "crater":
-			text = "✕"
-			col = Color("#e5483c")
-		elif not lit.has(f.id) and b.kind == a.kind and b.level < a.level:
-			text = "▼"
-			col = Color("#e5483c")
-		v.set_preview(text, col)
+		v.set_preview("+%d" % int(mids[f.id]) if mids.has(f.id) else "", Color("#d99a00"))
 		v.set_highlight(lit.has(f.id))
-		v.set_icon(_status_icon(a, arranged, {}))
 	preview_changed.emit(pv)
 
 
@@ -617,11 +554,15 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	animating = true
 	var gs := Game.state
 	var events: Array = result["events"]
-	# Verschmelzen zuerst, Kombo für Kombo
+	# Verschmelzen, Kombo für Kombo
 	var last_combo := 0
+	var merged_ids := {}
 	for e in events:
 		if str(e["type"]) != "merge":
 			continue
+		merged_ids[int(e["field"])] = true
+		for o in e["others"]:
+			merged_ids[int(o)] = true
 		var combo := int(e["combo"])
 		if combo != last_combo and last_combo > 0:
 			refresh_all()
@@ -629,52 +570,24 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 		last_combo = combo
 		await _merge_fx(e)
 	if last_combo > 0:
-		refresh_all()
-		await get_tree().create_timer(0.45).timeout
-	# Dann die Einschläge
+		await get_tree().create_timer(0.25).timeout
+	# Verschmutzung und Nachwachsen
 	for e in events:
-		var t: String = e["type"]
-		if t != "meteor" and t != "storm" and t != "eruption":
-			continue
-		var f: FieldData = gs.fields[int(e["field"])]
-		if t == "eruption":
-			rig.shake(0.6)
-			await _eruption_fx(int(e["field"]))
-			continue
-		var k := GameState.pos_key(f.p, f.n)
-		var hv: HazardView = hazard_views.get(k)
-		if hv != null and is_instance_valid(hv):
-			hazard_views.erase(k)
-			hv.strike()
-			if t == "meteor":
-				await get_tree().create_timer(0.3).timeout
-				rig.shake(1.0)
-			await get_tree().create_timer(0.4).timeout
+		if str(e["type"]) == "polluted":
+			var v: FieldView = views.get(int(e["field"]))
+			if v != null:
+				_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#6b6e78"), 4)
 	refresh_all()
-	_sync_hazards()
-	var merged_ids := {}
-	for e in events:
-		if str(e["type"]) == "merge":
-			merged_ids[int(e["field"])] = true
-			for o in e["others"]:
-				merged_ids[int(o)] = true
 	var changes: Array = []
 	for f in gs.fields:
 		if merged_ids.has(f.id):
 			continue
-		var b: Array = before.get(f.id, [f.kind, f.level, f.nation])
-		var change := ""
-		if f.kind == "crater" and str(b[0]) != "crater":
-			change = "lost"
-		elif f.kind != str(b[0]):
-			change = "new"
-		elif f.level > int(b[1]):
-			change = "up"
-		elif f.level < int(b[1]):
-			change = "down"
-		if change != "":
-			changes.append({"field": f.id, "change": change})
-	deltas_shown.emit(changes, int(result["gain"]) - int(result["loss"]))
+		var b := int(before.get(f.id, f.stage))
+		if f.stage == 0 and b > 0:
+			changes.append({"field": f.id, "change": "lost"})
+		elif f.stage > 0 and b == 0:
+			changes.append({"field": f.id, "change": "new"})
+	deltas_shown.emit(changes, int(result["gain"]))
 	await get_tree().create_timer(0.35).timeout
 	animating = false
 	Game.finish_round(result)
@@ -723,59 +636,49 @@ func _sparks(a: Vector3, b: Vector3, color: Color, count: int) -> void:
 		tw.tween_callback(spark.queue_free)
 
 
-func _on_tool_used(kind: String, fid: int) -> void:
+## Meteorit: fällt glühend vom Himmel, schlägt ein, Feld und Nachbarn werden zu Erde.
+func _on_meteor(fid: int, ids: Array) -> void:
 	var v: FieldView = views.get(fid)
 	if v == null:
 		return
 	animating = true
-	if kind == "lightning":
-		var bolt := Models.box(cube_root, Vector3(0.07, 1.6, 0.07), Color("#fff3a0"), Vector3.ZERO, Vector3.ZERO, Models.mat(Color("#fff3a0"), 0.3, 6.0))
-		bolt.global_transform = Transform3D(v.global_transform.basis, v.global_position + v.world_normal() * 0.9)
-		var flash := OmniLight3D.new()
-		flash.light_color = Color("#eaf2ff")
-		flash.omni_range = 3.0
-		flash.light_energy = 6.0
-		cube_root.add_child(flash)
-		flash.global_position = v.global_position + v.world_normal() * 0.6
-		rig.shake(0.7)
-		var tw := create_tween()
-		tw.tween_interval(0.1)
-		tw.tween_callback(bolt.hide)
-		tw.tween_interval(0.06)
-		tw.tween_callback(bolt.show)
-		tw.tween_interval(0.12)
-		tw.tween_callback(bolt.queue_free)
-		tw.parallel().tween_property(flash, "light_energy", 0.0, 0.35)
-		tw.tween_callback(flash.queue_free)
-		await tw.finished
-	else:
-		for k in 10:
-			var spark := Models.sphere(cube_root, 0.03, Color("#d9c2ff"), v.global_position + v.world_normal() * 0.3,
-				Models.mat(Color("#d9c2ff"), 0.3, 3.0))
-			var dir := (v.world_normal() + Vector3(randf_range(-0.8, 0.8), randf_range(-0.8, 0.8), randf_range(-0.8, 0.8))).normalized()
-			var st := spark.create_tween()
-			st.tween_property(spark, "global_position", spark.global_position + dir * 0.7, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			st.parallel().tween_property(spark, "scale", Vector3.ZERO, 0.7)
-			st.tween_callback(spark.queue_free)
-		await get_tree().create_timer(0.3).timeout
+	_clear_hint()
+	select(-1)
+	var n := v.world_normal()
+	var target := v.global_position + n * 0.15
+	var start := target + n * 5.0 + rig.global_transform.basis.x * 1.2
+	var rock := Node3D.new()
+	cube_root.add_child(rock)
+	rock.global_position = start
+	Models.sphere(rock, 0.2, Color("#7a6250"), Vector3.ZERO, Models.mat(Color("#7a6250"), 0.8), 0.9)
+	Models.sphere(rock, 0.27, Color(1.0, 0.55, 0.15, 0.4), Vector3.ZERO, Models.mat(Color(1.0, 0.55, 0.15, 0.4), 0.5, 2.5))
+	var tw := create_tween()
+	tw.tween_property(rock, "global_position", target, 0.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	var trail_t := 0.0
+	while trail_t < 0.6:
+		await get_tree().create_timer(0.06).timeout
+		trail_t += 0.06
+		_sparks(rock.global_position, rock.global_position + (start - target).normalized() * 0.4, Color("#ffb347"), 2)
+	await tw.finished
+	rock.queue_free()
+	var flash := OmniLight3D.new()
+	flash.light_color = Color("#ffb347")
+	flash.omni_range = 4.0
+	flash.light_energy = 8.0
+	cube_root.add_child(flash)
+	flash.global_position = target + n * 0.4
+	var ft := create_tween()
+	ft.tween_property(flash, "light_energy", 0.0, 0.6)
+	ft.tween_callback(flash.queue_free)
+	rig.shake(1.2)
+	v.burst(Color("#ff8a3d"))
+	_sparks(target + n * 0.2, Vector3.ZERO, Color("#ff8a3d"), 16)
+	for i in ids:
+		var w: FieldView = views.get(int(i))
+		if w != null and w != v:
+			w.burst(Color("#c98a5a"))
+	refresh_all()
+	await get_tree().create_timer(0.5).timeout
 	animating = false
-	refresh_all()
 
 
-func _eruption_fx(fid: int) -> void:
-	var v: FieldView = views.get(fid)
-	if v == null:
-		return
-	for k in 7:
-		var blob := Models.sphere(cube_root, 0.05, Color("#ff5a1f"), v.global_position + v.world_normal() * 0.35, Models.mat(Color("#ff5a1f"), 0.5, 3.0))
-		var dir := (v.world_normal() * 1.2 + Vector3(randf_range(-0.6, 0.6), randf_range(-0.6, 0.6), randf_range(-0.6, 0.6))).normalized()
-		var tw := blob.create_tween()
-		tw.tween_property(blob, "global_position", blob.global_position + dir * 0.9, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.parallel().tween_property(blob, "scale", Vector3.ZERO, 0.5).set_ease(Tween.EASE_IN)
-		tw.tween_callback(blob.queue_free)
-	await get_tree().create_timer(0.45).timeout
-
-
-func _on_hazards_spawned(list: Array) -> void:
-	_sync_hazards()
-	refresh_all()

@@ -50,9 +50,3 @@ static func icon(name: String) -> Texture2D:
 		tex = load(path)
 	_icons[name] = tex
 	return tex
-
-
-static func nation_color(n: int) -> Color:
-	if n < 0:
-		return SOFT
-	return Color(GameState.NATION_COLORS[n])

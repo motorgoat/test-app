@@ -2,79 +2,38 @@ class_name Balance
 extends RefCounted
 ## Zentrale Balancing-Datei: ALLE Spielzahlen stehen hier.
 
-# --- Völker und Start --------------------------------------------------------
-static var NATION_COUNT := 3
-static var START_SETTLEMENTS := 4        # Siedlungen pro Volk (als Gruppe)
-static var START_FAITH := 1              # Kapellen pro Volk
-static var START_INDUSTRY := 6
-static var START_MOUNTAINS := 6          # Rest wird Natur
-
-# --- Stufen ------------------------------------------------------------------
-static var MAX_LEVEL := 3
-# Drei Gleiche (gleiche Art, Stufe, Volk) in einer Reihe oder Spalte einer Seite verschmelzen sofort.
-static var MERGE_POINTS := [0, 10, 30, 90]   # Glaube je Stufe der verschmolzenen Felder (× Kombo)
-static var MERGE_HARMONY_MIN := 0.5      # bei Gleichgewicht 0 zählt eine Verschmelzung nur halb
+# --- Die Leiter -------------------------------------------------------------------
+# Drei gleiche in einer Reihe verschmelzen zur nächsten Stufe:
+#   Leere Erde (0) · Wiese (1) → Wald (2) → Dorf (3) → Stadt (4) → Fabrik (5)
+static var MAX_STAGE := 5
+# Glaube fürs Verschmelzen, nach Stufe der verschmolzenen Felder (Index = Stufe), × Kombo
+static var MERGE_POINTS := [0, 2, 5, 12, 25, 50]
 static var MAX_CASCADES := 6
-static var NEED_ROUNDS := 3              # so viele Runden ohne Bedürfnis, dann Stufe tiefer
-static var WAR_ROUNDS := 2               # so viele Runden Krieg an der Grenze, dann Stufe tiefer
-static var POLLUTION_ROUNDS := 2         # so viele Runden neben Fabrik, dann Natur Stufe tiefer
-static var POLLUTION_MIN_LEVEL := 2      # ab dieser Industrie-Stufe wird verschmutzt
-static var CRATER_REGROW := 8            # nach so vielen Runden wächst auf einem Krater wieder Natur
-static var CHAPEL_EVERY := 3             # jede 3. Ausbreitung einer Stadt wird eine Kapelle
 
-# Ausbreiten (Stufe 3 wächst aufs Nachbarfeld): alle N Runden, wird mit jedem Zeitalter schneller
-static var SPREAD_EVERY := 5
-static var SPREAD_EVERY_MIN := 2
+# --- Start ----------------------------------------------------------------------
+static var START_MEADOW := 0.6            # Anteil Wiesen, der Rest ist leere Erde
 
-# --- Glaube (Punkte) -----------------------------------------------------------
-static var TRADE_POINTS := 3             # Städte zweier Völker nebeneinander, ohne Krieg
-static var DISASTER_LOSS_PER_LEVEL := 4  # Glaube, der pro zerstörter Stufe einer Siedlung verloren geht
+# --- Jede Runde -------------------------------------------------------------------
+static var INCOME := [0, 0, 0, 0, 1, 3]   # Glaube pro Runde je Feld dieser Stufe (Stadt, Fabrik)
+static var REGROW_NEIGHBORS := 2          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
+static var POLLUTION_PER_FACTORY := 1     # jede Fabrik macht pro Runde so viele Natur-Nachbarn zu Erde
 
-# --- Gleichgewicht -------------------------------------------------------------
-# Anteil an allen beweglichen Feldern, der als „gesund“ gilt
-static var IDEAL := {
-	"nature": [0.25, 0.50],
-	"settlement": [0.15, 0.40],
-	"industry": [0.06, 0.25],
-	"faith": [0.04, 0.16],
-}
-static var HARMONY_STRICTNESS := 3.0     # wie stark Abweichungen das Gleichgewicht drücken
-static var HARMONY_DANGER := 0.15        # darunter gilt die Welt als aus dem Gleichgewicht
-static var LOSE_AFTER_DISHARMONY := 4    # so viele Runden aus dem Gleichgewicht = Ende
+# --- Gleichgewicht ------------------------------------------------------------------
+static var NATURE_MIN := 0.30             # mindestens so viel Natur (Wiese + Wald)
+static var CIVILISATION_MAX := 0.40       # höchstens so viel Zivilisation (Dorf + Stadt + Fabrik)
+static var LOSE_AFTER := 3                # so viele Runden in Folge außerhalb = die Welt stirbt
 
-# --- Werkzeuge ---------------------------------------------------------------------
-static var LIGHTNING_START := 1
-static var LIGHTNING_EVERY := 5          # alle 5 Runden ein neuer Blitz
-static var LIGHTNING_MAX := 3
-static var MIRACLE_EVERY_POINTS := 40    # alle 40 Glaube ein Wunder
-static var MIRACLE_MAX := 2
+# --- Meteorit -------------------------------------------------------------------------
+static var METEOR_COST := 30              # Glaube für den ersten Meteoriten
+static var METEOR_COST_STEP := 15         # jeder weitere kostet mehr
 
-# --- Gefahren und Zeitalter -----------------------------------------------------
-static var AGE_LENGTH := 10              # Runden pro Zeitalter
-# Katastrophen sind STRAFEN: Sie kommen nur, wenn etwas aus dem gesunden Bereich gerät.
-#   zu viel Industrie → Gewitter über einer Fabrik
-#   zu viele Siedlungen → Meteorit auf die größte Siedlung
-#   zu viel Natur → Gewitter mit Waldbrand
-#   zu wenig Glaube → ein Vulkan erwacht
-static var HAZARD_FREE_ROUNDS := 2
-static var PUNISH_CHANCE := 0.55         # Chance pro Runde, wenn etwas aus dem Gleichgewicht ist
-static var PUNISH_CHANCE_PER_AGE := 0.1
-static var PUNISH_CHANCE_MAX := 0.95
-static var HAZARD_MAX_BASE := 1          # gleichzeitig, plus 1 pro Zeitalter
-static var HAZARD_MAX := 4
-static var HAZARD_TIMER := 3             # Vorwarnung in Runden
-static var HAZARD_TIMER_MIN := 2         # ab Zeitalter 3 eine Runde weniger
-static var TOLERANCE_SHRINK_PER_AGE := 0.01   # der gesunde Bereich wird jedes Zeitalter enger
-static var TOLERANCE_SHRINK_MAX := 0.05
+# --- Spielende --------------------------------------------------------------------
+static var MAX_ROUNDS := 0                # 0 = endlos
 
-# --- Tipp ----------------------------------------------------------------------
-static var HINT_AFTER_SECONDS := 10.0     # so lange nichts getan, dann pulsiert eine lohnende Scheibe
-
-# --- Spielende -----------------------------------------------------------------
-static var MAX_ROUNDS := 0               # 0 = endlos
-
-# --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) -------------
+# --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42
-static var TWIST_FINGER_UNITS := 2.1     # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
-static var TWIST_FOLLOW := 9.0           # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
+static var TWIST_FINGER_UNITS := 2.1      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
+static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var DRAG_START_PX := 12.0
+static var HINT_AFTER_SECONDS := 8.0      # so lange nichts getan, dann pulsiert eine lohnende Scheibe
+static var TUTORIAL_HINT_ROUNDS := 3      # in den ersten Runden kommt der Tipp sofort

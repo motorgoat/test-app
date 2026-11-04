@@ -1,31 +1,27 @@
 class_name GameUI
 extends CanvasLayer
-## Oberfläche, Handy zuerst: schwebende Karten mit runden Ecken, große Knöpfe, wenig Text.
-## Oben: Runde/Zeitalter, Glaube, Gleichgewicht der vier Arten, Konflikte und Gefahren.
-## Unten: Blitz (Feld vernichten), Warten, Wunder (Krater neu erschaffen).
+## Oberfläche, Handy zuerst. Oben: Glaube, die Leiter (Wiese → Wald → Dorf → Stadt → Fabrik)
+## mit Anzahl je Stufe und die zwei Leisten Natur/Zivilisation. Unten: Meteorit, Warten, Hilfe.
 
-const KIND_ICON = {"nature": "nature", "settlement": "village", "industry": "industry", "faith": "faith"}
-const KIND_COLOR = {"nature": "#4fae55", "settlement": "#e0a54a", "industry": "#737884", "faith": "#9b7ff0"}
+const STAGE_ICON = ["empty", "meadow", "nature", "village", "town", "industry"]
 
 var world: World
 var root: Control
 
 var round_label: Label
-var age_label: Label
 var faith_label: Label
 var best_label: Label
-var bars: Dictionary = {}       # kind -> {"fill": ColorRect, "back": ColorRect, "label": Label}
-var harmony_label: Label
-var chips: HFlowContainer
+var ladder_counts: Array = []
+var nature_bar: Dictionary = {}
+var civ_bar: Dictionary = {}
+var danger_label: Label
 var preview_card: PanelContainer
 var preview_label: Label
 var toast: PanelContainer
 var toast_label: Label
 var wait_btn: Button
-var bolt_btn: Button
-var miracle_btn: Button
+var meteor_btn: Button
 var mode_card: PanelContainer
-var mode_label: Label
 var sheet: PanelContainer
 var sheet_icon: TextureRect
 var sheet_title: Label
@@ -35,12 +31,10 @@ var help_card: PanelContainer
 var menu_card: PanelContainer
 var over_card: PanelContainer
 var over_label: Label
-var pick_card: PanelContainer
 var bubble_layer: Control
 var combo_label: Label
 
-var tool_mode := ""             # "", "lightning", "miracle"
-var _pick_field := -1
+var meteor_mode := false
 var _sheet_field := -1
 var _bubbles: Array = []
 var _toast_until := 0.0
@@ -86,47 +80,70 @@ func _build() -> void:
 	var card := _card()
 	top.add_child(card)
 	var cv := VBoxContainer.new()
-	cv.add_theme_constant_override("separation", 8)
+	cv.add_theme_constant_override("separation", 10)
 	card.add_child(cv)
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	cv.add_child(row)
-	var rbox := VBoxContainer.new()
-	rbox.add_theme_constant_override("separation", -6)
-	row.add_child(rbox)
-	age_label = _label("ZEITALTER 1", 12, Style.SOFT, true)
-	rbox.add_child(age_label)
-	round_label = _label("Runde 1", 22, Style.TEXT, true)
-	rbox.add_child(round_label)
+	round_label = _label("Runde 1", 20, Style.SOFT, true)
+	round_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(round_label)
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sp)
-	faith_label = _stat(row, "faith", 30)
+	faith_label = _stat(row, "faith", 32)
 	best_label = _stat(row, "trophy", 18)
 	best_label.add_theme_color_override("font_color", Style.SOFT)
-	var mb := _round_button("menu", func() -> void: _open_modal(menu_card), 46)
-	row.add_child(mb)
+	row.add_child(_round_button("menu", func() -> void: _open_modal(menu_card), 46))
 
-	# Gleichgewicht
-	var hrow := HBoxContainer.new()
-	hrow.add_theme_constant_override("separation", 8)
-	cv.add_child(hrow)
-	for k in GameState.KINDS:
-		hrow.add_child(_bar(k))
-	harmony_label = _label("", 14, Style.SOFT, true)
-	harmony_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cv.add_child(harmony_label)
+	# Die Leiter
+	var ladder := HBoxContainer.new()
+	ladder.add_theme_constant_override("separation", 2)
+	ladder.alignment = BoxContainer.ALIGNMENT_CENTER
+	cv.add_child(ladder)
+	for s in range(1, Balance.MAX_STAGE + 1):
+		if s > 1:
+			var arrow := _label("›", 26, Style.SOFT, true)
+			arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			ladder.add_child(arrow)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", -2)
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.custom_minimum_size = Vector2(60, 0)
+		ladder.add_child(col)
+		var tr := TextureRect.new()
+		tr.texture = Style.icon(STAGE_ICON[s])
+		tr.custom_minimum_size = Vector2(38, 38)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		col.add_child(tr)
+		var nm := _label(GameState.stage_name(s), 12, Style.SOFT, true)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(nm)
+		var cnt := _label("0", 16, Style.TEXT, true)
+		cnt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(cnt)
+		ladder_counts.append(cnt)
+	var rule := _label("3 gleiche in einer Reihe = nächste Stufe", 13, Style.SOFT, true)
+	rule.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cv.add_child(rule)
 
-	chips = HFlowContainer.new()
-	chips.add_theme_constant_override("h_separation", 6)
-	chips.add_theme_constant_override("v_separation", 6)
-	chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top.add_child(chips)
+	# Leisten
+	var bars := HBoxContainer.new()
+	bars.add_theme_constant_override("separation", 14)
+	cv.add_child(bars)
+	nature_bar = _bar(bars, "nature", "Natur", Color("#4fae55"), Balance.NATURE_MIN, true)
+	civ_bar = _bar(bars, "town", "Zivilisation", Color("#e0a54a"), Balance.CIVILISATION_MAX, false)
+	danger_label = _label("", 15, Style.BAD, true)
+	danger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	danger_label.visible = false
+	cv.add_child(danger_label)
 
 	preview_card = _card(Color(1, 1, 1, 0.97))
 	preview_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	preview_label = _label("", 21, Style.TEXT, true)
+	preview_label = _label("", 22, Style.TEXT, true)
 	preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	preview_card.add_child(preview_label)
 	preview_card.modulate.a = 0.0
@@ -153,9 +170,8 @@ func _build() -> void:
 	var mh := HBoxContainer.new()
 	mh.add_theme_constant_override("separation", 10)
 	mode_card.add_child(mh)
-	mode_label = _label("", 18, Color.WHITE, true)
-	mh.add_child(mode_label)
-	var cancel := _round_button("", func() -> void: _set_mode(""), 40)
+	mh.add_child(_label("Tippe, wo der Meteorit einschlagen soll", 17, Color.WHITE, true))
+	var cancel := _round_button("", func() -> void: _set_meteor_mode(false), 40)
 	cancel.text = "✕"
 	mh.add_child(cancel)
 	mode_card.visible = false
@@ -164,8 +180,15 @@ func _build() -> void:
 	brow.add_theme_constant_override("separation", 12)
 	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_child(brow)
-	bolt_btn = _tool_button("lightning", func() -> void: _set_mode("lightning" if tool_mode != "lightning" else ""))
-	brow.add_child(bolt_btn)
+	meteor_btn = Button.new()
+	meteor_btn.icon = Style.icon("meteor")
+	meteor_btn.add_theme_constant_override("icon_max_width", 30)
+	meteor_btn.custom_minimum_size = Vector2(110, 62)
+	meteor_btn.add_theme_font_override("font", Style.bold())
+	meteor_btn.add_theme_font_size_override("font_size", 18)
+	_pill_style(meteor_btn, Color.WHITE)
+	meteor_btn.pressed.connect(func() -> void: _set_meteor_mode(not meteor_mode))
+	brow.add_child(meteor_btn)
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -174,7 +197,7 @@ func _build() -> void:
 	wait_btn.text = "Warten"
 	wait_btn.icon = Style.icon("wait")
 	wait_btn.add_theme_constant_override("icon_max_width", 28)
-	wait_btn.custom_minimum_size = Vector2(160, 62)
+	wait_btn.custom_minimum_size = Vector2(150, 62)
 	wait_btn.add_theme_font_override("font", Style.bold())
 	wait_btn.add_theme_font_size_override("font_size", 20)
 	_pill_style(wait_btn, Color.WHITE)
@@ -184,8 +207,7 @@ func _build() -> void:
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp3)
-	miracle_btn = _tool_button("miracle", func() -> void: _set_mode("miracle" if tool_mode != "miracle" else ""))
-	brow.add_child(miracle_btn)
+	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 62))
 
 	bubble_layer = Control.new()
 	bubble_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -197,7 +219,7 @@ func _build() -> void:
 	combo_label.add_theme_constant_override("outline_size", 14)
 	combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	combo_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	combo_label.offset_top = 260
+	combo_label.offset_top = 330
 	combo_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	combo_label.modulate.a = 0.0
 	root.add_child(combo_label)
@@ -212,41 +234,46 @@ func _build() -> void:
 	_build_help()
 	_build_menu()
 	_build_over()
-	_build_pick()
 
 
-func _bar(kind: String) -> Control:
+func _bar(parent: Control, icon_name: String, title: String, color: Color, limit: float, is_min: bool) -> Dictionary:
 	var v := VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 3)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(v)
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 4)
+	h.add_theme_constant_override("separation", 5)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(h)
 	var tr := TextureRect.new()
-	tr.texture = Style.icon(KIND_ICON[kind])
+	tr.texture = Style.icon(icon_name)
 	tr.custom_minimum_size = Vector2(20, 20)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	h.add_child(tr)
-	var l := _label("0%", 14, Style.TEXT, true)
+	var l := _label(title, 14, Style.TEXT, true)
 	h.add_child(l)
+	var pct := _label("0%", 14, Style.TEXT, true)
+	pct.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h.add_child(pct)
 	var back := ColorRect.new()
 	back.color = Color("#ece6dc")
-	back.custom_minimum_size = Vector2(0, 8)
+	back.custom_minimum_size = Vector2(0, 10)
 	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(back)
-	var ideal := ColorRect.new()
-	ideal.color = Color(0.2, 0.66, 0.33, 0.22)
-	ideal.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	back.add_child(ideal)
 	var fill := ColorRect.new()
-	fill.color = Color(KIND_COLOR[kind])
+	fill.color = color
 	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	back.add_child(fill)
-	bars[kind] = {"fill": fill, "back": back, "ideal": ideal, "label": l}
-	return v
+	var mark := ColorRect.new()
+	mark.color = Style.TEXT
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.add_child(mark)
+	var hint := _label(("mind. %d%%" if is_min else "höchstens %d%%") % int(round(limit * 100.0)), 11, Style.SOFT)
+	v.add_child(hint)
+	return {"back": back, "fill": fill, "mark": mark, "pct": pct, "color": color, "limit": limit, "is_min": is_min}
 
 
 func _build_sheet() -> void:
@@ -268,7 +295,6 @@ func _build_sheet() -> void:
 	h.add_child(sheet_icon)
 	sheet_title = _label("", 23, Style.TEXT, true)
 	sheet_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sheet_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sheet_title.custom_minimum_size = Vector2(180, 0)
 	h.add_child(sheet_title)
 	var close := _round_button("", func() -> void: _close_sheet(), 48)
@@ -298,15 +324,14 @@ func _modal_card(title: String) -> PanelContainer:
 
 
 func _build_help() -> void:
-	help_card = _modal_card("Halte die Welt im Gleichgewicht")
+	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
-	v.add_child(_help_row("round", "Wisch über eine Reihe, um die Welt zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Dreh 3 gleiche Felder in eine Reihe: Sie verschmelzen sofort zu etwas Größerem (Dorf → Stadt, Wiese → Fluss) und bringen Glauben."))
-	v.add_child(_help_row("hunger", "Siedlungen brauchen Natur daneben, Industrie und Kirchen brauchen Siedlungen."))
-	v.add_child(_help_row("balance", "Nichts darf überhandnehmen. Die Leisten oben zeigen das Gleichgewicht. Frei gewordene Felder füllen sich mit dem, was fehlt."))
-	v.add_child(_help_row("swords", "Kirchen zweier Völker nebeneinander: Krieg. Städte zweier Völker: Handel."))
-	v.add_child(_help_row("lightning", "Blitz: vernichtet ein Feld. Wunder: macht aus einem Krater ein neues Feld."))
-	v.add_child(_help_row("meteor", "Katastrophen kündigen sich an. Es wird mit jedem Zeitalter schwerer."))
+	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
+	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen zur nächsten Stufe: Wiese → Wald → Dorf → Stadt → Fabrik."))
+	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn genug Natur daneben ist."))
+	v.add_child(_help_row("industry", "Städte und Fabriken bringen jede Runde Glauben. Fabriken zerstören aber die Natur daneben."))
+	v.add_child(_help_row("balance", "Zu wenig Natur oder zu viel Zivilisation: Die Welt stirbt."))
+	v.add_child(_help_row("meteor", "Der Meteorit kostet Glauben und macht ein Feld samt Nachbarn zu Erde. Setz ihn im richtigen Moment ein."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -327,7 +352,7 @@ func _build_menu() -> void:
 
 
 func _build_over() -> void:
-	over_card = _modal_card("Die Welt ist aus den Fugen")
+	over_card = _modal_card("Die Welt ist gestorben")
 	var v: VBoxContainer = over_card.get_child(0)
 	over_label = _label("", 19, Style.TEXT)
 	over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -337,31 +362,6 @@ func _build_over() -> void:
 	var again := _wide_button("Nochmal", Style.ACCENT, Color.WHITE)
 	again.pressed.connect(_restart)
 	v.add_child(again)
-
-
-func _build_pick() -> void:
-	pick_card = _modal_card("Was soll hier entstehen?")
-	var v: VBoxContainer = pick_card.get_child(0)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
-	v.add_child(grid)
-	for k in GameState.KINDS:
-		var b := Button.new()
-		b.text = GameState.LEVEL_NAME[k][1]
-		b.icon = Style.icon(KIND_ICON[k])
-		b.add_theme_constant_override("icon_max_width", 36)
-		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		b.custom_minimum_size = Vector2(160, 92)
-		b.add_theme_font_override("font", Style.bold())
-		_pill_style(b, Color.WHITE)
-		b.pressed.connect(_on_pick.bind(k))
-		grid.add_child(b)
-	var cancel := _wide_button("Abbrechen", Color.WHITE, Style.TEXT)
-	cancel.pressed.connect(func() -> void: _close_modal())
-	v.add_child(cancel)
 
 
 # --- Bausteine ---------------------------------------------------------------
@@ -448,18 +448,6 @@ func _round_button(icon_name: String, cb: Callable, size: int = 60) -> Button:
 	return b
 
 
-func _tool_button(icon_name: String, cb: Callable) -> Button:
-	var b := Button.new()
-	b.icon = Style.icon(icon_name)
-	b.add_theme_constant_override("icon_max_width", 30)
-	b.custom_minimum_size = Vector2(86, 62)
-	b.add_theme_font_override("font", Style.bold())
-	b.add_theme_font_size_override("font_size", 20)
-	_pill_style(b, Color.WHITE)
-	b.pressed.connect(cb)
-	return b
-
-
 func _pill_style(b: Button, bg: Color) -> void:
 	var n := _sb(bg, 30, 10)
 	n.shadow_size = 10
@@ -502,31 +490,6 @@ func _help_row(icon_name: String, text: String) -> HBoxContainer:
 	return h
 
 
-func _chip(icon_name: String, text: String, border: Color, cb: Callable = Callable()) -> Control:
-	var b := Button.new()
-	b.text = text
-	if icon_name != "":
-		b.icon = Style.icon(icon_name)
-		b.add_theme_constant_override("icon_max_width", 20)
-	b.add_theme_font_override("font", Style.bold())
-	b.add_theme_font_size_override("font_size", 15)
-	var s := _sb(Color(1, 1, 1, 0.92), 16, 4)
-	s.content_margin_left = 10
-	s.content_margin_right = 10
-	s.border_color = border
-	s.set_border_width_all(3)
-	b.add_theme_stylebox_override("normal", s)
-	b.add_theme_stylebox_override("hover", s)
-	b.add_theme_stylebox_override("pressed", s)
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	b.add_theme_color_override("font_color", Style.TEXT)
-	if cb.is_valid():
-		b.pressed.connect(cb)
-	else:
-		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return b
-
-
 # =============================================================================
 # Aktualisieren
 # =============================================================================
@@ -536,17 +499,21 @@ func refresh() -> void:
 		return
 	var gs := Game.state
 	round_label.text = "Runde %d" % gs.turn
-	age_label.text = "ZEITALTER %d" % gs.age()
 	if _shown_faith < 0:
 		_faith_display = gs.faith
 	if _shown_faith >= 0 and gs.faith != _shown_faith:
 		_pop(faith_label)
 	_shown_faith = gs.faith
 	best_label.text = str(Game.best_faith)
-	_refresh_bars(gs)
-	_refresh_chips(gs)
-	bolt_btn.text = str(gs.lightning)
-	miracle_btn.text = str(gs.miracles)
+	for s in range(1, Balance.MAX_STAGE + 1):
+		(ladder_counts[s - 1] as Label).text = str(gs.count(s))
+	meteor_btn.text = str(gs.meteor_cost())
+	if gs.bad_rounds > 0 and not Game.over:
+		var left := Balance.LOSE_AFTER - gs.bad_rounds
+		danger_label.text = "Die Welt stirbt in %d %s!" % [left, "Runde" if left == 1 else "Runden"]
+		danger_label.visible = true
+	else:
+		danger_label.visible = false
 	_update_buttons()
 	if _sheet_field >= 0 and sheet.visible:
 		_fill_sheet(_sheet_field)
@@ -556,39 +523,23 @@ func _update_buttons() -> void:
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
 	wait_btn.disabled = blocked
-	bolt_btn.disabled = blocked or gs.lightning <= 0
-	miracle_btn.disabled = blocked or gs.miracles <= 0
+	meteor_btn.disabled = blocked or gs.faith < gs.meteor_cost()
 
 
-func _refresh_bars(gs: GameState) -> void:
-	var hm := gs.harmony()
-	var shares: Dictionary = hm["shares"]
-	var status: Dictionary = hm["status"]
-	for k in GameState.KINDS:
-		var b: Dictionary = bars[k]
-		var back: ColorRect = b["back"]
-		var w := back.size.x
-		var s := float(shares[k])
-		var rr := gs.ideal(k)
-		var lo := rr.x
-		var hi := rr.y
-		var fill: ColorRect = b["fill"]
-		var ideal: ColorRect = b["ideal"]
-		fill.size = Vector2(maxf(2.0, w * minf(1.0, s / 0.6)), 8)
-		ideal.position = Vector2(w * lo / 0.6, 0)
-		ideal.size = Vector2(w * (hi - lo) / 0.6, 8)
-		var l: Label = b["label"]
-		l.text = "%d%%" % int(round(s * 100.0))
-		var st: String = status[k]
-		l.add_theme_color_override("font_color", Style.TEXT if st == "ok" else Style.BAD)
-		fill.color = Color(KIND_COLOR[k]) if st == "ok" else Style.BAD
-	var v := float(hm["value"])
-	var txt := "Gleichgewicht %d%%" % int(round(v * 100.0))
-	if gs.bad_rounds > 0 and not Game.over:
-		var left := Balance.LOSE_AFTER_DISHARMONY - gs.bad_rounds
-		txt += "  ·  noch %d %s!" % [left, "Runde" if left == 1 else "Runden"]
-	harmony_label.text = txt
-	harmony_label.add_theme_color_override("font_color", Style.BAD if v < 0.4 else (Style.SOFT if v < 0.8 else Style.GOOD))
+func _draw_bar(b: Dictionary, value: float) -> void:
+	var back: ColorRect = b["back"]
+	var fill: ColorRect = b["fill"]
+	var mark: ColorRect = b["mark"]
+	var w := back.size.x
+	var limit: float = b["limit"]
+	var ok := value >= limit if bool(b["is_min"]) else value <= limit
+	fill.size = Vector2(maxf(2.0, w * clampf(value, 0.0, 1.0)), 10)
+	fill.color = b["color"] if ok else Style.BAD
+	mark.position = Vector2(w * limit - 1.5, -3)
+	mark.size = Vector2(3, 16)
+	var pct: Label = b["pct"]
+	pct.text = "%d%%" % int(round(value * 100.0))
+	pct.add_theme_color_override("font_color", Style.TEXT if ok else Style.BAD)
 
 
 func _pop(c: Control) -> void:
@@ -598,58 +549,29 @@ func _pop(c: Control) -> void:
 	tw.tween_property(c, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
-func _refresh_chips(gs: GameState) -> void:
-	for c in chips.get_children():
-		chips.remove_child(c)
-		c.queue_free()
-	for k in gs.war_pairs():
-		var ab: PackedStringArray = str(k).split("|")
-		chips.add_child(_chip("swords", "%s – %s" % [GameState.NATION_NAMES[int(ab[0])], GameState.NATION_NAMES[int(ab[1])]], Style.BAD))
-	for k in gs.trade_pairs():
-		var ab: PackedStringArray = str(k).split("|")
-		chips.add_child(_chip("trade", "%s – %s" % [GameState.NATION_NAMES[int(ab[0])], GameState.NATION_NAMES[int(ab[1])]], Style.GOOD))
-	for h in gs.hazards:
-		var n: Vector3i = h["n"]
-		var t: String = h["type"]
-		chips.add_child(_chip(t, str(h["timer"]), Style.BAD, world.focus_place.bind(n)))
-	for f in gs.fields:
-		if f.volcano > 0:
-			chips.add_child(_chip("volcano", str(f.volcano), Style.BAD, world.focus_field.bind(f.id)))
-
-
 func _process(delta: float) -> void:
 	_time += delta
 	if toast.modulate.a > 0.0 and _time > _toast_until:
 		toast.modulate.a = maxf(0.0, toast.modulate.a - delta * 3.0)
 	_update_bubbles(delta)
-	if Game.state != null and faith_label != null:
-		var target := float(Game.state.faith)
-		_faith_display = move_toward(_faith_display, target, maxf(1.0, absf(target - _faith_display)) * delta * 4.0)
-		faith_label.text = str(int(round(_faith_display)))
-	if wait_btn != null and Game.state != null:
-		_update_buttons()
-		_refresh_bars(Game.state)
+	if Game.state == null or faith_label == null:
+		return
+	var target := float(Game.state.faith)
+	_faith_display = move_toward(_faith_display, target, maxf(1.0, absf(target - _faith_display)) * delta * 4.0)
+	faith_label.text = str(int(round(_faith_display)))
+	_draw_bar(nature_bar, Game.state.nature_share())
+	_draw_bar(civ_bar, Game.state.civilisation_share())
+	_update_buttons()
 
 
 # =============================================================================
-# Werkzeuge
+# Meteorit
 # =============================================================================
 
-func _set_mode(m: String) -> void:
-	tool_mode = m
-	mode_card.visible = m != ""
-	if m == "lightning":
-		mode_label.text = "Tippe ein Feld zum Vernichten"
-	elif m == "miracle":
-		mode_label.text = "Tippe einen Krater für ein Wunder"
+func _set_meteor_mode(on: bool) -> void:
+	meteor_mode = on
+	mode_card.visible = on
 	_close_sheet()
-
-
-func _on_pick(kind: String) -> void:
-	_close_modal()
-	if _pick_field >= 0:
-		Game.use_miracle(_pick_field, kind)
-	_pick_field = -1
 
 
 # =============================================================================
@@ -661,24 +583,16 @@ func _on_preview(info: Dictionary) -> void:
 	if info.is_empty():
 		tw.tween_property(preview_card, "modulate:a", 0.0, 0.15)
 		return
-	var gain := int(info["gain"]) - int(info["loss"])
-	var hv := float(info["harmony"])
-	var txt := "Glaube %s   ·   Gleichgewicht %d%%" % [_signed(gain), int(round(hv * 100.0))]
-	var ps: GameState = info["arranged"]
-	if not ps.war_pairs().is_empty():
-		txt += "   ·   Krieg!"
-	preview_label.text = txt
-	var col := Style.GOOD if gain > 0 else (Style.BAD if gain < 0 else Style.TEXT)
-	preview_label.add_theme_color_override("font_color", col)
+	var arranged: GameState = info["arranged"]
+	var merges := arranged.lines().size()
+	var gain := int(info["gain"])
+	if merges > 0:
+		preview_label.text = "%d× Verschmelzen   ·   +%d Glaube" % [merges, gain]
+		preview_label.add_theme_color_override("font_color", Color("#c98a00"))
+	else:
+		preview_label.text = "Keine Dreierreihe   ·   +%d Glaube" % gain
+		preview_label.add_theme_color_override("font_color", Style.SOFT)
 	tw.tween_property(preview_card, "modulate:a", 1.0, 0.12)
-
-
-static func _signed(v: int) -> String:
-	if v > 0:
-		return "+%d" % v
-	if v < 0:
-		return "−%d" % -v
-	return "±0"
 
 
 # =============================================================================
@@ -686,19 +600,9 @@ static func _signed(v: int) -> String:
 # =============================================================================
 
 func _on_field_tapped(fid: int) -> void:
-	var f: FieldData = Game.state.fields[fid]
-	if tool_mode == "lightning":
-		if Game.use_lightning(fid):
-			_set_mode("")
-		return
-	if tool_mode == "miracle":
-		var err := Game.state.can_miracle(f)
-		if err != "":
-			_on_message(err, "bad")
-			return
-		_pick_field = fid
-		_set_mode("")
-		_open_modal(pick_card)
+	if meteor_mode:
+		if Game.use_meteor(fid):
+			_set_meteor_mode(false)
 		return
 	if world.selected == fid and sheet.visible:
 		_close_sheet()
@@ -724,57 +628,21 @@ func _close_sheet() -> void:
 
 
 func _fill_sheet(fid: int) -> void:
-	var gs := Game.state
-	var f: FieldData = gs.fields[fid]
+	var f: FieldData = Game.state.fields[fid]
+	sheet_title.text = GameState.stage_name(f.stage)
+	sheet_icon.texture = Style.icon(STAGE_ICON[f.stage])
 	var lines := PackedStringArray()
-	var title := GameState.level_name(f)
-	if f.has_nation():
-		title += " der %s" % GameState.NATION_GENITIVE[f.nation]
-	sheet_title.text = title
-	sheet_icon.texture = Style.icon(KIND_ICON.get(f.kind, "help"))
-	if f.is_center:
-		sheet_icon.texture = Style.icon("round")
-		lines.append("Wahrzeichen: dreht sich nie. Daran erkennst du die Seite.")
-	elif f.scored():
-		var fc := gs.field_forecast(f)
-		lines.append("%s · Stufe %d von %d" % [GameState.KIND_NAME[f.kind], f.level, Balance.MAX_LEVEL])
-		if f.level < Balance.MAX_LEVEL:
-			lines.append("Dreh 3 davon (gleiche Stufe) in eine Reihe, dann verschmelzen sie zur nächsten Stufe.")
-		else:
-			lines.append("Höchste Stufe: breitet sich alle %d Runden auf ein Nachbarfeld aus." % gs.spread_every())
-		if not bool(fc["need"]):
-			match f.kind:
-				"settlement":
-					lines.append("Hunger! Braucht Natur daneben.")
-				"industry":
-					lines.append("Keine Arbeiter! Braucht eine Siedlung daneben.")
-				"faith":
-					lines.append("Keine Gläubigen! Braucht eine Siedlung des eigenen Volkes daneben.")
-		if bool(fc["war"]):
-			lines.append("Krieg an der Grenze: verliert bald eine Stufe.")
-		if bool(fc["polluted"]):
-			lines.append("Verschmutzt von der Fabrik daneben: verliert bald eine Stufe.")
-		if bool(fc["trade"]):
-			lines.append("Handel mit einem anderen Volk: +%d Glaube pro Runde." % Balance.TRADE_POINTS)
-	elif f.kind == "crater":
-		lines.append("Wächst in %d Runden wieder zu Natur. Mit einem Wunder entsteht sofort etwas Neues." % maxi(1, Balance.CRATER_REGROW - f.crater_age))
-	elif f.kind == "mountain":
-		lines.append("Berg: zählt nicht zum Gleichgewicht. Hier können Vulkane erwachen.")
-	if f.burning:
-		lines.append("Brennt! Ein Fluss daneben löscht, sonst springt das Feuer auf Natur über.")
-	if f.volcano > 0:
-		sheet_icon.texture = Style.icon("volcano")
-		lines.append("Vulkan bricht in %d Runden aus: Nachbarn verlieren eine Stufe." % f.volcano)
-	var h := gs.hazard_at(f)
-	if not h.is_empty():
-		var t: String = h["type"]
-		sheet_icon.texture = Style.icon(t)
-		if h.has("cause"):
-			lines.append("Strafe: " + str(GameState.CAUSE_TEXT.get(str(h["cause"]), "")) + ".")
-		if t == "meteor":
-			lines.append("Meteorit in %d Runden genau hier: das Feld wird zum Krater. Dreh es weg oder bring die Welt ins Gleichgewicht!" % int(h["timer"]))
-		else:
-			lines.append("Gewitter in %d Runden genau hier: eine Stufe weniger, Natur fängt Feuer." % int(h["timer"]))
+	if f.stage == 0:
+		lines.append("Wird wieder zur Wiese, wenn %d Natur-Felder daneben liegen." % Balance.REGROW_NEIGHBORS)
+	elif f.stage >= Balance.MAX_STAGE:
+		lines.append("Höchste Stufe. Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
+		lines.append("Zerstört jede Runde ein Natur-Feld daneben.")
+		lines.append("Drei Fabriken in einer Reihe: +%d Glaube." % int(Balance.MERGE_POINTS[f.stage]))
+	else:
+		if true:
+			lines.append("Drei davon in einer Reihe werden zu: %s (+%d Glaube)." % [GameState.stage_name(f.stage + 1), int(Balance.MERGE_POINTS[f.stage])])
+			if int(Balance.INCOME[f.stage]) > 0:
+				lines.append("Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
 	sheet_body.text = "\n".join(lines)
 
 
@@ -784,10 +652,11 @@ func _fill_sheet(fid: int) -> void:
 
 func _on_merged(fid: int, points: int, combo: int) -> void:
 	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
+	var f: FieldData = Game.state.fields[fid]
 	if combo >= 2:
 		combo_label.text = "Kombo ×%d!" % combo
 	else:
-		combo_label.text = "Verschmolzen!"
+		combo_label.text = GameState.stage_name(f.stage) + "!"
 	combo_label.pivot_offset = combo_label.size * 0.5
 	combo_label.scale = Vector2(0.5, 0.5)
 	combo_label.modulate.a = 1.0
@@ -801,18 +670,13 @@ func _on_merged(fid: int, points: int, combo: int) -> void:
 func _on_deltas(list: Array, gain: int) -> void:
 	for d in list:
 		var fid := int(d["field"])
-		var f: FieldData = Game.state.fields[fid]
 		match str(d["change"]):
-			"up":
-				_bubble(fid, GameState.level_name(f), "up", Style.GOOD)
-			"down":
-				_bubble(fid, GameState.level_name(f), "down", Style.BAD)
 			"lost":
-				_bubble(fid, "Krater", "down", Style.BAD)
+				_bubble(fid, "verschmutzt", "smog", Style.BAD)
 			"new":
-				_bubble(fid, GameState.level_name(f), "miracle", Style.ACCENT)
-	if gain != 0:
-		_on_message("%s Glaube" % _signed(gain), "good" if gain > 0 else "bad")
+				_bubble(fid, "Wiese", "meadow", Style.GOOD)
+	if gain > 0:
+		_on_message("+%d Glaube" % gain, "good")
 	refresh()
 
 
@@ -887,7 +751,7 @@ func _show_help() -> void:
 
 
 func _open_modal(card: PanelContainer) -> void:
-	for c in [help_card, menu_card, over_card, pick_card]:
+	for c in [help_card, menu_card, over_card]:
 		(c as Control).visible = false
 	modal_bg.visible = true
 	modal_bg.modulate.a = 0.0
@@ -913,14 +777,14 @@ func _recenter(card: Control) -> void:
 
 
 func _close_modal() -> void:
-	for c in [help_card, menu_card, over_card, pick_card]:
+	for c in [help_card, menu_card, over_card]:
 		(c as Control).visible = false
 	modal_bg.visible = false
 
 
 func _on_new_game() -> void:
 	_close_modal()
-	_set_mode("")
+	_set_meteor_mode(false)
 	sheet.visible = false
 	_sheet_field = -1
 	_shown_faith = -1
@@ -933,13 +797,13 @@ func _on_new_game() -> void:
 func _on_game_over() -> void:
 	var gs := Game.state
 	var lines := PackedStringArray()
-	if gs.settlements() == 0:
-		lines.append("Alle Siedlungen sind verschwunden.")
+	if gs.nature_share() < Balance.NATURE_MIN:
+		lines.append("Es gab zu wenig Natur.")
 	else:
-		lines.append("Die Welt war zu lange aus dem Gleichgewicht.")
+		lines.append("Es gab zu viel Zivilisation.")
 	lines.append("")
 	lines.append("Glaube: %d" % gs.faith)
-	lines.append("Überlebt: %d Runden (Zeitalter %d)" % [Game.rounds_survived(), gs.age()])
+	lines.append("Überlebt: %d Runden" % Game.rounds_survived())
 	if Game.new_record:
 		lines.append("Neuer Rekord!")
 	else:
@@ -952,12 +816,12 @@ func _seen_help() -> bool:
 	var cfg := ConfigFile.new()
 	if cfg.load("user://einstellungen.cfg") != OK:
 		return false
-	return bool(cfg.get_value("hilfe", "gesehen_v3", false))
+	return bool(cfg.get_value("hilfe", "gesehen_v4", false))
 
 
 func _mark_help_seen() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value("hilfe", "gesehen_v3", true)
+	cfg.set_value("hilfe", "gesehen_v4", true)
 	cfg.save("user://einstellungen.cfg")
 
 
@@ -970,11 +834,7 @@ func debug_show_help() -> void:
 	_open_modal(help_card)
 
 
-func debug_show_pick() -> void:
-	_open_modal(pick_card)
-
-
 func debug_close_all() -> void:
 	_close_modal()
-	_set_mode("")
+	_set_meteor_mode(false)
 	sheet.visible = false

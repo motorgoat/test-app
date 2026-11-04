@@ -2,51 +2,24 @@ class_name GameState
 extends RefCounted
 ## Reine Spiellogik, getrennt von der Darstellung. Kopierbar (clone) für die Vorschau.
 ##
-## Vier Feldarten mit je 3 Stufen:
-##   Natur (Wiese mit See → Fluss → Urwald), Siedlung (Dorf → Stadt → Metropole),
-##   Industrie (Werkstatt → Fabrik → Industriegebiet), Glaube (Kapelle → Kirche → Kathedrale).
-## Dazu Berge, Krater und die 6 festen Mitten (Wahrzeichen, drehen sich nie).
-##
-## Eine Runde = eine Drehung (oder Warten). Auswertung:
-##   1. Gefahren schlagen ein, Vulkane brechen aus, Feuer brennt
-##   2. Gleiche Felder nebeneinander → nach ein paar Runden Stufe höher
-##      Fehlt ein Bedürfnis (Siedlung braucht Natur, Industrie und Glaube brauchen Siedlung) → Stufe tiefer
-##      Krieg (Kirchen fremder Völker nebeneinander) und Verschmutzung (Fabrik neben Natur) → Stufe tiefer
-##   3. Stufe 3 breitet sich aus (Natur verschluckt Dörfer, Städte und Industrie fressen Natur)
-##   4. Glaube: Punkte für Paare × Gleichgewicht, Handel zwischen Städten, Verlust durch Katastrophen
+## Regeln:
+##   1. Start: nur leere Erde und Wiesen.
+##   2. Drei gleiche Felder in einer Reihe oder Spalte einer Seite verschmelzen sofort zur nächsten Stufe:
+##      Wiese → Wald → Dorf → Stadt → Fabrik. Die äußeren zwei werden zu leerer Erde.
+##   3. Leere Erde wird wieder Wiese, wenn genug Natur daneben ist.
+##   4. Städte und Fabriken bringen jede Runde Glauben. Fabriken verschmutzen die Natur daneben.
+##   5. Zu wenig Natur oder zu viel Zivilisation: nach ein paar Runden stirbt die Welt.
+##   6. Meteorit (kostet Glauben): Feld und Nachbarn werden zu leerer Erde.
 
-const KINDS = ["nature", "settlement", "industry", "faith"]
-const KIND_NAME = {"nature": "Natur", "settlement": "Siedlung", "industry": "Industrie", "faith": "Glaube",
-	"mountain": "Berg", "crater": "Krater", "center": "Wahrzeichen"}
-const LEVEL_NAME = {
-	"nature": ["", "Wiese mit See", "Fluss", "Urwald"],
-	"settlement": ["", "Dorf", "Stadt", "Metropole"],
-	"industry": ["", "Werkstatt", "Fabrik", "Industriegebiet"],
-	"faith": ["", "Kapelle", "Kirche", "Kathedrale"],
-}
-const NATION_NAMES = ["Rote", "Blaue", "Gelbe", "Grüne"]
-const NATION_GENITIVE = ["Roten", "Blauen", "Gelben", "Grünen"]
-const NATION_COLORS = ["#ec5b4f", "#3f86e8", "#f4b72e", "#46b46c"]
-const LANDMARK_NAME = ["Leuchtturm", "Windmühle", "Weltenbaum", "Steinkreis", "Pyramide", "Sternwarte"]
-const LANDMARK_COLOR = ["#ff6f61", "#ffb547", "#57c46b", "#8f7cf0", "#f2d15c", "#4fb8e8"]
-const HAZARD_NAME = {"meteor": "Meteorit", "storm": "Gewitter", "volcano": "Vulkan"}
-const CAUSE_TEXT = {
-	"industry": "Zu viel Industrie! Ein Gewitter zieht über die Fabriken",
-	"settlement": "Zu viele Siedlungen! Ein Meteorit nähert sich",
-	"nature": "Zu viel Wildnis! Ein Gewitter bringt Waldbrand",
-	"faith": "Zu wenig Glaube! Ein Vulkan erwacht",
-}
+const STAGE_NAME = ["Leere Erde", "Wiese", "Wald", "Dorf", "Stadt", "Fabrik"]
+const STAGE_ICON = ["empty", "meadow", "nature", "village", "town", "industry"]
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
-var hazards: Array = []       # {"type": "meteor"|"storm", "p": Vector3i, "n": Vector3i, "timer": int}
 var turn: int = 1
-var faith: int = 0            # Glaube = Punktestand
-var lightning: int = 0        # Blitze zum Vernichten
-var miracles: int = 0         # Wunder zum Neu-Erschaffen
-var miracle_progress: int = 0
-var bad_rounds: int = 0       # Runden in Folge aus dem Gleichgewicht
-var spreads: Array = [0, 0, 0, 0]   # Ausbreitungen pro Volk (für Kapellen)
+var faith: int = 0            # Glaube = Punkte und Währung für Meteoriten
+var meteors_used: int = 0
+var bad_rounds: int = 0       # Runden in Folge außerhalb des Gleichgewichts
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -62,12 +35,8 @@ func setup(seed_value: int = 0) -> void:
 		rng.randomize()
 	turn = 1
 	faith = 0
-	lightning = Balance.LIGHTNING_START
-	miracles = 0
-	miracle_progress = 0
+	meteors_used = 0
 	bad_rounds = 0
-	spreads = [0, 0, 0, 0]
-	hazards.clear()
 	fields.clear()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
@@ -80,103 +49,27 @@ func setup(seed_value: int = 0) -> void:
 					f.id = fields.size()
 					f.p = p
 					f.n = unit(a, p[a])
+					f.stage = 1 if rng.randf() < Balance.START_MEADOW else 0
 					fields.append(f)
 	rebuild_index()
-	for attempt in 100:
-		_roll_world()
-		_break_lines()
-		if war_pairs().is_empty() and _all_needs_met_at_start():
+	# Am Start keine fertigen Reihen (sonst gäbe es Punkte geschenkt)
+	for guard in 60:
+		var found := lines()
+		if found.is_empty():
 			break
-
-
-func _roll_world() -> void:
-	var free: Array = []
-	for f in fields:
-		if f.is_center:
-			continue
-		f.kind = ""
-		f.level = 1
-		f.nation = -1
-		f.bond = 0
-		f.need = 0
-		f.damage = 0
-		f.pollution = 0
-		f.burning = false
-		f.volcano = 0
-		f.crater_age = 0
-		free.append(f)
-	# Völker als kleine Gruppen: Siedlungen um einen Startpunkt, dazu eine Kapelle
-	for nation in Balance.NATION_COUNT:
-		var start := _random_free(free)
-		if start == null:
-			break
-		var group: Array = [start]
-		var want := Balance.START_SETTLEMENTS + Balance.START_FAITH
-		var guard := 0
-		while group.size() < want and guard < 40:
-			guard += 1
-			var base: FieldData = group[rng.randi_range(0, group.size() - 1)]
-			var nbs := neighbors(base)
-			var g: FieldData = nbs[rng.randi_range(0, nbs.size() - 1)]
-			if not g.is_center and g.kind == "" and not group.has(g):
-				group.append(g)
-		for i in group.size():
-			var f: FieldData = group[i]
-			f.nation = nation
-			f.kind = "faith" if i == group.size() - 1 and group.size() > 1 else "settlement"
-	# Industrie neben Siedlungen (braucht Arbeiter)
-	for i in Balance.START_INDUSTRY:
-		var spots: Array = []
-		for s in free:
-			if s.kind != "settlement":
-				continue
-			for g in neighbors(s):
-				if not g.is_center and g.kind == "" and not spots.has(g):
-					spots.append(g)
-		var f: FieldData = spots[rng.randi_range(0, spots.size() - 1)] if not spots.is_empty() else _random_free(free)
-		if f != null:
-			f.kind = "industry"
-	for i in Balance.START_MOUNTAINS:
-		var f := _random_free(free)
-		if f != null:
-			f.kind = "mountain"
-	for f in free:
-		if f.kind == "":
-			f.kind = "nature"
-
-
-func _random_free(free: Array) -> FieldData:
-	var pool: Array = []
-	for f in free:
-		if f.kind == "":
-			pool.append(f)
-	if pool.is_empty():
-		return null
-	return pool[rng.randi_range(0, pool.size() - 1)]
-
-
-func _all_needs_met_at_start() -> bool:
-	for f in fields:
-		if (f.kind == "settlement" or f.kind == "industry" or f.kind == "faith") and not _need_met(f):
-			return false
-	return true
+		(found[0][1] as FieldData).stage = 0
 
 
 func clone() -> GameState:
 	var gs := GameState.new()
 	gs.turn = turn
 	gs.faith = faith
-	gs.lightning = lightning
-	gs.miracles = miracles
-	gs.miracle_progress = miracle_progress
+	gs.meteors_used = meteors_used
 	gs.bad_rounds = bad_rounds
-	gs.spreads = spreads.duplicate()
 	gs.rng.seed = rng.seed
 	gs.rng.state = rng.state
 	for f in fields:
 		gs.fields.append(f.copy())
-	for h in hazards:
-		gs.hazards.append((h as Dictionary).duplicate())
 	gs.rebuild_index()
 	return gs
 
@@ -239,12 +132,12 @@ func neighbors(f: FieldData) -> Array:
 	return out
 
 
-## Die Mitten (Wahrzeichen) drehen sich nie mit, auch nicht bei Mittelscheiben.
+## Wie ein echter Zauberwürfel: alle Felder der Scheibe drehen mit, auch die Mitten.
 func apply_rotation(axis: int, layer: int, turns: int) -> void:
 	var d := 1 if turns > 0 else -1
 	for i in absi(turns):
 		for f in fields:
-			if f.p[axis] == layer and not f.is_center:
+			if f.p[axis] == layer:
 				f.p = rv(f.p, axis, d)
 				f.n = rv(f.n, axis, d)
 		rebuild_index()
@@ -254,157 +147,48 @@ func apply_rotation(axis: int, layer: int, turns: int) -> void:
 # Abfragen
 # =============================================================================
 
-static func pair_key(a: int, b: int) -> String:
-	return "%d|%d" % [mini(a, b), maxi(a, b)]
+static func stage_name(stage: int) -> String:
+	return STAGE_NAME[clampi(stage, 0, Balance.MAX_STAGE)]
 
 
-static func level_name(f: FieldData) -> String:
-	if LEVEL_NAME.has(f.kind):
-		return LEVEL_NAME[f.kind][clampi(f.level, 1, 3)]
-	if f.is_center:
-		return LANDMARK_NAME[maxi(0, f.landmark)]
-	return KIND_NAME.get(f.kind, f.kind)
-
-
-func age() -> int:
-	return 1 + int((turn - 1) / Balance.AGE_LENGTH)
-
-
-## Gesunder Bereich einer Art (wird mit jedem Zeitalter etwas enger).
-func ideal(k: String) -> Vector2:
-	var lo: float = Balance.IDEAL[k][0]
-	var hi: float = Balance.IDEAL[k][1]
-	var shrink := minf(Balance.TOLERANCE_SHRINK_MAX, Balance.TOLERANCE_SHRINK_PER_AGE * (age() - 1))
-	var mid := (lo + hi) * 0.5
-	return Vector2(minf(lo + shrink, mid - 0.01), maxf(hi - shrink, mid + 0.01))
-
-
-func spread_every() -> int:
-	return maxi(Balance.SPREAD_EVERY_MIN, Balance.SPREAD_EVERY - (age() - 1))
-
-
-## Gleiche Art (bei Siedlung und Glaube: gleiches Volk)?
-static func same(f: FieldData, g: FieldData) -> bool:
-	if f.kind != g.kind or not f.scored():
-		return false
-	if f.has_nation():
-		return f.nation == g.nation
-	return true
-
-
-func _need_met(f: FieldData) -> bool:
-	match f.kind:
-		"settlement":
-			for g in neighbors(f):
-				if g.kind == "nature" and not g.burning:
-					return true
-			return false
-		"industry":
-			for g in neighbors(f):
-				if g.kind == "settlement":
-					return true
-			return false
-		"faith":
-			for g in neighbors(f):
-				if g.kind == "settlement" and g.nation == f.nation:
-					return true
-			return false
-	return true
-
-
-## Völkerpaare im Krieg: Kirchen (Glaube) zweier Völker liegen nebeneinander.
-func war_pairs() -> Dictionary:
-	var out := {}
+func count(stage: int) -> int:
+	var c := 0
 	for f in fields:
-		if f.kind != "faith" or f.nation < 0:
-			continue
-		for g in neighbors(f):
-			if g.kind == "faith" and g.nation >= 0 and g.nation != f.nation:
-				out[pair_key(f.nation, g.nation)] = true
-	return out
+		if f.stage == stage:
+			c += 1
+	return c
 
 
-## Handel: Städte (Siedlung ab Stufe 2) zweier Völker nebeneinander, ohne Krieg.
-func trade_links() -> Array:
-	var wars := war_pairs()
-	var out: Array = []
+func nature_share() -> float:
+	return float(count(1) + count(2)) / float(fields.size())
+
+
+func civilisation_share() -> float:
+	return float(count(3) + count(4) + count(5)) / float(fields.size())
+
+
+func in_balance() -> bool:
+	return nature_share() >= Balance.NATURE_MIN and civilisation_share() <= Balance.CIVILISATION_MAX
+
+
+func income() -> int:
+	var c := 0
 	for f in fields:
-		if f.kind != "settlement" or f.level < 2:
-			continue
-		for g in neighbors(f):
-			if g.id <= f.id or g.kind != "settlement" or g.level < 2 or g.nation == f.nation:
-				continue
-			if not wars.has(pair_key(f.nation, g.nation)):
-				out.append([f.id, g.id])
-	return out
+		c += int(Balance.INCOME[f.stage])
+	return c
 
 
-func trade_pairs() -> Dictionary:
-	var out := {}
-	for l in trade_links():
-		var a: FieldData = fields[int(l[0])]
-		var b: FieldData = fields[int(l[1])]
-		out[pair_key(a.nation, b.nation)] = true
-	return out
+func meteor_cost() -> int:
+	return Balance.METEOR_COST + Balance.METEOR_COST_STEP * meteors_used
 
 
-## Anteile der vier Arten an allen beweglichen Feldern und das Gleichgewicht (0–1).
-func harmony() -> Dictionary:
-	var counts := {"nature": 0, "settlement": 0, "industry": 0, "faith": 0}
-	var total := 0
-	for f in fields:
-		if f.is_center:
-			continue
-		total += 1
-		if counts.has(f.kind):
-			counts[f.kind] += 1
-	var shares := {}
-	var status := {}
-	var deviation := 0.0
-	for k in KINDS:
-		var s := float(counts[k]) / float(maxi(1, total))
-		shares[k] = s
-		var r := ideal(k)
-		var lo := r.x
-		var hi := r.y
-		if s < lo:
-			status[k] = "low"
-			deviation += lo - s
-		elif s > hi:
-			status[k] = "high"
-			deviation += s - hi
-		else:
-			status[k] = "ok"
-	var value := clampf(1.0 - deviation * Balance.HARMONY_STRICTNESS, 0.0, 1.0)
-	return {"value": value, "shares": shares, "status": status, "counts": counts}
+func is_over() -> bool:
+	if bad_rounds >= Balance.LOSE_AFTER:
+		return true
+	return Balance.MAX_ROUNDS > 0 and turn > Balance.MAX_ROUNDS
 
 
-## Punkte für Paare gleicher Felder: [{"a": id, "b": id, "points": int}]
-func pairs() -> Array:
-	var out: Array = []
-	for f in fields:
-		if not f.scored():
-			continue
-		for g in neighbors(f):
-			if g.id > f.id and same(f, g):
-				out.append({"a": f.id, "b": g.id, "points": f.level + g.level})
-	return out
-
-
-## Punkte, die ein Feld zu Paaren beiträgt.
-func field_points(f: FieldData) -> int:
-	var pts := 0
-	for g in neighbors(f):
-		if same(f, g):
-			pts += f.level + g.level
-	return pts
-
-
-# =============================================================================
-# Drei in einer Reihe
-# =============================================================================
-
-## Alle Reihen/Spalten aus 3 gleichen Feldern (gleiche Art, Stufe und Volk) auf einer Seite.
+## Alle Reihen/Spalten aus 3 gleichen Feldern (nicht leer) auf einer Seite.
 ## Jede Reihe ist ein Array aus 3 FieldData, das mittlere Feld an Index 1.
 func lines() -> Array:
 	var out: Array = []
@@ -423,23 +207,27 @@ func lines() -> Array:
 					p[fixed] = c
 					p[run] = t
 					line.append(field_at(p, nv))
-				if _line_ok(line):
+				var f0: FieldData = line[0]
+				var f1: FieldData = line[1]
+				var f2: FieldData = line[2]
+				if f0 != null and f1 != null and f2 != null and f0.stage > 0 and f0.stage == f1.stage and f0.stage == f2.stage:
 					out.append(line)
 	return out
 
 
-func _line_ok(line: Array) -> bool:
-	var f0: FieldData = line[0]
-	if f0 == null or not f0.scored() or f0.burning:
-		return false
-	for i in [1, 2]:
-		var g: FieldData = line[i]
-		if g == null or g.burning or not same(f0, g) or g.level != f0.level:
-			return false
-	return true
+## Punkte, die eine Drehung sofort durch Verschmelzen bringen würde (ohne Kettenreaktion).
+func merge_value() -> int:
+	var pts := 0
+	for line in lines():
+		pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).stage])
+	return pts
 
 
-## Verschmilzt alle Reihen, auch Kettenreaktionen. Gibt die Punkte zurück (ohne Gleichgewicht).
+# =============================================================================
+# Runde auswerten
+# =============================================================================
+
+## Verschmilzt alle Reihen, auch Kettenreaktionen. Gibt die Punkte zurück.
 func resolve_merges(ev: Array) -> int:
 	var total := 0
 	var combo := 0
@@ -461,436 +249,90 @@ func resolve_merges(ev: Array) -> int:
 			var mid: FieldData = line[1]
 			var a: FieldData = line[0]
 			var b: FieldData = line[2]
-			var pts: int = int(Balance.MERGE_POINTS[mid.level]) * combo
+			var pts: int = int(Balance.MERGE_POINTS[mid.stage]) * combo
 			total += pts
-			if mid.level < Balance.MAX_LEVEL:
-				mid.level += 1
-			mid.need = 0
-			mid.damage = 0
-			mid.pollution = 0
-			_refill(a)
-			_refill(b)
-			ev.append({"type": "merge", "field": mid.id, "others": [a.id, b.id], "points": pts, "combo": combo})
+			if mid.stage < Balance.MAX_STAGE:
+				mid.stage += 1
+			a.stage = 0
+			b.stage = 0
+			a.fresh = 0
+			b.fresh = 0
+			ev.append({"type": "merge", "field": mid.id, "others": [a.id, b.id], "points": pts, "combo": combo, "stage": mid.stage})
 	return total
 
 
-## Ein frei gewordenes Feld bekommt die Art, die gerade am meisten fehlt.
-func _refill(f: FieldData) -> void:
-	_reset(f)
-	var hm := harmony()
-	var shares: Dictionary = hm["shares"]
-	var best := "nature"
-	var best_gap := INF
-	for k in KINDS:
-		var r := ideal(k)
-		var lo := r.x
-		var hi := r.y
-		var gap := float(shares[k]) - (lo + hi) * 0.5
-		if gap < best_gap:
-			best_gap = gap
-			best = k
-	f.kind = best
-	f.level = 1
-	if best == "settlement" or best == "faith":
-		f.nation = _nearest_nation(f)
-
-
-## Am Start keine fertigen Reihen (sonst gäbe es Punkte geschenkt).
-func _break_lines() -> void:
-	for guard in 40:
-		var found := lines()
-		if found.is_empty():
-			return
-		var mid: FieldData = found[0][1]
-		if mid.kind == "nature":
-			mid.kind = "mountain"
-		else:
-			mid.kind = "nature"
-			mid.nation = -1
-
-
-func settlements() -> int:
-	var c := 0
-	for f in fields:
-		if f.kind == "settlement":
-			c += 1
-	return c
-
-
-func believers() -> int:
-	var c := 0
-	for f in fields:
-		if f.kind == "settlement":
-			c += [0, 2, 5, 10][f.level]
-	return c
-
-
-func is_over() -> bool:
-	if settlements() == 0:
-		return true
-	if bad_rounds >= Balance.LOSE_AFTER_DISHARMONY:
-		return true
-	return Balance.MAX_ROUNDS > 0 and turn > Balance.MAX_ROUNDS
-
-
-func hazard_at(f: FieldData) -> Dictionary:
-	for h in hazards:
-		if h["p"] == f.p and h["n"] == f.n:
-			return h
-	return {}
-
-
-## Was passiert mit diesem Feld? Für die Info-Karte.
-func field_forecast(f: FieldData) -> Dictionary:
-	var wars := war_pairs()
-	var out := {"same": 0, "same_level": 0, "need": _need_met(f), "war": false, "polluted": false, "trade": false}
-	for g in neighbors(f):
-		if same(f, g):
-			out["same"] += 1
-			if g.level == f.level:
-				out["same_level"] += 1
-		if f.has_nation() and g.has_nation() and g.nation != f.nation and wars.has(pair_key(f.nation, g.nation)):
-			out["war"] = true
-		if f.kind == "nature" and g.kind == "industry" and g.level >= Balance.POLLUTION_MIN_LEVEL:
-			out["polluted"] = true
-		if f.kind == "settlement" and f.level >= 2 and g.kind == "settlement" and g.level >= 2 and g.nation != f.nation \
-				and not wars.has(pair_key(f.nation, g.nation)):
-			out["trade"] = true
-	return out
-
-
-# =============================================================================
-# Werkzeuge
-# =============================================================================
-
-func can_lightning(f: FieldData) -> String:
-	if lightning <= 0:
-		return "Kein Blitz bereit"
-	if f.is_center:
-		return "Wahrzeichen sind heilig"
-	if f.kind == "crater":
-		return "Hier ist schon ein Krater"
-	return ""
-
-
-func use_lightning(f: FieldData) -> void:
-	lightning -= 1
-	_to_crater(f)
-
-
-func can_miracle(f: FieldData) -> String:
-	if miracles <= 0:
-		return "Kein Wunder bereit"
-	if f.kind != "crater":
-		return "Wunder wirken nur auf Kratern"
-	return ""
-
-
-func use_miracle(f: FieldData, kind: String) -> void:
-	miracles -= 1
-	f.kind = kind
-	f.level = 1
-	f.bond = 0
-	f.need = 0
-	f.damage = 0
-	f.pollution = 0
-	f.crater_age = 0
-	f.nation = -1
-	if kind == "settlement" or kind == "faith":
-		f.nation = _nearest_nation(f)
-
-
-func _nearest_nation(f: FieldData) -> int:
-	var count := {}
-	for g in neighbors(f):
-		if g.has_nation():
-			count[g.nation] = int(count.get(g.nation, 0)) + 1
-	var best := 0
-	var best_c := -1
-	for k in count:
-		if int(count[k]) > best_c:
-			best_c = int(count[k])
-			best = int(k)
-	return best
-
-
-# =============================================================================
-# Runde auswerten
-# =============================================================================
-
 ## Wertet die Runde aus. Deterministisch (kein Zufall), damit die Vorschau stimmt.
-## Gibt {"events": Array, "gain": int, "loss": int} zurück.
+## Gibt {"events": Array, "gain": int} zurück.
 func end_round() -> Dictionary:
 	var ev: Array = []
-	var loss := 0
-	# 0. Drei in einer Reihe verschmelzen sofort
-	var merge_points := resolve_merges(ev)
-	var burning_before: Array = []
+	# 1. Drei in einer Reihe verschmelzen sofort
+	var gain := resolve_merges(ev)
+
+	# 2. Fabriken verschmutzen Natur daneben
 	for f in fields:
-		if f.burning:
-			burning_before.append(f)
-
-	# 1. Gefahren an ihrem Platz
-	var keep: Array = []
-	for h in hazards:
-		h["timer"] = int(h["timer"]) - 1
-		if int(h["timer"]) > 0:
-			keep.append(h)
+		if f.stage != 5:
 			continue
-		var f := field_at(h["p"], h["n"])
-		if f == null or f.is_center:
-			continue
-		if h["type"] == "meteor":
-			ev.append({"type": "meteor", "field": f.id})
-			loss += _settled_loss(f, f.level)
-			_to_crater(f)
-		else:
-			ev.append({"type": "storm", "field": f.id})
-			if f.kind == "nature" and f.level != 2:
-				f.burning = true
-			else:
-				loss += _settled_loss(f, 1)
-				_level_down(f, ev)
-	hazards = keep
-
-	# Vulkane
-	for f in fields:
-		if f.volcano <= 0:
-			continue
-		f.volcano -= 1
-		if f.volcano == 0:
-			ev.append({"type": "eruption", "field": f.id})
-			for g in neighbors(f):
-				if g.is_center:
-					continue
-				if g.kind == "nature" and g.level != 2:
-					g.burning = true
-				else:
-					loss += _settled_loss(g, 1)
-					_level_down(g, ev)
-
-	# Feuer: brennt Natur nieder, springt über; ein Fluss daneben löscht
-	var ignite: Array = []
-	for f in burning_before:
-		if not f.burning:
-			continue
-		var river := false
+		var left := Balance.POLLUTION_PER_FACTORY
 		for g in neighbors(f):
-			if g.kind == "nature" and g.level == 2:
-				river = true
-		f.burning = false
-		if river:
-			ev.append({"type": "extinguish", "field": f.id})
-			continue
-		ev.append({"type": "fire", "field": f.id})
-		for g in neighbors(f):
-			if g.kind == "nature" and g.level != 2 and not g.burning and not ignite.has(g):
-				ignite.append(g)
-		_to_crater(f)
-	for g in ignite:
-		g.burning = true
-
-	# 2. Zusammenführen, Bedürfnisse, Krieg, Verschmutzung (alle aus demselben Zustand)
-	var wars := war_pairs()
-	var down: Array = []
-	for f in fields:
-		if not f.scored():
-			continue
-		var at_war := false
-		var polluted := false
-		for g in neighbors(f):
-			if f.has_nation() and g.has_nation() and g.nation != f.nation and wars.has(pair_key(f.nation, g.nation)):
-				at_war = true
-			if f.kind == "nature" and g.kind == "industry" and g.level >= Balance.POLLUTION_MIN_LEVEL:
-				polluted = true
-		var drop := false
-		f.need = 0 if _need_met(f) else f.need + 1
-		if f.need >= Balance.NEED_ROUNDS:
-			drop = true
-		f.damage = f.damage + 1 if at_war else 0
-		if f.damage >= Balance.WAR_ROUNDS:
-			drop = true
-		f.pollution = f.pollution + 1 if polluted else 0
-		if f.pollution >= Balance.POLLUTION_ROUNDS:
-			drop = true
-		if drop:
-			down.append(f)
-		if at_war:
-			ev.append({"type": "war", "field": f.id})
-	for f in down:
-		f.need = 0
-		f.damage = 0
-		f.pollution = 0
-		f.bond = 0
-		_level_down(f, ev)
-
-	# 3. Ausbreiten (Stufe 3)
-	if turn % spread_every() == 0:
-		var spreaders: Array = []
-		for f in fields:
-			if f.level >= 3 and (f.kind == "nature" or f.kind == "settlement" or f.kind == "industry"):
-				spreaders.append(f)
-		for f in spreaders:
-			var target: FieldData = null
-			for g in neighbors(f):
-				if g.is_center or g.burning:
-					continue
-				var ok := false
-				match f.kind:
-					"nature":
-						ok = g.kind == "crater" or (g.kind == "settlement" and g.level == 1)
-					_:
-						ok = g.kind == "crater" or (g.kind == "nature" and g.level == 1)
-				if ok and (target == null or g.id < target.id):
-					target = g
-			if target == null:
-				continue
-			_reset(target)
-			if f.kind == "settlement":
-				spreads[f.nation] = int(spreads[f.nation]) + 1
-				target.kind = "faith" if int(spreads[f.nation]) % Balance.CHAPEL_EVERY == 0 else "settlement"
-				target.nation = f.nation
-			else:
-				target.kind = f.kind
-			target.level = 1
-			ev.append({"type": "spread", "field": target.id, "from": f.id})
-
-	# Krater wachsen wieder zu
-	for f in fields:
-		if f.kind != "crater":
-			continue
-		f.crater_age += 1
-		if f.crater_age >= Balance.CRATER_REGROW:
-			_reset(f)
-			f.kind = "nature"
-			f.level = 1
-			ev.append({"type": "regrow", "field": f.id})
-
-	# 4. Glaube
-	var hm := harmony()
-	var factor: float = Balance.MERGE_HARMONY_MIN + (1.0 - Balance.MERGE_HARMONY_MIN) * float(hm["value"])
-	var gain := int(round(merge_points * factor)) + trade_links().size() * Balance.TRADE_POINTS
-	faith = maxi(0, faith + gain - loss)
-	if float(hm["value"]) < Balance.HARMONY_DANGER:
-		bad_rounds += 1
-	else:
-		bad_rounds = 0
-	miracle_progress += gain
-	while miracle_progress >= Balance.MIRACLE_EVERY_POINTS:
-		miracle_progress -= Balance.MIRACLE_EVERY_POINTS
-		miracles = mini(Balance.MIRACLE_MAX, miracles + 1)
-	if turn % Balance.LIGHTNING_EVERY == 0:
-		lightning = mini(Balance.LIGHTNING_MAX, lightning + 1)
-	turn += 1
-	return {"events": ev, "gain": gain, "loss": loss}
-
-
-func _settled_loss(f: FieldData, levels: int) -> int:
-	if f.kind == "settlement" or f.kind == "faith":
-		return levels * Balance.DISASTER_LOSS_PER_LEVEL
-	return 0
-
-
-func _reset(f: FieldData) -> void:
-	f.nation = -1
-	f.bond = 0
-	f.need = 0
-	f.damage = 0
-	f.pollution = 0
-	f.burning = false
-	f.volcano = 0
-	f.crater_age = 0
-
-
-func _to_crater(f: FieldData) -> void:
-	_reset(f)
-	f.kind = "crater"
-	f.level = 1
-
-
-func _level_down(f: FieldData, ev: Array) -> void:
-	if not f.scored():
-		return
-	if f.level > 1:
-		f.level -= 1
-		ev.append({"type": "downgrade", "field": f.id})
-	else:
-		ev.append({"type": "lost", "field": f.id})
-		_to_crater(f)
-
-
-## Neue Gefahren: nur als Strafe, wenn eine Art aus dem gesunden Bereich gerät.
-## Gibt die neuen zurück: [{"type", "cause", "timer", "p","n"} oder {"type": "volcano", "field", "cause"}]
-func spawn_hazards() -> Array:
-	if turn <= Balance.HAZARD_FREE_ROUNDS + 1:
-		return []
-	var active := hazards.size()
-	for f in fields:
-		if f.volcano > 0:
-			active += 1
-	var max_h := mini(Balance.HAZARD_MAX, Balance.HAZARD_MAX_BASE + age() - 1)
-	if active >= max_h:
-		return []
-	var status: Dictionary = harmony()["status"]
-	var causes: Array = []
-	for k in ["industry", "settlement", "nature"]:
-		if status[k] == "high":
-			causes.append(k)
-	if status["faith"] == "low":
-		causes.append("faith")
-	if causes.is_empty():
-		return []
-	var chance := minf(Balance.PUNISH_CHANCE_MAX, Balance.PUNISH_CHANCE + Balance.PUNISH_CHANCE_PER_AGE * (age() - 1))
-	if rng.randf() > chance:
-		return []
-	var cause: String = causes[rng.randi_range(0, causes.size() - 1)]
-	var timer := Balance.HAZARD_TIMER if age() < 3 else maxi(Balance.HAZARD_TIMER_MIN, Balance.HAZARD_TIMER - 1)
-	if cause == "faith":
-		var m := _volcano_near_people()
-		if m != null:
-			m.volcano = timer
-			return [{"type": "volcano", "field": m.id, "cause": cause, "timer": timer}]
-		cause = "settlement"
-	var kind := cause
-	var t := "meteor" if cause == "settlement" else "storm"
-	var target := _biggest(kind)
-	if target == null:
-		return []
-	var hz := {"type": t, "p": target.p, "n": target.n, "timer": timer, "cause": cause}
-	hazards.append(hz)
-	return [hz]
-
-
-## Ein Feld dieser Art mit der höchsten Stufe (ohne schon bedrohte), zufällig unter Gleichen.
-func _biggest(kind: String) -> FieldData:
-	var best: Array = []
-	var best_level := 0
-	for f in fields:
-		if f.kind != kind or not hazard_at(f).is_empty():
-			continue
-		if f.level > best_level:
-			best_level = f.level
-			best = [f]
-		elif f.level == best_level:
-			best.append(f)
-	if best.is_empty():
-		return null
-	return best[rng.randi_range(0, best.size() - 1)]
-
-
-## Ein ruhiger Berg, möglichst neben einer Siedlung.
-func _volcano_near_people() -> FieldData:
-	var near: Array = []
-	var any: Array = []
-	for f in fields:
-		if f.kind != "mountain" or f.volcano > 0:
-			continue
-		any.append(f)
-		for g in neighbors(f):
-			if g.kind == "settlement":
-				near.append(f)
+			if left <= 0:
 				break
-	var pool := near if not near.is_empty() else any
-	if pool.is_empty():
-		return null
-	return pool[rng.randi_range(0, pool.size() - 1)]
+			if g.is_nature():
+				g.stage = 0
+				g.fresh = 2
+				left -= 1
+				ev.append({"type": "polluted", "field": g.id})
+
+	# 3. Leere Erde wird wieder Wiese (alle gleichzeitig)
+	var grow: Array = []
+	for f in fields:
+		if f.stage != 0 or f.fresh > 0:
+			continue
+		var nat := 0
+		for g in neighbors(f):
+			if g.is_nature():
+				nat += 1
+		if nat >= Balance.REGROW_NEIGHBORS:
+			grow.append(f)
+	for f in grow:
+		f.stage = 1
+		ev.append({"type": "regrow", "field": f.id})
+	for f in fields:
+		if f.fresh > 0:
+			f.fresh -= 1
+
+	# 4. Glaube aus Städten und Fabriken
+	gain += income()
+	faith += gain
+
+	# 5. Gleichgewicht
+	if in_balance():
+		bad_rounds = 0
+	else:
+		bad_rounds += 1
+	turn += 1
+	return {"events": ev, "gain": gain}
+
+
+# =============================================================================
+# Meteorit
+# =============================================================================
+
+func can_meteor() -> String:
+	if faith < meteor_cost():
+		return "Dir fehlen %d Glaube für einen Meteoriten" % (meteor_cost() - faith)
+	return ""
+
+
+## Schlägt ein: das Feld und seine Nachbarn werden zu leerer Erde. Gibt die getroffenen IDs zurück.
+func use_meteor(f: FieldData) -> Array:
+	faith -= meteor_cost()
+	meteors_used += 1
+	var hit: Array = [f]
+	hit.append_array(neighbors(f))
+	var ids: Array = []
+	for g in hit:
+		var h: FieldData = g
+		h.stage = 0
+		h.fresh = 2
+		ids.append(h.id)
+	return ids
