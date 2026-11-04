@@ -660,6 +660,11 @@ func _finish_twist() -> void:
 	_mode = ""
 	_over_cancel = false
 	twist_state.emit(false)
+	# Tutorial: im ersten Zug ist nur die gezeigte Drehung erlaubt
+	if Game.tutorial() and Game.tutorial_step == 0 and _tw_quarter != 0:
+		if not (_tw_axis == 0 and _tw_layer == 1 and _norm_turns(_tw_quarter) == 1):
+			_tw_quarter = 0
+			Game.message.emit("Probier die leuchtende Reihe, so wie die Hand es zeigt.", "info")
 	animating = true
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0

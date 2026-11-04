@@ -22,6 +22,7 @@ var undo_state: GameState = null   # Stand vor dem letzten Zug (ein Schritt zur�
 var best := 0              # Rekord in Punkten (je Modus)
 var tutorial_done := false
 var tutorial_step := -1    # Schritt im Tutorial, -1 = kein Tutorial
+var coach_seen := {}       # Hinweise, die schon einmal gezeigt wurden
 var _last_kind := ""
 var credits := 0           # Credits für Tipps (gibt es für Werbung)
 var new_record := false
@@ -93,6 +94,7 @@ func tutorial() -> bool:
 func restart_tutorial() -> void:
 	tutorial_done = false
 	tutorial_step = 0
+	coach_seen = {}
 	new_game(0, 1, 0, 0)
 
 
@@ -277,6 +279,10 @@ func reward_ad() -> void:
 	_save_best()
 
 
+func save_settings() -> void:
+	_save_best()
+
+
 func _load_best() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) == OK:
@@ -284,6 +290,8 @@ func _load_best() -> void:
 			_best[k] = int(cfg.get_value("rekord", "stufe_" + k, 0))
 		_best["challenge"] = int(cfg.get_value("rekord", "runden40_punkte", 0))
 		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
+		for k in cfg.get_value("tutorial", "hinweise", []):
+			coach_seen[str(k)] = true
 		credits = int(cfg.get_value("konto", "credits", Balance.CREDITS_START))
 	else:
 		credits = Balance.CREDITS_START
@@ -299,5 +307,6 @@ func _save_best() -> void:
 		cfg.set_value("rekord", "stufe_" + k, int(_best.get(k, 0)))
 	cfg.set_value("rekord", "runden40_punkte", int(_best["challenge"]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
+	cfg.set_value("tutorial", "hinweise", coach_seen.keys())
 	cfg.set_value("konto", "credits", credits)
 	cfg.save(SAVE_PATH)
