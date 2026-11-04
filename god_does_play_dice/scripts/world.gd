@@ -193,7 +193,8 @@ func _add_clouds() -> void:
 	_clouds = Node3D.new()
 	cube_root.add_child(_clouds)
 	var cm := Models.mat(Color("#ffffff"), 0.9)
-	var spots := [Vector3(2.5, 1.4, 0.6), Vector3(-1.2, 1.9, 2.3), Vector3(-2.6, -0.4, -1.0), Vector3(0.8, -1.7, -2.4), Vector3(1.6, 0.5, -2.5)]
+	# weit genug draußen und eher oben/unten, damit keine Wolke Felder verdeckt
+	var spots := [Vector3(3.3, 2.1, 0.6), Vector3(-1.4, 2.6, 2.8), Vector3(-3.4, -1.6, -1.0), Vector3(0.9, -2.6, -3.0), Vector3(2.4, 2.3, -2.6)]
 	for sp in spots:
 		var c := Node3D.new()
 		c.position = sp
