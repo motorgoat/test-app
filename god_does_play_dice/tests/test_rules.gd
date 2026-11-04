@@ -143,12 +143,27 @@ func test_merge() -> void:
 	check(c.stage == 2, "das zuletzt dazugekommene Feld wird kleiner Wald (%d)" % c.stage)
 	check(a.stage == 0 and b.stage == 0, "die anderen beiden fallen zurück (Wiese → Erde)")
 	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Punkte fürs Verschmelzen (%d)" % int(r["gain"]))
-	# Drei gleiche in einer Reihe entwickeln sich immer, auch ohne Drehung
+	# Hat sich die ganze Reihe verändert (z. B. mitgedreht), steigt die Mitte auf
 	var gw := empty_state()
 	for x in [-1, 0, 1]:
 		top(gw, x, 1).stage = 1
+		gw.moved[top(gw, x, 1).id] = true
 	gw.end_round()
-	check(top(gw, 0, 1).stage == 2 and top(gw, -1, 1).stage == 0, "Reihe entwickelt sich immer (ohne Drehung: die Mitte)")
+	check(top(gw, 0, 1).stage == 2 and top(gw, -1, 1).stage == 0, "ganze Reihe verändert: die Mitte steigt auf")
+	# Ganze Seite aus 9 gleichen: die ganze Seite steigt auf und bleibt stehen
+	var gf := empty_state()
+	for f in gf.fields:
+		if f.n == Vector3i(0, 1, 0):
+			f.stage = 2
+	gf.moved = {top(gf, 1, 1).id: true}
+	var rf := gf.end_round()
+	var all3 := true
+	for f in gf.fields:
+		if f.n == Vector3i(0, 1, 0) and f.stage != 3:
+			all3 = false
+	check(all3 and int(rf["gain"]) == int(Balance.MERGE_POINTS[2]) * Balance.FACE_BONUS, "ganze Seite steigt auf (+%d)" % int(rf["gain"]))
+	var rf2 := gf.end_round()
+	check(top(gf, 0, 0).stage == 3 and int(rf2["gain"]) == 0, "fertige Seite bleibt stehen")
 	# Durch eine Drehung: das hineingedrehte Feld steigt auf
 	var gr := empty_state()
 	top(gr, -1, 1).stage = 1
@@ -258,6 +273,7 @@ func test_bonus() -> void:
 	gp.score = Balance.RAIN_EVERY - 1
 	for x in [-1, 0, 1]:
 		top(gp, x, -1).stage = 1
+	gp.moved = {top(gp, 1, -1).id: true}
 	var rp := gp.end_round()
 	check(gp.rain == 1 and int((rp["bonus_gained"] as Dictionary)["rain"]) == 1, "bei %d Punkten gibt es Regen" % Balance.RAIN_EVERY)
 

@@ -13,9 +13,10 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
-3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte) entwickeln sich **immer**:
+3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte) entwickeln sich, sobald sich darin etwas verändert hat:
    Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück.
    Das gibt Punkte (je höher die Stufe, desto mehr, Kettenreaktionen zählen mehrfach).
+   **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
 4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die
    gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
    Brennende Felder verlieren jeden Zug eine Stufe, bis sie Erde sind oder Regen sie löscht.
@@ -45,6 +46,7 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Wischen auf dem Würfel | Reihe drehen (loslassen rastet ein; rote Felder = dort droht eine Katastrophe) |
 | Wischen daneben, oder 1 s auf dem Würfel halten und ziehen | Ansicht drehen, mit Nachschwung |
 | Zwei Finger / Mausrad | Zoom |
+| Handy schwenken | Würfel neigt sich leicht mit |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
 | Regen / Blitz unten | Bonus wählen, dann das Feld antippen (Blitz: dessen waagrechte Reihe) |
 

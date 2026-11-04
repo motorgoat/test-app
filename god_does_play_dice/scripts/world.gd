@@ -8,6 +8,7 @@ signal field_tapped(fid: int)
 signal preview_changed(info: Dictionary)   # {} = keine Vorschau
 signal merged(fid: int, points: int, combo: int, stage: int)
 signal disaster_shown(kind: String, fid: int)
+signal face_completed(fid: int, points: int, stage: int)
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -461,7 +462,7 @@ func _show_preview(q: int) -> void:
 	var lit := {}
 	var mids := {}
 	# Was eine Drehung bringt, zeigt nur das Tutorial. Gefahr zeigt die Vorschau immer.
-	var lines: Array = arranged.lines() if Game.tutorial() else []
+	var lines: Array = arranged.lines(arranged.moved) if Game.tutorial() else []
 	for line in lines:
 		for g in line:
 			lit[(g as FieldData).id] = true
@@ -605,8 +606,15 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				v.refresh(shown)
 		await get_tree().create_timer(0.35).timeout
 	# Verschmelzen, Kombo für Kombo
-	var last_combo := 0
+	# Ganze Seite geschafft: großes Fest
 	var merged_ids := {}
+	for e in events:
+		if str(e["type"]) != "face":
+			continue
+		for i in e["fields"]:
+			merged_ids[int(i)] = true
+		await _face_fx(e)
+	var last_combo := 0
 	var disaster_ids := {}
 	for e in events:
 		if str(e["type"]) == "disaster":
@@ -730,6 +738,30 @@ func _disaster_fx(e: Dictionary) -> void:
 			v.set_danger(false)
 			if kind == "fire":
 				_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 1.0, Color("#6b6e78"), 4)
+
+
+## Eine ganze Seite steigt auf: alle neun Felder leuchten nacheinander, dann ein großer Ring.
+func _face_fx(e: Dictionary) -> void:
+	var fid := int(e["field"])
+	if fid >= 0:
+		focus_field(fid)
+		await get_tree().create_timer(0.45).timeout
+	var ids: Array = e["fields"]
+	for i in ids:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_highlight(true)
+			v.burst(Color("#ffd23f"))
+			_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 4)
+		await get_tree().create_timer(0.06).timeout
+	rig.shake(0.9)
+	for i in ids:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_highlight(false)
+			v.refresh(Game.state.fields[int(i)])
+	face_completed.emit(fid, int(e["points"]), int(e["stage"]))
+	await get_tree().create_timer(0.9).timeout
 
 
 ## Funken: fliegen von a nach b (oder bei b == ZERO in alle Richtungen nach außen).

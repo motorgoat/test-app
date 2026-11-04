@@ -15,6 +15,8 @@ var _q_to := Quaternion.IDENTITY
 var _anim_t := 1.0
 var _anim_dur := 0.85
 var _shake := 0.0
+var _tilt := Vector2.ZERO       # leichtes Neigen durch Schwenken des Handys
+var _g_base := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -63,7 +65,8 @@ func _apply() -> void:
 	var off := Vector3.ZERO
 	if _shake > 0.0:
 		off = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * _shake * 0.08
-	cam.position = Vector3(0, 0, _dist * zoom_factor) + off
+	var tb := Basis(Vector3.UP, _tilt.x) * Basis(Vector3.RIGHT, _tilt.y)
+	cam.transform = Transform3D(tb, tb * (Vector3(0, 0, _dist * zoom_factor) + off))
 
 
 func _process(delta: float) -> void:
@@ -75,7 +78,21 @@ func _process(delta: float) -> void:
 		_vel = _vel * exp(-delta * 3.2)
 	if _shake > 0.0:
 		_shake = maxf(0.0, _shake - delta * 2.5)
-		_apply()
+	_update_tilt(delta)
+	_apply()
+
+
+## Handy schwenken neigt den Würfel ein wenig. Die Ruhelage passt sich langsam an, wie man das Handy hält.
+func _update_tilt(delta: float) -> void:
+	var g := Input.get_gravity()
+	var target := Vector2.ZERO
+	if g.length() > 1.0 and Balance.TILT_MAX > 0.0:
+		if _g_base == Vector3.ZERO:
+			_g_base = g
+		_g_base = _g_base.lerp(g, 1.0 - exp(-delta * 0.6))
+		var d := (g - _g_base) / 9.81
+		target = Vector2(clampf(-d.x * 1.6, -1.0, 1.0), clampf(d.z * 1.6, -1.0, 1.0)) * Balance.TILT_MAX
+	_tilt = _tilt.lerp(target, 1.0 - exp(-delta * 6.0))
 
 
 func _rotate_by(px: Vector2) -> void:

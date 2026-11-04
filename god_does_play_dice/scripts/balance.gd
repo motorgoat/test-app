@@ -14,6 +14,7 @@ static var CIVILISATION_FROM := 4
 # Punkte fürs Verschmelzen nach Stufe (Index = Stufe), × Kombo.
 static var MERGE_POINTS := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
 static var MAX_CASCADES := 6
+static var FACE_BONUS := 9               # ganze Seite geschafft: Punkte der Stufe × so viel
 
 # --- Start ----------------------------------------------------------------------
 static var START_MEADOW := 0.5            # Anteil Wiesen beim Würfeln, der Rest ist leere Erde …
@@ -54,5 +55,6 @@ static var TWIST_SNAP_SECONDS := 0.42
 static var TWIST_FINGER_UNITS := 2.1      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
 static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var DRAG_START_PX := 12.0
+static var TILT_MAX := 0.16               # Handy schwenken: so weit (Bogenmaß, ~9°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
 static var TUTORIAL_ROUNDS := 5           # im allerersten Spiel: so viele Runden mit Drehtipps und Vorschau

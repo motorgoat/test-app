@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Regeln:
 ##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen.
-##   2. Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist,
+##   2. Drei gleiche Felder in einer Reihe verschmelzen, sobald sich darin etwas verändert hat: Das Feld, das zuletzt dazugekommen ist,
 ##      steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole),
 ##      die beiden anderen fallen eine Stufe zurück. Das gibt Punkte.
 ##   3. Wiese wächst nicht von allein (abschaltbar: REGROW_PER_ROUND).
@@ -14,6 +14,7 @@ extends RefCounted
 ##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 ##   7. Boni aus Punkten: Regen hebt ein Feld eine Stufe (oder löscht es), Blitz hebt eine ganze Reihe.
 ##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Jedes neue Zeitalter gibt eines zurück.
+##  10. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
 ##   9. Ist nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz), ist das Spiel vorbei.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
@@ -370,10 +371,10 @@ static func target_index(line: Array, focus: Dictionary) -> int:
 	return 1
 
 
-## Punkte, die die Reihen bringen, die gerade dastehen (ohne Kettenreaktion).
+## Punkte, die die Reihen bringen, die sich gerade verändert haben (ohne Kettenreaktion).
 func merge_value() -> int:
 	var pts := 0
-	for line in lines():
+	for line in lines(moved):
 		pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).stage])
 	return pts
 
@@ -382,16 +383,55 @@ func merge_value() -> int:
 # Runde auswerten
 # =============================================================================
 
-## Verschmilzt alle Reihen aus drei gleichen Feldern, dann Kettenreaktionen
-## (Reihen mit Feldern, die sich gerade verändert haben). Gibt die Punkte zurück.
-func resolve_merges(ev: Array) -> int:
+## Seiten aus 9 gleichen Feldern, in denen sich gerade etwas verändert hat: Die ganze Seite steigt auf.
+func resolve_faces(ev: Array, locked: Dictionary) -> int:
 	var total := 0
+	for nv in FACE_NORMALS:
+		var n: Vector3i = nv
+		var face: Array = []
+		for f in fields:
+			if f.n == n:
+				face.append(f)
+		var st: int = (face[0] as FieldData).stage
+		if st <= 0:
+			continue
+		var same := true
+		var touched := false
+		for g in face:
+			var h: FieldData = g
+			if h.stage != st:
+				same = false
+			if moved.has(h.id):
+				touched = true
+		if not same or not touched:
+			continue
+		var pts: int = int(Balance.MERGE_POINTS[st]) * Balance.FACE_BONUS
+		var ids: Array = []
+		var center := -1
+		for g in face:
+			var h: FieldData = g
+			h.stage = mini(Balance.MAX_STAGE, st + 1)
+			h.burning = false
+			locked[h.id] = true
+			ids.append(h.id)
+			if h.p == n:
+				center = h.id
+		total += pts
+		ev.append({"type": "face", "field": center, "fields": ids, "points": pts, "stage": mini(Balance.MAX_STAGE, st + 1)})
+	return total
+
+
+## Verschmilzt Reihen aus drei gleichen Feldern, in denen sich gerade etwas verändert hat,
+## dann Kettenreaktionen. Ganze Seiten zuerst. Gibt die Punkte zurück.
+func resolve_merges(ev: Array) -> int:
+	var locked := {}
+	var total := resolve_faces(ev, locked)
 	var combo := 0
 	var focus := moved.duplicate()
 	for pass_i in Balance.MAX_CASCADES:
-		if pass_i > 0 and focus.is_empty():
+		if focus.is_empty():
 			break
-		var found := lines() if pass_i == 0 else lines(focus)
+		var found := lines(focus)
 		if found.is_empty():
 			break
 		var last_focus := focus
@@ -401,7 +441,7 @@ func resolve_merges(ev: Array) -> int:
 		for line in found:
 			var skip := false
 			for f in line:
-				if used.has((f as FieldData).id):
+				if used.has((f as FieldData).id) or locked.has((f as FieldData).id):
 					skip = true
 			if skip:
 				continue
@@ -435,6 +475,7 @@ func end_round() -> Dictionary:
 	# 1. Drei in einer Reihe verschmelzen sofort
 	var gain := resolve_merges(ev)
 	moved = {}
+	var dirty := {}             # was sich nach dem Verschmelzen verändert, kann im nächsten Zug verschmelzen
 
 	# 2. Großstädte und Metropolen zerstören Natur daneben
 	for f in fields:
@@ -449,6 +490,7 @@ func end_round() -> Dictionary:
 				g.fresh = 2
 				g.burning = false
 				left -= 1
+				dirty[g.id] = true
 				ev.append({"type": "polluted", "field": g.id})
 
 	# 3. Leere Erde wird wieder Wiese (nur wenn eingeschaltet)
@@ -467,6 +509,7 @@ func end_round() -> Dictionary:
 		for item in grow.slice(0, Balance.REGROW_PER_ROUND):
 			var f: FieldData = item[2]
 			f.stage = 1
+			dirty[f.id] = true
 			ev.append({"type": "regrow", "field": f.id})
 	for f in fields:
 		if f.fresh > 0:
@@ -477,6 +520,7 @@ func end_round() -> Dictionary:
 		if not f.burning:
 			continue
 		f.stage = maxi(0, f.stage - 1)
+		dirty[f.id] = true
 		ev.append({"type": "burn", "field": f.id})
 		if f.stage == 0:
 			f.burning = false
@@ -508,6 +552,11 @@ func end_round() -> Dictionary:
 	# 7. Zu viel Zivilisation: Erdbeben
 	if threat() == "quake":
 		disaster("quake", ev)
+		for e in ev:
+			if str(e["type"]) == "disaster" and str(e["kind"]) == "quake":
+				for i in e["hit"]:
+					dirty[int(i)] = true
+	moved = dirty
 	turn += 1
 	# Neues Zeitalter: ein Leben zurück
 	if endless and (turn - 1) % Balance.AGE_LENGTH == 0 and lives > 0:

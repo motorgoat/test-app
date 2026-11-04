@@ -65,3 +65,5 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - **Meteorit löscht eine ganze Seite** – noch offen, wie man ihn auslöst. Vielleicht erst ab höherer Schwierigkeit.
 - Umgesetzt: Brand nach jedem 3. Fehlversuch, Regen hebt ein Feld, Blitz hebt eine Reihe, Erdbeben senkt eine Reihe,
   drei gleiche in einer Reihe entwickeln sich immer.
+- **Weihnachts-Theme** (Skin für den Shop).
+- Umgesetzt: Ganze Seite aus 9 gleichen Feldern steigt komplett eine Stufe auf. Handy schwenken neigt den Würfel leicht.

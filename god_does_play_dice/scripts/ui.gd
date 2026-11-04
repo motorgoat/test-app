@@ -53,6 +53,7 @@ func setup(w: World) -> void:
 	world.deltas_shown.connect(_on_deltas)
 	world.merged.connect(_on_merged)
 	world.disaster_shown.connect(_on_disaster)
+	world.face_completed.connect(_on_face)
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -579,7 +580,7 @@ func _on_preview(info: Dictionary) -> void:
 		tw.tween_property(preview_card, "modulate:a", 0.0, 0.15)
 		return
 	var arranged: GameState = info["arranged"]
-	var merges := arranged.lines().size()
+	var merges := arranged.lines(arranged.moved).size()
 	var kind := ""
 	for e in info["events"]:
 		if str(e["type"]) == "disaster":
@@ -664,6 +665,14 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 		combo_label.text = GameState.stage_name(stage) + "!"
 	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
 	_pop_banner()
+
+
+func _on_face(fid: int, points: int, stage: int) -> void:
+	combo_label.text = "Ganze Seite: %s!" % GameState.stage_name(stage)
+	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
+	_pop_banner()
+	if fid >= 0:
+		_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
 
 
 func _on_disaster(kind: String, fid: int) -> void:
