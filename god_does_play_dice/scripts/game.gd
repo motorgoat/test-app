@@ -9,12 +9,15 @@ signal message(text: String, kind: String)                     # kind: info, goo
 signal game_over
 
 const SAVE_PATH := "user://rekord.cfg"
+const PRAISE = ["Dein Wille geschehe!", "Euer Wille geschehe!", "Halleluja!", "Gelobt sei der Herr!"]
+const GASP = ["Um Gottes Willen!", "Grundgütiger!", "Gottverdammt!", "Herrgott nochmal!", "Heiliger Strohsack!"]
 
 var state: GameState
 var busy := false          # Runde wird ausgewertet/animiert
 var over := false
 var best := 0              # Rekord in Punkten (je Modus)
 var tutorial_done := false
+var credits := 0           # Credits für Tipps (gibt es für Werbung)
 var new_record := false
 var endless := true
 var _best := {"endless": 0, "challenge": 0}
@@ -92,17 +95,14 @@ func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	var before := snapshot(state)
 	if turns != 0:
 		state.apply_rotation(axis, layer, turns, row)
-	var age_before := state.age()
 	var result := state.end_round()
-	result["new_age"] = state.age() > age_before
 	round_resolved.emit(result, before)
 
 
 func finish_round(result: Dictionary) -> void:
 	busy = false
 	if bool(result.get("new_age", false)) and not state.is_over():
-		message.emit("Zeitalter %d: ein Leben zurück. Zivilisation jetzt höchstens %d%%." % [
-			state.age(), int(round(state.civilisation_max() * 100.0))], "info")
+		message.emit("%s Die Welt erreicht %s. Ein Leben zurück." % [praise(), state.age_name()], "good")
 	var got: Dictionary = result.get("bonus_gained", {})
 	if not state.is_over():
 		if int(got.get("bolt", 0)) > 0:
@@ -113,7 +113,7 @@ func finish_round(result: Dictionary) -> void:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])
 			var tail := "Lösch die Flammen mit Regen." if kind == "fire" else "Die Welt hält noch %d %s aus." % [state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"]
-			message.emit("%s! %s. %s" % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
+			message.emit("%s %s! %s. %s" % [gasp(), GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
 	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
 		tutorial_done = true
 		_save_best()
@@ -140,12 +140,33 @@ func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 	var stages := {}
 	for i in hit:
 		stages[int(i)] = (state.fields[int(i)] as FieldData).stage
-	var age_before := state.age()
 	var result := state.end_round()
-	result["new_age"] = state.age() > age_before
 	result["bonus"] = {"kind": kind, "field": fid, "fields": hit, "stages": stages}
 	round_resolved.emit(result, before)
 	return true
+
+
+static func praise() -> String:
+	return str(PRAISE[randi() % PRAISE.size()])
+
+
+static func gasp() -> String:
+	return str(GASP[randi() % GASP.size()])
+
+
+## Tipp kaufen: kostet Credits. true = bezahlt.
+func spend_hint() -> bool:
+	if credits < Balance.HINT_COST:
+		return false
+	credits -= Balance.HINT_COST
+	_save_best()
+	return true
+
+
+## Platzhalter für „Werbung ansehen“: gibt einen Credit. Später kommt hier die echte Werbung hin.
+func reward_ad() -> void:
+	credits += 1
+	_save_best()
 
 
 func _load_best() -> void:
@@ -154,6 +175,9 @@ func _load_best() -> void:
 		_best["endless"] = int(cfg.get_value("rekord", "endlos_punkte", 0))
 		_best["challenge"] = int(cfg.get_value("rekord", "runden40_punkte", 0))
 		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
+		credits = int(cfg.get_value("konto", "credits", Balance.CREDITS_START))
+	else:
+		credits = Balance.CREDITS_START
 
 
 func _save_best() -> void:
@@ -165,4 +189,5 @@ func _save_best() -> void:
 	cfg.set_value("rekord", "endlos_punkte", int(_best["endless"]))
 	cfg.set_value("rekord", "runden40_punkte", int(_best["challenge"]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
+	cfg.set_value("konto", "credits", credits)
 	cfg.save(SAVE_PATH)

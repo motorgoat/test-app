@@ -107,6 +107,12 @@ func orbit(rel: Vector2, delta: float) -> void:
 		_vel = _vel.lerp(rel / delta, 0.5)
 
 
+## Um die Blickachse drehen (zwei Finger drehen).
+func roll(angle: float) -> void:
+	_anim_t = 1.0
+	basis = (basis * Basis(Vector3.BACK, -angle)).orthonormalized()
+
+
 func release() -> void:
 	pass
 

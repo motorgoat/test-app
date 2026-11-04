@@ -31,6 +31,8 @@ var modal_bg: ColorRect
 var help_card: PanelContainer
 var menu_card: PanelContainer
 var over_card: PanelContainer
+var ad_card: PanelContainer
+var hint_btn: Button
 var over_label: Label
 var bubble_layer: Control
 var combo_label: Label
@@ -119,7 +121,7 @@ func _build() -> void:
 	stv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	stv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	st.add_child(stv)
-	stv.add_child(_label("Entwicklung", 12, Style.SOFT, true))
+	stv.add_child(_label("Zeitalter", 12, Style.SOFT, true))
 	stage_label = _label("Wiese", 20, Style.TEXT, true)
 	stv.add_child(stage_label)
 	var sp_top := Control.new()
@@ -207,9 +209,9 @@ func _build() -> void:
 	brow.add_theme_constant_override("separation", 12)
 	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_child(brow)
-	rain_btn = _bonus_button("rain")
+	rain_btn = _bonus_button("rain", _on_bonus_pressed.bind("rain"))
 	brow.add_child(rain_btn)
-	bolt_btn = _bonus_button("lightning")
+	bolt_btn = _bonus_button("lightning", _on_bonus_pressed.bind("bolt"))
 	brow.add_child(bolt_btn)
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -219,6 +221,8 @@ func _build() -> void:
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp3)
+	hint_btn = _bonus_button("bulb", _on_hint_pressed)
+	brow.add_child(hint_btn)
 	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 62))
 
 	bubble_layer = Control.new()
@@ -245,18 +249,19 @@ func _build() -> void:
 	root.add_child(modal_bg)
 	_build_help()
 	_build_menu()
+	_build_ad()
 	_build_over()
 
 
-func _bonus_button(kind: String) -> Button:
+func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	var b := Button.new()
-	b.icon = Style.icon(kind)
+	b.icon = Style.icon(icon_name)
 	b.add_theme_constant_override("icon_max_width", 30)
 	b.custom_minimum_size = Vector2(84, 62)
 	b.add_theme_font_override("font", Style.bold())
 	b.add_theme_font_size_override("font_size", 18)
 	_pill_style(b, Color.WHITE)
-	b.pressed.connect(_on_bonus_pressed.bind("bolt" if kind == "lightning" else kind))
+	b.pressed.connect(cb)
 	return b
 
 
@@ -321,9 +326,9 @@ func _build_help() -> void:
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Ein Feld steigt eine Stufe auf, ein brennendes wird gelöscht. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
-	v.add_child(_help_row("metropolis", "Großstädte und Metropolen zerstören jede Runde ein Natur-Feld daneben."))
+	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
 	v.add_child(_help_row("heart", "Ein Erdbeben kostet ein Leben der Welt. Ohne Leben, oder wenn nichts mehr zu verbinden ist, ist das Spiel vorbei."))
-	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber es ist weniger Zivilisation erlaubt. Im Menü gibt es auch 40 Runden: so viele Punkte wie möglich." % Balance.AGE_LENGTH))
+	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf), Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Runden."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -347,6 +352,48 @@ func _build_menu() -> void:
 	var tut := _wide_button("Tutorial nochmal", Color.WHITE, Style.TEXT)
 	tut.pressed.connect(_restart_tutorial)
 	v.add_child(tut)
+
+
+## „Werbung ansehen“ für einen Tipp. Noch ein Platzhalter: Die echte Werbung kommt später.
+func _build_ad() -> void:
+	ad_card = _modal_card("Tipp gefällig?")
+	var v: VBoxContainer = ad_card.get_child(0)
+	var l := _label("Schau eine kurze Werbung an und bekomm einen Tipp: Die lohnendste Drehung leuchtet auf.", 17, Style.TEXT)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(300, 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(l)
+	var watch := _wide_button("Werbung ansehen", Style.ACCENT, Color.WHITE)
+	watch.pressed.connect(_on_ad_watched)
+	v.add_child(watch)
+	var no := _wide_button("Nein danke", Color.WHITE, Style.TEXT)
+	no.pressed.connect(_close_modal)
+	v.add_child(no)
+
+
+func _on_hint_pressed() -> void:
+	if Game.busy or Game.over or world.animating:
+		return
+	if Game.credits < Balance.HINT_COST:
+		_open_modal(ad_card)
+		return
+	_use_hint()
+
+
+func _use_hint() -> void:
+	var sim_has := world.show_hint()
+	if not sim_has:
+		_on_message("Gerade bringt keine Drehung etwas. Probier Regen oder Blitz.", "info")
+		return
+	Game.spend_hint()
+	refresh()
+
+
+func _on_ad_watched() -> void:
+	_close_modal()
+	Game.reward_ad()
+	_on_message("Danke! Hier ist dein Tipp.", "good")
+	_use_hint()
 
 
 func _build_over() -> void:
@@ -506,10 +553,11 @@ func refresh() -> void:
 		_pop(score_label)
 	_shown_score = gs.score
 	var best_stage := clampi(gs.best_stage, 1, Balance.MAX_STAGE)
-	if stage_label.text != GameState.STAGE_NAME[best_stage] and _shown_score > 0:
+	if stage_label.text != gs.age_name() and _shown_score > 0:
 		_pop(stage_icon)
-	stage_label.text = GameState.STAGE_NAME[best_stage]
+	stage_label.text = gs.age_name()
 	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
+	hint_btn.text = str(Game.credits)
 	rain_btn.text = str(gs.rain)
 	bolt_btn.text = str(gs.bolts)
 	for i in miss_icons.size():
@@ -532,6 +580,7 @@ func refresh() -> void:
 func _update_buttons() -> void:
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
+	hint_btn.disabled = blocked
 	rain_btn.disabled = blocked or gs.rain <= 0
 	bolt_btn.disabled = blocked or gs.bolts <= 0
 
@@ -608,6 +657,7 @@ func _on_field_tapped(fid: int) -> void:
 		var row: Array = world.screen_row(fid) if bonus_mode == "bolt" else []
 		if Game.use_bonus(bonus_mode, fid, row):
 			_set_bonus_mode("")
+			_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
 		return
 	if world.selected == fid and sheet.visible:
 		_close_sheet()
@@ -668,6 +718,7 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 
 func _on_face(fid: int, points: int, stage: int) -> void:
 	combo_label.text = "Ganze Seite: %s!" % GameState.stage_name(stage)
+	_on_message(Game.praise(), "good")
 	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
 	_pop_banner()
 	if fid >= 0:
@@ -846,7 +897,7 @@ func _on_game_over() -> void:
 	lines.append("")
 	lines.append("Punkte: %d" % gs.score)
 	lines.append("Entwicklung: %s" % GameState.stage_name(gs.best_stage))
-	lines.append("Runden: %d" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
+	lines.append("Runden: %d · %s" % [Game.rounds_survived(), gs.age_name()])
 	if Game.new_record:
 		lines.append("Neuer Rekord!")
 	else:

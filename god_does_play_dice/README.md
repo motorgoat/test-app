@@ -23,12 +23,15 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld eine Stufe oder löscht ein Feuer.
    **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
    Wiese wächst nur durch Regen.
-6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
+6. **Nach unten geht es nur durch Katastrophen** (Brand, Erdbeben).
 7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 8. Ein Erdbeben kostet ein **Leben** der Welt (3 Leben). Ohne Leben ist das Spiel vorbei, ebenso wenn nichts mehr
    zu verbinden ist (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
-9. **Modi:** Endlos (alle 20 Runden ein neues Zeitalter: ein Leben zurück, weniger Zivilisation erlaubt) oder 40 Runden.
-   Rekord = Punkte.
+9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf),
+   Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück.
+10. **Tipp** (Glühbirne): Die lohnendste Drehung leuchtet auf. Kostet 1 Credit, Credits gibt es für Werbung
+   (im Prototyp ein Platzhalter). Im Tutorial sind Tipps gratis.
+11. **Modi:** Endlos oder 40 Runden. Rekord = Punkte.
 
 Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
 
@@ -45,7 +48,7 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 |---|---|
 | Wischen auf dem Würfel | Reihe drehen (loslassen rastet ein; rote Felder = dort droht eine Katastrophe) |
 | Wischen daneben, oder 1 s auf dem Würfel halten und ziehen | Ansicht drehen, mit Nachschwung |
-| Zwei Finger / Mausrad | Zoom |
+| Zwei Finger / Mausrad | Zoom; zwei Finger verschieben = schwenken, drehen = um die Blickachse drehen |
 | Handy schwenken | Würfel neigt sich leicht mit |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
 | Regen / Blitz unten | Bonus wählen, dann das Feld antippen (Blitz: dessen waagrechte Reihe) |

@@ -230,13 +230,21 @@ func test_regrow_and_pollution() -> void:
 	gs.end_round()
 	check(e.stage == 1, "(abschaltbar) Erde mit 2 Natur-Nachbarn wird Wiese")
 	Balance.REGROW_PER_ROUND = saved_regrow
+	var g1 := empty_state()
+	top(g1, 1, 1).stage = 9
+	top(g1, 1, 0).stage = 2
+	g1.end_round()
+	check(Balance.POLLUTION_FROM > Balance.MAX_STAGE and top(g1, 1, 0).stage == 2, "nach unten geht es nur durch Katastrophen (keine Verschmutzung)")
+	var saved_poll := Balance.POLLUTION_FROM
+	Balance.POLLUTION_FROM = 8
 	var gs2 := empty_state()
 	var fac := top(gs2, 1, 1)
-	fac.stage = Balance.POLLUTION_FROM
+	fac.stage = 8
 	var nat := top(gs2, 1, 0)
 	nat.stage = 2
 	gs2.end_round()
-	check(nat.stage == 0, "Fabrik zerstört Natur daneben")
+	check(nat.stage == 0, "(abschaltbar) Großstadt zerstört Natur daneben")
+	Balance.POLLUTION_FROM = saved_poll
 
 
 func test_bonus() -> void:
@@ -330,6 +338,7 @@ func test_quake() -> void:
 	(big[0] as FieldData).stage = 8
 	(big[1] as FieldData).stage = 9
 	(big[2] as FieldData).stage = 8
+	gq.best_stage = Balance.MAX_STAGE
 	check(gq.lines().is_empty(), "Testaufbau ohne Dreierreihe")
 	check(gq.threat() == "quake", "zu viel Zivilisation: Erdbeben droht")
 	var r := gq.end_round()
@@ -356,11 +365,11 @@ func test_quake() -> void:
 	check(gx.stuck() and gx.is_over(), "nichts mehr zu verbinden: Spielende")
 	gx.rain = 1
 	check(not gx.stuck(), "mit Regen geht es weiter")
-	var ga := new_state(5)
+	var ga := empty_state()
 	ga.lives = 1
-	ga.turn = Balance.AGE_LENGTH
-	ga.end_round()
-	check(ga.lives == 2, "neues Zeitalter: ein Leben zurück")
+	top(ga, 0, 0).stage = 4
+	var ra := ga.end_round()
+	check(ga.lives == 2 and bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit, ein Leben zurück")
 
 
 func test_preview_matches() -> void:
@@ -454,14 +463,15 @@ func test_bot() -> void:
 func test_modes() -> void:
 	var gs := GameState.new()
 	gs.setup(5, true)
-	check(gs.age() == 1, "Endlos startet in Zeitalter 1")
-	gs.turn = Balance.AGE_LENGTH + 1
-	check(gs.age() == 2, "nach %d Runden Zeitalter 2" % Balance.AGE_LENGTH)
-	check(gs.civilisation_max() < Balance.CIVILISATION_MAX, "weniger Zivilisation erlaubt")
+	check(gs.age() == 1 and gs.age_name() == "Urzeit", "Start in der Urzeit")
+	var names := []
+	for st in range(1, Balance.MAX_STAGE + 1):
+		gs.best_stage = st
+		names.append(gs.age_name())
+	check(names[3] == "Steinzeit" and names[6] == "Mittelalter" and names[8] == "Moderne", "Zeitalter folgen der höchsten Stufe (%s)" % str(names))
 	gs.turn = 999
 	check(not gs.finished(), "Endlos endet nicht nach Runden")
 	var ch := GameState.new()
 	ch.setup(5, false)
 	ch.turn = Balance.MAX_ROUNDS + 1
 	check(ch.finished(), "40-Runden-Modus endet")
-	check(ch.age() == 1, "40 Runden ohne Zeitalter")

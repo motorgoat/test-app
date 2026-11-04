@@ -24,7 +24,7 @@ static var START_NATURE := 0.40           # … nie drei Wiesen beisammen, dann 
 # --- Jede Runde -------------------------------------------------------------------
 static var REGROW_NEIGHBORS := 2          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
 static var REGROW_PER_ROUND := 0          # höchstens so viele Felder wachsen pro Runde nach (die mit der meisten Natur). 0 = Wiese wächst nie von allein
-static var POLLUTION_FROM := 8            # ab dieser Stufe (Großstadt) wird Natur daneben zerstört
+static var POLLUTION_FROM := 99           # ab dieser Stufe wird Natur daneben zerstört (99 = aus: nach unten geht es nur durch Katastrophen)
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
 # --- Gleichgewicht ------------------------------------------------------------------
@@ -44,10 +44,9 @@ static var BOLT_EVERY := 40
 static var BOLT_MAX := 2
 
 # --- Modi ------------------------------------------------------------------------------
-# Endlos: alle AGE_LENGTH Runden ein neues Zeitalter: ein Leben zurück, aber weniger Zivilisation erlaubt.
-static var AGE_LENGTH := 20
-static var CIVILISATION_MAX_STEP := 0.01
-static var CIVILISATION_MAX_MIN := 0.35
+# Zeitalter: bestimmt die höchste erreichte Stufe. Jedes neue Zeitalter gibt ein Leben zurück.
+static var AGES := ["Urzeit", "Steinzeit", "Bronzezeit", "Antike", "Mittelalter", "Industriezeitalter", "Moderne"]
+static var AGE_FROM_STAGE := [1, 4, 5, 6, 7, 8, 9]   # ab dieser Stufe beginnt das Zeitalter (Hütte = Steinzeit …)
 # 40 Runden: so viele Punkte wie möglich.
 static var MAX_ROUNDS := 40
 
@@ -58,4 +57,6 @@ static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger f
 static var DRAG_START_PX := 12.0
 static var TILT_MAX := 0.16               # Handy schwenken: so weit (Bogenmaß, ~9°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
+static var HINT_COST := 1                 # ein Tipp kostet so viele Credits (Credits gibt es für Werbung)
+static var CREDITS_START := 1             # so viele Credits zum Ausprobieren
 static var TUTORIAL_ROUNDS := 5           # im allerersten Spiel: so viele Runden mit Drehtipps und Vorschau

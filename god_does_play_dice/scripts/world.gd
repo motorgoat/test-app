@@ -39,6 +39,8 @@ var _tw_row: Array = []         # die drei Felder, über die gewischt wird
 var _pivot: Node3D
 var _touches: Dictionary = {}
 var _pinch_dist := 0.0
+var _two_center := Vector2.ZERO   # zwei Finger: Mittelpunkt (schwenken) …
+var _two_angle := 0.0             # … und Winkel (drehen)
 var _postfx: CanvasLayer
 var _idle := 0.0
 var _hinted := false
@@ -246,6 +248,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _touches.size() >= 2:
 			_cancel_drag()
 			_pinch_dist = _touch_dist()
+			_two_center = _touch_center()
+			_two_angle = _touch_angle()
 		return
 	if event is InputEventScreenDrag:
 		var sd := event as InputEventScreenDrag
@@ -255,6 +259,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _pinch_dist > 1.0 and d > 1.0:
 				rig.zoom(_pinch_dist / d)
 			_pinch_dist = d
+			# Zwei Finger verschieben: Würfel schwenken; zwei Finger drehen: Würfel um die Blickachse drehen
+			var c := _touch_center()
+			rig.orbit(c - _two_center, 0.0)
+			_two_center = c
+			var ang := _touch_angle()
+			rig.roll(wrapf(ang - _two_angle, -PI, PI))
+			_two_angle = ang
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -280,11 +291,32 @@ func _unhandled_input(event: InputEvent) -> void:
 			rig.zoom(1.0 / mg.factor)
 
 
+func _touch_center() -> Vector2:
+	var pts := _touches.values()
+	if pts.size() < 2:
+		return Vector2.ZERO
+	return ((pts[0] as Vector2) + (pts[1] as Vector2)) * 0.5
+
+
+func _touch_angle() -> float:
+	var pts := _touches.values()
+	if pts.size() < 2:
+		return 0.0
+	return ((pts[1] as Vector2) - (pts[0] as Vector2)).angle()
+
+
 func _touch_dist() -> float:
 	var pts := _touches.values()
 	if pts.size() < 2:
 		return 0.0
 	return (pts[0] as Vector2).distance_to(pts[1] as Vector2)
+
+
+## Pulsiert die Scheibe, deren Drehung jetzt am meisten bringt. false = keine Drehung bringt etwas.
+func show_hint() -> bool:
+	_clear_hint()
+	_show_hint()
+	return not _hint_views.is_empty()
 
 
 func _show_hint() -> void:

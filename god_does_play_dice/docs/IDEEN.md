@@ -67,3 +67,11 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
   drei gleiche in einer Reihe entwickeln sich immer.
 - **Weihnachts-Theme** (Skin für den Shop).
 - Umgesetzt: Ganze Seite aus 9 gleichen Feldern steigt komplett eine Stufe auf. Handy schwenken neigt den Würfel leicht.
+
+## Weitere Ideen (Philipp, 4. November 2026)
+- **Kriegführende Reihen**, die man (als Gott) zerstören kann – Mechanik noch offen (siehe Kirche/Krieg).
+- **Eigenen Gott erstellen**, Anmeldung/Konto, **Gott-Skins** (später mehr im Shop): lustige Formen wie das
+  Spaghettimonster; Kopf, Hut, Gewand, Schuhe, Statur, Brille usw. austauschbar.
+- Sprüche: „Dein Wille geschehe“, „Euer Wille geschehe“; bei Katastrophen „Um Gottes Willen“, „Gottverdammt“,
+  „Grundgütiger“ … (erste Version umgesetzt).
+- Echte Werbung (z. B. AdMob) für Credits; im Prototyp ein Platzhalter-Knopf.

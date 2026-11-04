@@ -13,7 +13,8 @@ extends RefCounted
 ##      die zuletzt gedrehte Reihe in Brand: Brennende Felder verlieren jeden Zug eine Stufe, bis Regen sie löscht.
 ##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 ##   7. Boni aus Punkten: Regen hebt ein Feld eine Stufe (oder löscht es), Blitz hebt eine ganze Reihe.
-##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Jedes neue Zeitalter gibt eines zurück.
+##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Nach unten geht es nur durch Katastrophen.
+##      Das Zeitalter folgt der höchsten erreichten Stufe (Hütte = Steinzeit …); jedes neue gibt ein Leben zurück.
 ##  10. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
 ##   9. Ist nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz), ist das Spiel vorbei.
 
@@ -288,13 +289,21 @@ func civilisation_share() -> float:
 	return float(c) / float(fields.size())
 
 
-## Zeitalter (nur Endlos): alle AGE_LENGTH Runden eines mehr.
+## Zeitalter (1 = Urzeit …): folgt der höchsten erreichten Stufe.
 func age() -> int:
-	return 1 + int((turn - 1) / Balance.AGE_LENGTH) if endless else 1
+	var a := 1
+	for i in Balance.AGE_FROM_STAGE.size():
+		if best_stage >= int(Balance.AGE_FROM_STAGE[i]):
+			a = i + 1
+	return a
+
+
+func age_name() -> String:
+	return str(Balance.AGES[age() - 1])
 
 
 func civilisation_max() -> float:
-	return maxf(Balance.CIVILISATION_MAX_MIN, Balance.CIVILISATION_MAX - Balance.CIVILISATION_MAX_STEP * (age() - 1))
+	return Balance.CIVILISATION_MAX
 
 
 func in_balance() -> bool:
@@ -526,6 +535,7 @@ func end_round() -> Dictionary:
 
 	# 5. Punkte, Fortschritt, Boni
 	score += gain
+	var age_before := age()
 	for f in fields:
 		best_stage = maxi(best_stage, f.stage)
 	var got := {"rain": 0, "bolt": 0}
@@ -558,9 +568,10 @@ func end_round() -> Dictionary:
 	moved = dirty
 	turn += 1
 	# Neues Zeitalter: ein Leben zurück
-	if endless and (turn - 1) % Balance.AGE_LENGTH == 0 and lives > 0:
+	var new_age := age() > age_before
+	if new_age and lives > 0:
 		lives = mini(Balance.LIVES, lives + 1)
-	return {"events": ev, "gain": gain, "bonus_gained": got}
+	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": new_age}
 
 
 ## Die Katastrophe trifft (deterministisch, damit die Vorschau stimmt).
