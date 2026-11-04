@@ -1605,7 +1605,7 @@ func _slot_show(b: Button, on: bool, animate: bool) -> bool:
 		return false
 	slot.visible = on
 	if on and animate and dock.visible:
-		_appear(b, Vector2.ZERO, 0.4, 0.5, 0.15)
+		_appear(slot, Vector2.ZERO, 0.4, 0.6, 0.1)
 		get_tree().create_timer(0.45).timeout.connect(_ripple.bind(b, SLOT_COLOR.get(str(b.get_meta("kind")), Style.SUN)))
 	return true
 

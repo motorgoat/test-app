@@ -128,7 +128,7 @@ func _shots(dir: String) -> void:
 	await _wait(1.0)
 	await _shot(dir, "13_brand_vorschau")
 	world.debug_end_twist()
-	await _wait(1.6)
+	await _wait(3.2)
 	await _shot(dir, "14_brand")
 	await _wait(2.5)
 	# Ende des Modus 40 Drehungen

@@ -115,9 +115,11 @@ jobs:
           body: |
             Automatisch gebaut aus `${{ github.sha }}` (Build ${{ github.run_number }}).
 
-            **So geht's:** Dreh drei gleiche Felder in eine Reihe: Die Mitte steigt auf
-            (Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole).
-            Sammle Punkte. Jeder 3. Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand. Regen hebt ein Feld (oder löscht), Blitz hebt eine ganze Reihe.
+            **So geht's:** Dreh drei gleiche Felder in eine Reihe – sie wachsen
+            (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole).
+            Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe und kostet ein Herz; nach 3 Herzen ist das Spiel vorbei.
+            Regen lässt ein leuchtendes Feld wachsen oder löscht Feuer. Halte ein Symbol gedrückt, um es zu erklären.
+            Modi: Einfach, Mittel, Schwer und die Challenge „40 Drehungen“ (Mittel).
 
             **Am Handy installieren (Android):** `god_does_play_dice.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.
