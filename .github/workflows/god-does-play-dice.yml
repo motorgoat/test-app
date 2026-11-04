@@ -94,6 +94,17 @@ jobs:
           ls -la build
           test -s build/god_does_play_dice.apk
 
+      - name: PC-Versionen exportieren (Windows, Linux)
+        run: |
+          cd $PROJECT
+          mkdir -p build/windows build/linux
+          godot --headless --export-release "Windows" build/windows/god_does_play_dice.exe 2>&1 | tail -15
+          godot --headless --export-release "Linux" build/linux/god_does_play_dice.x86_64 2>&1 | tail -15
+          ls -la build/windows build/linux
+          test -s build/windows/god_does_play_dice.exe
+          test -s build/linux/god_does_play_dice.x86_64
+          cd build/linux && chmod +x god_does_play_dice.x86_64 && zip -q ../god_does_play_dice_linux.zip god_does_play_dice.x86_64
+
       - name: Testversion veröffentlichen
         uses: softprops/action-gh-release@v2
         with:
@@ -109,4 +120,13 @@ jobs:
             **Am Handy installieren (Android):** `god_does_play_dice.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.
             Neue Testversionen lassen sich über die alte drüber installieren.
-          files: ${{ env.PROJECT }}/build/god_does_play_dice.apk
+
+            **Am PC (Windows):** `god_does_play_dice.exe` herunterladen und starten. Windows warnt eventuell
+            („Der Computer wurde durch Windows geschützt“), weil die Datei nicht signiert ist: „Weitere Informationen“ → „Trotzdem ausführen“.
+            Bedienung: Ziehen mit der linken Maustaste dreht eine Reihe bzw. die Ansicht, Mausrad zoomt.
+
+            **Am PC (Linux):** `god_does_play_dice_linux.zip` entpacken, `god_does_play_dice.x86_64` starten.
+          files: |
+            ${{ env.PROJECT }}/build/god_does_play_dice.apk
+            ${{ env.PROJECT }}/build/windows/god_does_play_dice.exe
+            ${{ env.PROJECT }}/build/god_does_play_dice_linux.zip
