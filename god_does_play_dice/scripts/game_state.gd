@@ -8,11 +8,11 @@ extends RefCounted
 ##      die Mitte steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt
 ##      → Großstadt → Metropole), die beiden äußeren fallen eine Stufe zurück.
 ##   3. Leere Erde wird wieder Wiese, wenn genug Natur daneben ist.
-##   4. Ab dem Dorf gibt es jede Runde Glauben. Großstädte und Metropolen zerstören Natur daneben.
+##   4. Großstädte und Metropolen zerstören Natur daneben.
 ##   5. Endet eine Runde außerhalb des Gleichgewichts, kommt eine Katastrophe:
 ##      zu viel Zivilisation → Erdbeben, zu wenig Natur → Überschwemmung, zu viel Natur → Waldbrand.
 ##      Jede kostet ein Leben der Welt. Ohne Leben stirbt sie. Jedes neue Zeitalter gibt eines zurück.
-##   6. Meteorit (kostet Glauben): Feld und Nachbarn werden zu leerer Erde.
+##   6. Meteorit (lädt sich mit der Zeit auf): Feld und Nachbarn werden zu leerer Erde.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
@@ -23,8 +23,9 @@ const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), V
 
 var fields: Array = []        # FieldData, Index = id
 var turn: int = 1
-var faith: int = 0            # Glaube = Punkte und Währung für Meteoriten
+var meteors: int = 1          # Meteoriten, die du gerade einsetzen kannst
 var meteors_used: int = 0
+var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
 var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
@@ -46,8 +47,9 @@ func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
 	else:
 		rng.randomize()
 	turn = 1
-	faith = 0
+	meteors = Balance.METEOR_START
 	meteors_used = 0
+	best_stage = 1
 	lives = Balance.LIVES
 	disasters = 0
 	last_disaster = ""
@@ -80,7 +82,8 @@ func clone() -> GameState:
 	var gs := GameState.new()
 	gs.turn = turn
 	gs.endless = endless
-	gs.faith = faith
+	gs.meteors = meteors
+	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
 	gs.disasters = disasters
@@ -235,15 +238,11 @@ func threat() -> String:
 	return ""
 
 
-func income() -> int:
-	var c := 0
-	for f in fields:
-		c += int(Balance.INCOME[f.stage])
-	return c
-
-
-func meteor_cost() -> int:
-	return Balance.METEOR_COST + Balance.METEOR_COST_STEP * meteors_used
+## Runden bis zum nächsten Meteoriten (0 = voll).
+func meteor_in() -> int:
+	if meteors >= Balance.METEOR_MAX:
+		return 0
+	return Balance.METEOR_EVERY - ((turn - 1) % Balance.METEOR_EVERY)
 
 
 func is_over() -> bool:
@@ -260,8 +259,8 @@ func finished() -> bool:
 
 func stars() -> int:
 	var s := 0
-	for t in Balance.STARS:
-		if faith >= int(t):
+	for t in Balance.STAR_STAGES:
+		if best_stage >= int(t):
 			s += 1
 	return s
 
@@ -420,9 +419,11 @@ func end_round() -> Dictionary:
 		if f.fresh > 0:
 			f.fresh -= 1
 
-	# 4. Glaube aus Dörfern und Städten
-	gain += income()
-	faith += gain
+	# 4. Fortschritt merken, Meteorit aufladen
+	for f in fields:
+		best_stage = maxi(best_stage, f.stage)
+	if turn % Balance.METEOR_EVERY == 0:
+		meteors = mini(Balance.METEOR_MAX, meteors + 1)
 
 	# 5. Gleichgewicht: sonst Katastrophe
 	var kind := threat()
@@ -514,14 +515,14 @@ func _count_neighbors(f: FieldData, what: String) -> int:
 # =============================================================================
 
 func can_meteor() -> String:
-	if faith < meteor_cost():
-		return "Dir fehlen %d Glaube für einen Meteoriten" % (meteor_cost() - faith)
+	if meteors <= 0:
+		return "Der nächste Meteorit kommt in %d %s" % [meteor_in(), "Runde" if meteor_in() == 1 else "Runden"]
 	return ""
 
 
 ## Schlägt ein: das Feld und seine Nachbarn werden zu leerer Erde. Gibt die getroffenen IDs zurück.
 func use_meteor(f: FieldData) -> Array:
-	faith -= meteor_cost()
+	meteors -= 1
 	meteors_used += 1
 	var hit: Array = [f]
 	hit.append_array(neighbors(f))

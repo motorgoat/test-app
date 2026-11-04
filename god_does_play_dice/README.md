@@ -21,35 +21,35 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    **Jede Verbindung zählt nur einmal:** Das Spiel merkt sich jede Reihe (dieselben drei Felder auf derselben Stufe),
    die es je gab. Hin- und Herdrehen oder eine nur mitgedrehte fertige Reihe bringt deshalb kein Upgrade.
 4. **Nachwachsen:** Leere Erde mit 2 Natur-Nachbarn wird wieder Wiese, höchstens 2 Felder pro Runde.
-5. **Glaube:** fürs Verschmelzen (je höher die Stufe, desto mehr, × Kombo), dazu jede Runde
-   +1 je Dorf, +2 je Stadt, +4 je Großstadt, +8 je Metropole.
+5. **Kein Punktestand:** Es zählt, wie lange deine Welt überlebt und wie weit sie sich entwickelt.
 6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
 7. **Gleichgewicht:** Natur 30–75 %, Zivilisation höchstens 40 %. Endet eine Runde daneben, schlägt eine Katastrophe zu:
    - zu viel Zivilisation → **Erdbeben**: Die größte Siedlung fällt 2 Stufen, die Siedlungen daneben je eine.
    - zu wenig Natur → **Überschwemmung**: Die 3 kleinsten Siedlungen werden weggespült.
    - zu viel Natur → **Waldbrand**: Der dichteste Wald brennt mit aller Natur daneben nieder.
    Beim Drehen leuchten die Felder, die es treffen würde, rot. Die Welt hat **3 Leben**, jede Katastrophe kostet eines.
-8. **Meteorit** (kostet Glauben, wird jedes Mal teurer): Feld und Nachbarn werden zu Erde. Du wählst Ort und Zeitpunkt.
+8. **Meteorit:** Feld und Nachbarn werden zu Erde. Du wählst Ort und Zeitpunkt. Am Anfang hast du einen,
+   alle 10 Runden kommt einer dazu (höchstens 2).
 9. **Modi:**
    - **Endlos** (Standard): Alle 20 Runden beginnt ein neues Zeitalter, dann braucht die Welt 2 % mehr Natur (bis 40 %)
      und verträgt weniger Natur (–3 %, bis 60 %) und weniger Zivilisation (–1 %, bis 35 %). Du bekommst ein Leben zurück.
-     Ziel: so lange wie möglich, so viel Glaube wie möglich.
-   - **40 Runden:** danach zählt der Glaube: 50 / 120 / 220 = 1 / 2 / 3 Sterne.
+     Ziel: so lange wie möglich überleben. Rekord = überlebte Runden.
+   - **40 Runden:** Sterne für die höchste erreichte Stufe: Dorf / Stadt / Metropole = 1 / 2 / 3 Sterne.
    Beide Modi haben einen eigenen Rekord.
 
 Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
-Ein einfacher Test-Bot (denkt nur einen Zug voraus) erreicht etwa 30–80 Glauben; mehr Sterne brauchen Planung.
+**Tutorial:** Im allerersten Spiel zeigt der Würfel in den ersten 5 Runden, welche Scheibe sich lohnt (golden pulsierend)
+und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (rote Felder). Im Menü: „Tutorial nochmal“.
 
 ## Bedienung
 
 | Geste | Wirkung |
 |---|---|
-| Wischen auf dem Würfel | Reihe drehen (mit Vorschau ▲ ▼ +Glaube, loslassen rastet ein) |
+| Wischen auf dem Würfel | Reihe drehen (loslassen rastet ein; rote Felder = dort droht eine Katastrophe) |
 | Wischen daneben | Ansicht drehen, mit Nachschwung |
 | Zwei Finger / Mausrad | Zoom |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
 | Meteorit unten | Meteorit wählen, dann das Ziel antippen |
-| 8 s nichts tun | eine lohnende Scheibe pulsiert golden (in den ersten Runden sofort) |
 
 ## Aufbau
 

@@ -182,8 +182,7 @@ func select(fid: int) -> void:
 func _process(delta: float) -> void:
 	if _mode == "" and not animating and not Game.busy and not Game.over:
 		_idle += delta
-		var wait_for := 1.2 if Game.state.turn <= Balance.TUTORIAL_HINT_ROUNDS else Balance.HINT_AFTER_SECONDS
-		if _idle > wait_for and not _hinted:
+		if Game.tutorial() and _idle > 1.2 and not _hinted:
 			_show_hint()
 	else:
 		_idle = 0.0
@@ -448,11 +447,13 @@ func _show_preview(q: int) -> void:
 	var arranged: GameState = pv["arranged"]
 	var lit := {}
 	var mids := {}
-	for line in arranged.moved_lines():
+	# Was eine Drehung bringt, zeigt nur das Tutorial. Gefahr zeigt die Vorschau immer.
+	var lines: Array = arranged.moved_lines() if Game.tutorial() else []
+	for line in lines:
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[1]
-		mids[mid.id] = int(Balance.MERGE_POINTS[mid.stage])
+		mids[mid.id] = GameState.STAGE_SHORT[mini(mid.stage + 1, Balance.MAX_STAGE)]
 	var danger := {}
 	for e in pv["events"]:
 		if str(e["type"]) == "disaster":
@@ -463,7 +464,7 @@ func _show_preview(q: int) -> void:
 		if v == null:
 			continue
 		if mids.has(f.id):
-			v.set_preview("+%d" % int(mids[f.id]), Color("#d99a00"))
+			v.set_preview(str(mids[f.id]), Color("#d99a00"))
 		elif danger.has(f.id):
 			v.set_preview("!", Color("#e5483c"))
 		else:

@@ -14,7 +14,8 @@ const SAVE_PATH := "user://rekord.cfg"
 var state: GameState
 var busy := false          # Runde wird ausgewertet/animiert
 var over := false
-var best_faith := 0
+var best := 0              # Rekord: Endlos = überlebte Runden, 40 Runden = Sterne
+var tutorial_done := false
 var new_record := false
 var endless := true
 var _best := {"endless": 0, "challenge": 0}
@@ -28,7 +29,7 @@ func _ready() -> void:
 func new_game(seed_value: int = 0, endless_mode: int = -1) -> void:
 	if endless_mode >= 0:
 		endless = endless_mode == 1
-	best_faith = int(_best[_mode_key()])
+	best = int(_best[_mode_key()])
 	state = GameState.new()
 	state.setup(seed_value, endless)
 	busy = false
@@ -45,6 +46,21 @@ func _mode_key() -> String:
 
 func rounds_survived() -> int:
 	return state.turn - 1
+
+
+## Im allerersten Spiel: Drehtipps und Vorschau, was eine Drehung bringt.
+func tutorial() -> bool:
+	return not tutorial_done and state != null and state.turn <= Balance.TUTORIAL_ROUNDS
+
+
+func restart_tutorial() -> void:
+	tutorial_done = false
+	new_game(0, 1)
+
+
+## Was in diesem Spiel zählt: Endlos die überlebten Runden, sonst die Sterne.
+func score() -> int:
+	return rounds_survived() if endless else state.stars()
 
 
 ## Was würde diese Drehung bewirken? turns = 0: nur warten.
@@ -94,6 +110,9 @@ func finish_round(result: Dictionary) -> void:
 			var kind := str(e["kind"])
 			message.emit("%s! %s. Die Welt hält noch %d %s aus." % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind],
 				state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"], "bad")
+	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
+		tutorial_done = true
+		_save_best()
 	if state.is_over():
 		over = true
 		_save_best()
@@ -118,15 +137,18 @@ func use_meteor(fid: int) -> bool:
 func _load_best() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) == OK:
-		_best["endless"] = int(cfg.get_value("rekord", "endlos_v5", 0))
-		_best["challenge"] = int(cfg.get_value("rekord", "runden40_v5", 0))
+		_best["endless"] = int(cfg.get_value("rekord", "endlos_runden", 0))
+		_best["challenge"] = int(cfg.get_value("rekord", "runden40_sterne", 0))
+		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
 
 
 func _save_best() -> void:
-	new_record = state.faith > best_faith
-	best_faith = maxi(best_faith, state.faith)
-	_best[_mode_key()] = best_faith
+	if over:
+		new_record = score() > best
+		best = maxi(best, score())
+		_best[_mode_key()] = best
 	var cfg := ConfigFile.new()
-	cfg.set_value("rekord", "endlos_v5", int(_best["endless"]))
-	cfg.set_value("rekord", "runden40_v5", int(_best["challenge"]))
+	cfg.set_value("rekord", "endlos_runden", int(_best["endless"]))
+	cfg.set_value("rekord", "runden40_sterne", int(_best["challenge"]))
+	cfg.set_value("tutorial", "fertig", tutorial_done)
 	cfg.save(SAVE_PATH)

@@ -1,6 +1,6 @@
 class_name GameUI
 extends CanvasLayer
-## Oberfläche, Handy zuerst. Oben: Glaube, die Leiter (Wiese … Metropole)
+## Oberfläche, Handy zuerst. Oben: Runde, Leben, Rekord, die Leiter (Wiese … Metropole)
 ## mit Anzahl je Stufe und die zwei Leisten Natur/Zivilisation. Unten: Meteorit, Warten, Hilfe.
 
 const STAGE_ICON = GameState.STAGE_ICON
@@ -9,7 +9,6 @@ var world: World
 var root: Control
 
 var round_label: Label
-var faith_label: Label
 var best_label: Label
 var ladder_counts: Array = []
 var nature_bar: Dictionary = {}
@@ -40,8 +39,6 @@ var _sheet_field := -1
 var _bubbles: Array = []
 var _toast_until := 0.0
 var _time := 0.0
-var _shown_faith := -1
-var _faith_display := 0.0
 
 
 func setup(w: World) -> void:
@@ -114,8 +111,7 @@ func _build() -> void:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sp)
-	faith_label = _stat(row, "faith", 32)
-	best_label = _stat(row, "trophy", 18)
+	best_label = _stat(row, "trophy", 24)
 	best_label.add_theme_color_override("font_color", Style.SOFT)
 	row.add_child(_round_button("menu", func() -> void: _open_modal(menu_card), 46))
 
@@ -356,14 +352,14 @@ func _build_help() -> void:
 	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine zurück. Jede Verbindung zählt nur einmal: Hin- und Herdrehen bringt nichts."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 2 Natur-Felder daneben liegen."))
-	v.add_child(_help_row("metropolis", "Ab dem Dorf gibt es jede Runde Glauben. Großstädte und Metropolen zerstören aber die Natur daneben."))
+	v.add_child(_help_row("metropolis", "Großstädte und Metropolen zerstören jede Runde ein Natur-Feld daneben."))
 	v.add_child(_help_row("balance", "Halte das Gleichgewicht. Endet eine Runde daneben, schlägt eine Katastrophe zu und kostet ein Leben der Welt:"))
 	v.add_child(_help_row("quake", "Zu viel Zivilisation → Erdbeben: Die größte Siedlung stürzt ein."))
 	v.add_child(_help_row("flood", "Zu wenig Natur → Überschwemmung: Die kleinsten Siedlungen werden weggespült."))
 	v.add_child(_help_row("fire", "Zu viel Natur → Waldbrand: Der dichteste Wald brennt nieder."))
 	v.add_child(_help_row("heart", "Die Welt hält %d Katastrophen aus. Leuchtet beim Drehen ein Feld rot, droht dort eine." % Balance.LIVES))
-	v.add_child(_help_row("meteor", "Der Meteorit kostet Glauben und macht ein Feld samt Nachbarn zu Erde. Setz ihn im richtigen Moment ein."))
-	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber der gesunde Bereich wird enger. Im Menü gibt es auch 40 Runden mit Sternen." % Balance.AGE_LENGTH))
+	v.add_child(_help_row("meteor", "Der Meteorit macht ein Feld samt Nachbarn zu Erde. Alle %d Runden kommt einer dazu (höchstens %d). Setz ihn im richtigen Moment ein." % [Balance.METEOR_EVERY, Balance.METEOR_MAX]))
+	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber der gesunde Bereich wird enger. Im Menü gibt es auch 40 Runden: Sterne für Dorf, Stadt und Metropole." % Balance.AGE_LENGTH))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -384,6 +380,9 @@ func _build_menu() -> void:
 	var help := _wide_button("So geht's", Color.WHITE, Style.TEXT)
 	help.pressed.connect(_show_help)
 	v.add_child(help)
+	var tut := _wide_button("Tutorial nochmal", Color.WHITE, Style.TEXT)
+	tut.pressed.connect(_restart_tutorial)
+	v.add_child(tut)
 
 
 func _build_over() -> void:
@@ -537,15 +536,10 @@ func refresh() -> void:
 		round_label.text = "Runde %d · Zeitalter %d" % [gs.turn, gs.age()]
 	else:
 		round_label.text = "Runde %d / %d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS]
-	if _shown_faith < 0:
-		_faith_display = gs.faith
-	if _shown_faith >= 0 and gs.faith != _shown_faith:
-		_pop(faith_label)
-	_shown_faith = gs.faith
-	best_label.text = str(Game.best_faith)
+	best_label.text = str(Game.best) if gs.endless else "%d/3" % Game.best
 	for s in range(1, Balance.MAX_STAGE + 1):
 		(ladder_counts[s - 1] as Label).text = str(gs.count(s))
-	meteor_btn.text = str(gs.meteor_cost())
+	meteor_btn.text = str(gs.meteors) if gs.meteors > 0 else "in %d" % gs.meteor_in()
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
 	var th := gs.threat()
@@ -563,7 +557,7 @@ func _update_buttons() -> void:
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
 	wait_btn.disabled = blocked
-	meteor_btn.disabled = blocked or gs.faith < gs.meteor_cost()
+	meteor_btn.disabled = blocked or gs.meteors <= 0
 
 
 func _draw_bar(b: Dictionary, value: float) -> void:
@@ -608,11 +602,8 @@ func _process(delta: float) -> void:
 	if toast.modulate.a > 0.0 and _time > _toast_until:
 		toast.modulate.a = maxf(0.0, toast.modulate.a - delta * 3.0)
 	_update_bubbles(delta)
-	if Game.state == null or faith_label == null:
+	if Game.state == null or best_label == null:
 		return
-	var target := float(Game.state.faith)
-	_faith_display = move_toward(_faith_display, target, maxf(1.0, absf(target - _faith_display)) * delta * 4.0)
-	faith_label.text = str(int(round(_faith_display)))
 	_draw_bar(nature_bar, Game.state.nature_share())
 	_draw_bar(civ_bar, Game.state.civilisation_share())
 	_update_buttons()
@@ -639,20 +630,21 @@ func _on_preview(info: Dictionary) -> void:
 		return
 	var arranged: GameState = info["arranged"]
 	var merges := arranged.moved_lines().size()
-	var gain := int(info["gain"])
 	var kind := ""
 	for e in info["events"]:
 		if str(e["type"]) == "disaster":
 			kind = str(e["kind"])
-	if merges > 0:
-		preview_label.text = "%d× Verschmelzen   ·   +%d Glaube" % [merges, gain]
-		preview_label.add_theme_color_override("font_color", Color("#c98a00"))
-	else:
-		preview_label.text = "Keine Dreierreihe   ·   +%d Glaube" % gain
-		preview_label.add_theme_color_override("font_color", Style.SOFT)
+	if kind == "" and not Game.tutorial():
+		tw.tween_property(preview_card, "modulate:a", 0.0, 0.15)
+		return
+	var parts := PackedStringArray()
+	if Game.tutorial():
+		parts.append("%d× Verschmelzen" % merges if merges > 0 else "Keine neue Dreierreihe")
+		preview_label.add_theme_color_override("font_color", Color("#c98a00") if merges > 0 else Style.SOFT)
 	if kind != "":
-		preview_label.text += "\nDanach: %s! (%s)" % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind]]
+		parts.append("Danach: %s! (%s)" % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind]])
 		preview_label.add_theme_color_override("font_color", Style.BAD)
+	preview_label.text = "\n".join(parts)
 	tw.tween_property(preview_card, "modulate:a", 1.0, 0.12)
 
 
@@ -697,12 +689,9 @@ func _fill_sheet(fid: int) -> void:
 		lines.append("Wird wieder zur Wiese, wenn %d Natur-Felder daneben liegen." % Balance.REGROW_NEIGHBORS)
 	elif f.stage >= Balance.MAX_STAGE:
 		lines.append("Höchste Stufe.")
-		lines.append("Drei Metropolen in einer neuen Reihe: +%d Glaube." % int(Balance.MERGE_POINTS[f.stage]))
 	else:
-		lines.append("Dreh 3 davon in eine neue Reihe: Die Mitte wird %s (+%d Glaube), die beiden äußeren werden %s." % [
-			GameState.stage_name(f.stage + 1), int(Balance.MERGE_POINTS[f.stage]), GameState.stage_name(f.stage - 1)])
-	if int(Balance.INCOME[f.stage]) > 0:
-		lines.append("Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
+		lines.append("Dreh 3 davon in eine neue Reihe: Die Mitte wird %s, die beiden äußeren werden %s." % [
+			GameState.stage_name(f.stage + 1), GameState.stage_name(f.stage - 1)])
 	if f.stage >= Balance.POLLUTION_FROM:
 		lines.append("Zerstört jede Runde ein Natur-Feld daneben.")
 	if f.is_nature():
@@ -717,7 +706,7 @@ func _fill_sheet(fid: int) -> void:
 # =============================================================================
 
 func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
-	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
+	_bubble(fid, GameState.STAGE_SHORT[clampi(stage, 0, Balance.MAX_STAGE)], "up", Color("#f2a900"))
 	if combo >= 2:
 		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]
 	else:
@@ -753,8 +742,6 @@ func _on_deltas(list: Array, gain: int) -> void:
 				_bubble(fid, "verschmutzt", "smog", Style.BAD)
 			"new":
 				_bubble(fid, "Wiese", "meadow", Style.GOOD)
-	if gain > 0:
-		_on_message("+%d Glaube" % gain, "good")
 	refresh()
 
 
@@ -818,6 +805,11 @@ func _on_help_done() -> void:
 	_close_modal()
 
 
+func _restart_tutorial() -> void:
+	_close_modal()
+	Game.restart_tutorial()
+
+
 func _restart() -> void:
 	_close_modal()
 	Game.new_game()
@@ -870,7 +862,6 @@ func _on_new_game() -> void:
 	_set_meteor_mode(false)
 	sheet.visible = false
 	_sheet_field = -1
-	_shown_faith = -1
 	for bd in _bubbles:
 		(bd["node"] as Control).queue_free()
 	_bubbles.clear()
@@ -886,17 +877,19 @@ func _on_game_over() -> void:
 		lines.append("Zu viele Katastrophen.")
 		if gs.last_disaster != "":
 			lines.append("Zuletzt: %s (%s)." % [GameState.DISASTER_NAME[gs.last_disaster], GameState.DISASTER_WHY[gs.last_disaster].to_lower()])
-		lines.append("Überlebt: %d Runden" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
 	else:
 		title.text = "Geschafft!"
-		var st := gs.stars()
-		lines.append("★".repeat(st) + "☆".repeat(3 - st))
 	lines.append("")
-	lines.append("Glaube: %d" % gs.faith)
+	lines.append("Überlebt: %d Runden" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
+	lines.append("Höchste Stufe: %s" % GameState.stage_name(gs.best_stage))
+	if not gs.endless:
+		lines.append("Sterne: %d von 3  (Dorf, Stadt, Metropole)" % gs.stars())
 	if Game.new_record:
 		lines.append("Neuer Rekord!")
+	elif gs.endless:
+		lines.append("Rekord: %d Runden" % Game.best)
 	else:
-		lines.append("Rekord: %d Glaube" % Game.best_faith)
+		lines.append("Rekord: %d von 3 Sternen" % Game.best)
 	over_label.text = "\n".join(lines)
 	_open_modal(over_card)
 

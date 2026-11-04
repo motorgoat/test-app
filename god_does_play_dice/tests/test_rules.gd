@@ -130,7 +130,7 @@ func test_merge() -> void:
 	gs4.moved = {top(gs4, 1, 1).id: true}
 	gs4.resolve_merges([])
 	check(top(gs4, 0, 1).stage == 4 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte und zwei kleine Wälder")
-	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Glaube fürs Verschmelzen (%d)" % int(r["gain"]))
+	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Wert fürs Verschmelzen (%d)" % int(r["gain"]))
 	# Die ganze Leiter hinauf
 	var gs2 := empty_state()
 	var names := []
@@ -222,7 +222,6 @@ func test_income_and_balance() -> void:
 	var gs := empty_state()
 	top(gs, 1, 1).stage = 8
 	top(gs, -1, -1).stage = 9
-	check(gs.income() == int(Balance.INCOME[8]) + int(Balance.INCOME[9]), "Großstadt und Metropole bringen Glauben")
 	check(gs.threat() == "flood", "nur Erde: zu wenig Natur, Überschwemmung droht")
 	for i in Balance.LIVES:
 		check(not gs.is_over(), "Welt lebt noch vor Katastrophe %d" % (i + 1))
@@ -285,20 +284,25 @@ func test_disasters() -> void:
 func test_meteor() -> void:
 	var gs := new_state()
 	var f := top(gs, 0, 0)
-	check(gs.can_meteor() != "", "ohne Glauben kein Meteorit")
-	gs.faith = 100
-	var cost := gs.meteor_cost()
+	check(gs.meteors == Balance.METEOR_START and gs.can_meteor() == "", "am Anfang %d Meteorit" % Balance.METEOR_START)
 	var ids := gs.use_meteor(f)
 	check(ids.size() == 5, "Feld und 4 Nachbarn getroffen")
-	check(gs.faith == 100 - cost, "kostet Glauben")
+	check(gs.meteors == Balance.METEOR_START - 1 and gs.can_meteor() != "", "Meteorit verbraucht")
 	var all_empty := true
 	for i in ids:
 		if (gs.fields[int(i)] as FieldData).stage != 0:
 			all_empty = false
 	check(all_empty, "alles wird Erde")
-	check(gs.meteor_cost() > cost, "nächster Meteorit ist teurer")
 	gs.end_round()
 	check(f.stage == 0, "frischer Krater wächst nicht sofort zu")
+	var gm := new_state(3)
+	gm.meteors = 0
+	var waited := 0
+	while gm.meteors == 0 and waited < 50:
+		check(gm.meteor_in() > 0, "Meteorit lädt noch")
+		gm.end_round()
+		waited += 1
+	check(waited == Balance.METEOR_EVERY, "nach %d Runden kommt ein Meteorit (%d)" % [Balance.METEOR_EVERY, waited])
 
 
 func test_preview_matches() -> void:
@@ -322,7 +326,7 @@ func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 	var gs := new_state(s)
 	var meteors := 0
 	for t in max_rounds:
-		if not passive and gs.faith >= gs.meteor_cost():
+		if not passive and gs.meteors > 0:
 			var want := ""
 			if gs.civilisation_share() > gs.civilisation_max() - 0.03 or gs.nature_share() < gs.nature_min() + 0.03:
 				want = "civ"
@@ -372,7 +376,7 @@ func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 	var counts := []
 	for st in range(0, Balance.MAX_STAGE + 1):
 		counts.append(gs.count(st))
-	return {"rounds": gs.turn - 1, "age": gs.age(), "faith": gs.faith, "meteors": meteors, "disasters": gs.disasters,
+	return {"rounds": gs.turn - 1, "age": gs.age(), "best": gs.best_stage, "meteors": meteors, "disasters": gs.disasters,
 		"nature": gs.nature_share(), "civ": gs.civilisation_share(), "counts": counts, "dead": gs.died()}
 
 
@@ -386,8 +390,8 @@ func test_bot() -> void:
 			print("  Nur warten, Seed %d: %d Runden, Katastrophen %d, %s" % [s, int(p["rounds"]), int(p["disasters"]), "tot" if bool(p["dead"]) else "lebt"])
 		for s in [11, 22, 33]:
 			var b := run_bot(s, false)
-			print("  Bot Seed %d: %d Runden (Zeitalter %d), Glaube %d, Meteoriten %d, Katastrophen %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
-				s, int(b["rounds"]), int(b["age"]), int(b["faith"]), int(b["meteors"]), int(b["disasters"]),
+			print("  Bot Seed %d: %d Runden (Zeitalter %d), höchste Stufe %d, Meteoriten %d, Katastrophen %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
+				s, int(b["rounds"]), int(b["age"]), int(b["best"]), int(b["meteors"]), int(b["disasters"]),
 				float(b["nature"]) * 100.0, float(b["civ"]) * 100.0, str(b["counts"])])
 	Balance.NATURE_MAX = saved
 	var passive := run_bot(11, true)

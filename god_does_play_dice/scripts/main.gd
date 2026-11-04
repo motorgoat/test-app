@@ -67,7 +67,7 @@ func _shots(dir: String) -> void:
 	await _wait(2.2)
 	await _shot(dir, "08_danach")
 	# Meteorit
-	Game.state.faith = 120
+	Game.state.meteors = maxi(Game.state.meteors, 1)
 	Game.state_changed.emit()
 	await _wait(0.5)
 	Game.use_meteor(_visible_field())

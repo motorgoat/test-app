@@ -11,7 +11,7 @@ extends RefCounted
 static var MAX_STAGE := 9
 static var NATURE_STAGES := [1, 3]
 static var CIVILISATION_FROM := 4
-# Glaube fürs Verschmelzen, nach Stufe der verschmolzenen Felder (Index = Stufe), × Kombo
+# Wert eines Verschmelzens nach Stufe (Index = Stufe), × Kombo. Nur intern: für Tipps und den Test-Bot.
 static var MERGE_POINTS := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
 static var MAX_CASCADES := 6
 
@@ -19,7 +19,6 @@ static var MAX_CASCADES := 6
 static var START_MEADOW := 0.5            # Anteil Wiesen, der Rest ist leere Erde
 
 # --- Jede Runde -------------------------------------------------------------------
-static var INCOME := [0, 0, 0, 0, 0, 0, 1, 2, 4, 8]   # Glaube pro Runde je Feld (ab Dorf)
 static var REGROW_NEIGHBORS := 2          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
 static var REGROW_PER_ROUND := 2          # höchstens so viele Felder wachsen pro Runde nach (die mit der meisten Natur)
 static var POLLUTION_FROM := 8            # ab dieser Stufe (Großstadt) wird Natur daneben zerstört
@@ -36,8 +35,9 @@ static var QUAKE_DROP := 2                # Erdbeben: die größte Siedlung fäl
 static var FLOOD_FIELDS := 3              # Überschwemmung: so viele kleinste Siedlungen werden weggespült
 
 # --- Meteorit -------------------------------------------------------------------------
-static var METEOR_COST := 30              # Glaube für den ersten Meteoriten
-static var METEOR_COST_STEP := 15         # jeder weitere kostet mehr
+static var METEOR_START := 1              # so viele Meteoriten hast du am Anfang
+static var METEOR_EVERY := 10             # alle so viele Runden kommt einer dazu …
+static var METEOR_MAX := 2                # … bis höchstens so viele
 
 # --- Modi ------------------------------------------------------------------------------
 # Endlos: alle AGE_LENGTH Runden ein neues Zeitalter: ein Leben zurück, aber der gesunde Bereich wird enger.
@@ -48,14 +48,13 @@ static var NATURE_MAX_STEP := 0.03        # … weniger Natur erlaubt (die Mensc
 static var NATURE_MAX_MIN := 0.60
 static var CIVILISATION_MAX_STEP := 0.01  # … und etwas weniger Zivilisation
 static var CIVILISATION_MAX_MIN := 0.35
-# 40 Runden: am Ende zählt der Glaube.
+# 40 Runden: Sterne für die höchste erreichte Stufe.
 static var MAX_ROUNDS := 40
-static var STARS := [50, 120, 220]        # Glaube für 1, 2, 3 Sterne
+static var STAR_STAGES := [6, 7, 9]       # Dorf, Stadt, Metropole = 1, 2, 3 Sterne
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42
 static var TWIST_FINGER_UNITS := 2.1      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
 static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
 static var DRAG_START_PX := 12.0
-static var HINT_AFTER_SECONDS := 8.0      # so lange nichts getan, dann pulsiert eine lohnende Scheibe
-static var TUTORIAL_HINT_ROUNDS := 3      # in den ersten Runden kommt der Tipp sofort
+static var TUTORIAL_ROUNDS := 5           # im allerersten Spiel: so viele Runden mit Drehtipps und Vorschau
