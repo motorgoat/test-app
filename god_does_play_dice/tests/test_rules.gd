@@ -18,6 +18,7 @@ func _init() -> void:
 	test_income_and_balance()
 	test_meteor()
 	test_preview_matches()
+	test_modes()
 	test_bot()
 	print("")
 	print("%d Prüfungen, %d Fehler" % [checks, failures])
@@ -108,7 +109,7 @@ func test_merge() -> void:
 		top(gs4, x, 1).stage = 3
 	gs4.moved = {top(gs4, 1, 1).id: true}
 	gs4.resolve_merges([])
-	check(top(gs4, 0, 1).stage == 4 and top(gs4, -1, 1).stage == 2, "3 Dörfer → Stadt und zwei Wälder")
+	check(top(gs4, 0, 1).stage == 4 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte und zwei kleine Wälder")
 	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Glaube fürs Verschmelzen (%d)" % int(r["gain"]))
 	# Die ganze Leiter hinauf
 	var gs2 := empty_state()
@@ -120,7 +121,7 @@ func test_merge() -> void:
 		gs2.moved = {top(gs2, -1, 1).id: true}
 		gs2.resolve_merges([])
 		names.append(top(gs2, -1, 0).stage)
-	check(names == [2, 3, 4, 5], "Leiter Wiese → Wald → Dorf → Stadt → Fabrik (%s)" % str(names))
+	check(names == [2, 3, 4, 5, 6, 7, 8, 9], "Leiter Wiese … Metropole (%s)" % str(names))
 	# Nebeneinander allein bringt nichts
 	var gs3 := empty_state()
 	top(gs3, 1, 0).stage = 3
@@ -190,7 +191,7 @@ func test_regrow_and_pollution() -> void:
 	check(e.stage == 1, "Erde mit 2 Natur-Nachbarn wird Wiese")
 	var gs2 := empty_state()
 	var fac := top(gs2, 1, 1)
-	fac.stage = 5
+	fac.stage = Balance.POLLUTION_FROM
 	var nat := top(gs2, 1, 0)
 	nat.stage = 2
 	gs2.end_round()
@@ -199,9 +200,9 @@ func test_regrow_and_pollution() -> void:
 
 func test_income_and_balance() -> void:
 	var gs := empty_state()
-	top(gs, 1, 1).stage = 4
-	top(gs, -1, -1).stage = 5
-	check(gs.income() == int(Balance.INCOME[4]) + int(Balance.INCOME[5]), "Stadt und Fabrik bringen Glauben")
+	top(gs, 1, 1).stage = 8
+	top(gs, -1, -1).stage = 9
+	check(gs.income() == int(Balance.INCOME[8]) + int(Balance.INCOME[9]), "Großstadt und Metropole bringen Glauben")
 	check(not gs.in_balance(), "nur Erde: zu wenig Natur")
 	for i in Balance.LOSE_AFTER:
 		gs.end_round()
@@ -291,5 +292,22 @@ func test_bot() -> void:
 		var counts := []
 		for st in range(0, Balance.MAX_STAGE + 1):
 			counts.append(gs.count(st))
-		print("Bot Seed %d: %d Runden, Glaube %d, Meteoriten %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
-			s, rounds, gs.faith, meteors, gs.nature_share() * 100.0, gs.civilisation_share() * 100.0, str(counts)])
+		print("Bot Seed %d: %d Runden (Zeitalter %d), Glaube %d, Meteoriten %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
+			s, rounds, gs.age(), gs.faith, meteors, gs.nature_share() * 100.0, gs.civilisation_share() * 100.0, str(counts)])
+
+
+func test_modes() -> void:
+	var gs := GameState.new()
+	gs.setup(5, true)
+	check(gs.age() == 1, "Endlos startet in Zeitalter 1")
+	var nmin := gs.nature_min()
+	gs.turn = Balance.AGE_LENGTH + 1
+	check(gs.age() == 2, "nach %d Runden Zeitalter 2" % Balance.AGE_LENGTH)
+	check(gs.nature_min() > nmin and gs.civilisation_max() < Balance.CIVILISATION_MAX, "Gleichgewicht wird enger")
+	gs.turn = 999
+	check(not gs.finished(), "Endlos endet nicht nach Runden")
+	var ch := GameState.new()
+	ch.setup(5, false)
+	ch.turn = Balance.MAX_ROUNDS + 1
+	check(ch.finished(), "40-Runden-Modus endet")
+	check(ch.age() == 1, "40 Runden ohne Zeitalter")

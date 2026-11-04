@@ -1,9 +1,9 @@
 class_name GameUI
 extends CanvasLayer
-## Oberfläche, Handy zuerst. Oben: Glaube, die Leiter (Wiese → Wald → Dorf → Stadt → Fabrik)
+## Oberfläche, Handy zuerst. Oben: Glaube, die Leiter (Wiese … Metropole)
 ## mit Anzahl je Stufe und die zwei Leisten Natur/Zivilisation. Unten: Meteorit, Warten, Hilfe.
 
-const STAGE_ICON = ["empty", "meadow", "nature", "village", "town", "industry"]
+const STAGE_ICON = GameState.STAGE_ICON
 
 var world: World
 var root: Control
@@ -100,29 +100,29 @@ func _build() -> void:
 
 	# Die Leiter
 	var ladder := HBoxContainer.new()
-	ladder.add_theme_constant_override("separation", 2)
+	ladder.add_theme_constant_override("separation", 0)
 	ladder.alignment = BoxContainer.ALIGNMENT_CENTER
 	cv.add_child(ladder)
 	for s in range(1, Balance.MAX_STAGE + 1):
 		if s > 1:
-			var arrow := _label("›", 26, Style.SOFT, true)
+			var arrow := _label("›", 16, Style.SOFT, true)
 			arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			ladder.add_child(arrow)
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", -2)
 		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		col.custom_minimum_size = Vector2(60, 0)
+		col.custom_minimum_size = Vector2(50, 0)
 		ladder.add_child(col)
 		var tr := TextureRect.new()
 		tr.texture = Style.icon(STAGE_ICON[s])
-		tr.custom_minimum_size = Vector2(38, 38)
+		tr.custom_minimum_size = Vector2(30, 30)
 		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		col.add_child(tr)
-		var nm := _label(GameState.stage_name(s), 12, Style.SOFT, true)
+		var nm := _label(GameState.STAGE_SHORT[s], 10, Style.SOFT, true)
 		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(nm)
-		var cnt := _label("0", 16, Style.TEXT, true)
+		var cnt := _label("0", 14, Style.TEXT, true)
 		cnt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(cnt)
 		ladder_counts.append(cnt)
@@ -273,7 +273,7 @@ func _bar(parent: Control, icon_name: String, title: String, color: Color, limit
 	back.add_child(mark)
 	var hint := _label(("mind. %d%%" if is_min else "höchstens %d%%") % int(round(limit * 100.0)), 11, Style.SOFT)
 	v.add_child(hint)
-	return {"back": back, "fill": fill, "mark": mark, "pct": pct, "color": color, "limit": limit, "is_min": is_min}
+	return {"back": back, "fill": fill, "mark": mark, "pct": pct, "color": color, "limit": limit, "is_min": is_min, "hint": hint}
 
 
 func _build_sheet() -> void:
@@ -327,12 +327,13 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Die Mitte steigt auf (Wiese → Wald → Dorf → Stadt → Fabrik), die beiden äußeren fallen eine Stufe zurück. Jede Verbindung zählt nur einmal: Hin- und Herdrehen bringt nichts."))
+	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine zurück. Jede Verbindung zählt nur einmal: Hin- und Herdrehen bringt nichts."))
+	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 2 Natur-Felder daneben liegen."))
-	v.add_child(_help_row("industry", "Städte und Fabriken bringen jede Runde Glauben. Fabriken zerstören aber die Natur daneben."))
+	v.add_child(_help_row("metropolis", "Ab dem Dorf gibt es jede Runde Glauben. Großstädte und Metropolen zerstören aber die Natur daneben."))
 	v.add_child(_help_row("balance", "Zu wenig Natur oder zu viel Zivilisation: Die Welt stirbt."))
 	v.add_child(_help_row("meteor", "Der Meteorit kostet Glauben und macht ein Feld samt Nachbarn zu Erde. Setz ihn im richtigen Moment ein."))
-	v.add_child(_help_row("trophy", "Ziel: in %d Runden möglichst viel Glauben. %d / %d / %d Glaube = 1 / 2 / 3 Sterne." % [Balance.MAX_ROUNDS, int(Balance.STARS[0]), int(Balance.STARS[1]), int(Balance.STARS[2])]))
+	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter, dann braucht die Welt mehr Natur und verträgt weniger Zivilisation. Im Menü gibt es auch 40 Runden mit Sternen." % Balance.AGE_LENGTH))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -344,9 +345,12 @@ func _build_menu() -> void:
 	var cont := _wide_button("Weiter", Style.ACCENT, Color.WHITE)
 	cont.pressed.connect(func() -> void: _close_modal())
 	v.add_child(cont)
-	var restart := _wide_button("Neues Spiel", Color.WHITE, Style.TEXT)
-	restart.pressed.connect(_restart)
-	v.add_child(restart)
+	var endless_btn := _wide_button("Neues Spiel: Endlos", Color.WHITE, Style.TEXT)
+	endless_btn.pressed.connect(_restart_mode.bind(1))
+	v.add_child(endless_btn)
+	var challenge_btn := _wide_button("Neues Spiel: 40 Runden", Color.WHITE, Style.TEXT)
+	challenge_btn.pressed.connect(_restart_mode.bind(0))
+	v.add_child(challenge_btn)
 	var help := _wide_button("So geht's", Color.WHITE, Style.TEXT)
 	help.pressed.connect(_show_help)
 	v.add_child(help)
@@ -499,7 +503,10 @@ func refresh() -> void:
 	if root == null or Game.state == null:
 		return
 	var gs := Game.state
-	round_label.text = "Runde %d / %d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS] if Balance.MAX_ROUNDS > 0 else "Runde %d" % gs.turn
+	if gs.endless:
+		round_label.text = "Runde %d · Zeitalter %d" % [gs.turn, gs.age()]
+	else:
+		round_label.text = "Runde %d / %d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS]
 	if _shown_faith < 0:
 		_faith_display = gs.faith
 	if _shown_faith >= 0 and gs.faith != _shown_faith:
@@ -532,7 +539,9 @@ func _draw_bar(b: Dictionary, value: float) -> void:
 	var fill: ColorRect = b["fill"]
 	var mark: ColorRect = b["mark"]
 	var w := back.size.x
-	var limit: float = b["limit"]
+	var limit: float = Game.state.nature_min() if bool(b["is_min"]) else Game.state.civilisation_max()
+	var hint: Label = b["hint"]
+	hint.text = ("mind. %d%%" if bool(b["is_min"]) else "höchstens %d%%") % int(round(limit * 100.0))
 	var ok := value >= limit if bool(b["is_min"]) else value <= limit
 	fill.size = Vector2(maxf(2.0, w * clampf(value, 0.0, 1.0)), 10)
 	fill.color = b["color"] if ok else Style.BAD
@@ -636,14 +645,19 @@ func _fill_sheet(fid: int) -> void:
 	if f.stage == 0:
 		lines.append("Wird wieder zur Wiese, wenn %d Natur-Felder daneben liegen." % Balance.REGROW_NEIGHBORS)
 	elif f.stage >= Balance.MAX_STAGE:
-		lines.append("Höchste Stufe. Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
-		lines.append("Zerstört jede Runde ein Natur-Feld daneben.")
-		lines.append("Drei Fabriken in einer Reihe: +%d Glaube." % int(Balance.MERGE_POINTS[f.stage]))
+		lines.append("Höchste Stufe.")
+		lines.append("Drei Metropolen in einer neuen Reihe: +%d Glaube." % int(Balance.MERGE_POINTS[f.stage]))
 	else:
-		if true:
-			lines.append("Dreh 3 davon in eine Reihe: Die Mitte wird %s (+%d Glaube), die beiden äußeren werden %s." % [GameState.stage_name(f.stage + 1), int(Balance.MERGE_POINTS[f.stage]), GameState.stage_name(f.stage - 1)])
-			if int(Balance.INCOME[f.stage]) > 0:
-				lines.append("Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
+		lines.append("Dreh 3 davon in eine neue Reihe: Die Mitte wird %s (+%d Glaube), die beiden äußeren werden %s." % [
+			GameState.stage_name(f.stage + 1), int(Balance.MERGE_POINTS[f.stage]), GameState.stage_name(f.stage - 1)])
+	if int(Balance.INCOME[f.stage]) > 0:
+		lines.append("Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
+	if f.stage >= Balance.POLLUTION_FROM:
+		lines.append("Zerstört jede Runde ein Natur-Feld daneben.")
+	if f.is_nature():
+		lines.append("Zählt zur Natur.")
+	elif f.is_civilisation():
+		lines.append("Zählt zur Zivilisation.")
 	sheet_body.text = "\n".join(lines)
 
 
@@ -745,6 +759,11 @@ func _restart() -> void:
 	Game.new_game()
 
 
+func _restart_mode(endless_mode: int) -> void:
+	_close_modal()
+	Game.new_game(0, endless_mode)
+
+
 func _show_help() -> void:
 	_close_modal()
 	_open_modal(help_card)
@@ -800,11 +819,11 @@ func _on_game_over() -> void:
 	var title: Label = (over_card.get_child(0) as VBoxContainer).get_child(0)
 	if gs.died():
 		title.text = "Die Welt ist gestorben"
-		if gs.nature_share() < Balance.NATURE_MIN:
+		if gs.nature_share() < gs.nature_min():
 			lines.append("Es gab zu wenig Natur.")
 		else:
 			lines.append("Es gab zu viel Zivilisation.")
-		lines.append("Überlebt: %d Runden" % Game.rounds_survived())
+		lines.append("Überlebt: %d Runden" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
 	else:
 		title.text = "Geschafft!"
 		var st := gs.stars()

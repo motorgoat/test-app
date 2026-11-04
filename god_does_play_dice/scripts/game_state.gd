@@ -4,15 +4,17 @@ extends RefCounted
 ##
 ## Regeln:
 ##   1. Start: nur leere Erde und Wiesen.
-##   2. Drei gleiche Felder in einer Reihe oder Spalte einer Seite verschmelzen sofort zur nächsten Stufe:
-##      Wiese → Wald → Dorf → Stadt → Fabrik. Die äußeren zwei werden zu leerer Erde.
+##   2. Vervollständigt eine Drehung eine NEUE Reihe aus 3 gleichen Feldern, verschmelzen sie:
+##      die Mitte steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt
+##      → Großstadt → Metropole), die beiden äußeren fallen eine Stufe zurück.
 ##   3. Leere Erde wird wieder Wiese, wenn genug Natur daneben ist.
-##   4. Städte und Fabriken bringen jede Runde Glauben. Fabriken verschmutzen die Natur daneben.
+##   4. Ab dem Dorf gibt es jede Runde Glauben. Großstädte und Metropolen zerstören Natur daneben.
 ##   5. Zu wenig Natur oder zu viel Zivilisation: nach ein paar Runden stirbt die Welt.
 ##   6. Meteorit (kostet Glauben): Feld und Nachbarn werden zu leerer Erde.
 
-const STAGE_NAME = ["Leere Erde", "Wiese", "Wald", "Dorf", "Stadt", "Fabrik"]
-const STAGE_ICON = ["empty", "meadow", "nature", "village", "town", "industry"]
+const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
+const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
+const STAGE_ICON = ["empty", "meadow", "smallforest", "nature", "hut", "house", "village", "town", "bigcity", "metropolis"]
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
@@ -22,6 +24,7 @@ var meteors_used: int = 0
 var bad_rounds: int = 0       # Runden in Folge außerhalb des Gleichgewichts
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var seen: Dictionary = {}     # jede Reihe (drei Felder + Stufe), die es je gab: zählt nie wieder
+var endless := true           # Endlos-Modus oder 40 Runden
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -30,7 +33,8 @@ var _index: Dictionary = {}
 # Aufbau
 # =============================================================================
 
-func setup(seed_value: int = 0) -> void:
+func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
+	endless = endless_mode
 	if seed_value != 0:
 		rng.seed = seed_value
 	else:
@@ -67,6 +71,7 @@ func setup(seed_value: int = 0) -> void:
 func clone() -> GameState:
 	var gs := GameState.new()
 	gs.turn = turn
+	gs.endless = endless
 	gs.faith = faith
 	gs.meteors_used = meteors_used
 	gs.bad_rounds = bad_rounds
@@ -171,15 +176,36 @@ func count(stage: int) -> int:
 
 
 func nature_share() -> float:
-	return float(count(1) + count(2)) / float(fields.size())
+	var c := 0
+	for f in fields:
+		if f.is_nature():
+			c += 1
+	return float(c) / float(fields.size())
 
 
 func civilisation_share() -> float:
-	return float(count(3) + count(4) + count(5)) / float(fields.size())
+	var c := 0
+	for f in fields:
+		if f.is_civilisation():
+			c += 1
+	return float(c) / float(fields.size())
+
+
+## Zeitalter (nur Endlos): alle AGE_LENGTH Runden eines mehr.
+func age() -> int:
+	return 1 + int((turn - 1) / Balance.AGE_LENGTH) if endless else 1
+
+
+func nature_min() -> float:
+	return minf(Balance.NATURE_MIN_MAX, Balance.NATURE_MIN + Balance.NATURE_MIN_STEP * (age() - 1))
+
+
+func civilisation_max() -> float:
+	return maxf(Balance.CIVILISATION_MAX_MIN, Balance.CIVILISATION_MAX - Balance.CIVILISATION_MAX_STEP * (age() - 1))
 
 
 func in_balance() -> bool:
-	return nature_share() >= Balance.NATURE_MIN and civilisation_share() <= Balance.CIVILISATION_MAX
+	return nature_share() >= nature_min() and civilisation_share() <= civilisation_max()
 
 
 func income() -> int:
@@ -202,7 +228,7 @@ func died() -> bool:
 
 
 func finished() -> bool:
-	return Balance.MAX_ROUNDS > 0 and turn > Balance.MAX_ROUNDS
+	return not endless and turn > Balance.MAX_ROUNDS
 
 
 func stars() -> int:
@@ -332,11 +358,11 @@ func end_round() -> Dictionary:
 	var gain := resolve_merges(ev)
 	moved = {}
 
-	# 2. Fabriken verschmutzen Natur daneben
+	# 2. Großstädte und Metropolen zerstören Natur daneben
 	for f in fields:
-		if f.stage != 5:
+		if f.stage < Balance.POLLUTION_FROM:
 			continue
-		var left := Balance.POLLUTION_PER_FACTORY
+		var left := Balance.POLLUTION_PER_FIELD
 		for g in neighbors(f):
 			if left <= 0:
 				break
@@ -370,7 +396,7 @@ func end_round() -> Dictionary:
 	# Alles, was jetzt als Reihe dasteht, ist verbraucht
 	remember_lines()
 
-	# 4. Glaube aus Städten und Fabriken
+	# 4. Glaube aus Dörfern und Städten
 	gain += income()
 	faith += gain
 

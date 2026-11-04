@@ -5,7 +5,7 @@ extends RefCounted
 var id: int = 0
 var p: Vector3i = Vector3i.ZERO   # Würfelchen im 3×3×3-Gitter (−1/0/1)
 var n: Vector3i = Vector3i.ZERO   # Normale = Seite
-var stage: int = 0                # 0 Leere Erde, 1 Wiese, 2 Wald, 3 Dorf, 4 Stadt, 5 Fabrik
+var stage: int = 0                # 0 Erde … 9 Metropole (siehe Balance)
 var fresh: int = 0                # > 0: frisch verwüstet (Meteor, Verschmutzung), zeigt Rauch
 
 
@@ -20,8 +20,8 @@ func copy() -> FieldData:
 
 
 func is_nature() -> bool:
-	return stage == 1 or stage == 2
+	return stage >= int(Balance.NATURE_STAGES[0]) and stage <= int(Balance.NATURE_STAGES[1])
 
 
 func is_civilisation() -> bool:
-	return stage >= 3
+	return stage >= Balance.CIVILISATION_FROM

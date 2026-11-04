@@ -2,14 +2,14 @@ class_name FieldView
 extends Node3D
 ## Darstellung eines Felds: Kachel (Farbe je Stufe), Modelle, Hervorhebungen.
 ## Lokales Koordinatensystem: y = Normale der Seite, Feld liegt in x/z (−0,45 … 0,45).
-## Stufen: 0 Leere Erde, 1 Wiese, 2 Wald, 3 Dorf, 4 Stadt, 5 Fabrik.
+## Stufen: 0 Erde, 1 Wiese, 2 kleiner Wald, 3 großer Wald, 4 Hütte, 5 Haus, 6 Dorf, 7 Stadt, 8 Großstadt, 9 Metropole.
 
 const TILE := 0.9
 const TILE_H := 0.09
 const TOP := 0.09
 const CONTENT_SCALE := 1.4
 
-const TILE_COLOR = ["#a5805c", "#8fd162", "#4fae55", "#e9c27c", "#d4cdc2", "#7d828e"]
+const TILE_COLOR = ["#a5805c", "#8fd162", "#6cc25a", "#3f9a4b", "#d9c08a", "#ebc97f", "#e6b468", "#d4cdc2", "#bdb6ad", "#9aa0ab"]
 const WATER := Color("#36aef0")
 const ROOF := Color("#e5574a")
 
@@ -153,7 +153,7 @@ func refresh(f: FieldData) -> void:
 		return
 	var first := _shown == ""
 	_shown = key
-	_tile.material_override = Models.mat(Color(TILE_COLOR[clampi(f.stage, 0, 5)]), 0.7)
+	_tile.material_override = Models.mat(Color(TILE_COLOR[clampi(f.stage, 0, TILE_COLOR.size() - 1)]), 0.7)
 	for c in _content.get_children():
 		c.queue_free()
 	_bobbers.clear()
@@ -225,7 +225,7 @@ func _build_content(f: FieldData) -> void:
 	var greens := [Color("#4fa449"), Color("#5cb357"), Color("#3f9443")]
 	match f.stage:
 		0:
-			# Leere Erde: ein paar Steine, ein kleiner Keim, frisch verwüstet raucht es
+			# Erde: ein paar Steine, ein kleiner Keim, frisch verwüstet raucht es
 			for k in 3:
 				var a: float = rng.randf() * TAU
 				Models.sphere(_content, 0.025, Color("#7d6450"), Vector3(cos(a) * 0.2, 0.012, sin(a) * 0.2), null, 0.6)
@@ -245,33 +245,67 @@ func _build_content(f: FieldData) -> void:
 			Models.cone(_content, 0.03, 0.06, Color("#79c24f"), Vector3(0.18, 0, -0.18), 5)
 			_animal("lake", Vector3(0.09, 0.012, 0.07), rng)
 		2:
-			# Wald
+			# Kleiner Wald: ein paar junge Bäume
+			Models.tree(_content, Vector3(-0.12, 0, -0.1), 0.75, greens[1])
+			Models.pine(_content, Vector3(0.12, 0, -0.06), 0.7, greens[0])
+			Models.tree(_content, Vector3(0.0, 0, 0.14), 0.65, greens[2])
+			Models.cone(_content, 0.03, 0.06, Color("#79c24f"), Vector3(-0.18, 0, 0.18), 5)
+			_animal("meadow", Vector3(0.15, 0, 0.16), rng)
+		3:
+			# Großer Wald
 			var spots := [Vector3(-0.17, 0, -0.15), Vector3(0.16, 0, -0.18), Vector3(-0.02, 0, 0.0),
 				Vector3(0.17, 0, 0.14), Vector3(-0.18, 0, 0.17)]
 			for k in spots.size():
 				var g: Color = greens[k % greens.size()]
 				if k % 2 == 0:
-					Models.tree(_content, spots[k], rng.randf_range(1.0, 1.25), g)
+					Models.tree(_content, spots[k], rng.randf_range(1.05, 1.3), g)
 				else:
-					Models.pine(_content, spots[k], rng.randf_range(1.0, 1.2), g)
+					Models.pine(_content, spots[k], rng.randf_range(1.05, 1.25), g)
 			_animal("forest", Vector3(0.08, 0, 0.18), rng)
-		3:
-			# Dorf
-			Models.house(_content, Vector3(-0.1, 0, -0.08), ROOF, 1.0, rng.randf_range(-20, 20))
-			Models.house(_content, Vector3(0.12, 0, -0.04), ROOF, 0.9, rng.randf_range(-20, 20))
-			Models.tree(_content, Vector3(0.18, 0, 0.18), 0.7, greens[1])
-			_people(2, Vector3(-0.05, 0, 0.14), 0.06)
 		4:
+			# Hütte am Waldrand
+			Models.workshop(_content, Vector3(-0.04, 0, -0.06))
+			Models.tree(_content, Vector3(0.17, 0, 0.12), 0.8, greens[0])
+			Models.pine(_content, Vector3(-0.18, 0, 0.16), 0.7, greens[2])
+			_people(1, Vector3(0.05, 0, 0.16), 0.03)
+		5:
+			# Haus mit Garten
+			Models.house(_content, Vector3(-0.04, 0, -0.06), ROOF, 1.35, 0)
+			Models.rbox(_content, Vector3(0.18, 0.014, 0.12), 0.03, Color("#8a5a35"), Vector3(0.12, 0.0, 0.15))
+			for k in 3:
+				Models.sphere(_content, 0.02, Color("#5cb357"), Vector3(0.06 + k * 0.06, 0.02, 0.15))
+			Models.tree(_content, Vector3(-0.18, 0, 0.16), 0.7, greens[1])
+			_people(1, Vector3(-0.05, 0, 0.17), 0.03)
+		6:
+			# Dorf: mehrere Häuser
+			Models.house(_content, Vector3(-0.13, 0, -0.12), ROOF, 1.0, rng.randf_range(-15, 15))
+			Models.house(_content, Vector3(0.13, 0, -0.1), ROOF, 0.95, rng.randf_range(-15, 15))
+			Models.house(_content, Vector3(-0.1, 0, 0.13), ROOF, 0.9, 90)
+			Models.tree(_content, Vector3(0.17, 0, 0.16), 0.7, greens[1])
+			_people(2, Vector3(0.04, 0, 0.06), 0.05)
+		7:
 			# Stadt
 			Models.rbox(_content, Vector3(0.2, 0.008, 0.2), 0.05, Color("#c9c1b3"), Vector3(0.02, 0.0, 0.08))
-			Models.tower(_content, Vector3(-0.14, 0, -0.13), 0.11, 0.34, ROOF)
+			Models.tower(_content, Vector3(-0.14, 0, -0.13), 0.11, 0.26, ROOF)
 			Models.house(_content, Vector3(0.02, 0, -0.17), ROOF, 1.15, 0)
-			Models.tower(_content, Vector3(0.16, 0, -0.1), 0.1, 0.24, ROOF)
+			Models.tower(_content, Vector3(0.16, 0, -0.1), 0.1, 0.2, ROOF)
 			Models.market(_content, Vector3(0.08, 0, 0.13), ROOF)
 			_people(3, Vector3(-0.1, 0, 0.12), 0.06)
+		8:
+			# Großstadt: viele höhere Häuser
+			Models.tower(_content, Vector3(-0.15, 0, -0.14), 0.12, 0.4, ROOF)
+			Models.tower(_content, Vector3(0.02, 0, -0.16), 0.11, 0.32, Color("#3f86e8"))
+			Models.tower(_content, Vector3(0.17, 0, -0.08), 0.1, 0.28, ROOF)
+			Models.tower(_content, Vector3(-0.14, 0, 0.12), 0.1, 0.24, Color("#3f86e8"))
+			Models.tower(_content, Vector3(0.12, 0, 0.15), 0.11, 0.34, ROOF)
+			_people(2, Vector3(0.0, 0, 0.02), 0.05)
 		_:
-			# Fabrik
-			_smoke.append_array(Models.factory(_content, Vector3(0.02, 0, -0.04), true))
-			for s in _smoke:
-				var sm: Node3D = s
-				sm.set_meta("base_y", sm.position.y)
+			# Metropole: Glastürme
+			var glass := Models.mat(Color("#8fc9ee"), 0.15, 0.2, 0.3)
+			Models.rbox(_content, Vector3(0.12, 0.62, 0.12), 0.015, Color.WHITE, Vector3(-0.02, 0.31, -0.05), Vector3.ZERO, glass)
+			Models.cone(_content, 0.03, 0.12, Color("#e5574a"), Vector3(-0.02, 0.62, -0.05), 8)
+			Models.tower(_content, Vector3(-0.18, 0, -0.16), 0.1, 0.44, Color("#3f86e8"))
+			Models.tower(_content, Vector3(0.16, 0, -0.14), 0.1, 0.5, ROOF)
+			Models.rbox(_content, Vector3(0.1, 0.36, 0.1), 0.015, Color.WHITE, Vector3(0.15, 0.18, 0.14), Vector3.ZERO, glass)
+			Models.tower(_content, Vector3(-0.16, 0, 0.15), 0.1, 0.3, Color("#3f86e8"))
+			_people(2, Vector3(0.0, 0, 0.18), 0.05)

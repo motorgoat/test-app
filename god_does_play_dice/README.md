@@ -12,18 +12,25 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 ## Spielregeln
 
 1. **Start:** nur leere Erde und Wiesen.
-2. **Die Leiter:** Leere Erde · Wiese → Wald → Dorf → Stadt → Fabrik. Sie steht immer oben im Bild.
+2. **Die Leiter** (steht immer oben im Bild):
+   Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
+   Natur = Wiese bis großer Wald, Zivilisation = ab Hütte.
 3. **Verschmelzen:** Vervollständigst du durch eine Drehung eine Reihe (oder Spalte) aus 3 gleichen Feldern,
    verschmelzen sie: Die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine Stufe zurück.
    Was sich dabei ändert, kann eine Kettenreaktion auslösen (Kombo). Beim Warten verschmilzt nichts.
    **Jede Verbindung zählt nur einmal:** Das Spiel merkt sich jede Reihe (dieselben drei Felder auf derselben Stufe),
    die es je gab. Hin- und Herdrehen oder eine nur mitgedrehte fertige Reihe bringt deshalb kein Upgrade.
 4. **Nachwachsen:** Leere Erde mit 2 Natur-Nachbarn wird wieder Wiese, höchstens 2 Felder pro Runde.
-5. **Glaube:** fürs Verschmelzen (2/5/12/25/50 je Stufe × Kombo), dazu jede Runde +1 je Stadt und +3 je Fabrik.
-6. **Fabriken** zerstören jede Runde ein Natur-Feld daneben.
+5. **Glaube:** fürs Verschmelzen (je höher die Stufe, desto mehr, × Kombo), dazu jede Runde
+   +1 je Dorf, +2 je Stadt, +4 je Großstadt, +8 je Metropole.
+6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
 7. **Gleichgewicht:** mindestens 30 % Natur, höchstens 40 % Zivilisation. Wer 3 Runden in Folge daneben liegt, dessen Welt stirbt.
 8. **Meteorit** (kostet Glauben, wird jedes Mal teurer): Feld und Nachbarn werden zu Erde. Du wählst Ort und Zeitpunkt.
-9. **Ziel:** 40 Runden, dann zählt der Glaube: 50 / 120 / 220 = 1 / 2 / 3 Sterne.
+9. **Modi:**
+   - **Endlos** (Standard): Alle 20 Runden beginnt ein neues Zeitalter, dann braucht die Welt 2 % mehr Natur
+     und verträgt 2 % weniger Zivilisation (bis 42 % / 28 %). Ziel: so lange wie möglich, so viel Glaube wie möglich.
+   - **40 Runden:** danach zählt der Glaube: 50 / 120 / 220 = 1 / 2 / 3 Sterne.
+   Beide Modi haben einen eigenen Rekord.
 
 Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
 Ein einfacher Test-Bot (denkt nur einen Zug voraus) erreicht etwa 30–80 Glauben; mehr Sterne brauchen Planung.
