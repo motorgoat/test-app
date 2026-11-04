@@ -66,15 +66,18 @@ func _shots(dir: String) -> void:
 	await _shot(dir, "07_verschmelzen")
 	await _wait(2.2)
 	await _shot(dir, "08_danach")
-	# Meteorit
-	Game.state.meteors = maxi(Game.state.meteors, 1)
+	# Boni: Meteorit, dann Regen
+	Game.state.bonus = 2
 	Game.state_changed.emit()
 	await _wait(0.5)
-	Game.use_meteor(_visible_field())
+	Game.use_bonus("meteor", _visible_field(1))
 	await _wait(0.45)
 	await _shot(dir, "09_meteor_faellt")
-	await _wait(1.2)
-	await _shot(dir, "10_meteor_danach")
+	await _wait(2.4)
+	Game.use_bonus("rain", _visible_field(0))
+	await _wait(0.9)
+	await _shot(dir, "10_regen")
+	await _wait(2.4)
 	for i in 4:
 		world.wait_turn()
 		await _wait(2.6)
@@ -138,14 +141,16 @@ func _shot(dir: String, shot_name: String) -> void:
 	print("Screenshot: ", shot_name)
 
 
-## Ein gut sichtbares Feld (zur Kamera gewandt).
-func _visible_field() -> int:
+## Ein gut sichtbares Feld (zur Kamera gewandt). Mit min_stage 1: kein leeres Feld, mit 0: nur leere Erde.
+func _visible_field(only: int = -1) -> int:
 	var cam_pos := world.rig.cam.global_position
 	var best := 0
 	var best_score := -INF
 	for f in Game.state.fields:
 		var v: FieldView = world.views.get(f.id)
 		if v == null:
+			continue
+		if (only == 0 and f.stage != 0) or (only == 1 and f.stage == 0):
 			continue
 		var score := v.world_normal().dot((cam_pos - v.global_position).normalized())
 		if score > best_score:

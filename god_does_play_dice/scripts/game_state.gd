@@ -7,12 +7,13 @@ extends RefCounted
 ##   2. Vervollständigt eine Drehung eine NEUE Reihe aus 3 gleichen Feldern, verschmelzen sie:
 ##      das Feld, das zuletzt dazugekommen ist, steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt
 ##      → Großstadt → Metropole), die beiden äußeren fallen eine Stufe zurück.
-##   3. Leere Erde wird wieder Wiese, wenn genug Natur daneben ist.
+##   3. Wiese entsteht nur durch Regen (Bonus). Nachwachsen von allein ist abschaltbar (REGROW_PER_ROUND).
 ##   4. Großstädte und Metropolen zerstören Natur daneben.
 ##   5. Endet eine Runde außerhalb des Gleichgewichts, kommt eine Katastrophe:
 ##      zu viel Zivilisation → Erdbeben, zu wenig Natur → Überschwemmung, zu viel Natur → Waldbrand.
 ##      Jede kostet ein Leben der Welt. Ohne Leben stirbt sie. Jedes neue Zeitalter gibt eines zurück.
-##   6. Meteorit (lädt sich mit der Zeit auf): Feld und Nachbarn werden zu leerer Erde.
+##   6. Punkte gibt es fürs Verschmelzen. Alle paar Punkte gibt es einen Bonus für ein einzelnes Feld:
+##      Regen (Erde wird Wiese) oder Meteorit (das Feld wird wieder Erde). Ein Bonus ist ein Zug.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
@@ -23,7 +24,9 @@ const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), V
 
 var fields: Array = []        # FieldData, Index = id
 var turn: int = 1
-var meteors: int = 1          # Meteoriten, die du gerade einsetzen kannst
+var score: int = 0           # Punkte
+var bonus: int = 1            # Boni (Regen oder Meteorit), die du gerade einsetzen kannst
+var next_bonus: int = 0       # ab dieser Punktzahl gibt es den nächsten Bonus
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
@@ -47,7 +50,9 @@ func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
 	else:
 		rng.randomize()
 	turn = 1
-	meteors = Balance.METEOR_START
+	score = 0
+	bonus = Balance.BONUS_START
+	next_bonus = Balance.BONUS_EVERY
 	meteors_used = 0
 	best_stage = 1
 	lives = Balance.LIVES
@@ -70,19 +75,56 @@ func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
 					f.stage = 1 if rng.randf() < Balance.START_MEADOW else 0
 					fields.append(f)
 	rebuild_index()
-	# Am Start keine fertigen Reihen (sonst gäbe es Punkte geschenkt)
-	for guard in 60:
-		var found := lines()
-		if found.is_empty():
+	# Am Start liegen nie drei Wiesen beisammen (auch nicht über Eck oder über die Kante):
+	# Keine Wiese hat mehr als eine Wiese daneben.
+	for guard in 200:
+		var worst: FieldData = null
+		var worst_n := 1
+		for f in fields:
+			if f.stage != 1:
+				continue
+			var n := _count_neighbors(f, "nature")
+			if n > worst_n:
+				worst_n = n
+				worst = f
+		if worst == null:
 			break
-		(found[0][1] as FieldData).stage = 0
+		worst.stage = 0
+	# Danach wieder auffüllen, wo das erlaubt ist, damit genug Natur da ist
+	var order: Array = fields.duplicate()
+	for i in range(order.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = order[i]
+		order[i] = order[j]
+		order[j] = tmp
+	for g in order:
+		var f: FieldData = g
+		if nature_share() >= Balance.START_NATURE:
+			break
+		if f.stage == 0 and _meadow_allowed(f):
+			f.stage = 1
+
+
+## Darf hier am Start eine Wiese hin, ohne dass drei Wiesen beisammen liegen?
+func _meadow_allowed(f: FieldData) -> bool:
+	var m: Array = []
+	for g in neighbors(f):
+		if (g as FieldData).stage == 1:
+			m.append(g)
+	if m.is_empty():
+		return true
+	if m.size() > 1:
+		return false
+	return _count_neighbors(m[0], "nature") == 0
 
 
 func clone() -> GameState:
 	var gs := GameState.new()
 	gs.turn = turn
 	gs.endless = endless
-	gs.meteors = meteors
+	gs.score = score
+	gs.bonus = bonus
+	gs.next_bonus = next_bonus
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
@@ -238,13 +280,6 @@ func threat() -> String:
 	return ""
 
 
-## Runden bis zum nächsten Meteoriten (0 = voll).
-func meteor_in() -> int:
-	if meteors >= Balance.METEOR_MAX:
-		return 0
-	return Balance.METEOR_EVERY - ((turn - 1) % Balance.METEOR_EVERY)
-
-
 func is_over() -> bool:
 	return died() or finished()
 
@@ -255,14 +290,6 @@ func died() -> bool:
 
 func finished() -> bool:
 	return not endless and turn > Balance.MAX_ROUNDS
-
-
-func stars() -> int:
-	var s := 0
-	for t in Balance.STAR_STAGES:
-		if best_stage >= int(t):
-			s += 1
-	return s
 
 
 ## Alle Reihen/Spalten aus 3 gleichen Feldern (nicht leer) auf einer Seite.
@@ -433,11 +460,16 @@ func end_round() -> Dictionary:
 		if f.fresh > 0:
 			f.fresh -= 1
 
-	# 4. Fortschritt merken, Meteorit aufladen
+	# 4. Punkte, Fortschritt, Bonus
+	score += gain
 	for f in fields:
 		best_stage = maxi(best_stage, f.stage)
-	if turn % Balance.METEOR_EVERY == 0:
-		meteors = mini(Balance.METEOR_MAX, meteors + 1)
+	var bonus_gained := 0
+	while score >= next_bonus:
+		next_bonus += Balance.BONUS_EVERY
+		if bonus < Balance.BONUS_MAX:
+			bonus += 1
+			bonus_gained += 1
 
 	# 5. Gleichgewicht: sonst Katastrophe
 	var kind := threat()
@@ -451,7 +483,7 @@ func end_round() -> Dictionary:
 		lives = mini(Balance.LIVES, lives + 1)
 	# Alles, was jetzt als Reihe dasteht, ist verbraucht
 	remember_lines()
-	return {"events": ev, "gain": gain}
+	return {"events": ev, "gain": gain, "bonus_gained": bonus_gained}
 
 
 ## Die Katastrophe trifft (deterministisch, damit die Vorschau stimmt).
@@ -525,25 +557,38 @@ func _count_neighbors(f: FieldData, what: String) -> int:
 
 
 # =============================================================================
-# Meteorit
+# Bonus: Regen oder Meteorit auf ein einzelnes Feld
 # =============================================================================
 
-func can_meteor() -> String:
-	if meteors <= 0:
-		return "Der nächste Meteorit kommt in %d %s" % [meteor_in(), "Runde" if meteor_in() == 1 else "Runden"]
+## "" = geht, sonst der Grund, warum nicht.
+func can_bonus(kind: String, f: FieldData) -> String:
+	if bonus <= 0:
+		return "Der nächste Bonus kommt bei %d Punkten" % next_bonus
+	if kind == "rain" and f.stage != 0:
+		return "Regen wirkt nur auf leerer Erde"
+	if kind == "meteor" and f.stage == 0:
+		return "Hier ist schon leere Erde"
 	return ""
 
 
-## Schlägt ein: das Feld und seine Nachbarn werden zu leerer Erde. Gibt die getroffenen IDs zurück.
-func use_meteor(f: FieldData) -> Array:
-	meteors -= 1
-	meteors_used += 1
-	var hit: Array = [f]
-	hit.append_array(neighbors(f))
-	var ids: Array = []
-	for g in hit:
-		var h: FieldData = g
-		h.stage = 0
-		h.fresh = 2
-		ids.append(h.id)
-	return ids
+## Regen: Erde wird Wiese, die leere Erde daneben auch (zählt als neu dazugekommen, kann also verschmelzen).
+## Meteorit: das Feld wird wieder leere Erde. Danach wird die Runde ganz normal ausgewertet.
+func apply_bonus(kind: String, f: FieldData) -> void:
+	bonus -= 1
+	if moved.is_empty():
+		remember_lines()
+	if kind == "rain":
+		var wet: Array = [f]
+		if Balance.RAIN_NEIGHBORS:
+			for g in neighbors(f):
+				if (g as FieldData).stage == 0:
+					wet.append(g)
+		for g in wet:
+			var h: FieldData = g
+			h.stage = 1
+			h.fresh = 0
+			moved[h.id] = true
+	else:
+		f.stage = 0
+		f.fresh = 2
+		meteors_used += 1

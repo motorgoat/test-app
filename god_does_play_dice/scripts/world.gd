@@ -52,7 +52,6 @@ func _ready() -> void:
 	Game.new_game_started.connect(rebuild)
 	Game.state_changed.connect(_on_state_changed)
 	Game.round_resolved.connect(_on_round_resolved)
-	Game.meteor_struck.connect(_on_meteor)
 	rebuild()
 
 
@@ -576,8 +575,28 @@ func debug_end_twist() -> void:
 
 func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	animating = true
+	_clear_hint()
+	select(-1)
 	var gs := Game.state
 	var events: Array = result["events"]
+	# Bonus zuerst: Meteorit schlägt ein oder Regen fällt
+	var bonus_ids := {}
+	if result.has("bonus"):
+		var bd: Dictionary = result["bonus"]
+		var kind := str(bd["kind"])
+		for i in bd["fields"]:
+			bonus_ids[int(i)] = true
+		if kind == "meteor":
+			await _meteor_fx(int(bd["field"]))
+		else:
+			await _rain_fx(bd["fields"])
+		for i in bonus_ids:
+			var v: FieldView = views.get(int(i))
+			if v != null:
+				var shown: FieldData = (gs.fields[int(i)] as FieldData).copy()
+				shown.stage = 0 if kind == "meteor" else 1
+				v.refresh(shown)
+		await get_tree().create_timer(0.35).timeout
 	# Verschmelzen, Kombo für Kombo
 	var last_combo := 0
 	var merged_ids := {}
@@ -614,7 +633,7 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	refresh_all()
 	var changes: Array = []
 	for f in gs.fields:
-		if merged_ids.has(f.id) or disaster_ids.has(f.id):
+		if merged_ids.has(f.id) or disaster_ids.has(f.id) or bonus_ids.has(f.id):
 			continue
 		var b := int(before.get(f.id, f.stage))
 		if f.stage == 0 and b > 0:
@@ -710,14 +729,11 @@ func _sparks(a: Vector3, b: Vector3, color: Color, count: int) -> void:
 		tw.tween_callback(spark.queue_free)
 
 
-## Meteorit: fällt glühend vom Himmel, schlägt ein, Feld und Nachbarn werden zu Erde.
-func _on_meteor(fid: int, ids: Array) -> void:
+## Meteorit: fällt glühend vom Himmel und schlägt ein. Das Feld wird wieder Erde.
+func _meteor_fx(fid: int) -> void:
 	var v: FieldView = views.get(fid)
 	if v == null:
 		return
-	animating = true
-	_clear_hint()
-	select(-1)
 	var n := v.world_normal()
 	var target := v.global_position + n * 0.15
 	var start := target + n * 5.0 + rig.global_transform.basis.x * 1.2
@@ -748,12 +764,42 @@ func _on_meteor(fid: int, ids: Array) -> void:
 	rig.shake(1.2)
 	v.burst(Color("#ff8a3d"))
 	_sparks(target + n * 0.2, Vector3.ZERO, Color("#ff8a3d"), 16)
+
+
+## Regen: eine Wolke zieht über das Feld, Tropfen fallen, alles wird grün.
+func _rain_fx(ids: Array) -> void:
+	if ids.is_empty():
+		return
+	var v: FieldView = views.get(int(ids[0]))
+	if v == null:
+		return
+	var n := v.world_normal()
+	var above := v.global_position + n * 1.1
+	var cloud := Node3D.new()
+	cube_root.add_child(cloud)
+	cloud.global_position = above + rig.global_transform.basis.x * 1.5
+	var cm := Models.mat(Color("#eef3fa"), 0.9)
+	for k in 5:
+		Models.sphere(cloud, randf_range(0.16, 0.24), Color("#eef3fa"), Vector3(randf_range(-0.25, 0.25), randf_range(-0.05, 0.08), randf_range(-0.25, 0.25)), cm)
+	var tw := create_tween()
+	tw.tween_property(cloud, "global_position", above, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await tw.finished
+	var t := 0.0
+	while t < 0.8:
+		for i in ids:
+			var w: FieldView = views.get(int(i))
+			if w == null:
+				continue
+			var top := w.global_position + w.world_normal() * 0.9
+			_sparks(top + Vector3(randf_range(-0.2, 0.2), 0.0, randf_range(-0.2, 0.2)), w.global_position + w.world_normal() * 0.1, Color("#5cb8ff"), 1)
+		await get_tree().create_timer(0.08).timeout
+		t += 0.08
 	for i in ids:
 		var w: FieldView = views.get(int(i))
-		if w != null and w != v:
-			w.burst(Color("#c98a5a"))
-	refresh_all()
-	await get_tree().create_timer(0.5).timeout
-	animating = false
+		if w != null:
+			w.burst(Color("#8fd162"))
+	var out := create_tween()
+	out.tween_property(cloud, "scale", Vector3.ONE * 0.05, 0.35).set_ease(Tween.EASE_IN)
+	out.tween_callback(cloud.queue_free)
 
 

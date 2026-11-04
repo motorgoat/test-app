@@ -9,18 +9,18 @@ var world: World
 var root: Control
 
 var round_label: Label
-var best_label: Label
-var ladder_counts: Array = []
-var nature_bar: Dictionary = {}
-var civ_bar: Dictionary = {}
+var score_label: Label
+var stage_label: Label
+var stage_icon: TextureRect
 var danger_label: Label
 var hearts: Array = []
 var preview_card: PanelContainer
 var preview_label: Label
 var toast: PanelContainer
 var toast_label: Label
-var wait_btn: Button
 var meteor_btn: Button
+var rain_btn: Button
+var mode_label: Label
 var mode_card: PanelContainer
 var sheet: PanelContainer
 var sheet_icon: TextureRect
@@ -34,7 +34,9 @@ var over_label: Label
 var bubble_layer: Control
 var combo_label: Label
 
-var meteor_mode := false
+var bonus_mode := ""          # "", "rain" oder "meteor": nächstes angetipptes Feld bekommt den Bonus
+var _shown_score := -1
+var _score_display := 0.0
 var _sheet_field := -1
 var _bubbles: Array = []
 var _toast_until := 0.0
@@ -83,78 +85,66 @@ func _build() -> void:
 	card.add_child(cv)
 
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 10)
 	cv.add_child(row)
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 2)
-	rv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(rv)
-	round_label = _label("Runde 1", 20, Style.SOFT, true)
-	rv.add_child(round_label)
+	# Punkte
+	var sv := VBoxContainer.new()
+	sv.add_theme_constant_override("separation", -4)
+	sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(sv)
+	score_label = _label("0", 38, Style.TEXT, true)
+	sv.add_child(score_label)
+	round_label = _label("Punkte", 12, Style.SOFT, true)
+	sv.add_child(round_label)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(sp)
+	# Entwicklungsstufe (höchste erreichte Stufe)
+	var st := HBoxContainer.new()
+	st.add_theme_constant_override("separation", 6)
+	st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(st)
+	stage_icon = TextureRect.new()
+	stage_icon.custom_minimum_size = Vector2(40, 40)
+	stage_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	stage_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	stage_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	stage_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	st.add_child(stage_icon)
+	var stv := VBoxContainer.new()
+	stv.add_theme_constant_override("separation", -3)
+	stv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	stv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	st.add_child(stv)
+	stv.add_child(_label("Entwicklung", 12, Style.SOFT, true))
+	stage_label = _label("Wiese", 20, Style.TEXT, true)
+	stv.add_child(stage_label)
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(sp2)
+	# Leben der Welt (klein)
 	var hrow := HBoxContainer.new()
-	hrow.add_theme_constant_override("separation", 3)
+	hrow.add_theme_constant_override("separation", 1)
+	hrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rv.add_child(hrow)
+	row.add_child(hrow)
 	for i in Balance.LIVES:
 		var h := TextureRect.new()
 		h.texture = Style.icon("heart")
-		h.custom_minimum_size = Vector2(20, 20)
+		h.custom_minimum_size = Vector2(18, 18)
 		h.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		h.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hrow.add_child(h)
 		hearts.append(h)
-	var hl := _label("Leben der Welt", 11, Style.SOFT)
-	hl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	hrow.add_child(hl)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(sp)
-	best_label = _stat(row, "trophy", 24)
-	best_label.add_theme_color_override("font_color", Style.SOFT)
 	row.add_child(_round_button("menu", func() -> void: _open_modal(menu_card), 46))
-
-	# Die Leiter
-	var ladder := HBoxContainer.new()
-	ladder.add_theme_constant_override("separation", 0)
-	ladder.alignment = BoxContainer.ALIGNMENT_CENTER
-	cv.add_child(ladder)
-	for s in range(1, Balance.MAX_STAGE + 1):
-		if s > 1:
-			var arrow := _label("›", 16, Style.SOFT, true)
-			arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			ladder.add_child(arrow)
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", -2)
-		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		col.custom_minimum_size = Vector2(50, 0)
-		ladder.add_child(col)
-		var tr := TextureRect.new()
-		tr.texture = Style.icon(STAGE_ICON[s])
-		tr.custom_minimum_size = Vector2(30, 30)
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		col.add_child(tr)
-		var nm := _label(GameState.STAGE_SHORT[s], 10, Style.SOFT, true)
-		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		col.add_child(nm)
-		var cnt := _label("0", 14, Style.TEXT, true)
-		cnt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		col.add_child(cnt)
-		ladder_counts.append(cnt)
-	var rule := _label("Dreh 3 gleiche in eine Reihe: Mitte steigt auf, Rand fällt zurück", 13, Style.SOFT, true)
-	rule.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cv.add_child(rule)
-
-	# Leisten
-	var bars := HBoxContainer.new()
-	bars.add_theme_constant_override("separation", 14)
-	cv.add_child(bars)
-	nature_bar = _bar(bars, "nature", "Natur", Color("#4fae55"), true)
-	civ_bar = _bar(bars, "town", "Zivilisation", Color("#e0a54a"), false)
+	# Warnung, nur wenn etwas droht
 	danger_label = _label("", 15, Style.BAD, true)
 	danger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	danger_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	danger_label.custom_minimum_size = Vector2(300, 0)
 	danger_label.visible = false
 	cv.add_child(danger_label)
 
@@ -187,8 +177,9 @@ func _build() -> void:
 	var mh := HBoxContainer.new()
 	mh.add_theme_constant_override("separation", 10)
 	mode_card.add_child(mh)
-	mh.add_child(_label("Tippe, wo der Meteorit einschlagen soll", 17, Color.WHITE, true))
-	var cancel := _round_button("", func() -> void: _set_meteor_mode(false), 40)
+	mode_label = _label("", 17, Color.WHITE, true)
+	mh.add_child(mode_label)
+	var cancel := _round_button("", func() -> void: _set_bonus_mode(""), 40)
 	cancel.text = "✕"
 	mh.add_child(cancel)
 	mode_card.visible = false
@@ -197,29 +188,14 @@ func _build() -> void:
 	brow.add_theme_constant_override("separation", 12)
 	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_child(brow)
-	meteor_btn = Button.new()
-	meteor_btn.icon = Style.icon("meteor")
-	meteor_btn.add_theme_constant_override("icon_max_width", 30)
-	meteor_btn.custom_minimum_size = Vector2(110, 62)
-	meteor_btn.add_theme_font_override("font", Style.bold())
-	meteor_btn.add_theme_font_size_override("font_size", 18)
-	_pill_style(meteor_btn, Color.WHITE)
-	meteor_btn.pressed.connect(func() -> void: _set_meteor_mode(not meteor_mode))
+	rain_btn = _bonus_button("rain")
+	brow.add_child(rain_btn)
+	meteor_btn = _bonus_button("meteor")
 	brow.add_child(meteor_btn)
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp2)
-	wait_btn = Button.new()
-	wait_btn.text = "Warten"
-	wait_btn.icon = Style.icon("wait")
-	wait_btn.add_theme_constant_override("icon_max_width", 28)
-	wait_btn.custom_minimum_size = Vector2(150, 62)
-	wait_btn.add_theme_font_override("font", Style.bold())
-	wait_btn.add_theme_font_size_override("font_size", 20)
-	_pill_style(wait_btn, Color.WHITE)
-	wait_btn.pressed.connect(func() -> void: world.wait_turn())
-	brow.add_child(wait_btn)
 	var sp3 := Control.new()
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -253,49 +229,20 @@ func _build() -> void:
 	_build_over()
 
 
-func _bar(parent: Control, icon_name: String, title: String, color: Color, is_nature: bool) -> Dictionary:
-	var v := VBoxContainer.new()
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 3)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(v)
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 5)
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(h)
-	var tr := TextureRect.new()
-	tr.texture = Style.icon(icon_name)
-	tr.custom_minimum_size = Vector2(20, 20)
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	h.add_child(tr)
-	var l := _label(title, 14, Style.TEXT, true)
-	h.add_child(l)
-	var pct := _label("0%", 14, Style.TEXT, true)
-	pct.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	h.add_child(pct)
-	var back := ColorRect.new()
-	back.color = Color("#ece6dc")
-	back.custom_minimum_size = Vector2(0, 10)
-	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(back)
-	var fill := ColorRect.new()
-	fill.color = color
-	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	back.add_child(fill)
-	var mark := ColorRect.new()
-	mark.color = Style.TEXT
-	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	back.add_child(mark)
-	var mark2 := ColorRect.new()
-	mark2.color = Style.TEXT
-	mark2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mark2.visible = is_nature
-	back.add_child(mark2)
-	var hint := _label("", 11, Style.SOFT)
-	v.add_child(hint)
-	return {"back": back, "fill": fill, "mark": mark, "mark2": mark2, "pct": pct, "color": color, "is_nature": is_nature, "hint": hint}
+func _bonus_button(kind: String) -> Button:
+	var b := Button.new()
+	b.icon = Style.icon(kind)
+	b.add_theme_constant_override("icon_max_width", 30)
+	b.custom_minimum_size = Vector2(84, 62)
+	b.add_theme_font_override("font", Style.bold())
+	b.add_theme_font_size_override("font_size", 18)
+	_pill_style(b, Color.WHITE)
+	b.pressed.connect(_on_bonus_pressed.bind(kind))
+	return b
+
+
+func _on_bonus_pressed(kind: String) -> void:
+	_set_bonus_mode("" if bonus_mode == kind else kind)
 
 
 func _build_sheet() -> void:
@@ -349,17 +296,17 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine zurück. Jede Verbindung zählt nur einmal: Hin- und Herdrehen bringt nichts."))
+	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen fallen eine zurück. Das gibt Punkte. Jede Verbindung zählt nur einmal: Hin- und Herdrehen bringt nichts."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
-	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 2 Natur-Felder daneben liegen."))
+	v.add_child(_help_row("rain", "Wiese wächst nicht von allein. Alle %d Punkte bekommst du einen Bonus: Regen macht leere Erde (samt leerer Erde daneben) zu Wiese." % Balance.BONUS_EVERY))
+	v.add_child(_help_row("meteor", "Oder du setzt den Bonus als Meteorit ein: Er macht ein einzelnes Feld wieder zu Erde. Ein Bonus zählt als Zug."))
 	v.add_child(_help_row("metropolis", "Großstädte und Metropolen zerstören jede Runde ein Natur-Feld daneben."))
 	v.add_child(_help_row("balance", "Halte das Gleichgewicht. Endet eine Runde daneben, schlägt eine Katastrophe zu und kostet ein Leben der Welt:"))
 	v.add_child(_help_row("quake", "Zu viel Zivilisation → Erdbeben: Die größte Siedlung stürzt ein."))
 	v.add_child(_help_row("flood", "Zu wenig Natur → Überschwemmung: Die kleinsten Siedlungen werden weggespült."))
 	v.add_child(_help_row("fire", "Zu viel Natur → Waldbrand: Der dichteste Wald brennt nieder."))
 	v.add_child(_help_row("heart", "Die Welt hält %d Katastrophen aus. Leuchtet beim Drehen ein Feld rot, droht dort eine." % Balance.LIVES))
-	v.add_child(_help_row("meteor", "Der Meteorit macht ein Feld samt Nachbarn zu Erde. Alle %d Runden kommt einer dazu (höchstens %d). Setz ihn im richtigen Moment ein." % [Balance.METEOR_EVERY, Balance.METEOR_MAX]))
-	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber der gesunde Bereich wird enger. Im Menü gibt es auch 40 Runden: Sterne für Dorf, Stadt und Metropole." % Balance.AGE_LENGTH))
+	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber der gesunde Bereich wird enger. Im Menü gibt es auch 40 Runden: so viele Punkte wie möglich." % Balance.AGE_LENGTH))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -533,13 +480,21 @@ func refresh() -> void:
 		return
 	var gs := Game.state
 	if gs.endless:
-		round_label.text = "Runde %d · Zeitalter %d" % [gs.turn, gs.age()]
+		round_label.text = "Punkte"
 	else:
-		round_label.text = "Runde %d / %d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS]
-	best_label.text = str(Game.best) if gs.endless else "%d/3" % Game.best
-	for s in range(1, Balance.MAX_STAGE + 1):
-		(ladder_counts[s - 1] as Label).text = str(gs.count(s))
-	meteor_btn.text = str(gs.meteors) if gs.meteors > 0 else "in %d" % gs.meteor_in()
+		round_label.text = "Punkte · Runde %d/%d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS]
+	if _shown_score < 0:
+		_score_display = gs.score
+	elif gs.score != _shown_score:
+		_pop(score_label)
+	_shown_score = gs.score
+	var best_stage := clampi(gs.best_stage, 1, Balance.MAX_STAGE)
+	if stage_label.text != GameState.STAGE_NAME[best_stage] and _shown_score > 0:
+		_pop(stage_icon)
+	stage_label.text = GameState.STAGE_NAME[best_stage]
+	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
+	rain_btn.text = str(gs.bonus)
+	meteor_btn.text = str(gs.bonus)
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
 	var th := gs.threat()
@@ -556,38 +511,8 @@ func refresh() -> void:
 func _update_buttons() -> void:
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
-	wait_btn.disabled = blocked
-	meteor_btn.disabled = blocked or gs.meteors <= 0
-
-
-func _draw_bar(b: Dictionary, value: float) -> void:
-	var back: ColorRect = b["back"]
-	var fill: ColorRect = b["fill"]
-	var mark: ColorRect = b["mark"]
-	var mark2: ColorRect = b["mark2"]
-	var w := back.size.x
-	var gs := Game.state
-	var hint: Label = b["hint"]
-	var ok := true
-	if bool(b["is_nature"]):
-		var lo := gs.nature_min()
-		var hi := gs.nature_max()
-		hint.text = "%d–%d%%  (sonst Flut / Waldbrand)" % [int(round(lo * 100.0)), int(round(hi * 100.0))]
-		ok = value >= lo - 0.0001 and value <= hi + 0.0001
-		mark.position = Vector2(w * lo - 1.5, -3)
-		mark2.position = Vector2(w * hi - 1.5, -3)
-		mark2.size = Vector2(3, 16)
-	else:
-		var limit := gs.civilisation_max()
-		hint.text = "höchstens %d%%  (sonst Erdbeben)" % int(round(limit * 100.0))
-		ok = value <= limit + 0.0001
-		mark.position = Vector2(w * limit - 1.5, -3)
-	fill.size = Vector2(maxf(2.0, w * clampf(value, 0.0, 1.0)), 10)
-	fill.color = b["color"] if ok else Style.BAD
-	mark.size = Vector2(3, 16)
-	var pct: Label = b["pct"]
-	pct.text = "%d%%" % int(round(value * 100.0))
-	pct.add_theme_color_override("font_color", Style.TEXT if ok else Style.BAD)
+	rain_btn.disabled = blocked or gs.bonus <= 0
+	meteor_btn.disabled = blocked or gs.bonus <= 0
 
 
 func _pop(c: Control) -> void:
@@ -602,20 +527,25 @@ func _process(delta: float) -> void:
 	if toast.modulate.a > 0.0 and _time > _toast_until:
 		toast.modulate.a = maxf(0.0, toast.modulate.a - delta * 3.0)
 	_update_bubbles(delta)
-	if Game.state == null or best_label == null:
+	if Game.state == null or score_label == null:
 		return
-	_draw_bar(nature_bar, Game.state.nature_share())
-	_draw_bar(civ_bar, Game.state.civilisation_share())
+	var target := float(Game.state.score)
+	_score_display = move_toward(_score_display, target, maxf(1.0, absf(target - _score_display)) * delta * 4.0)
+	score_label.text = str(int(round(_score_display)))
 	_update_buttons()
 
 
 # =============================================================================
-# Meteorit
+# Bonus: Regen oder Meteorit
 # =============================================================================
 
-func _set_meteor_mode(on: bool) -> void:
-	meteor_mode = on
-	mode_card.visible = on
+func _set_bonus_mode(kind: String) -> void:
+	bonus_mode = kind
+	mode_card.visible = kind != ""
+	if kind == "rain":
+		mode_label.text = "Tippe auf leere Erde: Dort regnet es"
+	elif kind == "meteor":
+		mode_label.text = "Tippe, wo der Meteorit einschlagen soll"
 	_close_sheet()
 
 
@@ -639,7 +569,7 @@ func _on_preview(info: Dictionary) -> void:
 		return
 	var parts := PackedStringArray()
 	if Game.tutorial():
-		parts.append("%d× Verschmelzen" % merges if merges > 0 else "Keine neue Dreierreihe")
+		parts.append("%d× Verschmelzen  ·  +%d Punkte" % [merges, int(info["gain"])] if merges > 0 else "Keine neue Dreierreihe")
 		preview_label.add_theme_color_override("font_color", Color("#c98a00") if merges > 0 else Style.SOFT)
 	if kind != "":
 		parts.append("Danach: %s! (%s)" % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind]])
@@ -653,9 +583,9 @@ func _on_preview(info: Dictionary) -> void:
 # =============================================================================
 
 func _on_field_tapped(fid: int) -> void:
-	if meteor_mode:
-		if Game.use_meteor(fid):
-			_set_meteor_mode(false)
+	if bonus_mode != "":
+		if Game.use_bonus(bonus_mode, fid):
+			_set_bonus_mode("")
 		return
 	if world.selected == fid and sheet.visible:
 		_close_sheet()
@@ -686,7 +616,7 @@ func _fill_sheet(fid: int) -> void:
 	sheet_icon.texture = Style.icon(STAGE_ICON[f.stage])
 	var lines := PackedStringArray()
 	if f.stage == 0:
-		lines.append("Wird wieder zur Wiese, wenn %d Natur-Felder daneben liegen." % Balance.REGROW_NEIGHBORS)
+		lines.append("Leere Erde. Mit Regen (Bonus) wird sie zur Wiese.")
 	elif f.stage >= Balance.MAX_STAGE:
 		lines.append("Höchste Stufe.")
 	else:
@@ -706,7 +636,7 @@ func _fill_sheet(fid: int) -> void:
 # =============================================================================
 
 func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
-	_bubble(fid, GameState.STAGE_SHORT[clampi(stage, 0, Balance.MAX_STAGE)], "up", Color("#f2a900"))
+	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
 	if combo >= 2:
 		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]
 	else:
@@ -859,9 +789,10 @@ func _close_modal() -> void:
 
 func _on_new_game() -> void:
 	_close_modal()
-	_set_meteor_mode(false)
+	_set_bonus_mode("")
 	sheet.visible = false
 	_sheet_field = -1
+	_shown_score = -1
 	for bd in _bubbles:
 		(bd["node"] as Control).queue_free()
 	_bubbles.clear()
@@ -881,16 +812,13 @@ func _on_game_over() -> void:
 	else:
 		title.text = "Geschafft!"
 	lines.append("")
-	lines.append("Überlebt: %d Runden" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
-	lines.append("Höchste Stufe: %s" % GameState.stage_name(gs.best_stage))
-	if not gs.endless:
-		lines.append("Sterne: %d von 3  (Dorf, Stadt, Metropole)" % gs.stars())
+	lines.append("Punkte: %d" % gs.score)
+	lines.append("Entwicklung: %s" % GameState.stage_name(gs.best_stage))
+	lines.append("Runden: %d" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
 	if Game.new_record:
 		lines.append("Neuer Rekord!")
-	elif gs.endless:
-		lines.append("Rekord: %d Runden" % Game.best)
 	else:
-		lines.append("Rekord: %d von 3 Sternen" % Game.best)
+		lines.append("Rekord: %d Punkte" % Game.best)
 	over_label.text = "\n".join(lines)
 	_open_modal(over_card)
 
@@ -919,5 +847,5 @@ func debug_show_help() -> void:
 
 func debug_close_all() -> void:
 	_close_modal()
-	_set_meteor_mode(false)
+	_set_bonus_mode("")
 	sheet.visible = false

@@ -9,33 +9,32 @@ Godot 4.3, GDScript, Renderer „Compatibility“. Hochformat, Handy zuerst; PC-
 Jeder Push baut sie neu. Screenshots aus dem Build: [`docs/screenshots`](docs/screenshots),
 gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
-## Spielregeln
+## Spielregeln (einfaches Punkte-Spiel)
 
-1. **Start:** nur leere Erde und Wiesen.
-2. **Die Leiter** (steht immer oben im Bild):
-   Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
+1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
+2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
    Natur = Wiese bis großer Wald, Zivilisation = ab Hütte.
-3. **Verschmelzen:** Vervollständigst du durch eine Drehung eine Reihe (oder Spalte) aus 3 gleichen Feldern,
-   verschmelzen sie: Die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine Stufe zurück.
-   Was sich dabei ändert, kann eine Kettenreaktion auslösen (Kombo). Beim Warten verschmilzt nichts.
-   **Jede Verbindung zählt nur einmal:** Das Spiel merkt sich jede Reihe (dieselben drei Felder auf derselben Stufe),
-   die es je gab. Hin- und Herdrehen oder eine nur mitgedrehte fertige Reihe bringt deshalb kein Upgrade.
-4. **Nachwachsen:** Leere Erde mit 2 Natur-Nachbarn wird wieder Wiese, höchstens 2 Felder pro Runde.
-5. **Kein Punktestand:** Es zählt, wie lange deine Welt überlebt und wie weit sie sich entwickelt.
-6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
-7. **Gleichgewicht:** Natur 30–75 %, Zivilisation höchstens 40 %. Endet eine Runde daneben, schlägt eine Katastrophe zu:
+3. **Verschmelzen:** Vervollständigst du mit einer Drehung eine Reihe (oder Spalte) aus 3 gleichen Feldern,
+   steigt das Feld auf, das zuletzt dazugekommen ist. Die beiden anderen fallen eine Stufe zurück.
+   Das gibt Punkte (je höher die Stufe, desto mehr, Kettenreaktionen zählen mehrfach).
+   **Jede Verbindung zählt nur einmal:** Hin- und Herdrehen bringt nichts.
+4. **Wiese wächst nicht von allein.** Alle 20 Punkte gibt es einen **Bonus** (höchstens 3 auf Vorrat):
+   - **Regen:** leere Erde wird Wiese, die leere Erde daneben auch. Vervollständigt das eine Reihe, verschmilzt sie.
+   - **Meteorit:** ein einzelnes Feld wird wieder Erde.
+   Ein Bonus zählt als Zug.
+5. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
+6. **Gleichgewicht:** Natur 20–75 %, Zivilisation höchstens 40 %. Endet ein Zug daneben, schlägt eine Katastrophe zu:
    - zu viel Zivilisation → **Erdbeben**: Die größte Siedlung fällt 2 Stufen, die Siedlungen daneben je eine.
    - zu wenig Natur → **Überschwemmung**: Die 3 kleinsten Siedlungen werden weggespült.
    - zu viel Natur → **Waldbrand**: Der dichteste Wald brennt mit aller Natur daneben nieder.
-   Beim Drehen leuchten die Felder, die es treffen würde, rot. Die Welt hat **3 Leben**, jede Katastrophe kostet eines.
-8. **Meteorit:** Feld und Nachbarn werden zu Erde. Du wählst Ort und Zeitpunkt. Am Anfang hast du einen,
-   alle 10 Runden kommt einer dazu (höchstens 2).
-9. **Modi:**
-   - **Endlos** (Standard): Alle 20 Runden beginnt ein neues Zeitalter, dann braucht die Welt 2 % mehr Natur (bis 40 %)
-     und verträgt weniger Natur (–3 %, bis 60 %) und weniger Zivilisation (–1 %, bis 35 %). Du bekommst ein Leben zurück.
-     Ziel: so lange wie möglich überleben. Rekord = überlebte Runden.
-   - **40 Runden:** Sterne für die höchste erreichte Stufe: Dorf / Stadt / Metropole = 1 / 2 / 3 Sterne.
-   Beide Modi haben einen eigenen Rekord.
+   Beim Drehen leuchten die Felder rot, die es treffen würde. Die Welt hat **3 Leben**.
+7. **Modi:** Endlos (alle 20 Runden ein neues Zeitalter: ein Leben zurück, der Bereich wird enger) oder 40 Runden.
+   Rekord = Punkte.
+
+Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe) und die Leben.
+
+**Tutorial:** Im allerersten Spiel zeigt der Würfel in den ersten 5 Runden, welche Scheibe sich lohnt,
+und was eine Drehung bringt. Danach nur noch die Warnung vor Katastrophen. Im Menü: „Tutorial nochmal“.
 
 Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
 **Tutorial:** Im allerersten Spiel zeigt der Würfel in den ersten 5 Runden, welche Scheibe sich lohnt (golden pulsierend)
@@ -46,10 +45,10 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Geste | Wirkung |
 |---|---|
 | Wischen auf dem Würfel | Reihe drehen (loslassen rastet ein; rote Felder = dort droht eine Katastrophe) |
-| Wischen daneben | Ansicht drehen, mit Nachschwung |
+| Wischen daneben, oder 1 s auf dem Würfel halten und ziehen | Ansicht drehen, mit Nachschwung |
 | Zwei Finger / Mausrad | Zoom |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
-| Meteorit unten | Meteorit wählen, dann das Ziel antippen |
+| Regen / Meteorit unten | Bonus wählen, dann das Feld antippen |
 
 ## Aufbau
 

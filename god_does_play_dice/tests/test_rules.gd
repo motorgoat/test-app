@@ -82,6 +82,20 @@ func test_setup() -> void:
 			only = false
 	check(only, "Start nur mit Erde und Wiesen")
 	check(gs.in_balance(), "Start ist im Gleichgewicht")
+	for sd in [1, 2, 3, 4, 5, 6, 7, 8]:
+		var g := new_state(sd)
+		var clumps := 0
+		for f in g.fields:
+			if f.stage != 1:
+				continue
+			var m := 0
+			for h in g.neighbors(f):
+				if (h as FieldData).stage == 1:
+					m += 1
+			if m >= 2:
+				clumps += 1
+		check(clumps == 0, "Seed %d: am Start nie drei Wiesen beisammen" % sd)
+		check(g.in_balance() and g.nature_share() >= Balance.START_NATURE - 0.02, "Seed %d: genug Natur am Start (%.0f%%)" % [sd, g.nature_share() * 100.0])
 
 
 func test_geometry() -> void:
@@ -211,12 +225,20 @@ func test_cascade() -> void:
 
 
 func test_regrow_and_pollution() -> void:
+	var g0 := empty_state()
+	top(g0, 0, 0).stage = 1
+	top(g0, 1, 1).stage = 2
+	g0.end_round()
+	check(Balance.REGROW_PER_ROUND > 0 or top(g0, 1, 0).stage == 0, "Wiese wächst nicht von allein")
+	var saved_regrow := Balance.REGROW_PER_ROUND
+	Balance.REGROW_PER_ROUND = 2
 	var gs := empty_state()
 	top(gs, 0, 0).stage = 1
 	top(gs, 1, 1).stage = 2
 	var e := top(gs, 1, 0)
 	gs.end_round()
-	check(e.stage == 1, "Erde mit 2 Natur-Nachbarn wird Wiese")
+	check(e.stage == 1, "(abschaltbar) Erde mit 2 Natur-Nachbarn wird Wiese")
+	Balance.REGROW_PER_ROUND = saved_regrow
 	var gs2 := empty_state()
 	var fac := top(gs2, 1, 1)
 	fac.stage = Balance.POLLUTION_FROM
@@ -290,27 +312,56 @@ func test_disasters() -> void:
 
 
 func test_meteor() -> void:
-	var gs := new_state()
+	# Bonus: Regen und Meteorit auf ein einzelnes Feld
+	var gs := empty_state()
+	gs.bonus = 2
 	var f := top(gs, 0, 0)
-	check(gs.meteors == Balance.METEOR_START and gs.can_meteor() == "", "am Anfang %d Meteorit" % Balance.METEOR_START)
-	var ids := gs.use_meteor(f)
-	check(ids.size() == 5, "Feld und 4 Nachbarn getroffen")
-	check(gs.meteors == Balance.METEOR_START - 1 and gs.can_meteor() != "", "Meteorit verbraucht")
-	var all_empty := true
-	for i in ids:
-		if (gs.fields[int(i)] as FieldData).stage != 0:
-			all_empty = false
-	check(all_empty, "alles wird Erde")
+	check(gs.can_bonus("meteor", f) != "", "Meteorit nicht auf leere Erde")
+	check(gs.can_bonus("rain", f) == "", "Regen auf leere Erde geht")
+	gs.apply_bonus("rain", f)
+	var wet := 0
+	for g in [f] + gs.neighbors(f):
+		if (g as FieldData).stage == 1:
+			wet += 1
+	check(f.stage == 1 and wet == (5 if Balance.RAIN_NEIGHBORS else 1), "Regen: Feld (und Erde daneben) wird Wiese (%d)" % wet)
+	check(gs.bonus == 1, "Bonus verbraucht")
 	gs.end_round()
-	check(f.stage == 0, "frischer Krater wächst nicht sofort zu")
-	var gm := new_state(3)
-	gm.meteors = 0
-	var waited := 0
-	while gm.meteors == 0 and waited < 50:
-		check(gm.meteor_in() > 0, "Meteorit lädt noch")
-		gm.end_round()
-		waited += 1
-	check(waited == Balance.METEOR_EVERY, "nach %d Runden kommt ein Meteorit (%d)" % [Balance.METEOR_EVERY, waited])
+	var m := top(gs, 1, 1)
+	m.stage = 3
+	check(gs.can_bonus("meteor", m) == "", "Meteorit auf ein Feld geht")
+	var around := {}
+	for g in gs.neighbors(m):
+		around[(g as FieldData).id] = (g as FieldData).stage
+	gs.apply_bonus("meteor", m)
+	var same := true
+	for g in gs.neighbors(m):
+		if int(around[(g as FieldData).id]) != (g as FieldData).stage:
+			same = false
+	check(m.stage == 0 and same, "Meteorit trifft nur ein Feld")
+	check(gs.bonus == 0 and gs.can_bonus("rain", top(gs, -1, -1)) != "", "ohne Bonus geht nichts")
+	gs.end_round()
+	check(m.stage == 0, "frischer Krater bleibt Erde")
+	# Regen kann eine Reihe vervollständigen: Dann verschmilzt sie
+	var gl := empty_state()
+	gl.bonus = 1
+	top(gl, -1, 1).stage = 1
+	top(gl, 0, 1).stage = 1
+	var saved := Balance.RAIN_NEIGHBORS
+	Balance.RAIN_NEIGHBORS = false
+	gl.apply_bonus("rain", top(gl, 1, 1))
+	Balance.RAIN_NEIGHBORS = saved
+	var r := gl.end_round()
+	check(top(gl, 1, 1).stage == 2 and int(r["gain"]) > 0, "Regen macht die dritte Wiese: Sie wird Wald, gibt Punkte")
+	# Punkte bringen Boni
+	var gp := empty_state()
+	gp.bonus = 0
+	gp.score = Balance.BONUS_EVERY - 1
+	top(gp, -1, -1).stage = 1
+	top(gp, -1, 0).stage = 1
+	top(gp, -1, 1).stage = 1
+	gp.moved = {top(gp, -1, 1).id: true}
+	var rp := gp.end_round()
+	check(gp.score >= Balance.BONUS_EVERY and gp.bonus == 1 and int(rp["bonus_gained"]) == 1, "bei %d Punkten gibt es einen Bonus" % Balance.BONUS_EVERY)
 
 
 func test_preview_matches() -> void:
@@ -332,51 +383,46 @@ func test_preview_matches() -> void:
 ## Gleichgewicht kippt. passive = immer nur warten. Zeigt, ob das Spiel lange spielbar ist.
 func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 	var gs := new_state(s)
-	var meteors := 0
+	var bonuses := 0
 	for t in max_rounds:
-		if not passive and gs.meteors > 0:
-			var want := ""
-			if gs.civilisation_share() > gs.civilisation_max() - 0.03 or gs.nature_share() < gs.nature_min() + 0.03:
-				want = "civ"
-			elif gs.nature_share() > gs.nature_max() - 0.03:
-				want = "nature"
-			if want != "":
-				var best_f: FieldData = null
-				var best_c := -1
-				for f in gs.fields:
-					var c := 0
-					for g in [f] + gs.neighbors(f):
-						var h: FieldData = g
-						if (want == "civ" and h.is_civilisation()) or (want == "nature" and h.is_nature()):
-							c += 1
-					if c > best_c:
-						best_c = c
-						best_f = f
-				gs.use_meteor(best_f)
-				meteors += 1
-		var best := [0, 0, 0]
+		var best: Array = [0, 0, 0]
 		if not passive:
 			var best_score := -INF
+			var moves: Array = []
 			for axis in 3:
 				for layer in [-1, 0, 1]:
-					for turns in [0, 1, -1, 2]:
-						if turns == 0 and (axis > 0 or layer != -1):
-							continue
-						var sim := gs.clone()
-						if turns != 0:
-							sim.apply_rotation(axis, layer, turns)
-						var r := sim.end_round()
-						var score: float = int(r["gain"])
-						if sim.lives < gs.lives:
-							score -= 60.0
-						if not sim.in_balance():
-							score -= 10.0
-						if sim.is_over():
-							score -= 10000.0
-						if score > best_score:
-							best_score = score
-							best = [axis, layer, turns]
-		if int(best[2]) != 0:
+					for turns in [1, -1, 2]:
+						moves.append([axis, layer, turns])
+			moves.append([0, 0, 0])
+			if gs.bonus > 0:
+				for f in gs.fields:
+					if f.stage == 0:
+						moves.append(["rain", f.id, 0])
+					elif f.stage >= 3:
+						moves.append(["meteor", f.id, 0])
+			for mv in moves:
+				var sim := gs.clone()
+				var penalty := 0.0
+				if mv[0] is String:
+					sim.apply_bonus(str(mv[0]), sim.fields[int(mv[1])])
+					penalty = 3.0
+				elif int(mv[2]) != 0:
+					sim.apply_rotation(int(mv[0]), int(mv[1]), int(mv[2]))
+				var r := sim.end_round()
+				var score: float = int(r["gain"]) - penalty
+				if sim.lives < gs.lives:
+					score -= 60.0
+				if not sim.in_balance():
+					score -= 10.0
+				if sim.is_over():
+					score -= 10000.0
+				if score > best_score:
+					best_score = score
+					best = mv
+		if best[0] is String:
+			gs.apply_bonus(str(best[0]), gs.fields[int(best[1])])
+			bonuses += 1
+		elif int(best[2]) != 0:
 			gs.apply_rotation(int(best[0]), int(best[1]), int(best[2]))
 		gs.end_round()
 		if gs.is_over():
@@ -384,26 +430,23 @@ func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 	var counts := []
 	for st in range(0, Balance.MAX_STAGE + 1):
 		counts.append(gs.count(st))
-	return {"rounds": gs.turn - 1, "age": gs.age(), "best": gs.best_stage, "meteors": meteors, "disasters": gs.disasters,
-		"nature": gs.nature_share(), "civ": gs.civilisation_share(), "counts": counts, "dead": gs.died()}
+	return {"rounds": gs.turn - 1, "age": gs.age(), "score": gs.score, "best": gs.best_stage, "bonuses": bonuses,
+		"disasters": gs.disasters, "nature": gs.nature_share(), "civ": gs.civilisation_share(), "counts": counts, "dead": gs.died()}
 
 
 func test_bot() -> void:
-	var saved := Balance.NATURE_MAX
-	for nmax in [0.70, 0.75, 0.80]:
-		Balance.NATURE_MAX = nmax
-		print("--- Natur höchstens %d%% ---" % int(round(nmax * 100.0)))
-		for s in [11, 22, 33]:
-			var p := run_bot(s, true)
-			print("  Nur warten, Seed %d: %d Runden, Katastrophen %d, %s" % [s, int(p["rounds"]), int(p["disasters"]), "tot" if bool(p["dead"]) else "lebt"])
-		for s in [11, 22, 33]:
-			var b := run_bot(s, false)
-			print("  Bot Seed %d: %d Runden (Zeitalter %d), höchste Stufe %d, Meteoriten %d, Katastrophen %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
-				s, int(b["rounds"]), int(b["age"]), int(b["best"]), int(b["meteors"]), int(b["disasters"]),
+	var saved := Balance.BONUS_EVERY
+	for every in [12, 20, 30]:
+		Balance.BONUS_EVERY = every
+		print("--- Bonus alle %d Punkte ---" % every)
+		for sd in [11, 22]:
+			var b := run_bot(sd, false, 100)
+			print("  Bot Seed %d: %d Runden, %d Punkte, Entwicklung %s, Boni %d, Katastrophen %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
+				sd, int(b["rounds"]), int(b["score"]), GameState.stage_name(int(b["best"])), int(b["bonuses"]), int(b["disasters"]),
 				float(b["nature"]) * 100.0, float(b["civ"]) * 100.0, str(b["counts"])])
-	Balance.NATURE_MAX = saved
-	var passive := run_bot(11, true)
-	check(bool(passive["dead"]) and int(passive["rounds"]) < 80, "Nur warten verliert irgendwann")
+	Balance.BONUS_EVERY = saved
+	var passive := run_bot(11, true, 40)
+	check(int(passive["score"]) == 0, "Nichtstun bringt keine Punkte")
 
 
 func test_modes() -> void:
