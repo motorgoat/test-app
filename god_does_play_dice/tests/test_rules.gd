@@ -312,7 +312,7 @@ func test_bonus() -> void:
 	var gu := empty_state()
 	top(gu, 0, 0).stage = Balance.MONSOON_FROM_STAGE
 	var ru := gu.end_round()
-	check(gu.monsoon_unlocked and gu.monsoons == 1 and int((ru["bonus_gained"] as Dictionary)["monsoon"]) == 1, "Monsun ab der Bronzezeit freigeschaltet")
+	check(gu.monsoon_unlocked and gu.monsoons == 1 and int((ru["bonus_gained"] as Dictionary)["monsoon"]) == 1, "Monsun ab der Antike freigeschaltet")
 	# Punkte bringen Regen
 	var gp := empty_state()
 	gp.rain = 0
@@ -532,7 +532,7 @@ func test_modes() -> void:
 	for st in range(1, Balance.MAX_STAGE + 1):
 		gs.best_stage = st
 		names.append(gs.age_name())
-	check(names[3] == "Steinzeit" and names[6] == "Mittelalter" and names[8] == "Moderne", "Zeitalter folgen der höchsten Stufe (%s)" % str(names))
+	check(names[3] == "Steinzeit" and names[4] == "Antike" and names[5] == "Mittelalter" and names[6] == "Neuzeit" and names[8] == "Moderne", "Zeitalter folgen der höchsten Stufe (%s)" % str(names))
 	gs.turn = 999
 	check(not gs.finished(), "Endlos endet nicht nach Runden")
 	var ch := GameState.new()

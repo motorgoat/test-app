@@ -23,15 +23,15 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld eine Stufe oder löscht ein Feuer.
    **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
    Wiese wächst nur durch Regen.
-   **Monsun** (ab der Bronzezeit, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
+   **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
    Kein Bonus da? Antippen und mit Credits kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
 6. **Nach unten geht es nur durch Katastrophen** (Brand, Erdbeben).
 7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 8. **Herzen** = Leben der Welt (3). Ein Erdbeben kostet eines, jedes neue Zeitalter gibt eines zurück.
    **Spielende:** alle Herzen weg oder nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
    Einmal pro Spiel kann man für Credits weiterspielen.
-9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf),
-   Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Herz zurück.
+9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf),
+   Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Herz zurück.
 10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
    **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
    Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.

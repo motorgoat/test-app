@@ -43,7 +43,7 @@ static var RAIN_MAX := 3                  # … bis höchstens so viele
 static var BOLT_START := 0                # Blitz: hebt eine ganze Reihe eine Stufe
 static var BOLT_EVERY := 40
 static var BOLT_MAX := 2
-static var MONSOON_FROM_STAGE := 5        # Monsun (hebt eine ganze Seite): freigeschaltet ab dem ersten Haus (Bronzezeit) …
+static var MONSOON_FROM_STAGE := 5        # Monsun (hebt eine ganze Seite): freigeschaltet ab dem ersten Haus (Antike) …
 static var MONSOON_EVERY := 120           # … danach alle so viele Punkte einer
 static var MONSOON_MAX := 1
 # Kaufen mit Credits, wenn keiner da ist
@@ -53,8 +53,8 @@ static var MONSOON_COST := 5
 
 # --- Modi ------------------------------------------------------------------------------
 # Zeitalter: bestimmt die höchste erreichte Stufe. Jedes neue Zeitalter gibt ein Leben zurück.
-static var AGES := ["Urzeit", "Steinzeit", "Bronzezeit", "Antike", "Mittelalter", "Industriezeitalter", "Moderne"]
-static var AGE_FROM_STAGE := [1, 4, 5, 6, 7, 8, 9]   # ab dieser Stufe beginnt das Zeitalter (Hütte = Steinzeit …)
+static var AGES := ["Urzeit", "Steinzeit", "Antike", "Mittelalter", "Neuzeit", "Industriezeitalter", "Moderne"]
+static var AGE_FROM_STAGE := [1, 4, 5, 6, 7, 8, 9]   # Hütte = Steinzeit, Haus = Antike, Dorf = Mittelalter, Stadt = Neuzeit …
 # 40 Runden: so viele Punkte wie möglich.
 static var MAX_ROUNDS := 40
 
