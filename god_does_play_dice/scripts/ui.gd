@@ -753,10 +753,11 @@ func _process(delta: float) -> void:
 func _set_bonus_mode(kind: String) -> void:
 	bonus_mode = kind
 	mode_card.visible = kind != ""
+	world.show_rain_spots(kind == "rain")
 	if rain_ready != null:
 		rain_ready.visible = kind == "" and Game.state.rain > 0 and not Game.over
 	if kind == "rain":
-		mode_label.text = "Tippe auf ein Feld: Es steigt auf\noder wird gelöscht"
+		mode_label.text = "Tippe auf ein Feld (Wolke = lohnt sich):\nEs steigt auf oder wird gelöscht"
 	elif kind == "bolt":
 		mode_label.text = "Tippe auf ein Feld: Der Blitz\nhebt seine waagrechte Reihe"
 	_close_sheet()

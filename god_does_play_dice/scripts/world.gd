@@ -177,6 +177,13 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 
 
 
+## Regensymbole auf den Feldern, wo Gießen etwas bringt (nur solange man den Regen gewählt hat).
+func show_rain_spots(on: bool) -> void:
+	var spots := Game.state.rain_spots() if on else {}
+	for fid in views:
+		(views[fid] as FieldView).set_badge("rain" if spots.has(int(fid)) else "")
+
+
 func select(fid: int) -> void:
 	if selected >= 0 and views.has(selected):
 		views[selected].set_selected(false)
