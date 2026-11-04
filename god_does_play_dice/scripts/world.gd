@@ -721,6 +721,35 @@ func wait_turn() -> void:
 	Game.play_turn(0, 0, 0)
 
 
+## Tutorial: eine Scheibe ein Stück andrehen und zurück (zeigt, wie man dreht). Kein Zug.
+## Gibt die Bildschirm-Richtung zurück, in die der Finger wischen müsste (ZERO = ging nicht).
+func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int) -> Vector2:
+	if _mode != "" or animating or Game.busy:
+		return Vector2.ZERO
+	debug_begin_twist(fid, drag, 0.0)
+	if _mode != "twist":
+		_mode = ""
+		return Vector2.ZERO
+	if _tw_axis != want_axis or _tw_layer != want_layer:
+		_cancel_drag()
+		return Vector2.ZERO
+	var dir := _tw_screen_dir * float(_tw_sign)
+	var tw := create_tween()
+	var setter := func(a: float) -> void:
+		if _mode == "twist":
+			_tw_angle = a
+	tw.tween_method(setter, 0.0, PI * 0.5 * 0.42, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.25)
+	tw.tween_method(setter, PI * 0.5 * 0.42, 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(_demo_end)
+	return dir
+
+
+func _demo_end() -> void:
+	if _mode == "twist":
+		_cancel_drag()
+
+
 ## Für die automatischen Screenshots: eine Drehung mitten im Ziehen zeigen.
 func debug_begin_twist(fid: int, drag: Vector2, amount: float) -> void:
 	_hit_field = fid

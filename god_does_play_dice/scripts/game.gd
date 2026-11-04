@@ -51,8 +51,15 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1, surviv
 	best = int(_best.get(_mode_key(), 0))
 	if not tutorial_done and tutorial_step < 0:
 		tutorial_step = 0
+	if tutorial_step == 0:
+		level = 0          # das erste Spiel ist Einfach, mit Tutorial
+		endless = true
+		survival = false
+		best = int(_best.get(_mode_key(), 0))
 	state = GameState.new()
 	state.setup(seed_value, endless, level, survival)
+	if tutorial_step == 0:
+		state.setup_tutorial_board()
 	busy = false
 	over = false
 	continued = false
@@ -86,7 +93,7 @@ func tutorial() -> bool:
 func restart_tutorial() -> void:
 	tutorial_done = false
 	tutorial_step = 0
-	new_game(0, 1, 1, 0)
+	new_game(0, 1, 0, 0)
 
 
 func tutorial_next() -> void:

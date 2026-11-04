@@ -50,16 +50,22 @@ var rain_ready: Button
 var cancel_btn: Button
 var tut_card: PanelContainer
 var tut_label: Label
+var tut_title: Label
+var tut_step: Label
+var tut_icon: TextureRect
+var tut_finger: TextureRect
+var _demo_at := 0.0
+var _tut_merged := false
 var tut_next: Button
 var _tut_target: Control = null
 const TUT_STEPS = [
-	{"wait": "twist", "text": "Willkommen, Gott! Wisch über eine Reihe des Würfels, um sie zu drehen."},
-	{"wait": "merge", "text": "Bring drei gleiche Felder in eine Reihe: Sie verschmelzen, und das neue Feld steigt auf. Die goldene Scheibe zeigt dir, wo es klappt."},
-	{"wait": "tap", "text": "Drehst du, ohne dass etwas verschmilzt, ist das ein Fehlversuch (die Flammen oben). Beim 3. fängt die gedrehte Reihe Feuer."},
-	{"wait": "rain", "text": "Das ist Regen. Tippe unten auf Regen und dann auf ein Feld der niedrigsten Stufe: Es steigt eine Stufe."},
-	{"wait": "bolt", "text": "Drei gleiche an einer Würfelecke bringen einen Blitz. Probier ihn: Blitz antippen, dann ein Eckfeld. Die Diagonale steigt."},
-	{"wait": "tap", "text": "Zurück und Tipp kosten Credits (die Münze oben). Credits gibt es für eine kurze Werbung."},
-	{"wait": "done", "text": "Fertig! Im Menü findest du Stufen und Modi. Viel Spaß, Gott!"},
+	{"wait": "twist", "icon": "round", "title": "Willkommen, Gott!", "text": "Das ist deine Welt. Wisch über eine Reihe des Würfels, um sie zu drehen. Schau zu, wie es geht."},
+	{"wait": "merge", "icon": "meadow", "title": "Drei gleiche", "text": "Bring drei gleiche Felder in eine Reihe (hier auch diagonal): Sie verschmelzen und steigen auf. Oben fehlt nur noch eine Wiese."},
+	{"wait": "tap", "icon": "fire", "title": "Fehlversuche", "text": "Drehst du, ohne dass etwas verschmilzt, ist das ein Fehlversuch (die Flammen oben). Beim dritten fängt die gedrehte Reihe Feuer."},
+	{"wait": "rain", "icon": "rain", "title": "Regen", "text": "Tippe unten auf Regen und dann auf ein Feld der niedrigsten Stufe: Es steigt eine Stufe."},
+	{"wait": "bolt", "icon": "lightning", "title": "Blitz", "text": "Drei gleiche an einer Würfelecke bringen einen Blitz. Probier ihn: Blitz antippen, dann ein Eckfeld."},
+	{"wait": "tap", "icon": "coin", "title": "Credits", "text": "Zurück und Tipp kosten Credits (die Münze oben). Credits gibt es für eine kurze Werbung."},
+	{"wait": "done", "icon": "trophy", "title": "Los geht's!", "text": "Im Menü findest du Stufen und Modi. Viel Spaß, Gott!"},
 ]
 var _pending: Callable = Callable()
 var _pending_cost := 0
@@ -248,35 +254,71 @@ func _build() -> void:
 	preview_card.add_child(preview_label)
 	preview_card.modulate.a = 0.0
 	top.add_child(preview_card)
-	# Tutorial: eine Karte mit dem aktuellen Schritt; weiter geht es mit der Aktion oder „Weiter“
-	tut_card = _card(Color(0.118, 0.133, 0.169, 0.94))
-	tut_card.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Tutorial: eine freundliche Karte über dem Würfel (Symbol, Titel, Text, Schritt x von y)
+	tut_card = PanelContainer.new()
+	var ts := _sb(Color(1, 1, 1, 0.98), 26, 18, true)
+	ts.shadow_size = 24
+	ts.shadow_color = Color(0.1, 0.12, 0.2, 0.18)
+	ts.shadow_offset = Vector2(0, 6)
+	tut_card.add_theme_stylebox_override("panel", ts)
+	tut_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 8)
+	tv.add_theme_constant_override("separation", 10)
+	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tut_card.add_child(tv)
-	tut_label = _label("", 16, Color.WHITE)
+	var thead := HBoxContainer.new()
+	thead.add_theme_constant_override("separation", 12)
+	thead.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tv.add_child(thead)
+	tut_icon = TextureRect.new()
+	tut_icon.custom_minimum_size = Vector2(48, 48)
+	tut_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tut_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tut_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	thead.add_child(tut_icon)
+	var tt := VBoxContainer.new()
+	tt.add_theme_constant_override("separation", -2)
+	tt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	tt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	thead.add_child(tt)
+	tut_title = _label("", 22, Style.TEXT, true)
+	tt.add_child(tut_title)
+	tut_step = _label("", 13, Style.SOFT, true)
+	tt.add_child(tut_step)
+	tut_label = _label("", 17, Style.TEXT)
 	tut_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tut_label.custom_minimum_size = Vector2(300, 0)
+	tut_label.custom_minimum_size = Vector2(340, 0)
 	tv.add_child(tut_label)
 	var th := HBoxContainer.new()
-	th.alignment = BoxContainer.ALIGNMENT_END
 	th.add_theme_constant_override("separation", 8)
+	th.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tv.add_child(th)
 	var skip := Button.new()
 	skip.text = "Überspringen"
 	skip.add_theme_font_size_override("font_size", 14)
-	skip.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	skip.add_theme_color_override("font_color", Style.SOFT)
 	skip.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	skip.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
 	skip.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
 	skip.pressed.connect(func() -> void: Game.end_tutorial())
 	th.add_child(skip)
-	tut_next = _wide_button("Weiter", Color.WHITE, Style.TEXT)
-	tut_next.custom_minimum_size = Vector2(120, 44)
+	var tsp := Control.new()
+	tsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tsp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	th.add_child(tsp)
+	tut_next = _wide_button("Weiter", Style.ACCENT, Color.WHITE)
+	tut_next.custom_minimum_size = Vector2(140, 48)
 	tut_next.pressed.connect(_on_tut_next)
 	th.add_child(tut_next)
 	tut_card.visible = false
-	top.add_child(tut_card)
+	root.add_child(tut_card)
+	tut_finger = TextureRect.new()
+	tut_finger.texture = Style.icon("touch")
+	tut_finger.size = Vector2(64, 64)
+	tut_finger.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tut_finger.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tut_finger.modulate.a = 0.0
+	root.add_child(tut_finger)
 	# Ein Hinweis über dem Würfel: Regen ist bereit (statt Symbolen auf jedem Feld)
 	rain_ready = Button.new()
 	rain_ready.icon = Style.icon("rain")
@@ -963,6 +1005,10 @@ func _process(delta: float) -> void:
 	_update_bubbles(delta)
 	if Game.state == null or score_label == null:
 		return
+	var w := _tut_wait()
+	if (w == "twist" or w == "merge") and _time > _demo_at and not world.animating and not Game.busy and modal_bg != null and not modal_bg.visible:
+		_demo_at = _time + 4.0
+		_play_demo()
 	if _tut_target != null and is_instance_valid(_tut_target) and _tut_target.visible:
 		_tut_target.pivot_offset = _tut_target.size * 0.5
 		_tut_target.scale = Vector2.ONE * (1.0 + 0.08 * (0.5 + 0.5 * sin(_time * 6.0)))
@@ -1048,6 +1094,11 @@ func _tutorial_show() -> void:
 	var st: Dictionary = TUT_STEPS[Game.tutorial_step]
 	var wait := str(st["wait"])
 	tut_label.text = str(st["text"])
+	tut_title.text = str(st["title"])
+	tut_step.text = "Schritt %d von %d" % [Game.tutorial_step + 1, TUT_STEPS.size()]
+	tut_icon.texture = Style.icon(str(st["icon"]))
+	_demo_at = _time + 0.8
+	_place_tut.call_deferred()
 	tut_next.visible = wait == "tap" or wait == "done"
 	tut_next.text = "Los geht's" if wait == "done" else "Weiter"
 	tut_card.visible = true
@@ -1068,6 +1119,40 @@ func _tutorial_show() -> void:
 		_tut_target = credits_btn
 
 
+## Karte unten über dem Würfel, über der Booster-Leiste.
+func _place_tut() -> void:
+	var vs := root.get_viewport_rect().size
+	tut_card.size = tut_card.get_combined_minimum_size()
+	tut_card.position = Vector2((vs.x - tut_card.size.x) * 0.5, vs.y - tut_card.size.y - 150.0)
+
+
+## Tutorial: den ersten Zug vorzeigen (Finger wischt, Scheibe dreht ein Stück an).
+func _play_demo() -> void:
+	var gs := Game.state
+	var a := gs.field_at(Vector3i(1, 1, -1), Vector3i(0, 1, 0))
+	var b := gs.field_at(Vector3i(1, 1, 1), Vector3i(0, 1, 0))
+	var mid := gs.field_at(Vector3i(1, 1, 0), Vector3i(0, 1, 0))
+	var back := gs.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
+	if a == null or b == null or mid == null or back == null or back.stage != 1:
+		return
+	var sa := world.field_screen(a.id)
+	var sb := world.field_screen(b.id)
+	if not bool(sa["visible"]) or not bool(sb["visible"]):
+		return
+	var p0: Vector2 = sa["pos"]
+	var p1: Vector2 = sb["pos"]
+	var dir := world.demo_twist(mid.id, p1 - p0, 0, 1)
+	if dir == Vector2.ZERO:
+		return
+	var from := p0 if dir.dot(p1 - p0) > 0.0 else p1
+	var to := p1 if from == p0 else p0
+	tut_finger.position = from - tut_finger.size * 0.5
+	var tw := tut_finger.create_tween()
+	tw.tween_property(tut_finger, "modulate:a", 1.0, 0.15)
+	tw.tween_property(tut_finger, "position", to - tut_finger.size * 0.5, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(tut_finger, "modulate:a", 0.0, 0.3)
+
+
 func _on_tut_next() -> void:
 	if not Game.tutorial():
 		return
@@ -1085,7 +1170,12 @@ func _tut_wait() -> String:
 
 func _on_move_done(kind: String) -> void:
 	var w := _tut_wait()
+	var merged := _tut_merged
+	_tut_merged = false
 	if w == "twist" and kind == "twist":
+		# gleich richtig gedreht und verschmolzen? Dann ist auch der nächste Schritt geschafft
+		if merged:
+			Game.tutorial_step += 1
 		Game.tutorial_next()
 	elif (w == "rain" and kind == "rain") or (w == "bolt" and kind == "bolt"):
 		Game.tutorial_next()
@@ -1184,7 +1274,9 @@ func _fill_sheet(fid: int) -> void:
 # =============================================================================
 
 func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
+	_tut_merged = true
 	if _tut_wait() == "merge":
+		_tut_merged = false
 		Game.tutorial_next.call_deferred()
 	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
 	if combo >= 2:

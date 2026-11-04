@@ -13,7 +13,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
-3. **Verschmelzen:** Bildest du durch einen Zug eine **neue** Reihe aus drei gleichen Feldern (oder Spalte, in der Stufe Mittel ab dem kleinen Wald auch diagonal), entwickeln sie sich. Reihen, die schon dastanden, zählen nicht:
+3. **Verschmelzen:** Bildest du durch einen Zug eine **neue** Reihe aus drei gleichen Feldern (oder Spalte; diagonal in Einfach schon ab der Wiese, in Mittel ab dem kleinen Wald), entwickeln sie sich. Reihen, die schon dastanden, zählen nicht:
    Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
    Das gibt Punkte (je höher die Stufe, desto mehr). **Kombo:** Jede weitere Verschmelzung im selben Zug zählt mehr (×2, ×3 …).
    **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
@@ -43,7 +43,8 @@ Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), di
 und was eine Drehung bringt. Danach nur noch die Warnung vor Katastrophen. Im Menü: „Tutorial nochmal“.
 
 Alle Zahlen stehen in [`scripts/balance.gd`](scripts/balance.gd).
-**Tutorial:** Im allerersten Spiel führt eine Karte Schritt für Schritt durch Drehen, Verschmelzen, Fehlversuche, Regen,
+**Tutorial:** Das allererste Spiel ist „Einfach“ (dort zählen auch Wiesen diagonal). Der erste Zug wird vorgezeigt
+(Finger wischt, Scheibe dreht an). Eine Karte führt Schritt für Schritt durch Drehen, Verschmelzen, Fehlversuche, Regen,
 Blitz und Credits. Es geht erst weiter, wenn man die erklärte Aktion ausführt oder „Weiter“ tippt. Im Menü: „Tutorial nochmal“.
 
 ## Bedienung

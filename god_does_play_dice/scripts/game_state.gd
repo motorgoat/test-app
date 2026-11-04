@@ -55,6 +55,7 @@ var endless := true           # Endlos-Modus oder 40 Runden
 var easy := false             # Einfach: Eine Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen
 var diagonals := true         # Mittel: auch Diagonalen (ab dem kleinen Wald)
 var gadgets := true           # ohne Gadgets (Profi): kein Regen, Blitz, Monsun
+var diag_from := 2            # ab dieser Stufe zählen Diagonalen (Einfach: schon Wiesen)
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -70,6 +71,7 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, survi
 	easy = level == 0
 	diagonals = level <= 1
 	gadgets = level < 3
+	diag_from = 1 if easy else Balance.DIAGONAL_FROM
 	if seed_value != 0:
 		rng.seed = seed_value
 	else:
@@ -158,6 +160,7 @@ func clone() -> GameState:
 	gs.easy = easy
 	gs.diagonals = diagonals
 	gs.gadgets = gadgets
+	gs.diag_from = diag_from
 	gs.score = score
 	gs.rain = rain
 	gs.bolts = bolts
@@ -261,6 +264,26 @@ func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 				f.p = rv(f.p, axis, d)
 				f.n = rv(f.n, axis, d)
 		rebuild_index()
+
+
+## Tutorial: ein ruhiger Würfel. Oben liegen zwei Wiesen in einer Reihe, die dritte kommt mit einer
+## Drehung der Scheibe x = 1 von hinten dazu (wird im Tutorial vorgezeigt).
+func setup_tutorial_board() -> void:
+	for f in fields:
+		f.stage = 0
+		f.fresh = 0
+		f.burning = false
+	field_at(Vector3i(-1, 1, 1), Vector3i(0, 1, 0)).stage = 1
+	field_at(Vector3i(0, 1, 1), Vector3i(0, 1, 0)).stage = 1
+	field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).stage = 1
+	# ein paar einzelne Wiesen, damit die Welt nicht leer aussieht (keine Reihe, nichts beisammen)
+	field_at(Vector3i(-1, -1, 1), Vector3i(0, 0, 1)).stage = 1
+	field_at(Vector3i(1, -1, 1), Vector3i(0, 0, 1)).stage = 1
+	field_at(Vector3i(1, 0, -1), Vector3i(1, 0, 0)).stage = 1
+	field_at(Vector3i(-1, -1, -1), Vector3i(-1, 0, 0)).stage = 1
+	field_at(Vector3i(0, -1, -1), Vector3i(0, -1, 0)).stage = 1
+	moved = {}
+	seen = {}
 
 
 ## Die drei Felder der Scheibe auf der ersten Seite, die sie schneidet.
@@ -396,7 +419,7 @@ func lines(only: Dictionary = {}) -> Array:
 			var d0: FieldData = dline[0]
 			var d1: FieldData = dline[1]
 			var d2: FieldData = dline[2]
-			if diagonals and d0 != null and d1 != null and d2 != null and d0.stage >= Balance.DIAGONAL_FROM and d0.stage == d1.stage and d0.stage == d2.stage:
+			if diagonals and d0 != null and d1 != null and d2 != null and d0.stage >= diag_from and d0.stage == d1.stage and d0.stage == d2.stage:
 				if only.is_empty() or only.has(d0.id) or only.has(d1.id) or only.has(d2.id):
 					out.append(dline)
 	return out
