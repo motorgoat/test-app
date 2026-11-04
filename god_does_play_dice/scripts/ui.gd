@@ -651,13 +651,12 @@ func _fill_sheet(fid: int) -> void:
 # Blasen, Meldungen, Modale
 # =============================================================================
 
-func _on_merged(fid: int, points: int, combo: int) -> void:
+func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
-	var f: FieldData = Game.state.fields[fid]
 	if combo >= 2:
-		combo_label.text = "Kombo ×%d!" % combo
+		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]
 	else:
-		combo_label.text = GameState.stage_name(f.stage) + "!"
+		combo_label.text = GameState.stage_name(stage) + "!"
 	combo_label.pivot_offset = combo_label.size * 0.5
 	combo_label.scale = Vector2(0.5, 0.5)
 	combo_label.modulate.a = 1.0

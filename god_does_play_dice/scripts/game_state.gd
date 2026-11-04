@@ -331,8 +331,11 @@ func end_round() -> Dictionary:
 			if g.is_nature():
 				nat += 1
 		if nat >= Balance.REGROW_NEIGHBORS:
-			grow.append(f)
-	for f in grow:
+			grow.append([nat, f.id, f])
+	grow.sort_custom(func(x, y): return x[0] > y[0] or (x[0] == y[0] and x[1] < y[1]))
+	grow = grow.slice(0, Balance.REGROW_PER_ROUND)
+	for item in grow:
+		var f: FieldData = item[2]
 		f.stage = 1
 		ev.append({"type": "regrow", "field": f.id})
 	for f in fields:

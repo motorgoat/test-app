@@ -115,7 +115,8 @@ jobs:
           body: |
             Automatisch gebaut aus `${{ github.sha }}` (Build ${{ github.run_number }}).
 
-            **Beschütze die Völker:** Wisch über eine Reihe, um die Welt zu drehen.
+            **So geht's:** Dreh drei gleiche Felder in eine Reihe (Wiese → Wald → Dorf → Stadt → Fabrik).
+            Halte Natur und Zivilisation im Gleichgewicht, der Meteorit hilft. 40 Runden, bis zu 3 Sterne.
 
             **Am Handy installieren (Android):** `god_does_play_dice.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.

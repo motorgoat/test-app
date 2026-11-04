@@ -6,7 +6,7 @@ extends Node3D
 
 signal field_tapped(fid: int)
 signal preview_changed(info: Dictionary)   # {} = keine Vorschau
-signal merged(fid: int, points: int, combo: int)
+signal merged(fid: int, points: int, combo: int, stage: int)
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -615,7 +615,7 @@ func _merge_fx(e: Dictionary) -> void:
 	target.burst(Color("#ffd23f"))
 	_sparks(target.global_position + target.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 10)
 	rig.shake(0.25 + 0.15 * int(e["combo"]))
-	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]))
+	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]), int(e.get("stage", 0)))
 	await get_tree().create_timer(0.12).timeout
 
 
