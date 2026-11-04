@@ -375,6 +375,9 @@ func show_hint() -> Dictionary:
 func _show_hint() -> Dictionary:
 	_hinted = true
 	var best := Game.state.best_move()
+	# Tutorial: genau der vorgezeigte (und einzig erlaubte) erste Zug leuchtet
+	if Game.tutorial() and Game.tutorial_step == 0:
+		best = {"axis": 0, "layer": 1, "turns": 1, "points": 0, "steps": 1}
 	if best.is_empty():
 		return best
 	for cb in _slice_cubies(int(best["axis"]), int(best["layer"])):
