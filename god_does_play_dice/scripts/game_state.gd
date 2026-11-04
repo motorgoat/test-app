@@ -21,6 +21,7 @@ var faith: int = 0            # Glaube = Punkte und Währung für Meteoriten
 var meteors_used: int = 0
 var bad_rounds: int = 0       # Runden in Folge außerhalb des Gleichgewichts
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
+var old_lines: Dictionary = {}  # Reihen, die es VOR der Drehung schon gab (zählen nicht)
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -39,6 +40,7 @@ func setup(seed_value: int = 0) -> void:
 	meteors_used = 0
 	bad_rounds = 0
 	moved = {}
+	old_lines = {}
 	fields.clear()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
@@ -69,6 +71,7 @@ func clone() -> GameState:
 	gs.meteors_used = meteors_used
 	gs.bad_rounds = bad_rounds
 	gs.moved = moved.duplicate()
+	gs.old_lines = old_lines.duplicate()
 	gs.rng.seed = rng.seed
 	gs.rng.state = rng.state
 	for f in fields:
@@ -138,6 +141,10 @@ func neighbors(f: FieldData) -> Array:
 ## Wie ein echter Zauberwürfel: alle Felder der Scheibe drehen mit, auch die Mitten.
 func apply_rotation(axis: int, layer: int, turns: int) -> void:
 	var d := 1 if turns > 0 else -1
+	if moved.is_empty():
+		old_lines = {}
+		for line in lines():
+			old_lines[line_key(line)] = true
 	for f in fields:
 		if f.p[axis] == layer:
 			moved[f.id] = true
@@ -237,11 +244,23 @@ func lines(only: Dictionary = {}) -> Array:
 	return out
 
 
-## Reihen, die die letzte Drehung vervollständigt hat.
+static func line_key(line: Array) -> String:
+	var ids: Array = []
+	for f in line:
+		ids.append((f as FieldData).id)
+	ids.sort()
+	return "%d|%d|%d" % [ids[0], ids[1], ids[2]]
+
+
+## Reihen, die die letzte Drehung NEU verbunden hat (vorher fertige Reihen zählen nicht).
 func moved_lines() -> Array:
 	if moved.is_empty():
 		return []
-	return lines(moved)
+	var out: Array = []
+	for line in lines(moved):
+		if not old_lines.has(line_key(line)):
+			out.append(line)
+	return out
 
 
 ## Punkte, die die letzte Drehung sofort durch Verschmelzen bringt (ohne Kettenreaktion).
@@ -265,7 +284,7 @@ func resolve_merges(ev: Array) -> int:
 	for pass_i in Balance.MAX_CASCADES:
 		if focus.is_empty():
 			break
-		var found := lines(focus)
+		var found := moved_lines() if pass_i == 0 else lines(focus)
 		if found.is_empty():
 			break
 		focus = {}
@@ -306,6 +325,7 @@ func end_round() -> Dictionary:
 	# 1. Drei in einer Reihe verschmelzen sofort (nur durch die Drehung vervollständigte)
 	var gain := resolve_merges(ev)
 	moved = {}
+	old_lines = {}
 
 	# 2. Fabriken verschmutzen Natur daneben
 	for f in fields:

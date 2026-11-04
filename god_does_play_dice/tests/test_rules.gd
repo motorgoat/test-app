@@ -11,6 +11,7 @@ func _init() -> void:
 	test_setup()
 	test_geometry()
 	test_merge()
+	test_only_new_lines()
 	test_cascade()
 	test_regrow_and_pollution()
 	test_income_and_balance()
@@ -123,6 +124,27 @@ func test_merge() -> void:
 	top(gs3, 1, 0).stage = 3
 	top(gs3, 1, 1).stage = 3
 	check(int(gs3.end_round()["gain"]) == 0, "zwei Dörfer nebeneinander bringen nichts")
+
+
+func test_only_new_lines() -> void:
+	# Eine fertige Reihe, die nur als Ganzes mitgedreht wird, verschmilzt nicht
+	var gs := empty_state()
+	for x in [-1, 0, 1]:
+		top(gs, x, 1).stage = 1
+	gs.apply_rotation(2, 1, 1)
+	check(gs.moved_lines().is_empty(), "mitgedrehte fertige Reihe zählt nicht")
+	var r := gs.end_round()
+	check(int(r["gain"]) == 0, "keine Punkte für alte Reihe")
+	# Eine neu verbundene Reihe verschmilzt
+	var gs2 := empty_state()
+	top(gs2, -1, 1).stage = 1
+	top(gs2, 0, 1).stage = 1
+	var third := gs2.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
+	third.stage = 1
+	gs2.apply_rotation(0, 1, 1)
+	var now := top(gs2, 1, 1)
+	check(now == third, "drittes Feld rückt in die Reihe")
+	check(gs2.moved_lines().size() == 1, "neu verbundene Reihe zählt")
 
 
 func test_cascade() -> void:
