@@ -47,7 +47,6 @@ scripts/
   game.gd         Autoload: Rundenablauf, Rekord, Signale
   world.gd        Würfel, Wisch-Drehen, Vorschau, Effekte, Kamera-Eingabe
   field_view.gd   Darstellung eines Felds
-  hazard_view.gd  Darstellung einer angekündigten Gefahr
   models.gd       prozedurale Spielzeug-Modelle (abgerundete Formen)
   camera_rig.gd   Kamera mit Licht, passt sich dem Bildschirm an
   ui.gd           Oberfläche
