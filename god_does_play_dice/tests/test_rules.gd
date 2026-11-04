@@ -315,8 +315,8 @@ func test_bonus() -> void:
 	top(gm2, 1, 0).stage = 2
 	gm2.apply_bonus("monsoon", top(gm2, 0, 0))
 	var face_ok := true
-	for f in gm2.fields:
-		if f.n == Vector3i(0, 1, 0) and f.stage < 1:
+	for fd in gm2.fields:
+		if fd.n == Vector3i(0, 1, 0) and fd.stage < 1:
 			face_ok = false
 	check(face_ok and top(gm2, 0, 0).stage == 2 and top(gm2, 1, 0).stage == 3 and gm2.monsoons == 0, "Monsun hebt die ganze Seite")
 	var gu := empty_state()
