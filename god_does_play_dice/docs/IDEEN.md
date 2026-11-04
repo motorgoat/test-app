@@ -37,3 +37,13 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Umgesetzt nach Philipps Vorschlag: Start mit leerer Erde und Natur, Verbinden entwickelt die Felder weiter
   (Wiese → Wald → Dorf → Stadt → Fabrik), Meteorit selbst im richtigen Moment auslösen.
 - Vorerst entfernt, für später: Völker, Kirchen, Krieg und Handel, Katastrophen als Strafe, Blitz und Wunder.
+
+## Stand „Katastrophen“ (4. November 2026)
+- Umgesetzt: Leiter mit 10 Stufen (Erde … Metropole), Endlos-Modus mit Zeitaltern, 3 Leben der Welt,
+  Katastrophen als Strafe: Erdbeben (zu viel Zivilisation), Überschwemmung (zu wenig Natur), Waldbrand (zu viel Natur).
+- Glaube vorerst entfernt. Drehtipps und Vorschau, was eine Drehung bringt, nur im Tutorial.
+- Für später:
+  - **Befriedigende Sounds**: Einrasten der Drehung, Verschmelzen (steigende Töne bei Kombos), Katastrophen, Meteorit.
+  - **Grafik überarbeiten** (Spielzeug-Look, klarere Felder).
+  - **Kirche und Krieg zerstören Felder** (Vorschlag offen, siehe Chat).
+  - Der Test-Bot kommt kaum über den großen Wald hinaus: prüfen, ob die Leiter für Menschen zu steil ist.

@@ -75,7 +75,7 @@ func _shots(dir: String) -> void:
 	await _shot(dir, "09_meteor_faellt")
 	await _wait(1.2)
 	await _shot(dir, "10_meteor_danach")
-	for i in 6:
+	for i in 4:
 		world.wait_turn()
 		await _wait(2.6)
 	await _shot(dir, "11_spaeter")
@@ -83,33 +83,33 @@ func _shots(dir: String) -> void:
 	await _wait(0.6)
 	await _shot(dir, "12_info")
 	ui.debug_close_all()
-	# Katastrophen: Waldbrand (zu viel Natur) mit Warnung in der Vorschau
+	# Katastrophen. Vorschau beim Drehen warnt rot (zu viel Natur)
 	Game.new_game(777)
 	await _wait(1.0)
-	for f in Game.state.fields:
-		(f as FieldData).stage = 0 if (f as FieldData).id % 6 == 0 else 2
-	Game.state_changed.emit()
+	_fill(func(f: FieldData) -> int: return 0 if f.id % 6 == 0 else 2)
 	await _wait(0.8)
 	world.debug_begin_twist(_visible_field(), Vector2(1, 0.15), 0.62)
 	await _wait(1.0)
 	await _shot(dir, "13_gefahr_vorschau")
 	world.debug_end_twist()
-	await _wait(1.2)
+	await _wait(6.0)
+	# Waldbrand (zu viel Natur)
+	Game.state.lives = 3
+	_fill(func(f: FieldData) -> int: return 0 if f.id % 6 == 0 else 2)
+	await _wait(0.8)
+	world.wait_turn()
+	await _wait(1.0)
 	await _shot(dir, "14_waldbrand")
 	await _wait(3.0)
 	# Erdbeben (zu viel Zivilisation)
-	for f in Game.state.fields:
-		(f as FieldData).stage = 6 if (f as FieldData).id % 2 == 0 else 1
-	Game.state_changed.emit()
+	_fill(func(f: FieldData) -> int: return 6 if f.id % 2 == 0 else 1)
 	await _wait(0.8)
 	world.wait_turn()
 	await _wait(0.8)
 	await _shot(dir, "15_erdbeben")
 	await _wait(3.0)
 	# Überschwemmung (zu wenig Natur), die dritte Katastrophe: Die Welt stirbt
-	for f in Game.state.fields:
-		(f as FieldData).stage = 4 if (f as FieldData).id % 3 == 0 else 0
-	Game.state_changed.emit()
+	_fill(func(f: FieldData) -> int: return 4 if f.id % 3 == 0 else 0)
 	await _wait(0.8)
 	world.wait_turn()
 	await _wait(0.9)
@@ -117,6 +117,13 @@ func _shots(dir: String) -> void:
 	await _wait(3.0)
 	await _shot(dir, "17_ende")
 	get_tree().quit()
+
+
+## Alle Felder neu belegen (für die Screenshots).
+func _fill(stage_of: Callable) -> void:
+	for f in Game.state.fields:
+		(f as FieldData).stage = int(stage_of.call(f))
+	Game.state_changed.emit()
 
 
 func _wait(sec: float) -> void:

@@ -62,7 +62,7 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          timeout 300 xvfb-run -a -s "-screen 0 1100x2400x24" \
+          timeout 540 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots 2>&1 | tail -40 || true
           ls -la ../shots
 
