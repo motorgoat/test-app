@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Regeln:
 ##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen.
-##   2. Drei gleiche Felder in einer Reihe verschmelzen, sobald sich darin etwas verändert hat: Das Feld, das zuletzt dazugekommen ist,
+##   2. Drei gleiche Felder in einer Reihe (ab dem kleinen Wald auch diagonal) verschmelzen, sobald sich darin etwas verändert hat: Das Feld, das zuletzt dazugekommen ist,
 ##      steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole),
 ##      die beiden anderen bleiben, wie sie sind (OTHERS_DROP). Das gibt Punkte.
 ##   3. Wiese wächst nicht von allein (abschaltbar: REGROW_PER_ROUND).
@@ -365,6 +365,21 @@ func lines(only: Dictionary = {}) -> Array:
 				if f0 != null and f1 != null and f2 != null and f0.stage > 0 and f0.stage == f1.stage and f0.stage == f2.stage:
 					if only.is_empty() or only.has(f0.id) or only.has(f1.id) or only.has(f2.id):
 						out.append(line)
+		# Diagonalen („quer“): ab dem kleinen Wald
+		for dir in [1, -1]:
+			var dline: Array = []
+			for t in [-1, 0, 1]:
+				var p := Vector3i.ZERO
+				p[a] = nv[a]
+				p[u] = t
+				p[v] = t * dir
+				dline.append(field_at(p, nv))
+			var d0: FieldData = dline[0]
+			var d1: FieldData = dline[1]
+			var d2: FieldData = dline[2]
+			if d0 != null and d1 != null and d2 != null and d0.stage >= Balance.DIAGONAL_FROM and d0.stage == d1.stage and d0.stage == d2.stage:
+				if only.is_empty() or only.has(d0.id) or only.has(d1.id) or only.has(d2.id):
+					out.append(dline)
 	return out
 
 

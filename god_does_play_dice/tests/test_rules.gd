@@ -192,6 +192,20 @@ func test_merge() -> void:
 		gs2.resolve_merges([])
 		names.append(top(gs2, -1, 1).stage)
 	check(names == [2, 3, 4, 5, 6, 7, 8, 9], "Leiter Wiese … Metropole (%s)" % str(names))
+	# Diagonal („quer“) erst ab dem kleinen Wald
+	var gd := empty_state()
+	top(gd, -1, -1).stage = 1
+	top(gd, 0, 0).stage = 1
+	top(gd, 1, 1).stage = 1
+	check(gd.lines().is_empty(), "Wiesen verbinden sich nicht diagonal")
+	for f in [top(gd, -1, 1), top(gd, 0, 0), top(gd, 1, -1)]:
+		(f as FieldData).stage = 2
+	top(gd, -1, -1).stage = 0
+	top(gd, 1, 1).stage = 0
+	check(gd.lines().size() == 1, "kleine Wälder verbinden sich auch diagonal")
+	gd.moved = {top(gd, 1, -1).id: true}
+	gd.end_round()
+	check(top(gd, 1, -1).stage == 3, "diagonale Reihe: das zuletzt dazugekommene Feld steigt auf")
 	var gs3 := empty_state()
 	top(gs3, 1, 0).stage = 3
 	top(gs3, 1, 1).stage = 3

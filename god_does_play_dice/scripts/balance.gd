@@ -15,6 +15,7 @@ static var CIVILISATION_FROM := 4
 static var MERGE_POINTS := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
 static var MAX_CASCADES := 6
 static var OTHERS_DROP := 0               # um so viele Stufen fallen die beiden anderen Felder der Reihe zurück (0 = bleiben)
+static var DIAGONAL_FROM := 2             # ab dieser Stufe (kleiner Wald) zählen auch Diagonalen als Reihe
 static var FACE_BONUS := 9               # ganze Seite geschafft: Punkte der Stufe × so viel
 
 # --- Start ----------------------------------------------------------------------

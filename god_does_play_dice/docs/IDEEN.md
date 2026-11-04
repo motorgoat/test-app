@@ -76,4 +76,4 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
   „Grundgütiger“ … (erste Version umgesetzt).
 - Echte Werbung (z. B. AdMob) für Credits; im Prototyp ein Platzhalter-Knopf.
 - **Regen und Blitz kaufbar** (Shop, später).
-- **„Über Kreuz“** als Verbindung? Offene Frage (diagonal oder als Plus-Form, siehe Chat).
+- Umgesetzt: „quer“ = Diagonalen zählen ab dem kleinen Wald.
