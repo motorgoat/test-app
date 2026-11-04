@@ -21,7 +21,7 @@ var faith: int = 0            # Glaube = Punkte und Währung für Meteoriten
 var meteors_used: int = 0
 var bad_rounds: int = 0       # Runden in Folge außerhalb des Gleichgewichts
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
-var old_lines: Dictionary = {}  # Reihen, die es VOR der Drehung schon gab (zählen nicht)
+var seen: Dictionary = {}     # jede Reihe (drei Felder + Stufe), die es je gab: zählt nie wieder
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -40,7 +40,7 @@ func setup(seed_value: int = 0) -> void:
 	meteors_used = 0
 	bad_rounds = 0
 	moved = {}
-	old_lines = {}
+	seen = {}
 	fields.clear()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
@@ -71,7 +71,7 @@ func clone() -> GameState:
 	gs.meteors_used = meteors_used
 	gs.bad_rounds = bad_rounds
 	gs.moved = moved.duplicate()
-	gs.old_lines = old_lines.duplicate()
+	gs.seen = seen.duplicate()
 	gs.rng.seed = rng.seed
 	gs.rng.state = rng.state
 	for f in fields:
@@ -142,9 +142,7 @@ func neighbors(f: FieldData) -> Array:
 func apply_rotation(axis: int, layer: int, turns: int) -> void:
 	var d := 1 if turns > 0 else -1
 	if moved.is_empty():
-		old_lines = {}
-		for line in lines():
-			old_lines[line_key(line)] = true
+		remember_lines()
 	for f in fields:
 		if f.p[axis] == layer:
 			moved[f.id] = true
@@ -244,21 +242,29 @@ func lines(only: Dictionary = {}) -> Array:
 	return out
 
 
+## Schlüssel einer Reihe: die drei Felder und ihre Stufe.
 static func line_key(line: Array) -> String:
 	var ids: Array = []
 	for f in line:
 		ids.append((f as FieldData).id)
 	ids.sort()
-	return "%d|%d|%d" % [ids[0], ids[1], ids[2]]
+	return "%d|%d|%d@%d" % [ids[0], ids[1], ids[2], (line[0] as FieldData).stage]
 
 
-## Reihen, die die letzte Drehung NEU verbunden hat (vorher fertige Reihen zählen nicht).
+## Alle Reihen, die gerade bestehen, als „schon da gewesen“ merken.
+func remember_lines() -> void:
+	for line in lines():
+		seen[line_key(line)] = true
+
+
+## Reihen, die die letzte Drehung NEU verbunden hat. Was es je schon gab (auch durch
+## Hin- und Herdrehen oder weil eine Reihe nur mitgedreht wurde), zählt nicht.
 func moved_lines() -> Array:
 	if moved.is_empty():
 		return []
 	var out: Array = []
 	for line in lines(moved):
-		if not old_lines.has(line_key(line)):
+		if not seen.has(line_key(line)):
 			out.append(line)
 	return out
 
@@ -325,7 +331,6 @@ func end_round() -> Dictionary:
 	# 1. Drei in einer Reihe verschmelzen sofort (nur durch die Drehung vervollständigte)
 	var gain := resolve_merges(ev)
 	moved = {}
-	old_lines = {}
 
 	# 2. Fabriken verschmutzen Natur daneben
 	for f in fields:
@@ -361,6 +366,9 @@ func end_round() -> Dictionary:
 	for f in fields:
 		if f.fresh > 0:
 			f.fresh -= 1
+
+	# Alles, was jetzt als Reihe dasteht, ist verbraucht
+	remember_lines()
 
 	# 4. Glaube aus Städten und Fabriken
 	gain += income()

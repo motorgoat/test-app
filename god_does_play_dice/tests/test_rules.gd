@@ -12,6 +12,7 @@ func _init() -> void:
 	test_geometry()
 	test_merge()
 	test_only_new_lines()
+	test_back_and_forth()
 	test_cascade()
 	test_regrow_and_pollution()
 	test_income_and_balance()
@@ -95,8 +96,9 @@ func test_merge() -> void:
 	c.stage = 1
 	check(gs.lines().size() == 1, "drei Wiesen in einer Reihe")
 	check(gs.moved_lines().is_empty(), "ohne Drehung verschmilzt nichts")
-	var r0 := gs.end_round()
-	check(b.stage == 1, "Warten lässt die Reihe stehen")
+	var waited := gs.clone()
+	waited.end_round()
+	check((waited.fields[b.id] as FieldData).stage == 1, "Warten lässt die Reihe stehen")
 	gs.moved[c.id] = true
 	var r := gs.end_round()
 	check(b.stage == 2, "Mitte wird Wald (%d)" % b.stage)
@@ -145,6 +147,21 @@ func test_only_new_lines() -> void:
 	var now := top(gs2, 1, 1)
 	check(now == third, "drittes Feld rückt in die Reihe")
 	check(gs2.moved_lines().size() == 1, "neu verbundene Reihe zählt")
+
+
+func test_back_and_forth() -> void:
+	# Reihe wegdrehen und zurückdrehen bringt nichts
+	var gs := empty_state()
+	for x in [-1, 0, 1]:
+		top(gs, x, 1).stage = 1
+	gs.end_round()
+	gs.apply_rotation(0, 1, 1)
+	gs.end_round()
+	gs.apply_rotation(0, 1, -1)
+	check(gs.lines().size() >= 1, "Reihe steht wieder da")
+	check(gs.moved_lines().is_empty(), "hin und her zählt nicht")
+	var r := gs.end_round()
+	check(int(r["gain"]) == 0, "keine Punkte fürs Hin- und Herdrehen")
 
 
 func test_cascade() -> void:
