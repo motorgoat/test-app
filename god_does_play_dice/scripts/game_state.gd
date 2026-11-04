@@ -46,7 +46,8 @@ var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Versch
 var before_lines := {}        # Reihen, die vor diesem Zug schon dastanden: lösen nichts aus (nur neue Reihen zählen)
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
-var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
+var lives: int = 3            # Überleben: so viele Brände hält die Welt noch aus
+var survival := false         # Überleben-Modus: 3 Brände, und die Welt ist tot
 var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
@@ -62,9 +63,10 @@ var _index: Dictionary = {}
 # Aufbau
 # =============================================================================
 
-## level: 0 Einfach, 1 Mittel, 2 Schwer, 3 Profi.
-func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1) -> void:
+## level: 0 Einfach, 1 Mittel, 2 Schwer, 3 Profi. survival_mode: 3 Herzen, jeder Brand kostet eines.
+func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, survival_mode: bool = false) -> void:
 	endless = endless_mode
+	survival = survival_mode
 	easy = level == 0
 	diagonals = level <= 1
 	gadgets = level < 3
@@ -87,7 +89,7 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1) -> vo
 	_rotated = false
 	meteors_used = 0
 	best_stage = 1
-	lives = Balance.LIVES
+	lives = Balance.LIVES if survival else 0
 	disasters = 0
 	last_disaster = ""
 	moved = {}
@@ -173,6 +175,7 @@ func clone() -> GameState:
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
+	gs.survival = survival
 	gs.disasters = disasters
 	gs.last_disaster = last_disaster
 	gs.moved = moved.duplicate()
@@ -332,9 +335,9 @@ func age_name() -> String:
 	return str(Balance.AGES[age() - 1])
 
 
-## Die Welt kann nicht sterben: Endlos endet nie, sonst nach 40 Drehungen.
+## Endlos endet nie, 40 Drehungen nach der 40., Überleben nach dem 3. Brand.
 func is_over() -> bool:
-	return finished()
+	return finished() or died()
 
 
 ## Nichts mehr zu verbinden: keine Stufe hat noch 3 Felder, und es gibt weder Regen noch Blitz.
@@ -348,7 +351,7 @@ func stuck() -> bool:
 
 
 func died() -> bool:
-	return Balance.LIVES > 0 and lives <= 0
+	return survival and lives <= 0
 
 
 func finished() -> bool:
@@ -676,8 +679,6 @@ func _progress(gain: int, corners: int) -> Dictionary:
 	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
 	if not gadgets:
 		var na := age() > age_before
-		if na and Balance.LIVES > 0 and lives > 0:
-			lives = mini(Balance.LIVES, lives + 1)
 		return {"got": got, "new_age": na}
 	if not monsoon_unlocked and best_stage >= Balance.MONSOON_FROM_STAGE:
 		monsoon_unlocked = true
@@ -700,8 +701,6 @@ func _progress(gain: int, corners: int) -> Dictionary:
 			bolts += 1
 			got["bolt"] = int(got["bolt"]) + 1
 	var new_age := age() > age_before
-	if new_age and Balance.LIVES > 0 and lives > 0:
-		lives = mini(Balance.LIVES, lives + 1)
 	return {"got": got, "new_age": new_age}
 
 
@@ -767,7 +766,7 @@ func disaster(kind: String, ev: Array) -> void:
 			if f.stage > 0:
 				f.burning = true
 				hit.append(f.id)
-	if Balance.LIVES > 0 and Balance.FIRE_COSTS_LIFE:
+	if survival:
 		lives -= 1
 	disasters += 1
 	last_disaster = kind

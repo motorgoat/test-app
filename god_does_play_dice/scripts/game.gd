@@ -23,6 +23,7 @@ var credits := 0           # Credits für Tipps (gibt es für Werbung)
 var new_record := false
 var endless := true
 const LEVELS = ["Einfach", "Mittel", "Schwer", "Profi"]
+var survival := false      # Überleben: 3 Herzen, jeder Brand kostet eines
 var level := 1             # 0 Einfach (berühren), 1 Mittel (Reihen + Diagonalen), 2 Schwer (nur Reihen), 3 Profi (ohne Gadgets)
 var _best := {"0": 0, "1": 0, "2": 0, "3": 0, "challenge": 0}
 
@@ -33,14 +34,19 @@ func _ready() -> void:
 
 
 ## endless_mode / lvl: -1 = wie zuletzt.
-func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> void:
+## survival_mode: -1 = wie zuletzt, 0 = aus, 1 = Überleben (3 Herzen).
+func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1, survival_mode: int = -1) -> void:
 	if endless_mode >= 0:
 		endless = endless_mode == 1
 	if lvl >= 0:
 		level = lvl
-	best = int(_best[_mode_key()])
+	if survival_mode >= 0:
+		survival = survival_mode == 1
+	if not endless:
+		survival = false
+	best = int(_best.get(_mode_key(), 0))
 	state = GameState.new()
-	state.setup(seed_value, endless, level)
+	state.setup(seed_value, endless, level, survival)
 	busy = false
 	over = false
 	continued = false
@@ -57,6 +63,8 @@ func level_name() -> String:
 
 
 func _mode_key() -> String:
+	if survival:
+		return "survival" + str(level)
 	return str(level) if endless else "challenge"
 
 
@@ -71,7 +79,7 @@ func tutorial() -> bool:
 
 func restart_tutorial() -> void:
 	tutorial_done = false
-	new_game(0, 1, 1)
+	new_game(0, 1, 1, 0)
 
 
 ## Was zählt: die Punkte.
@@ -130,7 +138,7 @@ func finish_round(result: Dictionary) -> void:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])
 			var tail := "Gieß die brennenden Felder, um sie zu retten."
-			if Balance.LIVES > 0 and Balance.FIRE_COSTS_LIFE:
+			if state.survival:
 				tail = "Noch %d %s. Gieß die brennenden Felder, um sie zu retten." % [state.lives, "Herz" if state.lives == 1 else "Herzen"]
 			message.emit("%s %s! %s. %s" % [gasp(), GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
 	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
@@ -188,7 +196,7 @@ static func gasp() -> String:
 
 ## Einmal pro Spiel nach dem Ende weiterspielen (kostet Credits).
 func can_continue() -> bool:
-	return false      # die Welt kann nicht sterben
+	return over and not continued and state.died()
 
 
 ## Einen Schritt zurück: der Stand vor dem letzten Zug (nur einmal hintereinander).
@@ -244,7 +252,7 @@ func reward_ad() -> void:
 func _load_best() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) == OK:
-		for k in ["0", "1", "2", "3"]:
+		for k in ["0", "1", "2", "3", "survival0", "survival1", "survival2", "survival3"]:
 			_best[k] = int(cfg.get_value("rekord", "stufe_" + k, 0))
 		_best["challenge"] = int(cfg.get_value("rekord", "runden40_punkte", 0))
 		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
@@ -259,8 +267,8 @@ func _save_best() -> void:
 		best = maxi(best, score())
 		_best[_mode_key()] = best
 	var cfg := ConfigFile.new()
-	for k in ["0", "1", "2", "3"]:
-		cfg.set_value("rekord", "stufe_" + k, int(_best[k]))
+	for k in ["0", "1", "2", "3", "survival0", "survival1", "survival2", "survival3"]:
+		cfg.set_value("rekord", "stufe_" + k, int(_best.get(k, 0)))
 	cfg.set_value("rekord", "runden40_punkte", int(_best["challenge"]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
 	cfg.set_value("konto", "credits", credits)

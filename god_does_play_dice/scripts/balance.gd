@@ -30,7 +30,7 @@ static var POLLUTION_FROM := 99           # ab dieser Stufe wird Natur daneben z
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
 # --- Katastrophen ------------------------------------------------------------------------
-static var LIVES := 0                     # Die Welt kann nicht sterben: keine Leben, keine Herzen
+static var LIVES := 3                     # Überleben-Modus: so viele Herzen; jeder Brand kostet eines
 static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
 static var FIRE_COSTS_LIFE := false       # kostet ein Brand ein Leben?
 

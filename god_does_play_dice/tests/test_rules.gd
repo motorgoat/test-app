@@ -397,7 +397,7 @@ func test_fire() -> void:
 	var e := _disaster_of(rf)
 	check(str(e.get("kind", "")) == "fire" and (e["hit"] as Array).size() == 3, "%d. Fehlversuch: die gewischte Reihe brennt" % Balance.FIRE_AFTER)
 	check(top(gs, -1, 0).burning and gs.misses == 0, "Felder brennen, Zähler beginnt von vorn")
-	check(gs.lives == Balance.LIVES - (1 if Balance.FIRE_COSTS_LIFE else 0), "Brand kostet ein Leben (wenn eingestellt)")
+	check(gs.lives == 0 and not gs.died(), "Endlos: Brand kostet kein Herz, die Welt stirbt nicht")
 	gs.rain = 1
 	var saved_f := top(gs, -1, 1)
 	var saved_st := saved_f.stage
@@ -580,7 +580,6 @@ func test_modes() -> void:
 	top(ga, 0, 0).stage = 4
 	var ra := ga.end_round()
 	check(bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit")
-	check(Balance.LIVES == 0 or ga.lives == 2, "neues Zeitalter: ein Leben zurück (wenn es Leben gibt)")
 	# Stufen
 	var pro := GameState.new()
 	pro.setup(5, true, 3)
@@ -595,6 +594,15 @@ func test_modes() -> void:
 		ch.apply_rotation(1, -1, 1)
 		ch.end_round()
 	check(ch.finished() and ch.twists == Balance.MAX_TWISTS, "nach 40 Drehungen ist Schluss")
+	# Überleben: 3 Herzen, jeder Brand kostet eines, nach dem 3. ist die Welt tot
+	var sv := GameState.new()
+	sv.setup(5, true, 1, true)
+	check(sv.survival and sv.lives == Balance.LIVES, "Überleben startet mit %d Herzen" % Balance.LIVES)
+	for i in Balance.LIVES:
+		check(not sv.is_over(), "Überleben: lebt noch vor Brand %d" % (i + 1))
+		sv.last_row = [0, 1, 2]
+		sv.disaster("fire", [])
+	check(sv.died() and sv.is_over(), "Überleben: nach dem %d. Brand ist die Welt tot" % Balance.LIVES)
 	var en := new_state(5)
 	en.lives = 0
 	check(not en.is_over(), "Endlos: die Welt kann nicht sterben")

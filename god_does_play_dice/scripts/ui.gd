@@ -537,7 +537,8 @@ func _build_help() -> void:
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
-	v.add_child(_help_row("trophy", "Die Welt kann nicht sterben. Endlos spielst du, so lange du willst. Im Modus 40 Drehungen zählt, wie viele Punkte du mit 40 Drehungen schaffst."))
+	v.add_child(_help_row("trophy", "Endlos kann die Welt nicht sterben. Im Modus 40 Drehungen zählt, wie viele Punkte du mit 40 Drehungen schaffst."))
+	v.add_child(_help_row("heart", "Überleben: Die Welt hat 3 Herzen, jeder Brand kostet eines. Nach dem 3. Brand ist sie tot (einmal kannst du für Credits weiterspielen)."))
 	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf), Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Drehungen."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
@@ -565,9 +566,17 @@ func _build_menu() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(_restart_level.bind(i))
 		grid.add_child(b)
+	var modes := HBoxContainer.new()
+	modes.add_theme_constant_override("separation", 8)
+	v.add_child(modes)
 	var challenge_btn := _wide_button("40 Drehungen", Color.WHITE, Style.TEXT)
+	challenge_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	challenge_btn.pressed.connect(_restart_mode.bind(0))
-	v.add_child(challenge_btn)
+	modes.add_child(challenge_btn)
+	var survive_btn := _wide_button("Überleben (3 Herzen)", Color.WHITE, Style.TEXT)
+	survive_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	survive_btn.pressed.connect(_restart_survival)
+	modes.add_child(survive_btn)
 	var help := _wide_button("So geht's", Color.WHITE, Style.TEXT)
 	help.pressed.connect(_show_help)
 	v.add_child(help)
@@ -830,7 +839,7 @@ func refresh() -> void:
 		return
 	var gs := Game.state
 	if gs.endless:
-		round_label.text = "Punkte · %s" % Game.level_name()
+		round_label.text = ("Punkte · Überleben · %s" if gs.survival else "Punkte · %s") % Game.level_name()
 	else:
 		round_label.text = "Punkte · Drehung %d/%d" % [mini(gs.twists, Balance.MAX_TWISTS), Balance.MAX_TWISTS]
 	if _shown_score < 0:
@@ -871,6 +880,7 @@ func refresh() -> void:
 	_flat_style(miss_pill, Color("#ffe1d6") if gs.misses >= Balance.FIRE_AFTER - 1 else Color(0, 0, 0, 0))
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
+		(hearts[i] as TextureRect).visible = gs.survival
 	var warn := ""
 	if gs.misses == Balance.FIRE_AFTER - 1 and not Game.over:
 		var t := miss_pill.create_tween()
@@ -1095,8 +1105,8 @@ func _on_disaster(kind: String, fid: int) -> void:
 	combo_label.text = GameState.DISASTER_NAME[kind] + "!"
 	combo_label.add_theme_color_override("font_color", Style.BAD)
 	_pop_banner()
-	if fid >= 0 and Balance.FIRE_COSTS_LIFE:
-		_bubble(fid, "-1 Leben", "heart", Style.BAD)
+	if fid >= 0 and Game.state.survival:
+		_bubble(fid, "-1 Herz", "heart", Style.BAD)
 
 
 func _pop_banner() -> void:
@@ -1198,7 +1208,12 @@ func _restart_mode(endless_mode: int) -> void:
 
 func _restart_level(lvl: int) -> void:
 	_close_modal()
-	Game.new_game(0, 1, lvl)
+	Game.new_game(0, 1, lvl, 0)
+
+
+func _restart_survival() -> void:
+	_close_modal()
+	Game.new_game(0, 1, -1, 1)
 
 
 func _show_help() -> void:
@@ -1257,7 +1272,7 @@ func _on_game_over() -> void:
 	var gs := Game.state
 	var lines := PackedStringArray()
 	var title: Label = (over_card.get_child(0) as VBoxContainer).get_child(0)
-	title.text = "40 Drehungen geschafft!"
+	title.text = "Die Welt ist verbrannt" if gs.died() else "40 Drehungen geschafft!"
 	lines.append("Punkte: %d" % gs.score)
 	lines.append("Entwicklung: %s · %s" % [GameState.stage_name(gs.best_stage), gs.age_name()])
 	if Game.new_record:
