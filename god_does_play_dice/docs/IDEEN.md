@@ -79,3 +79,5 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Umgesetzt: „quer“ = Diagonalen zählen ab dem kleinen Wald.
 - Umgesetzt: **Einfacher Modus** (alle gleichen Felder, die sich berühren, ab drei).
 - **Schwerer Modus**: ohne Gadgets (kein Regen, Blitz, Monsun, Tipp).
+- Gestrichen: Gleichgewicht Natur/Zivilisation (Erdbeben, Überschwemmung, Waldbrand).
+- Umgesetzt: Stufen Einfach / Mittel / Schwer / Profi (ohne Gadgets).

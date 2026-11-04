@@ -18,7 +18,6 @@ func _init() -> void:
 	test_bonus()
 	restore()
 	test_fire()
-	test_quake()
 	test_hint()
 	test_easy()
 	test_preview_matches()
@@ -31,13 +30,11 @@ func _init() -> void:
 
 ## Für die reinen Regeltests: keine Katastrophe, die dazwischenfunkt.
 func calm() -> void:
-	_saved = {"cmax": Balance.CIVILISATION_MAX, "fire": Balance.FIRE_AFTER}
-	Balance.CIVILISATION_MAX = 1.0
+	_saved = {"fire": Balance.FIRE_AFTER}
 	Balance.FIRE_AFTER = 999
 
 
 func restore() -> void:
-	Balance.CIVILISATION_MAX = _saved["cmax"]
 	Balance.FIRE_AFTER = _saved["fire"]
 
 
@@ -99,7 +96,6 @@ func test_setup() -> void:
 		if f.stage > 1:
 			only = false
 	check(only, "Start nur mit Erde und Wiesen")
-	check(gs.in_balance(), "Start ist im Gleichgewicht")
 	for sd in [1, 2, 3, 4, 5, 6, 7, 8]:
 		var g := new_state(sd)
 		var clumps := 0
@@ -113,7 +109,7 @@ func test_setup() -> void:
 			if m >= 2:
 				clumps += 1
 		check(clumps == 0, "Seed %d: am Start nie drei Wiesen beisammen" % sd)
-		check(g.in_balance() and g.nature_share() >= Balance.START_NATURE - 0.02, "Seed %d: genug Natur am Start (%.0f%%)" % [sd, g.nature_share() * 100.0])
+		check(g.nature_share() >= Balance.START_NATURE - 0.02, "Seed %d: genug Natur am Start (%.0f%%)" % [sd, g.nature_share() * 100.0])
 
 
 func test_geometry() -> void:
@@ -406,53 +402,9 @@ func test_fire() -> void:
 	check(int(rm["gain"]) > 0 and gm.misses == 1, "Erfolg setzt Fehlversuche nicht zurück")
 
 
-func test_quake() -> void:
-	# Lauter Siedlungen ohne Dreierreihe, oben eine besonders große Reihe
-	var gq := empty_state()
-	for f in gq.fields:
-		f.stage = civ_pattern(f)
-	var big := [top(gq, -1, 1), top(gq, 0, 1), top(gq, 1, 1)]
-	(big[0] as FieldData).stage = 8
-	(big[1] as FieldData).stage = 9
-	(big[2] as FieldData).stage = 8
-	gq.best_stage = Balance.MAX_STAGE
-	check(gq.lines().is_empty(), "Testaufbau ohne Dreierreihe")
-	check(gq.threat() == "quake", "zu viel Zivilisation: Erdbeben droht")
-	var r := gq.end_round()
-	var e := _disaster_of(r)
-	var hit: Array = e.get("hit", [])
-	hit.sort()
-	var want := ids(big)
-	want.sort()
-	check(str(e.get("kind", "")) == "quake" and hit == want, "Erdbeben trifft die Reihe mit der meisten Zivilisation")
-	check((big[1] as FieldData).stage == 8 and (big[0] as FieldData).stage == 7, "die Reihe fällt eine Stufe zurück")
-	check(gq.lives == Balance.LIVES - (1 if Balance.LIVES > 0 else 0), "Erdbeben kostet ein Leben (wenn es Leben gibt)")
-	# Ohne Leben ist Schluss; neues Zeitalter gibt eines zurück
-	var gd := empty_state()
-	gd.lives = 1
-	for f in gd.fields:
-		f.stage = civ_pattern(f)
-	gd.end_round()
-	check(gd.died() == (Balance.LIVES > 0), "ohne Leben stirbt die Welt (nur wenn es Leben gibt)")
-	var gx := empty_state()
-	gx.rain = 0
-	gx.bolts = 0
-	top(gx, 0, 0).stage = 1
-	top(gx, 1, 1).stage = 1
-	check(gx.stuck() and gx.is_over(), "nichts mehr zu verbinden: Spielende")
-	gx.rain = 1
-	check(not gx.stuck(), "mit Regen geht es weiter")
-	var ga := empty_state()
-	ga.lives = 1
-	top(ga, 0, 0).stage = 4
-	var ra := ga.end_round()
-	check(bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit")
-	check(Balance.LIVES == 0 or ga.lives == 2, "neues Zeitalter: ein Leben zurück (wenn es Leben gibt)")
-
-
 func test_easy() -> void:
 	var gs := GameState.new()
-	gs.setup(12345, true, true)
+	gs.setup(12345, true, 0)
 	for f in gs.fields:
 		f.stage = 0
 	# drei Wiesen über Eck (keine Reihe): im einfachen Modus verschmelzen sie
@@ -593,6 +545,27 @@ func test_modes() -> void:
 	check(names[3] == "Steinzeit" and names[4] == "Antike" and names[5] == "Mittelalter" and names[6] == "Neuzeit" and names[8] == "Moderne", "Zeitalter folgen der höchsten Stufe (%s)" % str(names))
 	gs.turn = 999
 	check(not gs.finished(), "Endlos endet nicht nach Runden")
+	var gx := empty_state()
+	gx.rain = 0
+	gx.bolts = 0
+	top(gx, 0, 0).stage = 1
+	top(gx, 1, 1).stage = 1
+	check(gx.stuck() and gx.is_over(), "nichts mehr zu verbinden: Spielende")
+	gx.rain = 1
+	check(not gx.stuck(), "mit Regen geht es weiter")
+	var ga := empty_state()
+	ga.lives = 1
+	top(ga, 0, 0).stage = 4
+	var ra := ga.end_round()
+	check(bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit")
+	check(Balance.LIVES == 0 or ga.lives == 2, "neues Zeitalter: ein Leben zurück (wenn es Leben gibt)")
+	# Stufen
+	var pro := GameState.new()
+	pro.setup(5, true, 3)
+	check(not pro.gadgets and pro.rain == 0 and not pro.diagonals, "Profi: ohne Gadgets, nur gerade Reihen")
+	var hard := GameState.new()
+	hard.setup(5, true, 2)
+	check(hard.gadgets and not hard.diagonals and not hard.easy, "Schwer: nur gerade Reihen")
 	var ch := GameState.new()
 	ch.setup(5, false)
 	ch.turn = Balance.MAX_ROUNDS + 1

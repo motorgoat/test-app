@@ -29,13 +29,10 @@ static var REGROW_PER_ROUND := 0          # höchstens so viele Felder wachsen p
 static var POLLUTION_FROM := 99           # ab dieser Stufe wird Natur daneben zerstört (99 = aus: nach unten geht es nur durch Katastrophen)
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
-# --- Gleichgewicht ------------------------------------------------------------------
-static var CIVILISATION_MAX := 0.40       # höchstens so viel Zivilisation (ab Hütte), sonst Erdbeben
-
 # --- Katastrophen ------------------------------------------------------------------------
-static var LIVES := 3                     # Leben der Welt (Herzen). Ein Erdbeben kostet eines. 0 = keine Leben
+static var LIVES := 3                     # Leben der Welt (Herzen). Ein Brand kostet eines. 0 = keine Leben
 static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
-static var FIRE_COSTS_LIFE := false       # kostet ein Brand ein Leben?
+static var FIRE_COSTS_LIFE := true        # kostet ein Brand ein Leben?
 
 # --- Boni ------------------------------------------------------------------------------
 static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es

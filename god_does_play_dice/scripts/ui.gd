@@ -504,16 +504,15 @@ func _build_help() -> void:
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde. Willst du doch nicht: Finger unten auf „Abbrechen“ ziehen."))
 	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
-	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. Ab dem kleinen Wald zählen auch Diagonalen (quer über die Seite)."))
+	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. In der Stufe Mittel zählen ab dem kleinen Wald auch Diagonalen."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß leere Erde, sie wird zur Wiese. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
-	v.add_child(_help_row("up", "Einfacher Modus (im Menü): Alle gleichen Felder, die sich berühren, verschmelzen schon ab drei."))
+	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – alle gleichen Felder, die sich berühren, verschmelzen ab drei. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
-	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
-	v.add_child(_help_row("heart", "Herzen sind die Leben der Welt. Ein Erdbeben (mehr als %d%% Zivilisation) kostet eines, jedes neue Zeitalter gibt eines zurück. Sind alle weg oder ist nichts mehr zu verbinden, ist das Spiel vorbei. Einmal kannst du mit Werbung weiterspielen." % int(round(Balance.CIVILISATION_MAX * 100.0))))
+	v.add_child(_help_row("heart", "Herzen sind die Leben der Welt. Ein Brand kostet eines, jedes neue Zeitalter gibt eines zurück. Sind alle weg oder ist nichts mehr zu verbinden, ist das Spiel vorbei. Einmal kannst du für Credits weiterspielen."))
 	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf), Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Runden."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
@@ -526,15 +525,24 @@ func _build_menu() -> void:
 	var cont := _wide_button("Weiter", Style.ACCENT, Color.WHITE)
 	cont.pressed.connect(func() -> void: _close_modal())
 	v.add_child(cont)
-	var endless_btn := _wide_button("Neues Spiel: Endlos", Color.WHITE, Style.TEXT)
-	endless_btn.pressed.connect(_restart_mode.bind(1))
-	v.add_child(endless_btn)
-	var challenge_btn := _wide_button("Neues Spiel: 40 Runden", Color.WHITE, Style.TEXT)
+	var lv := _label("Neues Spiel", 15, Style.SOFT, true)
+	lv.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lv)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	v.add_child(grid)
+	var subs := ["berühren reicht", "auch diagonal", "nur gerade", "ohne Gadgets"]
+	for i in 4:
+		var b := _wide_button("%s\n%s" % [Game.LEVELS[i], subs[i]], Color.WHITE, Style.TEXT)
+		b.add_theme_font_size_override("font_size", 15)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_restart_level.bind(i))
+		grid.add_child(b)
+	var challenge_btn := _wide_button("40 Runden", Color.WHITE, Style.TEXT)
 	challenge_btn.pressed.connect(_restart_mode.bind(0))
 	v.add_child(challenge_btn)
-	var easy_btn := _wide_button("Neues Spiel: Einfach", Color.WHITE, Style.TEXT)
-	easy_btn.pressed.connect(_restart_easy)
-	v.add_child(easy_btn)
 	var help := _wide_button("So geht's", Color.WHITE, Style.TEXT)
 	help.pressed.connect(_show_help)
 	v.add_child(help)
@@ -797,7 +805,7 @@ func refresh() -> void:
 		return
 	var gs := Game.state
 	if gs.endless:
-		round_label.text = "Punkte"
+		round_label.text = "Punkte · %s" % Game.level_name()
 	else:
 		round_label.text = "Punkte · Runde %d/%d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS]
 	if _shown_score < 0:
@@ -811,7 +819,7 @@ func refresh() -> void:
 	stage_label.text = gs.age_name()
 	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
 	credits_btn.text = str(Game.credits)
-	rain_ready.visible = gs.rain > 0 and not Game.over and bonus_mode == ""
+	rain_ready.visible = gs.gadgets and gs.rain > 0 and not Game.over and bonus_mode == ""
 	if bonus_mode == "rain":
 		if gs.rain <= 0:
 			_set_bonus_mode("")
@@ -820,7 +828,10 @@ func refresh() -> void:
 	_set_pips(rain_btn, gs.rain, Balance.RAIN_MAX, Style.WATER)
 	_set_pips(bolt_btn, gs.bolts, Balance.BOLT_MAX, Color("#e0a100"))
 	_set_pips(monsoon_btn, gs.monsoons, Balance.MONSOON_MAX, Style.WATER)
-	monsoon_btn.visible = gs.monsoon_unlocked or gs.monsoons > 0
+	monsoon_btn.visible = gs.gadgets and (gs.monsoon_unlocked or gs.monsoons > 0)
+	rain_btn.visible = gs.gadgets
+	bolt_btn.visible = gs.gadgets
+	hint_btn.visible = gs.gadgets
 	if _last_monsoons >= 0 and gs.monsoons > _last_monsoons:
 		_show_gift("monsoon", monsoon_btn)
 	_last_monsoons = gs.monsoons
@@ -835,10 +846,7 @@ func refresh() -> void:
 	_pill_style(miss_pill, Color("#ffe1d6") if gs.misses >= Balance.FIRE_AFTER - 1 else Color.WHITE)
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
-	var th := gs.threat()
 	var warn := ""
-	if th != "":
-		warn = "%s! Bring das in Ordnung, sonst: %s" % [GameState.DISASTER_WHY[th], GameState.DISASTER_NAME[th]]
 	if gs.misses == Balance.FIRE_AFTER - 1 and not Game.over:
 		var t := miss_pill.create_tween()
 		miss_pill.pivot_offset = miss_pill.size * 0.5
@@ -1009,7 +1017,7 @@ func _fill_sheet(fid: int) -> void:
 	if f.burning:
 		lines.insert(0, "Brennt! Verliert jeden Zug eine Stufe, bis du es gießt.")
 	elif f.is_civilisation():
-		lines.append("Zählt zur Zivilisation (mehr als %d%% lösen ein Erdbeben aus)." % int(round(Balance.CIVILISATION_MAX * 100.0)))
+		lines.append("Zählt zur Zivilisation.")
 	sheet_body.text = "\n".join(lines)
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
@@ -1059,7 +1067,7 @@ func _on_disaster(kind: String, fid: int) -> void:
 	combo_label.text = GameState.DISASTER_NAME[kind] + "!"
 	combo_label.add_theme_color_override("font_color", Style.BAD)
 	_pop_banner()
-	if fid >= 0 and (kind == "quake" or Balance.FIRE_COSTS_LIFE):
+	if fid >= 0 and Balance.FIRE_COSTS_LIFE:
 		_bubble(fid, "-1 Leben", "heart", Style.BAD)
 
 
@@ -1157,12 +1165,12 @@ func _restart() -> void:
 
 func _restart_mode(endless_mode: int) -> void:
 	_close_modal()
-	Game.new_game(0, endless_mode, 0)
+	Game.new_game(0, endless_mode, -1)
 
 
-func _restart_easy() -> void:
+func _restart_level(lvl: int) -> void:
 	_close_modal()
-	Game.new_game(0, 1, 1)
+	Game.new_game(0, 1, lvl)
 
 
 func _show_help() -> void:

@@ -13,7 +13,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 
 1. **Start:** leere Erde und Wiesen, nie drei Wiesen beisammen.
 2. **Die Leiter:** Erde · Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole.
-3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte, ab dem kleinen Wald auch diagonal) entwickeln sich, sobald sich darin etwas verändert hat:
+3. **Verschmelzen:** Drei gleiche Felder in einer Reihe (oder Spalte, in der Stufe Mittel ab dem kleinen Wald auch diagonal) entwickeln sich, sobald sich darin etwas verändert hat:
    Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
    Das gibt Punkte (je höher die Stufe, desto mehr). **Kombo:** Jede weitere Verschmelzung im selben Zug zählt mehr (×2, ×3 …).
    **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
@@ -25,9 +25,8 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    Wiese wächst nur durch Regen.
    **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
    Kein Bonus da? Antippen und mit Credits kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
-6. **Nach unten geht es nur durch Katastrophen** (Brand, Erdbeben).
-7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
-8. **Herzen** = Leben der Welt (3). Ein Erdbeben kostet eines, jedes neue Zeitalter gibt eines zurück.
+6. **Nach unten geht es nur durch Brände.** (Ein Gleichgewicht Natur/Zivilisation gibt es nicht mehr.)
+8. **Herzen** = Leben der Welt (3). Ein Brand kostet eines, jedes neue Zeitalter gibt eines zurück.
    **Spielende:** alle Herzen weg oder nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
    Einmal pro Spiel kann man für Credits weiterspielen.
 9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf),
@@ -35,7 +34,9 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
    **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
    Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
-11. **Modi:** Endlos, 40 Runden oder **Einfach** (alle gleichen Felder, die sich berühren, verschmelzen ab drei). Rekord = Punkte je Modus.
+11. **Stufen** (Menü): **Einfach** – alle gleichen Felder, die sich berühren, verschmelzen ab drei; **Mittel** – Reihen und
+   Diagonalen; **Schwer** – nur gerade Reihen; **Profi** – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp.
+   Dazu der Modus 40 Runden. Rekord = Punkte je Stufe.
 
 Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
 

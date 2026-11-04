@@ -96,6 +96,8 @@ func _shots(dir: String) -> void:
 			k += 1
 			fd.stage = k
 	Game.state.misses = Balance.FIRE_AFTER - 1
+	Game.state.lives = 1      # der Brand kostet das letzte Herz: danach kommt das Spielende
+	Game.state.best_stage = Balance.MAX_STAGE
 	Game.state_changed.emit()
 	await _wait(0.8)
 	world.debug_begin_twist(_visible_field(), Vector2(1, 0.15), 0.62)
@@ -105,14 +107,7 @@ func _shots(dir: String) -> void:
 	await _wait(1.6)
 	await _shot(dir, "14_brand")
 	await _wait(2.5)
-	# Erdbeben: nur Zivilisation, ohne Dreierreihe (auch nicht diagonal)
-	Game.state.lives = 1
-	_fill(func(f: FieldData) -> int: return int([[4, 5, 4], [6, 4, 6], [5, 6, 5]][f.p[(GameState.axis_of(f.n) + 1) % 3] + 1][f.p[(GameState.axis_of(f.n) + 2) % 3] + 1]))
-	await _wait(0.8)
-	world.wait_turn()
-	await _wait(0.8)
-	await _shot(dir, "15_erdbeben")
-	await _wait(3.0)
+	await _wait(1.0)
 	await _shot(dir, "16_ende")
 	get_tree().quit()
 

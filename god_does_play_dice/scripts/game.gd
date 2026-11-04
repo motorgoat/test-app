@@ -22,8 +22,9 @@ var tutorial_done := false
 var credits := 0           # Credits für Tipps (gibt es für Werbung)
 var new_record := false
 var endless := true
-var _best := {"endless": 0, "challenge": 0, "easy": 0}
-var easy := false          # einfacher Modus
+const LEVELS = ["Einfach", "Mittel", "Schwer", "Profi"]
+var level := 1             # 0 Einfach (berühren), 1 Mittel (Reihen + Diagonalen), 2 Schwer (nur Reihen), 3 Profi (ohne Gadgets)
+var _best := {"0": 0, "1": 0, "2": 0, "3": 0, "challenge": 0}
 
 
 func _ready() -> void:
@@ -31,15 +32,15 @@ func _ready() -> void:
 	new_game()
 
 
-## endless_mode / easy_mode: -1 = wie zuletzt, 0 = aus, 1 = an.
-func new_game(seed_value: int = 0, endless_mode: int = -1, easy_mode: int = -1) -> void:
+## endless_mode / lvl: -1 = wie zuletzt.
+func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> void:
 	if endless_mode >= 0:
 		endless = endless_mode == 1
-	if easy_mode >= 0:
-		easy = easy_mode == 1
+	if lvl >= 0:
+		level = lvl
 	best = int(_best[_mode_key()])
 	state = GameState.new()
-	state.setup(seed_value, endless, easy)
+	state.setup(seed_value, endless, level)
 	busy = false
 	over = false
 	continued = false
@@ -47,16 +48,16 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, easy_mode: int = -1) 
 	new_record = false
 	new_game_started.emit()
 	state_changed.emit()
-	if easy:
-		message.emit("Einfacher Modus: Drei gleiche Felder, die sich berühren, verschmelzen.", "info")
-	else:
-		message.emit("Dreh drei gleiche Felder in eine Reihe. Jeder 3. Fehlversuch löst einen Brand aus.", "info")
+	var how := "Drei gleiche Felder, die sich berühren, verschmelzen." if level == 0 else ("Dreh drei gleiche in eine Reihe (auch diagonal)." if level == 1 else "Dreh drei gleiche in eine gerade Reihe.")
+	message.emit("%s: %s Jeder 3. Fehlversuch löst einen Brand aus." % [LEVELS[level], how], "info")
+
+
+func level_name() -> String:
+	return str(LEVELS[level])
 
 
 func _mode_key() -> String:
-	if easy:
-		return "easy"
-	return "endless" if endless else "challenge"
+	return str(level) if endless else "challenge"
 
 
 func rounds_survived() -> int:
@@ -70,7 +71,7 @@ func tutorial() -> bool:
 
 func restart_tutorial() -> void:
 	tutorial_done = false
-	new_game(0, 1, 0)
+	new_game(0, 1, 1)
 
 
 ## Was zählt: die Punkte.
@@ -128,9 +129,9 @@ func finish_round(result: Dictionary) -> void:
 	for e in result["events"]:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])
-			var tail := "Gieß die brennenden Felder, um sie zu löschen." if kind == "fire" else "Die Reihe mit der meisten Zivilisation fällt zurück."
-			if kind == "quake" and Balance.LIVES > 0:
-				tail = "Die Welt hält noch %d %s aus." % [state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"]
+			var tail := "Gieß die brennenden Felder, um sie zu retten."
+			if Balance.LIVES > 0 and Balance.FIRE_COSTS_LIFE:
+				tail = "Noch %d %s. Gieß die brennenden Felder, um sie zu retten." % [state.lives, "Herz" if state.lives == 1 else "Herzen"]
 			message.emit("%s %s! %s. %s" % [gasp(), GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
 	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
 		tutorial_done = true
@@ -239,9 +240,9 @@ func reward_ad() -> void:
 func _load_best() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) == OK:
-		_best["endless"] = int(cfg.get_value("rekord", "endlos_punkte", 0))
+		for k in ["0", "1", "2", "3"]:
+			_best[k] = int(cfg.get_value("rekord", "stufe_" + k, 0))
 		_best["challenge"] = int(cfg.get_value("rekord", "runden40_punkte", 0))
-		_best["easy"] = int(cfg.get_value("rekord", "einfach_punkte", 0))
 		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
 		credits = int(cfg.get_value("konto", "credits", Balance.CREDITS_START))
 	else:
@@ -254,9 +255,9 @@ func _save_best() -> void:
 		best = maxi(best, score())
 		_best[_mode_key()] = best
 	var cfg := ConfigFile.new()
-	cfg.set_value("rekord", "endlos_punkte", int(_best["endless"]))
+	for k in ["0", "1", "2", "3"]:
+		cfg.set_value("rekord", "stufe_" + k, int(_best[k]))
 	cfg.set_value("rekord", "runden40_punkte", int(_best["challenge"]))
-	cfg.set_value("rekord", "einfach_punkte", int(_best["easy"]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
 	cfg.set_value("konto", "credits", credits)
 	cfg.save(SAVE_PATH)

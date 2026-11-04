@@ -12,9 +12,10 @@ extends RefCounted
 ##   5. Fehlversuch = Drehung, die nichts verschmilzt. Jeder 3. Fehlversuch (der Zähler läuft weiter) setzt
 ##      die zuletzt gedrehte Reihe in Brand: Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist
 ##      das Feuer aus. Regen vorher rettet ein Feld.
-##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 ##   7. Boni aus Punkten: Regen macht leere Erde zur Wiese (oder löscht ein Feuer), Blitz hebt eine ganze Reihe.
-##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Nach unten geht es nur durch Katastrophen.
+##   8. Ein Brand kostet ein Leben der Welt (Herz). Nach unten geht es nur durch Brände.
+##      Stufen: Einfach (alles, was sich berührt), Mittel (Reihen + Diagonalen), Schwer (nur Reihen),
+##      Profi (nur Reihen, ohne Regen, Blitz, Monsun und Tipp).
 ##      Das Zeitalter folgt der höchsten erreichten Stufe (Hütte = Steinzeit …); jedes neue gibt ein Leben zurück.
 ##  10. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
 ##   9. Ist nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz), ist das Spiel vorbei.
@@ -22,8 +23,8 @@ extends RefCounted
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_ICON = ["empty", "meadow", "smallforest", "nature", "hut", "house", "village", "town", "bigcity", "metropolis"]
-const DISASTER_NAME = {"quake": "Erdbeben", "fire": "Brand"}
-const DISASTER_WHY = {"quake": "Zu viel Zivilisation", "fire": "3 Fehlversuche"}
+const DISASTER_NAME = {"fire": "Brand"}
+const DISASTER_WHY = {"fire": "3 Fehlversuche"}
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
@@ -47,7 +48,9 @@ var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var endless := true           # Endlos-Modus oder 40 Runden
-var easy := false             # einfacher Modus: alle gleichen Felder, die sich berühren (ab 3), verschmelzen
+var easy := false             # Einfach: alle gleichen Felder, die sich berühren (ab 3), verschmelzen
+var diagonals := true         # Mittel: auch Diagonalen (ab dem kleinen Wald)
+var gadgets := true           # ohne Gadgets (Profi): kein Regen, Blitz, Monsun
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -56,17 +59,20 @@ var _index: Dictionary = {}
 # Aufbau
 # =============================================================================
 
-func setup(seed_value: int = 0, endless_mode: bool = true, easy_mode: bool = false) -> void:
+## level: 0 Einfach, 1 Mittel, 2 Schwer, 3 Profi.
+func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1) -> void:
 	endless = endless_mode
-	easy = easy_mode
+	easy = level == 0
+	diagonals = level <= 1
+	gadgets = level < 3
 	if seed_value != 0:
 		rng.seed = seed_value
 	else:
 		rng.randomize()
 	turn = 1
 	score = 0
-	rain = Balance.RAIN_START
-	bolts = Balance.BOLT_START
+	rain = Balance.RAIN_START if gadgets else 0
+	bolts = Balance.BOLT_START if gadgets else 0
 	next_rain = Balance.RAIN_EVERY
 	next_bolt = Balance.BOLT_EVERY
 	misses = 0
@@ -144,6 +150,8 @@ func clone() -> GameState:
 	gs.turn = turn
 	gs.endless = endless
 	gs.easy = easy
+	gs.diagonals = diagonals
+	gs.gadgets = gadgets
 	gs.score = score
 	gs.rain = rain
 	gs.bolts = bolts
@@ -317,21 +325,6 @@ func age_name() -> String:
 	return str(Balance.AGES[age() - 1])
 
 
-func civilisation_max() -> float:
-	return Balance.CIVILISATION_MAX
-
-
-func in_balance() -> bool:
-	return threat() == ""
-
-
-## Was gerade droht: "quake" (zu viel Zivilisation) oder "" (alles gut).
-func threat() -> String:
-	if civilisation_share() > civilisation_max() + 0.0001:
-		return "quake"
-	return ""
-
-
 func is_over() -> bool:
 	return died() or finished() or stuck()
 
@@ -394,7 +387,7 @@ func lines(only: Dictionary = {}) -> Array:
 			var d0: FieldData = dline[0]
 			var d1: FieldData = dline[1]
 			var d2: FieldData = dline[2]
-			if d0 != null and d1 != null and d2 != null and d0.stage >= Balance.DIAGONAL_FROM and d0.stage == d1.stage and d0.stage == d2.stage:
+			if diagonals and d0 != null and d1 != null and d2 != null and d0.stage >= Balance.DIAGONAL_FROM and d0.stage == d1.stage and d0.stage == d2.stage:
 				if only.is_empty() or only.has(d0.id) or only.has(d1.id) or only.has(d2.id):
 					out.append(dline)
 	return out
@@ -616,13 +609,6 @@ func end_round() -> Dictionary:
 			disaster("fire", ev)
 	_rotated = false
 
-	# 7. Zu viel Zivilisation: Erdbeben
-	if threat() == "quake":
-		disaster("quake", ev)
-		for e in ev:
-			if str(e["type"]) == "disaster" and str(e["kind"]) == "quake":
-				for i in e["hit"]:
-					dirty[int(i)] = true
 	moved = dirty
 	turn += 1
 	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": bool(pr["new_age"])}
@@ -635,6 +621,11 @@ func _progress(gain: int, corners: int) -> Dictionary:
 	for f in fields:
 		best_stage = maxi(best_stage, f.stage)
 	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
+	if not gadgets:
+		var na := age() > age_before
+		if na and Balance.LIVES > 0 and lives > 0:
+			lives = mini(Balance.LIVES, lives + 1)
+		return {"got": got, "new_age": na}
 	if not monsoon_unlocked and best_stage >= Balance.MONSOON_FROM_STAGE:
 		monsoon_unlocked = true
 		next_monsoon = score + Balance.MONSOON_EVERY
@@ -722,24 +713,7 @@ func disaster(kind: String, ev: Array) -> void:
 			if f.stage > 0:
 				f.burning = true
 				hit.append(f.id)
-	elif kind == "quake":
-		# Die Reihe mit der meisten Zivilisation fällt eine Stufe zurück
-		var best: Array = []
-		var best_score := 0
-		for line in all_rows():
-			var sc := 0
-			for g in line:
-				var h: FieldData = g
-				if h.is_civilisation():
-					sc += 10 + h.stage
-			if sc > best_score:
-				best_score = sc
-				best = line
-		for g in best:
-			var h: FieldData = g
-			h.stage = maxi(0, h.stage - 1)
-			hit.append(h.id)
-	if Balance.LIVES > 0 and (kind == "quake" or Balance.FIRE_COSTS_LIFE):
+	if Balance.LIVES > 0 and Balance.FIRE_COSTS_LIFE:
 		lives -= 1
 	disasters += 1
 	last_disaster = kind
