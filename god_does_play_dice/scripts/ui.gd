@@ -120,10 +120,10 @@ func _build() -> void:
 	stv.add_child(_label("Entwicklung", 12, Style.SOFT, true))
 	stage_label = _label("Wiese", 20, Style.TEXT, true)
 	stv.add_child(stage_label)
-	var sp2 := Control.new()
-	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(sp2)
+	var sp_top := Control.new()
+	sp_top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(sp_top)
 	# Leben der Welt (klein)
 	var hrow := HBoxContainer.new()
 	hrow.add_theme_constant_override("separation", 1)
