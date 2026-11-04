@@ -572,7 +572,7 @@ func test_modes() -> void:
 	gx.bolts = 0
 	top(gx, 0, 0).stage = 1
 	top(gx, 1, 1).stage = 1
-	check(gx.stuck() and gx.is_over(), "nichts mehr zu verbinden: Spielende")
+	check(gx.stuck() and not gx.is_over(), "nichts mehr zu verbinden: die Welt stirbt trotzdem nicht")
 	gx.rain = 1
 	check(not gx.stuck(), "mit Regen geht es weiter")
 	var ga := empty_state()
@@ -590,5 +590,11 @@ func test_modes() -> void:
 	check(hard.gadgets and not hard.diagonals and not hard.easy, "Schwer: nur gerade Reihen")
 	var ch := GameState.new()
 	ch.setup(5, false)
-	ch.turn = Balance.MAX_ROUNDS + 1
-	check(ch.finished(), "40-Runden-Modus endet")
+	check(not ch.finished(), "40 Drehungen: läuft noch")
+	for i in Balance.MAX_TWISTS:
+		ch.apply_rotation(1, -1, 1)
+		ch.end_round()
+	check(ch.finished() and ch.twists == Balance.MAX_TWISTS, "nach 40 Drehungen ist Schluss")
+	var en := new_state(5)
+	en.lives = 0
+	check(not en.is_over(), "Endlos: die Welt kann nicht sterben")

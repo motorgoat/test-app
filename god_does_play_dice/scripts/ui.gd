@@ -537,8 +537,8 @@ func _build_help() -> void:
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
-	v.add_child(_help_row("heart", "Herzen sind die Leben der Welt. Ein Brand kostet eines, jedes neue Zeitalter gibt eines zurück. Sind alle weg oder ist nichts mehr zu verbinden, ist das Spiel vorbei. Einmal kannst du für Credits weiterspielen."))
-	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf), Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Runden."))
+	v.add_child(_help_row("trophy", "Die Welt kann nicht sterben. Endlos spielst du, so lange du willst. Im Modus 40 Drehungen zählt, wie viele Punkte du mit 40 Drehungen schaffst."))
+	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf), Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Drehungen."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -565,7 +565,7 @@ func _build_menu() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(_restart_level.bind(i))
 		grid.add_child(b)
-	var challenge_btn := _wide_button("40 Runden", Color.WHITE, Style.TEXT)
+	var challenge_btn := _wide_button("40 Drehungen", Color.WHITE, Style.TEXT)
 	challenge_btn.pressed.connect(_restart_mode.bind(0))
 	v.add_child(challenge_btn)
 	var help := _wide_button("So geht's", Color.WHITE, Style.TEXT)
@@ -832,7 +832,7 @@ func refresh() -> void:
 	if gs.endless:
 		round_label.text = "Punkte · %s" % Game.level_name()
 	else:
-		round_label.text = "Punkte · Runde %d/%d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS]
+		round_label.text = "Punkte · Drehung %d/%d" % [mini(gs.twists, Balance.MAX_TWISTS), Balance.MAX_TWISTS]
 	if _shown_score < 0:
 		_score_display = gs.score
 	elif gs.score != _shown_score:
@@ -1257,21 +1257,9 @@ func _on_game_over() -> void:
 	var gs := Game.state
 	var lines := PackedStringArray()
 	var title: Label = (over_card.get_child(0) as VBoxContainer).get_child(0)
-	if gs.stuck() and not gs.died():
-		title.text = "Nichts mehr zu verbinden"
-		lines.append("Keine Stufe hat mehr drei Felder, und es gibt keinen Regen und keinen Blitz.")
-	elif gs.died():
-		title.text = "Die Welt ist gestorben"
-		lines.append("Zu viele Katastrophen.")
-		if gs.last_disaster != "":
-			var why: String = GameState.DISASTER_WHY[gs.last_disaster]
-			lines.append("Zuletzt: %s (%s)." % [GameState.DISASTER_NAME[gs.last_disaster], why.left(1).to_lower() + why.substr(1)])
-	else:
-		title.text = "Geschafft!"
-	lines.append("")
+	title.text = "40 Drehungen geschafft!"
 	lines.append("Punkte: %d" % gs.score)
-	lines.append("Entwicklung: %s" % GameState.stage_name(gs.best_stage))
-	lines.append("Runden: %d · %s" % [Game.rounds_survived(), gs.age_name()])
+	lines.append("Entwicklung: %s · %s" % [GameState.stage_name(gs.best_stage), gs.age_name()])
 	if Game.new_record:
 		lines.append("Neuer Rekord!")
 	else:

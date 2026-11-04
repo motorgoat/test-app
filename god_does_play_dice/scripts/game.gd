@@ -136,6 +136,10 @@ func finish_round(result: Dictionary) -> void:
 	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
 		tutorial_done = true
 		_save_best()
+	# Nichts mehr zu verbinden? Die Welt stirbt nicht: Es gibt einen Regen geschenkt.
+	if not state.is_over() and state.gadgets and state.stuck():
+		state.grant("rain")
+		message.emit("Nichts mehr zu verbinden. %s Hier ist ein Regen." % praise(), "good")
 	if state.is_over():
 		over = true
 		_save_best()
@@ -184,7 +188,7 @@ static func gasp() -> String:
 
 ## Einmal pro Spiel nach dem Ende weiterspielen (kostet Credits).
 func can_continue() -> bool:
-	return over and not continued and (state.died() or state.stuck())
+	return false      # die Welt kann nicht sterben
 
 
 ## Einen Schritt zurück: der Stand vor dem letzten Zug (nur einmal hintereinander).

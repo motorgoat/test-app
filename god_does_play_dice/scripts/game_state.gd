@@ -18,7 +18,8 @@ extends RefCounted
 ##      Profi (nur Reihen, ohne Regen, Blitz, Monsun und Tipp).
 ##      Das Zeitalter folgt der höchsten erreichten Stufe (Hütte = Steinzeit …); jedes neue gibt ein Leben zurück.
 ##  10. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
-##   9. Ist nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz), ist das Spiel vorbei.
+##   9. Die Welt kann nicht sterben. Endlos endet nie; der andere Modus endet nach 40 Drehungen.
+##      Ist nichts mehr zu verbinden, gibt es einen Regen geschenkt.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
@@ -40,6 +41,7 @@ var next_bolt: int = 0        # … und den nächsten Blitz
 var misses: int = 0           # Fehlversuche seit dem letzten Brand
 var last_row: Array = []      # IDs der zuletzt gedrehten Reihe (brennt beim 3. Fehlversuch)
 var _rotated := false         # dieser Zug war eine Drehung
+var twists: int = 0           # Drehungen bisher (40-Drehungen-Modus)
 var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Verschmelzen bevorzugt auf
 var before_lines := {}        # Reihen, die vor diesem Zug schon dastanden: lösen nichts aus (nur neue Reihen zählen)
 var meteors_used: int = 0
@@ -77,6 +79,7 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1) -> vo
 	next_rain = Balance.RAIN_EVERY
 	next_bolt = Balance.BOLT_EVERY
 	misses = 0
+	twists = 0
 	monsoons = 0
 	monsoon_unlocked = false
 	next_monsoon = 0
@@ -164,6 +167,7 @@ func clone() -> GameState:
 	gs.next_monsoon = next_monsoon
 	gs.last_row = last_row.duplicate()
 	gs._rotated = _rotated
+	gs.twists = twists
 	gs.tapped = tapped
 	gs.before_lines = before_lines.duplicate()
 	gs.best_stage = best_stage
@@ -328,8 +332,9 @@ func age_name() -> String:
 	return str(Balance.AGES[age() - 1])
 
 
+## Die Welt kann nicht sterben: Endlos endet nie, sonst nach 40 Drehungen.
 func is_over() -> bool:
-	return died() or finished() or stuck()
+	return finished()
 
 
 ## Nichts mehr zu verbinden: keine Stufe hat noch 3 Felder, und es gibt weder Regen noch Blitz.
@@ -347,7 +352,7 @@ func died() -> bool:
 
 
 func finished() -> bool:
-	return not endless and turn > Balance.MAX_ROUNDS
+	return not endless and twists >= Balance.MAX_TWISTS
 
 
 ## Alle Reihen/Spalten aus 3 gleichen Feldern (nicht leer) auf einer Seite.
@@ -645,6 +650,8 @@ func end_round() -> Dictionary:
 	var got: Dictionary = pr["got"]
 
 	# 6. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
+	if _rotated:
+		twists += 1
 	if _rotated and gain == 0:
 		misses += 1
 		var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1

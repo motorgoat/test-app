@@ -26,17 +26,15 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
    Kein Bonus da? Antippen und mit Credits kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
 6. **Nach unten geht es nur durch Brände.** (Ein Gleichgewicht Natur/Zivilisation gibt es nicht mehr.)
-8. **Herzen** = Leben der Welt (3). Ein Brand kostet eines, jedes neue Zeitalter gibt eines zurück.
-   **Spielende:** alle Herzen weg oder nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
-   Einmal pro Spiel kann man für Credits weiterspielen.
+8. **Die Welt kann nicht sterben.** Endlos endet nie; ist nichts mehr zu verbinden, gibt es einen Regen geschenkt.
 9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Antike (Haus), Mittelalter (Dorf),
-   Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Herz zurück.
+   Neuzeit (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole).
 10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
    **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
    Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
 11. **Stufen** (Menü): **Einfach** – eine neue Reihe löst aus, die ganze zusammenhängende Gruppe verschmilzt ins neue Feld, die übrigen Felder füllen sich neu mit Erde oder Wiese (wie bei Candy Crush); **Mittel** – Reihen und
    Diagonalen; **Schwer** – nur gerade Reihen; **Profi** – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp.
-   Dazu der Modus 40 Runden. Rekord = Punkte je Stufe.
+   Dazu der Modus 40 Drehungen (gezählt werden nur Drehungen). Rekord = Punkte je Stufe.
 
 Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
 

@@ -30,9 +30,9 @@ static var POLLUTION_FROM := 99           # ab dieser Stufe wird Natur daneben z
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
 # --- Katastrophen ------------------------------------------------------------------------
-static var LIVES := 3                     # Leben der Welt (Herzen). Ein Brand kostet eines. 0 = keine Leben
+static var LIVES := 0                     # Die Welt kann nicht sterben: keine Leben, keine Herzen
 static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
-static var FIRE_COSTS_LIFE := true        # kostet ein Brand ein Leben?
+static var FIRE_COSTS_LIFE := false       # kostet ein Brand ein Leben?
 
 # --- Boni ------------------------------------------------------------------------------
 static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es
@@ -53,8 +53,8 @@ static var MONSOON_COST := 5
 # Zeitalter: bestimmt die höchste erreichte Stufe. Jedes neue Zeitalter gibt ein Leben zurück.
 static var AGES := ["Urzeit", "Steinzeit", "Antike", "Mittelalter", "Neuzeit", "Industriezeitalter", "Moderne"]
 static var AGE_FROM_STAGE := [1, 4, 5, 6, 7, 8, 9]   # Hütte = Steinzeit, Haus = Antike, Dorf = Mittelalter, Stadt = Neuzeit …
-# 40 Runden: so viele Punkte wie möglich.
-static var MAX_ROUNDS := 40
+# 40 Drehungen: so viele Punkte wie möglich (gezählt werden nur Drehungen).
+static var MAX_TWISTS := 40
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42
