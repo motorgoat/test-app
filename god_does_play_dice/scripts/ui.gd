@@ -328,7 +328,7 @@ func _build_help() -> void:
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
 	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Die Mitte steigt auf (Wiese → Wald → Dorf → Stadt → Fabrik), die beiden äußeren fallen eine Stufe zurück."))
-	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 3 Natur-Felder daneben liegen."))
+	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 2 Natur-Felder daneben liegen."))
 	v.add_child(_help_row("industry", "Städte und Fabriken bringen jede Runde Glauben. Fabriken zerstören aber die Natur daneben."))
 	v.add_child(_help_row("balance", "Zu wenig Natur oder zu viel Zivilisation: Die Welt stirbt."))
 	v.add_child(_help_row("meteor", "Der Meteorit kostet Glauben und macht ein Feld samt Nachbarn zu Erde. Setz ihn im richtigen Moment ein."))

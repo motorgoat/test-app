@@ -16,7 +16,7 @@ static var START_MEADOW := 0.6            # Anteil Wiesen, der Rest ist leere Er
 
 # --- Jede Runde -------------------------------------------------------------------
 static var INCOME := [0, 0, 0, 0, 1, 3]   # Glaube pro Runde je Feld dieser Stufe (Stadt, Fabrik)
-static var REGROW_NEIGHBORS := 3          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
+static var REGROW_NEIGHBORS := 2          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
 static var POLLUTION_PER_FACTORY := 1     # jede Fabrik macht pro Runde so viele Natur-Nachbarn zu Erde
 
 # --- Gleichgewicht ------------------------------------------------------------------
