@@ -81,3 +81,9 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - **Schwerer Modus**: ohne Gadgets (kein Regen, Blitz, Monsun, Tipp).
 - Gestrichen: Gleichgewicht Natur/Zivilisation (Erdbeben, Überschwemmung, Waldbrand).
 - Umgesetzt: Stufen Einfach / Mittel / Schwer / Profi (ohne Gadgets).
+- **Neue Themes** (Shop/Einstellungen), statt Natur und Siedlungen:
+  - nur mit **Zahlen** (Stufe als Zahl auf dem Feld),
+  - **Schwarz-Weiß**,
+  - **Farben** (jede Stufe eine klare Farbe),
+  - **immer dunkler** (jede Stufe eine Spur dunkler),
+  - **Zeitalter/Epochen** (Stufen als Epochen dargestellt).
