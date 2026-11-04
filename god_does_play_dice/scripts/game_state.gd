@@ -20,6 +20,7 @@ var turn: int = 1
 var faith: int = 0            # Glaube = Punkte und Währung für Meteoriten
 var meteors_used: int = 0
 var bad_rounds: int = 0       # Runden in Folge außerhalb des Gleichgewichts
+var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -37,6 +38,7 @@ func setup(seed_value: int = 0) -> void:
 	faith = 0
 	meteors_used = 0
 	bad_rounds = 0
+	moved = {}
 	fields.clear()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
@@ -66,6 +68,7 @@ func clone() -> GameState:
 	gs.faith = faith
 	gs.meteors_used = meteors_used
 	gs.bad_rounds = bad_rounds
+	gs.moved = moved.duplicate()
 	gs.rng.seed = rng.seed
 	gs.rng.state = rng.state
 	for f in fields:
@@ -135,6 +138,9 @@ func neighbors(f: FieldData) -> Array:
 ## Wie ein echter Zauberwürfel: alle Felder der Scheibe drehen mit, auch die Mitten.
 func apply_rotation(axis: int, layer: int, turns: int) -> void:
 	var d := 1 if turns > 0 else -1
+	for f in fields:
+		if f.p[axis] == layer:
+			moved[f.id] = true
 	for i in absi(turns):
 		for f in fields:
 			if f.p[axis] == layer:
@@ -183,14 +189,29 @@ func meteor_cost() -> int:
 
 
 func is_over() -> bool:
-	if bad_rounds >= Balance.LOSE_AFTER:
-		return true
+	return died() or finished()
+
+
+func died() -> bool:
+	return bad_rounds >= Balance.LOSE_AFTER
+
+
+func finished() -> bool:
 	return Balance.MAX_ROUNDS > 0 and turn > Balance.MAX_ROUNDS
 
 
+func stars() -> int:
+	var s := 0
+	for t in Balance.STARS:
+		if faith >= int(t):
+			s += 1
+	return s
+
+
 ## Alle Reihen/Spalten aus 3 gleichen Feldern (nicht leer) auf einer Seite.
+## Mit only: nur Reihen, die mindestens eines dieser Felder enthalten.
 ## Jede Reihe ist ein Array aus 3 FieldData, das mittlere Feld an Index 1.
-func lines() -> Array:
+func lines(only: Dictionary = {}) -> Array:
 	var out: Array = []
 	for n in FACE_NORMALS:
 		var nv: Vector3i = n
@@ -211,14 +232,22 @@ func lines() -> Array:
 				var f1: FieldData = line[1]
 				var f2: FieldData = line[2]
 				if f0 != null and f1 != null and f2 != null and f0.stage > 0 and f0.stage == f1.stage and f0.stage == f2.stage:
-					out.append(line)
+					if only.is_empty() or only.has(f0.id) or only.has(f1.id) or only.has(f2.id):
+						out.append(line)
 	return out
 
 
-## Punkte, die eine Drehung sofort durch Verschmelzen bringen würde (ohne Kettenreaktion).
+## Reihen, die die letzte Drehung vervollständigt hat.
+func moved_lines() -> Array:
+	if moved.is_empty():
+		return []
+	return lines(moved)
+
+
+## Punkte, die die letzte Drehung sofort durch Verschmelzen bringt (ohne Kettenreaktion).
 func merge_value() -> int:
 	var pts := 0
-	for line in lines():
+	for line in moved_lines():
 		pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).stage])
 	return pts
 
@@ -227,14 +256,19 @@ func merge_value() -> int:
 # Runde auswerten
 # =============================================================================
 
-## Verschmilzt alle Reihen, auch Kettenreaktionen. Gibt die Punkte zurück.
+## Verschmilzt die Reihen, die die Drehung vervollständigt hat, dann Kettenreaktionen
+## (Reihen mit Feldern, die sich gerade verändert haben). Gibt die Punkte zurück.
 func resolve_merges(ev: Array) -> int:
 	var total := 0
 	var combo := 0
+	var focus := moved.duplicate()
 	for pass_i in Balance.MAX_CASCADES:
-		var found := lines()
+		if focus.is_empty():
+			break
+		var found := lines(focus)
 		if found.is_empty():
 			break
+		focus = {}
 		combo += 1
 		var used := {}
 		for line in found:
@@ -251,12 +285,16 @@ func resolve_merges(ev: Array) -> int:
 			var b: FieldData = line[2]
 			var pts: int = int(Balance.MERGE_POINTS[mid.stage]) * combo
 			total += pts
+			var was := mid.stage
 			if mid.stage < Balance.MAX_STAGE:
 				mid.stage += 1
-			a.stage = 0
-			b.stage = 0
+			a.stage = was - 1
+			b.stage = was - 1
 			a.fresh = 0
 			b.fresh = 0
+			focus[mid.id] = true
+			focus[a.id] = true
+			focus[b.id] = true
 			ev.append({"type": "merge", "field": mid.id, "others": [a.id, b.id], "points": pts, "combo": combo, "stage": mid.stage})
 	return total
 
@@ -265,8 +303,9 @@ func resolve_merges(ev: Array) -> int:
 ## Gibt {"events": Array, "gain": int} zurück.
 func end_round() -> Dictionary:
 	var ev: Array = []
-	# 1. Drei in einer Reihe verschmelzen sofort
+	# 1. Drei in einer Reihe verschmelzen sofort (nur durch die Drehung vervollständigte)
 	var gain := resolve_merges(ev)
+	moved = {}
 
 	# 2. Fabriken verschmutzen Natur daneben
 	for f in fields:

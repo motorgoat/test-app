@@ -447,7 +447,7 @@ func _show_preview(q: int) -> void:
 	var arranged: GameState = pv["arranged"]
 	var lit := {}
 	var mids := {}
-	for line in arranged.lines():
+	for line in arranged.moved_lines():
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[1]

@@ -126,7 +126,7 @@ func _build() -> void:
 		cnt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(cnt)
 		ladder_counts.append(cnt)
-	var rule := _label("3 gleiche in einer Reihe = nächste Stufe", 13, Style.SOFT, true)
+	var rule := _label("Dreh 3 gleiche in eine Reihe: Mitte steigt auf, Rand fällt zurück", 13, Style.SOFT, true)
 	rule.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cv.add_child(rule)
 
@@ -327,11 +327,12 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen zur nächsten Stufe: Wiese → Wald → Dorf → Stadt → Fabrik."))
-	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn genug Natur daneben ist."))
+	v.add_child(_help_row("up", "Vervollständigst du durch eine Drehung eine Reihe aus 3 gleichen Feldern, verschmelzen sie: Die Mitte steigt auf (Wiese → Wald → Dorf → Stadt → Fabrik), die beiden äußeren fallen eine Stufe zurück."))
+	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 3 Natur-Felder daneben liegen."))
 	v.add_child(_help_row("industry", "Städte und Fabriken bringen jede Runde Glauben. Fabriken zerstören aber die Natur daneben."))
 	v.add_child(_help_row("balance", "Zu wenig Natur oder zu viel Zivilisation: Die Welt stirbt."))
 	v.add_child(_help_row("meteor", "Der Meteorit kostet Glauben und macht ein Feld samt Nachbarn zu Erde. Setz ihn im richtigen Moment ein."))
+	v.add_child(_help_row("trophy", "Ziel: in %d Runden möglichst viel Glauben. %d / %d / %d Glaube = 1 / 2 / 3 Sterne." % [Balance.MAX_ROUNDS, int(Balance.STARS[0]), int(Balance.STARS[1]), int(Balance.STARS[2])]))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -498,7 +499,7 @@ func refresh() -> void:
 	if root == null or Game.state == null:
 		return
 	var gs := Game.state
-	round_label.text = "Runde %d" % gs.turn
+	round_label.text = "Runde %d / %d" % [mini(gs.turn, Balance.MAX_ROUNDS), Balance.MAX_ROUNDS] if Balance.MAX_ROUNDS > 0 else "Runde %d" % gs.turn
 	if _shown_faith < 0:
 		_faith_display = gs.faith
 	if _shown_faith >= 0 and gs.faith != _shown_faith:
@@ -584,7 +585,7 @@ func _on_preview(info: Dictionary) -> void:
 		tw.tween_property(preview_card, "modulate:a", 0.0, 0.15)
 		return
 	var arranged: GameState = info["arranged"]
-	var merges := arranged.lines().size()
+	var merges := arranged.moved_lines().size()
 	var gain := int(info["gain"])
 	if merges > 0:
 		preview_label.text = "%d× Verschmelzen   ·   +%d Glaube" % [merges, gain]
@@ -640,7 +641,7 @@ func _fill_sheet(fid: int) -> void:
 		lines.append("Drei Fabriken in einer Reihe: +%d Glaube." % int(Balance.MERGE_POINTS[f.stage]))
 	else:
 		if true:
-			lines.append("Drei davon in einer Reihe werden zu: %s (+%d Glaube)." % [GameState.stage_name(f.stage + 1), int(Balance.MERGE_POINTS[f.stage])])
+			lines.append("Dreh 3 davon in eine Reihe: Die Mitte wird %s (+%d Glaube), die beiden äußeren werden %s." % [GameState.stage_name(f.stage + 1), int(Balance.MERGE_POINTS[f.stage]), GameState.stage_name(f.stage - 1)])
 			if int(Balance.INCOME[f.stage]) > 0:
 				lines.append("Bringt +%d Glauben pro Runde." % int(Balance.INCOME[f.stage]))
 	sheet_body.text = "\n".join(lines)
@@ -797,13 +798,20 @@ func _on_new_game() -> void:
 func _on_game_over() -> void:
 	var gs := Game.state
 	var lines := PackedStringArray()
-	if gs.nature_share() < Balance.NATURE_MIN:
-		lines.append("Es gab zu wenig Natur.")
+	var title: Label = (over_card.get_child(0) as VBoxContainer).get_child(0)
+	if gs.died():
+		title.text = "Die Welt ist gestorben"
+		if gs.nature_share() < Balance.NATURE_MIN:
+			lines.append("Es gab zu wenig Natur.")
+		else:
+			lines.append("Es gab zu viel Zivilisation.")
+		lines.append("Überlebt: %d Runden" % Game.rounds_survived())
 	else:
-		lines.append("Es gab zu viel Zivilisation.")
+		title.text = "Geschafft!"
+		var st := gs.stars()
+		lines.append("★".repeat(st) + "☆".repeat(3 - st))
 	lines.append("")
 	lines.append("Glaube: %d" % gs.faith)
-	lines.append("Überlebt: %d Runden" % Game.rounds_survived())
 	if Game.new_record:
 		lines.append("Neuer Rekord!")
 	else:

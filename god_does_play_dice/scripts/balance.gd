@@ -3,7 +3,8 @@ extends RefCounted
 ## Zentrale Balancing-Datei: ALLE Spielzahlen stehen hier.
 
 # --- Die Leiter -------------------------------------------------------------------
-# Drei gleiche in einer Reihe verschmelzen zur nächsten Stufe:
+# Drei gleiche in einer Reihe verschmelzen, wenn DEINE Drehung die Reihe vervollständigt:
+#   die Mitte steigt eine Stufe auf, die beiden äußeren fallen eine Stufe zurück.
 #   Leere Erde (0) · Wiese (1) → Wald (2) → Dorf (3) → Stadt (4) → Fabrik (5)
 static var MAX_STAGE := 5
 # Glaube fürs Verschmelzen, nach Stufe der verschmolzenen Felder (Index = Stufe), × Kombo
@@ -15,7 +16,7 @@ static var START_MEADOW := 0.6            # Anteil Wiesen, der Rest ist leere Er
 
 # --- Jede Runde -------------------------------------------------------------------
 static var INCOME := [0, 0, 0, 0, 1, 3]   # Glaube pro Runde je Feld dieser Stufe (Stadt, Fabrik)
-static var REGROW_NEIGHBORS := 2          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
+static var REGROW_NEIGHBORS := 3          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
 static var POLLUTION_PER_FACTORY := 1     # jede Fabrik macht pro Runde so viele Natur-Nachbarn zu Erde
 
 # --- Gleichgewicht ------------------------------------------------------------------
@@ -28,7 +29,8 @@ static var METEOR_COST := 30              # Glaube für den ersten Meteoriten
 static var METEOR_COST_STEP := 15         # jeder weitere kostet mehr
 
 # --- Spielende --------------------------------------------------------------------
-static var MAX_ROUNDS := 0                # 0 = endlos
+static var MAX_ROUNDS := 40               # Rundenzahl einer Partie (0 = endlos)
+static var STARS := [80, 180, 320]        # Glaube für 1, 2, 3 Sterne
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42

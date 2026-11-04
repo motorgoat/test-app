@@ -57,6 +57,7 @@ func _shots(dir: String) -> void:
 	# Eine Dreierreihe Wiesen auf der sichtbaren Seite bauen und verschmelzen lassen
 	for f in _visible_row():
 		(f as FieldData).stage = 1
+		Game.state.moved[(f as FieldData).id] = true
 	Game.state_changed.emit()
 	await _wait(0.8)
 	await _shot(dir, "06_reihe")

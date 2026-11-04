@@ -93,9 +93,19 @@ func test_merge() -> void:
 	check(gs.lines().is_empty(), "verschiedene Stufen verschmelzen nicht")
 	c.stage = 1
 	check(gs.lines().size() == 1, "drei Wiesen in einer Reihe")
+	check(gs.moved_lines().is_empty(), "ohne Drehung verschmilzt nichts")
+	var r0 := gs.end_round()
+	check(b.stage == 1, "Warten lässt die Reihe stehen")
+	gs.moved[c.id] = true
 	var r := gs.end_round()
 	check(b.stage == 2, "Mitte wird Wald (%d)" % b.stage)
-	check(a.stage == 0 and c.stage == 0, "Außen wird leere Erde")
+	check(a.stage == 0 and c.stage == 0, "Außen fällt zurück (Wiese → Erde)")
+	var gs4 := empty_state()
+	for x in [-1, 0, 1]:
+		top(gs4, x, 1).stage = 3
+	gs4.moved = {top(gs4, 1, 1).id: true}
+	gs4.resolve_merges([])
+	check(top(gs4, 0, 1).stage == 4 and top(gs4, -1, 1).stage == 2, "3 Dörfer → Stadt und zwei Wälder")
 	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Glaube fürs Verschmelzen (%d)" % int(r["gain"]))
 	# Die ganze Leiter hinauf
 	var gs2 := empty_state()
@@ -104,6 +114,7 @@ func test_merge() -> void:
 		top(gs2, -1, -1).stage = s
 		top(gs2, -1, 0).stage = s
 		top(gs2, -1, 1).stage = s
+		gs2.moved = {top(gs2, -1, 1).id: true}
 		gs2.resolve_merges([])
 		names.append(top(gs2, -1, 0).stage)
 	check(names == [2, 3, 4, 5], "Leiter Wiese → Wald → Dorf → Stadt → Fabrik (%s)" % str(names))
@@ -122,6 +133,7 @@ func test_cascade() -> void:
 	top(gs, 1, 1).stage = 1
 	top(gs, 0, 0).stage = 2
 	top(gs, -1, 0).stage = 2
+	gs.moved = {top(gs, 1, 1).id: true}
 	var ev: Array = []
 	var pts := gs.resolve_merges(ev)
 	check(ev.size() == 2, "Kettenreaktion: zwei Verschmelzungen (%d)" % ev.size())
