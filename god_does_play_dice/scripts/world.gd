@@ -69,10 +69,10 @@ func _ready() -> void:
 
 func _setup_environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#9fd3f5")
-	sky_mat.sky_horizon_color = Color("#fdeedd")
-	sky_mat.ground_horizon_color = Color("#fdeedd")
-	sky_mat.ground_bottom_color = Color("#f6dcc0")
+	sky_mat.sky_top_color = Color("#7cc0f0")
+	sky_mat.sky_horizon_color = Color("#e6f3fb")
+	sky_mat.ground_horizon_color = Color("#e6f3fb")
+	sky_mat.ground_bottom_color = Color("#cfe6f5")
 	sky_mat.sun_angle_max = 0.0
 	sky_mat.sky_curve = 0.12
 	var sky := Sky.new()
@@ -120,7 +120,7 @@ func rebuild() -> void:
 	var gs := Game.state
 	var by_pos := {}
 	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.12, 4)
-	var body_mat := Models.mat(Color("#3a3d4a"), 0.35)
+	var body_mat := Models.mat(Color("#2b6fa8"), 0.25)   # Meer zwischen den Feldern: der Würfel ist eine Welt
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
 			for z in [-1, 0, 1]:
@@ -145,6 +145,7 @@ func rebuild() -> void:
 		v.build(f)
 		views[f.id] = v
 	refresh_all()
+	_add_clouds()
 
 
 static func _is_center_cubie(p: Vector3i) -> bool:
@@ -184,6 +185,23 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 
 
 
+## Ein paar Wolken ziehen langsam um die Welt.
+var _clouds: Node3D
+
+
+func _add_clouds() -> void:
+	_clouds = Node3D.new()
+	cube_root.add_child(_clouds)
+	var cm := Models.mat(Color("#ffffff"), 0.9)
+	var spots := [Vector3(2.5, 1.4, 0.6), Vector3(-1.2, 1.9, 2.3), Vector3(-2.6, -0.4, -1.0), Vector3(0.8, -1.7, -2.4), Vector3(1.6, 0.5, -2.5)]
+	for sp in spots:
+		var c := Node3D.new()
+		c.position = sp
+		_clouds.add_child(c)
+		for k in 4:
+			Models.sphere(c, randf_range(0.14, 0.22), Color.WHITE, Vector3(randf_range(-0.25, 0.25), randf_range(-0.04, 0.06), randf_range(-0.12, 0.12)), cm)
+
+
 ## Regensymbole auf den Feldern, wo Gießen etwas bringt (nur solange man den Regen gewählt hat).
 func show_rain_spots(on: bool) -> void:
 	var spots := Game.state.rain_spots() if on else {}
@@ -200,6 +218,8 @@ func select(fid: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if _clouds != null and is_instance_valid(_clouds):
+		_clouds.rotate_y(delta * 0.06)
 	if _mode == "" and not animating and not Game.busy and not Game.over:
 		_idle += delta
 		if Game.tutorial() and _idle > 1.2 and not _hinted:
@@ -214,7 +234,7 @@ func _process(delta: float) -> void:
 		tw.tween_property(cube_root, "scale", Vector3.ONE * 0.96, 0.08)
 		tw.tween_property(cube_root, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if _mode == "twist" and _pivot != null:
-		_tw_display = lerpf(_tw_display, _tw_angle, 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
+		_tw_display = lerpf(_tw_display, _detent(_tw_angle), 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
 		var ax := Vector3.ZERO
 		ax[_tw_axis] = 1.0
 		_pivot.basis = Basis(ax, _tw_display)
@@ -534,6 +554,15 @@ func _set_bolt_row(row: Array) -> void:
 		var v: FieldView = views.get(int(i))
 		if v != null:
 			v.set_highlight(true)
+
+
+## Rastung: Nahe einer Vierteldrehung bleibt die Scheibe kleben, über die Hälfte zieht sie von selbst weiter.
+func _detent(a: float) -> float:
+	var q := PI * 0.5
+	var n := roundf(a / q)
+	var frac := (a - n * q) / q
+	var y := pow(absf(frac) * 2.0, Balance.TWIST_DETENT)
+	return (n + signf(frac) * y * 0.5) * q
 
 
 func _update_twist(pos: Vector2) -> void:

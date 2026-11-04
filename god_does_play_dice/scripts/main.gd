@@ -75,8 +75,7 @@ func _shots(dir: String) -> void:
 	await _wait(0.9)
 	await _shot(dir, "09_regen")
 	await _wait(2.4)
-	var bf := _visible_field(1)
-	Game.use_bonus("bolt", bf, world.screen_row(bf))
+	Game.use_bonus("bolt", _visible_corner(), [])
 	await _wait(0.35)
 	await _shot(dir, "10_blitz")
 	await _wait(2.4)
@@ -148,6 +147,22 @@ func _visible_field(only: int = -1) -> int:
 		if v == null:
 			continue
 		if (only == 0 and f.stage != 0) or (only == 1 and f.stage == 0):
+			continue
+		var score := v.world_normal().dot((cam_pos - v.global_position).normalized())
+		if score > best_score:
+			best_score = score
+			best = f.id
+	return best
+
+
+## Ein gut sichtbares Eckfeld (für den Blitz).
+func _visible_corner() -> int:
+	var cam_pos := world.rig.cam.global_position
+	var best := 0
+	var best_score := -INF
+	for f in Game.state.fields:
+		var v: FieldView = world.views.get(f.id)
+		if v == null or Game.state.corner_diagonal(f).is_empty():
 			continue
 		var score := v.world_normal().dot((cam_pos - v.global_position).normalized())
 		if score > best_score:

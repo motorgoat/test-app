@@ -125,7 +125,7 @@ func _build() -> void:
 	sv.add_theme_constant_override("separation", -4)
 	sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sv)
-	score_label = _label("0", 44, Style.TEXT, true)
+	score_label = _label("0", 48, Style.TEXT, true)
 	sv.add_child(score_label)
 	round_label = _label("Punkte", 12, Style.SOFT, true)
 	sv.add_child(round_label)
@@ -260,7 +260,7 @@ func _build() -> void:
 	mode_card.visible = false
 	bottom.add_child(mode_card)
 	var brow := HBoxContainer.new()
-	brow.add_theme_constant_override("separation", 8)
+	brow.add_theme_constant_override("separation", 6)
 	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_child(brow)
 	rain_btn = _bonus_button("rain", _on_bonus_pressed.bind("rain"))
@@ -276,7 +276,7 @@ func _build() -> void:
 	brow.add_child(sp2)
 	# Fehlversuche: groß und eindeutig
 	miss_pill = Button.new()
-	miss_pill.custom_minimum_size = Vector2(92, 50)
+	miss_pill.custom_minimum_size = Vector2(104, 60)
 	var flames := HBoxContainer.new()
 	flames.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	flames.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -286,7 +286,7 @@ func _build() -> void:
 	for i in Balance.FIRE_AFTER:
 		var fl := TextureRect.new()
 		fl.texture = Style.icon("fire_off")
-		fl.custom_minimum_size = Vector2(26, 26)
+		fl.custom_minimum_size = Vector2(30, 30)
 		fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -303,11 +303,11 @@ func _build() -> void:
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp3)
-	undo_btn = _round_button("undo", _on_undo_pressed, 50)
+	undo_btn = _round_button("undo", _on_undo_pressed, 44)
 	brow.add_child(undo_btn)
-	hint_btn = _round_button("bulb", _on_hint_pressed, 50)
+	hint_btn = _round_button("bulb", _on_hint_pressed, 44)
 	brow.add_child(hint_btn)
-	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 50))
+	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 44))
 
 	gift_layer = Control.new()
 	gift_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -344,10 +344,10 @@ func _build() -> void:
 func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.icon = Style.icon(icon_name)
-	b.add_theme_constant_override("icon_max_width", 30)
+	b.add_theme_constant_override("icon_max_width", 40)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.expand_icon = false
-	b.custom_minimum_size = Vector2(62, 54)
+	b.custom_minimum_size = Vector2(68, 64)
 	# Punkte unten im Knopf: so viele hast du (statt einer Zahl)
 	var pips := HBoxContainer.new()
 	pips.name = "Pips"
@@ -478,10 +478,6 @@ func _sheet_bonus(kind: String) -> void:
 	if fid < 0:
 		return
 	_close_sheet()
-	if kind == "bolt":
-		_set_bonus_mode("bolt")
-		_on_message("Zieh den Finger über die Reihe, die der Blitz treffen soll.", "info")
-		return
 	if Game.use_bonus(kind, fid, []):
 		_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
 
@@ -511,7 +507,8 @@ func _build_help() -> void:
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. Ab dem kleinen Wald zählen auch Diagonalen (quer über die Seite)."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß leere Erde, sie wird zur Wiese. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
-	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Wähl den Blitz und zieh den Finger über eine Reihe, in jede Richtung. Die ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
+	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
+	v.add_child(_help_row("up", "Einfacher Modus (im Menü): Alle gleichen Felder, die sich berühren, verschmelzen schon ab drei."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
@@ -535,6 +532,9 @@ func _build_menu() -> void:
 	var challenge_btn := _wide_button("Neues Spiel: 40 Runden", Color.WHITE, Style.TEXT)
 	challenge_btn.pressed.connect(_restart_mode.bind(0))
 	v.add_child(challenge_btn)
+	var easy_btn := _wide_button("Neues Spiel: Einfach", Color.WHITE, Style.TEXT)
+	easy_btn.pressed.connect(_restart_easy)
+	v.add_child(easy_btn)
 	var help := _wide_button("So geht's", Color.WHITE, Style.TEXT)
 	help.pressed.connect(_show_help)
 	v.add_child(help)
@@ -812,6 +812,11 @@ func refresh() -> void:
 	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
 	credits_btn.text = str(Game.credits)
 	rain_ready.visible = gs.rain > 0 and not Game.over and bonus_mode == ""
+	if bonus_mode == "rain":
+		if gs.rain <= 0:
+			_set_bonus_mode("")
+		elif not world.animating:
+			world.show_rain_spots(true)
 	_set_pips(rain_btn, gs.rain, Balance.RAIN_MAX, Style.WATER)
 	_set_pips(bolt_btn, gs.bolts, Balance.BOLT_MAX, Color("#e0a100"))
 	_set_pips(monsoon_btn, gs.monsoons, Balance.MONSOON_MAX, Style.WATER)
@@ -888,13 +893,13 @@ func _set_bonus_mode(kind: String) -> void:
 	bonus_mode = kind
 	mode_card.visible = kind != ""
 	world.show_rain_spots(kind == "rain")
-	world.bolt_mode = kind == "bolt"
+	world.bolt_mode = false      # Blitz wird nicht mehr gezogen, sondern auf ein Eckfeld getippt
 	if rain_ready != null:
 		rain_ready.visible = kind == "" and Game.state.rain > 0 and not Game.over
 	if kind == "rain":
 		mode_label.text = "Tippe leere Erde an (Wolke = lohnt sich):\nSie wird Wiese. Feuer wird gelöscht"
 	elif kind == "bolt":
-		mode_label.text = "Zieh den Finger über eine Reihe:\nDer Blitz hebt sie eine Stufe"
+		mode_label.text = "Tippe ein Eckfeld an: Der Blitz\nhebt die Diagonale dieser Seite"
 	elif kind == "monsoon":
 		mode_label.text = "Tippe eine Seite an:\nAlle 9 Felder steigen eine Stufe"
 	_close_sheet()
@@ -936,6 +941,8 @@ func _on_preview(info: Dictionary) -> void:
 func _on_twist_state(on: bool) -> void:
 	cancel_btn.visible = on
 	_on_cancel_hover(false)
+	if on and bonus_mode != "":
+		_set_bonus_mode("")      # sobald man dreht, ist der Bonus wieder abgewählt
 	if on:
 		cancel_btn.modulate.a = 0.0
 		cancel_btn.create_tween().tween_property(cancel_btn, "modulate:a", 1.0, 0.15)
@@ -955,14 +962,13 @@ func _on_bolt_drawn(fid: int, row: Array) -> void:
 
 
 func _on_field_tapped(fid: int) -> void:
-	if bonus_mode == "bolt":
-		_on_message("Zieh den Finger über die Reihe, die der Blitz treffen soll.", "info")
-		return
 	if bonus_mode != "":
-		var row: Array = []
-		if Game.use_bonus(bonus_mode, fid, row):
-			_set_bonus_mode("")
+		var kind := bonus_mode
+		if Game.use_bonus(kind, fid, []):
 			_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
+			# Regen bleibt ausgewählt, solange noch Regen da ist (mehrmals hintereinander gießen)
+			if kind != "rain":
+				_set_bonus_mode("")
 		return
 	if world.selected == fid and sheet.visible:
 		_close_sheet()
@@ -1014,9 +1020,9 @@ func _fill_sheet(fid: int) -> void:
 	else:
 		sheet_rain.text = "Gießen: Wiese (%d)" % gs.rain
 	sheet_rain.visible = gs.rain > 0 and (f.burning or f.stage == 0)
-	sheet_bolt.visible = gs.bolts > 0
+	sheet_bolt.visible = gs.bolts > 0 and not gs.corner_diagonal(f).is_empty()
 	sheet_bolt.disabled = blocked
-	sheet_bolt.text = "Blitz (%d)" % gs.bolts
+	sheet_bolt.text = "Blitz: Diagonale (%d)" % gs.bolts
 	(sheet_rain.get_parent() as Control).visible = sheet_rain.visible or sheet_bolt.visible
 
 
@@ -1151,7 +1157,12 @@ func _restart() -> void:
 
 func _restart_mode(endless_mode: int) -> void:
 	_close_modal()
-	Game.new_game(0, endless_mode)
+	Game.new_game(0, endless_mode, 0)
+
+
+func _restart_easy() -> void:
+	_close_modal()
+	Game.new_game(0, 1, 1)
 
 
 func _show_help() -> void:

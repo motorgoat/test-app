@@ -22,7 +22,8 @@ var tutorial_done := false
 var credits := 0           # Credits für Tipps (gibt es für Werbung)
 var new_record := false
 var endless := true
-var _best := {"endless": 0, "challenge": 0}
+var _best := {"endless": 0, "challenge": 0, "easy": 0}
+var easy := false          # einfacher Modus
 
 
 func _ready() -> void:
@@ -30,12 +31,15 @@ func _ready() -> void:
 	new_game()
 
 
-func new_game(seed_value: int = 0, endless_mode: int = -1) -> void:
+## endless_mode / easy_mode: -1 = wie zuletzt, 0 = aus, 1 = an.
+func new_game(seed_value: int = 0, endless_mode: int = -1, easy_mode: int = -1) -> void:
 	if endless_mode >= 0:
 		endless = endless_mode == 1
+	if easy_mode >= 0:
+		easy = easy_mode == 1
 	best = int(_best[_mode_key()])
 	state = GameState.new()
-	state.setup(seed_value, endless)
+	state.setup(seed_value, endless, easy)
 	busy = false
 	over = false
 	continued = false
@@ -43,10 +47,15 @@ func new_game(seed_value: int = 0, endless_mode: int = -1) -> void:
 	new_record = false
 	new_game_started.emit()
 	state_changed.emit()
-	message.emit("Dreh drei gleiche Felder in eine Reihe. Jeder 3. Fehlversuch löst einen Brand aus.", "info")
+	if easy:
+		message.emit("Einfacher Modus: Drei gleiche Felder, die sich berühren, verschmelzen.", "info")
+	else:
+		message.emit("Dreh drei gleiche Felder in eine Reihe. Jeder 3. Fehlversuch löst einen Brand aus.", "info")
 
 
 func _mode_key() -> String:
+	if easy:
+		return "easy"
 	return "endless" if endless else "challenge"
 
 
@@ -61,7 +70,7 @@ func tutorial() -> bool:
 
 func restart_tutorial() -> void:
 	tutorial_done = false
-	new_game(0, 1)
+	new_game(0, 1, 0)
 
 
 ## Was zählt: die Punkte.
@@ -145,7 +154,9 @@ func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 	busy = true
 	undo_state = state.clone()
 	var before := snapshot(state)
-	var hit: Array = row.duplicate() if kind == "bolt" and not row.is_empty() else [fid]
+	var hit: Array = [fid]
+	if kind == "bolt":
+		hit = row.duplicate() if not row.is_empty() else state.corner_diagonal(f)
 	if kind == "monsoon":
 		hit = [fid]
 		for g in state.fields:
@@ -155,7 +166,8 @@ func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 	var stages := {}
 	for i in hit:
 		stages[int(i)] = (state.fields[int(i)] as FieldData).stage
-	var result := state.end_round()
+	# Regen ist kein ganzer Zug: Man kann mehrmals hintereinander gießen
+	var result := state.resolve_now() if kind == "rain" else state.end_round()
 	result["bonus"] = {"kind": kind, "field": fid, "fields": hit, "stages": stages}
 	round_resolved.emit(result, before)
 	return true
@@ -229,6 +241,7 @@ func _load_best() -> void:
 	if cfg.load(SAVE_PATH) == OK:
 		_best["endless"] = int(cfg.get_value("rekord", "endlos_punkte", 0))
 		_best["challenge"] = int(cfg.get_value("rekord", "runden40_punkte", 0))
+		_best["easy"] = int(cfg.get_value("rekord", "einfach_punkte", 0))
 		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
 		credits = int(cfg.get_value("konto", "credits", Balance.CREDITS_START))
 	else:
@@ -243,6 +256,7 @@ func _save_best() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("rekord", "endlos_punkte", int(_best["endless"]))
 	cfg.set_value("rekord", "runden40_punkte", int(_best["challenge"]))
+	cfg.set_value("rekord", "einfach_punkte", int(_best["easy"]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
 	cfg.set_value("konto", "credits", credits)
 	cfg.save(SAVE_PATH)

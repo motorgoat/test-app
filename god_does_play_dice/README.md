@@ -21,7 +21,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
    Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist das Feuer aus. Regen vorher rettet ein Feld.
 5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) macht leere Erde zur Wiese (nur die unterste Stufe) oder löscht ein Feuer.
-   **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
+   **Blitz**: gibt es für drei gleiche Felder an einer Würfelecke. Auf ein Eckfeld getippt, hebt er die Diagonale dieser Seite (3 Felder). Blitz und Monsun zählen als Zug, Regen nicht: Man kann mehrmals hintereinander gießen; beim Drehen ist der Regen wieder abgewählt.
    Wiese wächst nur durch Regen.
    **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
    Kein Bonus da? Antippen und mit Credits kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
@@ -35,7 +35,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
    **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
    Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
-11. **Modi:** Endlos oder 40 Runden. Rekord = Punkte.
+11. **Modi:** Endlos, 40 Runden oder **Einfach** (alle gleichen Felder, die sich berühren, verschmelzen ab drei). Rekord = Punkte je Modus.
 
 Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
 
@@ -58,7 +58,7 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Feld antippen | Info-Karte mit „Gießen“ / „Löschen“ und „Blitz“ (wenn vorhanden) |
 | „Regen bereit“ über dem Würfel | du kannst gießen: antippen, dann ein Feld wählen |
 | 🔥 1/3 unten | Fehlversuche bis zum nächsten Brand |
-| Regen / Blitz unten | Regen: wählen, dann Feld antippen. Blitz: wählen, dann Finger über die Reihe ziehen (jede Richtung) |
+| Regen / Blitz unten | Regen: wählen, dann Erde antippen (mehrmals möglich). Blitz: wählen, dann ein Eckfeld antippen |
 | Beim Drehen auf „Abbrechen“ ziehen | Drehung abbrechen, zählt nicht als Zug |
 
 ## Aufbau

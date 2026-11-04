@@ -20,6 +20,7 @@ func _init() -> void:
 	test_fire()
 	test_quake()
 	test_hint()
+	test_easy()
 	test_preview_matches()
 	test_modes()
 	test_bot()
@@ -300,6 +301,33 @@ func test_bonus() -> void:
 	# jetzt drei kleine Wälder in einer Reihe, alle verändert: das angetippte steigt auf
 	gb.end_round()
 	check(tap.stage == 3 and top(gb, 0, 0).stage == 2, "Blitz: das angetippte Feld steigt beim Verschmelzen auf")
+	# Blitz für drei gleiche Felder an einer Würfelecke
+	var gc := empty_state()
+	gc.bolts = 0
+	var corner := Vector3i(1, 1, 1)
+	gc.field_at(corner, Vector3i(1, 0, 0)).stage = 1
+	gc.field_at(corner, Vector3i(0, 0, 1)).stage = 1
+	var third_c := gc.field_at(corner, Vector3i(0, 1, 0))
+	third_c.stage = 1
+	gc.moved = {third_c.id: true}
+	var rc := gc.end_round()
+	check(gc.bolts == 1 and int((rc["bonus_gained"] as Dictionary)["bolt"]) == 1, "drei gleiche an einer Ecke: ein Blitz")
+	# Blitz auf ein Eckfeld: die Diagonale dieser Seite steigt
+	var gd2 := empty_state()
+	gd2.bolts = 1
+	var cf := top(gd2, 1, 1)
+	check(gd2.can_bonus("bolt", top(gd2, 0, 1)) != "" and gd2.can_bonus("bolt", cf) == "", "Blitz nur auf Eckfelder")
+	gd2.apply_bonus("bolt", cf)
+	check(cf.stage == 1 and top(gd2, 0, 0).stage == 1 and top(gd2, -1, -1).stage == 1 and top(gd2, 1, -1).stage == 0, "Blitz hebt die Diagonale ab dem Eckfeld")
+	# Regen ist kein ganzer Zug
+	var gr2 := empty_state()
+	gr2.rain = 2
+	var t0 := gr2.turn
+	gr2.apply_bonus("rain", top(gr2, 0, 0))
+	gr2.resolve_now()
+	gr2.apply_bonus("rain", top(gr2, 1, 0))
+	gr2.resolve_now()
+	check(gr2.turn == t0 and top(gr2, 0, 0).stage == 1 and top(gr2, 1, 0).stage == 1, "zweimal gießen hintereinander, ohne Zug")
 	# Regen kann eine Reihe vervollständigen: Dann verschmilzt sie dort
 	var gl := empty_state()
 	gl.rain = 1
@@ -420,6 +448,26 @@ func test_quake() -> void:
 	var ra := ga.end_round()
 	check(bool(ra["new_age"]) and ga.age_name() == "Steinzeit", "erste Hütte: Steinzeit")
 	check(Balance.LIVES == 0 or ga.lives == 2, "neues Zeitalter: ein Leben zurück (wenn es Leben gibt)")
+
+
+func test_easy() -> void:
+	var gs := GameState.new()
+	gs.setup(12345, true, true)
+	for f in gs.fields:
+		f.stage = 0
+	# drei Wiesen über Eck (keine Reihe): im einfachen Modus verschmelzen sie
+	top(gs, 0, 0).stage = 1
+	top(gs, 1, 0).stage = 1
+	top(gs, 1, 1).stage = 1
+	gs.moved = {top(gs, 1, 1).id: true}
+	var r := gs.end_round()
+	check(int(r["gain"]) > 0 and top(gs, 1, 1).stage == 2 and top(gs, 0, 0).stage == 1, "einfacher Modus: drei sich berührende Wiesen verschmelzen")
+	var gn := empty_state()
+	top(gn, 0, 0).stage = 1
+	top(gn, 1, 0).stage = 1
+	top(gn, 1, 1).stage = 1
+	gn.moved = {top(gn, 1, 1).id: true}
+	check(int(gn.end_round()["gain"]) == 0, "normaler Modus: über Eck zählt nicht")
 
 
 func test_hint() -> void:

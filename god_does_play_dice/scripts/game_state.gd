@@ -47,6 +47,7 @@ var disasters: int = 0        # Katastrophen bisher
 var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var endless := true           # Endlos-Modus oder 40 Runden
+var easy := false             # einfacher Modus: alle gleichen Felder, die sich berühren (ab 3), verschmelzen
 var rng := RandomNumberGenerator.new()
 var _index: Dictionary = {}
 
@@ -55,8 +56,9 @@ var _index: Dictionary = {}
 # Aufbau
 # =============================================================================
 
-func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
+func setup(seed_value: int = 0, endless_mode: bool = true, easy_mode: bool = false) -> void:
 	endless = endless_mode
+	easy = easy_mode
 	if seed_value != 0:
 		rng.seed = seed_value
 	else:
@@ -141,6 +143,7 @@ func clone() -> GameState:
 	var gs := GameState.new()
 	gs.turn = turn
 	gs.endless = endless
+	gs.easy = easy
 	gs.score = score
 	gs.rain = rain
 	gs.bolts = bolts
@@ -355,6 +358,8 @@ func finished() -> bool:
 ## Mit only: nur Reihen, die mindestens eines dieser Felder enthalten.
 ## Jede Reihe ist ein Array aus 3 FieldData, das mittlere Feld an Index 1.
 func lines(only: Dictionary = {}) -> Array:
+	if easy:
+		return groups(only)
 	var out: Array = []
 	for n in FACE_NORMALS:
 		var nv: Vector3i = n
@@ -395,19 +400,48 @@ func lines(only: Dictionary = {}) -> Array:
 	return out
 
 
+## Einfacher Modus: zusammenhängende gleiche Felder (über Kanten, ab EASY_GROUP Stück).
+func groups(only: Dictionary = {}) -> Array:
+	var out: Array = []
+	var seen := {}
+	for f in fields:
+		if f.stage <= 0 or seen.has(f.id):
+			continue
+		var comp: Array = []
+		var todo: Array = [f]
+		seen[f.id] = true
+		while not todo.is_empty():
+			var h: FieldData = todo.pop_back()
+			comp.append(h)
+			for g in neighbors(h):
+				var k: FieldData = g
+				if k.stage == f.stage and not seen.has(k.id):
+					seen[k.id] = true
+					todo.append(k)
+		if comp.size() < Balance.EASY_GROUP:
+			continue
+		var hit := only.is_empty()
+		for g in comp:
+			if only.has((g as FieldData).id):
+				hit = true
+		if hit:
+			out.append(comp)
+	return out
+
+
 ## Welches Feld einer Reihe steigt auf? Das, das zuletzt dazugekommen ist (von der Drehung bewegt
 ## bzw. bei einer Kettenreaktion gerade verändert). Liegt die ganze Reihe in der gedrehten Scheibe, die Mitte.
 static func target_index(line: Array, focus: Dictionary, prefer: int = -1) -> int:
-	for i in 3:
+	for i in line.size():
 		if (line[i] as FieldData).id == prefer:
 			return i
 	var hits: Array = []
-	for i in 3:
+	for i in line.size():
 		if focus.has((line[i] as FieldData).id):
 			hits.append(i)
-	if hits.size() == 1:
+	if hits.size() == 1 or (line.size() > 3 and not hits.is_empty()):
 		return int(hits[0])
-	return 1
+	return 1 if line.size() == 3 else 0
 
 
 ## Punkte, die die Reihen bringen, die sich gerade verändert haben (ohne Kettenreaktion).
@@ -487,8 +521,10 @@ func resolve_merges(ev: Array) -> int:
 				used[(f as FieldData).id] = true
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			var mid: FieldData = line[ti]
-			var a: FieldData = line[(ti + 1) % 3]
-			var b: FieldData = line[(ti + 2) % 3]
+			var rest: Array = []
+			for i in line.size():
+				if i != ti:
+					rest.append(line[i])
 			combo += 1          # jede weitere Verschmelzung im selben Zug zählt mehr (Kombo)
 			var pts: int = int(Balance.MERGE_POINTS[mid.stage]) * combo
 			total += pts
@@ -497,12 +533,14 @@ func resolve_merges(ev: Array) -> int:
 				mid.stage += 1
 			mid.burning = false
 			focus[mid.id] = true
-			if Balance.OTHERS_DROP > 0:
-				a.stage = maxi(0, was - Balance.OTHERS_DROP)
-				b.stage = maxi(0, was - Balance.OTHERS_DROP)
-				focus[a.id] = true
-				focus[b.id] = true
-			ev.append({"type": "merge", "field": mid.id, "others": [a.id, b.id], "points": pts, "combo": combo, "stage": mid.stage})
+			var other_ids: Array = []
+			for g in rest:
+				var o: FieldData = g
+				other_ids.append(o.id)
+				if Balance.OTHERS_DROP > 0:
+					o.stage = maxi(0, was - Balance.OTHERS_DROP)
+					focus[o.id] = true
+			ev.append({"type": "merge", "field": mid.id, "others": other_ids, "points": pts, "combo": combo, "stage": mid.stage})
 	return total
 
 
@@ -510,6 +548,7 @@ func resolve_merges(ev: Array) -> int:
 ## Gibt {"events": Array, "gain": int, "bonus_gained": {"rain": n, "bolt": n}} zurück.
 func end_round() -> Dictionary:
 	var ev: Array = []
+	var corners := touched_corners()
 	# 1. Drei in einer Reihe verschmelzen sofort
 	var gain := resolve_merges(ev)
 	moved = {}
@@ -564,31 +603,8 @@ func end_round() -> Dictionary:
 		ev.append({"type": "burn", "field": f.id})
 
 	# 5. Punkte, Fortschritt, Boni
-	score += gain
-	var age_before := age()
-	for f in fields:
-		best_stage = maxi(best_stage, f.stage)
-	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
-	if not monsoon_unlocked and best_stage >= Balance.MONSOON_FROM_STAGE:
-		monsoon_unlocked = true
-		next_monsoon = score + Balance.MONSOON_EVERY
-		monsoons = mini(Balance.MONSOON_MAX, monsoons + 1)
-		got["monsoon"] = 1
-	while monsoon_unlocked and score >= next_monsoon:
-		next_monsoon += Balance.MONSOON_EVERY
-		if monsoons < Balance.MONSOON_MAX:
-			monsoons += 1
-			got["monsoon"] = int(got["monsoon"]) + 1
-	while score >= next_rain:
-		next_rain += Balance.RAIN_EVERY
-		if rain < Balance.RAIN_MAX:
-			rain += 1
-			got["rain"] = int(got["rain"]) + 1
-	while score >= next_bolt:
-		next_bolt += Balance.BOLT_EVERY
-		if bolts < Balance.BOLT_MAX:
-			bolts += 1
-			got["bolt"] = int(got["bolt"]) + 1
+	var pr := _progress(gain, corners)
+	var got: Dictionary = pr["got"]
 
 	# 6. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
 	if _rotated and gain == 0:
@@ -609,11 +625,90 @@ func end_round() -> Dictionary:
 					dirty[int(i)] = true
 	moved = dirty
 	turn += 1
-	# Neues Zeitalter: ein Leben zurück
+	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": bool(pr["new_age"])}
+
+
+## Punkte gutschreiben, Fortschritt merken, Boni verteilen. corners = neu geschaffte Ecken (Blitz).
+func _progress(gain: int, corners: int) -> Dictionary:
+	score += gain
+	var age_before := age()
+	for f in fields:
+		best_stage = maxi(best_stage, f.stage)
+	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
+	if not monsoon_unlocked and best_stage >= Balance.MONSOON_FROM_STAGE:
+		monsoon_unlocked = true
+		next_monsoon = score + Balance.MONSOON_EVERY
+		monsoons = mini(Balance.MONSOON_MAX, monsoons + 1)
+		got["monsoon"] = 1
+	while monsoon_unlocked and score >= next_monsoon:
+		next_monsoon += Balance.MONSOON_EVERY
+		if monsoons < Balance.MONSOON_MAX:
+			monsoons += 1
+			got["monsoon"] = int(got["monsoon"]) + 1
+	while score >= next_rain:
+		next_rain += Balance.RAIN_EVERY
+		if rain < Balance.RAIN_MAX:
+			rain += 1
+			got["rain"] = int(got["rain"]) + 1
+	# Blitz: wer an einer Würfelecke drei gleiche Felder zusammenbringt
+	for k in corners:
+		if bolts < Balance.BOLT_MAX:
+			bolts += 1
+			got["bolt"] = int(got["bolt"]) + 1
 	var new_age := age() > age_before
 	if new_age and Balance.LIVES > 0 and lives > 0:
 		lives = mini(Balance.LIVES, lives + 1)
-	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": new_age}
+	return {"got": got, "new_age": new_age}
+
+
+## Würfelecken, an denen gerade drei gleiche Felder zusammenkommen (und sich eines davon verändert hat).
+func touched_corners() -> int:
+	var c := 0
+	for x in [-1, 1]:
+		for y in [-1, 1]:
+			for z in [-1, 1]:
+				var p := Vector3i(x, y, z)
+				var trio: Array = [field_at(p, Vector3i(x, 0, 0)), field_at(p, Vector3i(0, y, 0)), field_at(p, Vector3i(0, 0, z))]
+				var st: int = (trio[0] as FieldData).stage
+				if st <= 0:
+					continue
+				var same := true
+				var touched := false
+				for g in trio:
+					if (g as FieldData).stage != st:
+						same = false
+					if moved.has((g as FieldData).id):
+						touched = true
+				if same and touched:
+					c += 1
+	return c
+
+
+## Regen (kein ganzer Zug): sofort verschmelzen, was sich ergibt, und Punkte gutschreiben.
+func resolve_now() -> Dictionary:
+	var ev: Array = []
+	var corners := touched_corners()
+	var gain := resolve_merges(ev)
+	moved = {}
+	tapped = -1
+	var pr := _progress(gain, corners)
+	return {"events": ev, "gain": gain, "bonus_gained": pr["got"], "new_age": bool(pr["new_age"])}
+
+
+## Die Diagonale einer Seite, die an diesem Eckfeld beginnt (für den Blitz). [] wenn kein Eckfeld.
+func corner_diagonal(f: FieldData) -> Array:
+	var a := axis_of(f.n)
+	var u := (a + 1) % 3
+	var v := (a + 2) % 3
+	if f.p[u] == 0 or f.p[v] == 0:
+		return []
+	var out: Array = []
+	for t in [1, 0, -1]:
+		var p := f.p
+		p[u] = f.p[u] * t
+		p[v] = f.p[v] * t
+		out.append(field_at(p, f.n).id)
+	return out
 
 
 ## Die Katastrophe trifft (deterministisch, damit die Vorschau stimmt).
@@ -751,7 +846,9 @@ func can_bonus(kind: String, f: FieldData) -> String:
 			return "Regen macht nur leere Erde zur Wiese (oder löscht ein Feuer)"
 	elif kind == "bolt":
 		if bolts <= 0:
-			return "Der nächste Blitz kommt bei %d Punkten" % next_bolt
+			return "Einen Blitz bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen"
+		if corner_diagonal(f).is_empty():
+			return "Tippe ein Eckfeld an: Der Blitz hebt die Diagonale"
 	elif kind == "monsoon":
 		if monsoons <= 0:
 			return "Kein Monsun da"
@@ -789,7 +886,8 @@ func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
 	else:
 		bolts -= 1
 		targets = []
-		for i in row:
+		var diag := row if not row.is_empty() else corner_diagonal(f)
+		for i in diag:
 			targets.append(fields[int(i)])
 		if targets.is_empty():
 			targets = [f]

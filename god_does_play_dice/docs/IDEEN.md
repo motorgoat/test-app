@@ -77,5 +77,5 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Echte Werbung (z. B. AdMob) für Credits; im Prototyp ein Platzhalter-Knopf.
 - **Regen und Blitz kaufbar** (Shop, später).
 - Umgesetzt: „quer“ = Diagonalen zählen ab dem kleinen Wald.
-- **Einfacher Modus**: Alle gleichen Felder, die sich berühren, steigen auf (statt nur Dreierreihen).
+- Umgesetzt: **Einfacher Modus** (alle gleichen Felder, die sich berühren, ab drei).
 - **Schwerer Modus**: ohne Gadgets (kein Regen, Blitz, Monsun, Tipp).

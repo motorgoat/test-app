@@ -14,6 +14,7 @@ static var CIVILISATION_FROM := 4
 # Punkte fürs Verschmelzen nach Stufe (Index = Stufe), × Kombo.
 static var MERGE_POINTS := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
 static var MAX_CASCADES := 6
+static var EASY_GROUP := 3                # einfacher Modus: so viele gleiche Felder, die sich berühren, verschmelzen
 static var OTHERS_DROP := 0               # um so viele Stufen fallen die beiden anderen Felder der Reihe zurück (0 = bleiben)
 static var DIAGONAL_FROM := 2             # ab dieser Stufe (kleiner Wald) zählen auch Diagonalen als Reihe
 static var FACE_BONUS := 9               # ganze Seite geschafft: Punkte der Stufe × so viel
@@ -40,9 +41,9 @@ static var FIRE_COSTS_LIFE := false       # kostet ein Brand ein Leben?
 static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es
 static var RAIN_EVERY := 12               # alle so viele Punkte ein Regen …
 static var RAIN_MAX := 3                  # … bis höchstens so viele
-static var BOLT_START := 0                # Blitz: hebt eine ganze Reihe eine Stufe
-static var BOLT_EVERY := 40
-static var BOLT_MAX := 2
+static var BOLT_START := 0                # Blitz: gibt es für drei gleiche Felder an einer Würfelecke;
+static var BOLT_EVERY := 999999           #   (nicht mehr für Punkte)
+static var BOLT_MAX := 2                  #   eingesetzt auf ein Eckfeld hebt er die Diagonale dieser Seite
 static var MONSOON_FROM_STAGE := 5        # Monsun (hebt eine ganze Seite): freigeschaltet ab dem ersten Haus (Antike) …
 static var MONSOON_EVERY := 120           # … danach alle so viele Punkte einer
 static var MONSOON_MAX := 1
@@ -60,8 +61,9 @@ static var MAX_ROUNDS := 40
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42
-static var TWIST_FINGER_UNITS := 2.1      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
-static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
+static var TWIST_FINGER_UNITS := 2.5      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung
+static var TWIST_FOLLOW := 6.0            # wie schnell die Scheibe dem Finger folgt (kleiner = träger)
+static var TWIST_DETENT := 2.4            # wie stark die Scheibe zur nächsten Rastung zieht (1 = gar nicht)
 static var DRAG_START_PX := 12.0
 static var TILT_MAX := 0.3                # Handy schwenken: so weit (Bogenmaß, ~17°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
