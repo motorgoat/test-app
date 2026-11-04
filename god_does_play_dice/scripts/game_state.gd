@@ -10,7 +10,8 @@ extends RefCounted
 ##   3. Wiese wächst nicht von allein (abschaltbar: REGROW_PER_ROUND).
 ##   4. Großstädte und Metropolen zerstören Natur daneben.
 ##   5. Fehlversuch = Drehung, die nichts verschmilzt. Jeder 3. Fehlversuch (der Zähler läuft weiter) setzt
-##      die zuletzt gedrehte Reihe in Brand: Brennende Felder verlieren jeden Zug eine Stufe, bis Regen sie löscht.
+##      die zuletzt gedrehte Reihe in Brand: Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist
+##      das Feuer aus. Regen vorher rettet ein Feld.
 ##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 ##   7. Boni aus Punkten: Regen hebt ein Feld eine Stufe (oder löscht es), Blitz hebt eine ganze Reihe.
 ##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Nach unten geht es nur durch Katastrophen.
@@ -30,6 +31,9 @@ var turn: int = 1
 var score: int = 0           # Punkte
 var rain: int = 1             # Regen-Boni
 var bolts: int = 0            # Blitz-Boni
+var monsoons: int = 0         # Monsun-Boni (ganze Seite), ab der Bronzezeit
+var monsoon_unlocked := false
+var next_monsoon: int = 0
 var next_rain: int = 0        # ab dieser Punktzahl gibt es den nächsten Regen …
 var next_bolt: int = 0        # … und den nächsten Blitz
 var misses: int = 0           # Fehlversuche seit dem letzten Brand
@@ -63,6 +67,9 @@ func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
 	next_rain = Balance.RAIN_EVERY
 	next_bolt = Balance.BOLT_EVERY
 	misses = 0
+	monsoons = 0
+	monsoon_unlocked = false
+	next_monsoon = 0
 	last_row = []
 	_rotated = false
 	meteors_used = 0
@@ -139,6 +146,9 @@ func clone() -> GameState:
 	gs.next_rain = next_rain
 	gs.next_bolt = next_bolt
 	gs.misses = misses
+	gs.monsoons = monsoons
+	gs.monsoon_unlocked = monsoon_unlocked
+	gs.next_monsoon = next_monsoon
 	gs.last_row = last_row.duplicate()
 	gs._rotated = _rotated
 	gs.best_stage = best_stage
@@ -538,22 +548,31 @@ func end_round() -> Dictionary:
 		if f.fresh > 0:
 			f.fresh -= 1
 
-	# 4. Was brennt, brennt eine Stufe weiter ab
+	# 4. Was brennt, verliert eine Stufe, dann ist das Feuer aus
 	for f in fields:
 		if not f.burning:
 			continue
 		f.stage = maxi(0, f.stage - 1)
+		f.burning = false
 		dirty[f.id] = true
 		ev.append({"type": "burn", "field": f.id})
-		if f.stage == 0:
-			f.burning = false
 
 	# 5. Punkte, Fortschritt, Boni
 	score += gain
 	var age_before := age()
 	for f in fields:
 		best_stage = maxi(best_stage, f.stage)
-	var got := {"rain": 0, "bolt": 0}
+	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
+	if not monsoon_unlocked and best_stage >= Balance.MONSOON_FROM_STAGE:
+		monsoon_unlocked = true
+		next_monsoon = score + Balance.MONSOON_EVERY
+		monsoons = mini(Balance.MONSOON_MAX, monsoons + 1)
+		got["monsoon"] = 1
+	while monsoon_unlocked and score >= next_monsoon:
+		next_monsoon += Balance.MONSOON_EVERY
+		if monsoons < Balance.MONSOON_MAX:
+			monsoons += 1
+			got["monsoon"] = int(got["monsoon"]) + 1
 	while score >= next_rain:
 		next_rain += Balance.RAIN_EVERY
 		if rain < Balance.RAIN_MAX:
@@ -727,7 +746,20 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	elif kind == "bolt":
 		if bolts <= 0:
 			return "Der nächste Blitz kommt bei %d Punkten" % next_bolt
+	elif kind == "monsoon":
+		if monsoons <= 0:
+			return "Kein Monsun da"
 	return ""
+
+
+## Bonus geschenkt oder gekauft.
+func grant(kind: String) -> void:
+	if kind == "rain":
+		rain += 1
+	elif kind == "bolt":
+		bolts += 1
+	elif kind == "monsoon":
+		monsoons += 1
 
 
 ## Regen: Ein brennendes Feld wird gelöscht (nur dieses), sonst steigt es eine Stufe auf.
@@ -740,6 +772,13 @@ func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
 		if f.burning:
 			f.burning = false
 			return
+	elif kind == "monsoon":
+		# Monsun: die ganze Seite des Felds steigt eine Stufe
+		monsoons -= 1
+		targets = []
+		for g in fields:
+			if g.n == f.n:
+				targets.append(g)
 	else:
 		bolts -= 1
 		targets = []

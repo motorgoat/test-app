@@ -298,6 +298,21 @@ func test_bonus() -> void:
 	gl.apply_bonus("rain", top(gl, 1, 1))
 	var r := gl.end_round()
 	check(top(gl, 1, 1).stage == 2 and int(r["gain"]) > 0, "Regen macht die dritte Wiese: Sie wird Wald")
+	# Monsun: die ganze Seite steigt eine Stufe
+	var gm2 := empty_state()
+	gm2.monsoons = 1
+	top(gm2, 0, 0).stage = 1
+	top(gm2, 1, 0).stage = 2
+	gm2.apply_bonus("monsoon", top(gm2, 0, 0))
+	var face_ok := true
+	for f in gm2.fields:
+		if f.n == Vector3i(0, 1, 0) and f.stage < 1:
+			face_ok = false
+	check(face_ok and top(gm2, 0, 0).stage == 2 and top(gm2, 1, 0).stage == 3 and gm2.monsoons == 0, "Monsun hebt die ganze Seite")
+	var gu := empty_state()
+	top(gu, 0, 0).stage = Balance.MONSOON_FROM_STAGE
+	var ru := gu.end_round()
+	check(gu.monsoon_unlocked and gu.monsoons == 1 and int((ru["bonus_gained"] as Dictionary)["monsoon"]) == 1, "Monsun ab der Bronzezeit freigeschaltet")
 	# Punkte bringen Regen
 	var gp := empty_state()
 	gp.rain = 0
@@ -331,15 +346,16 @@ func test_fire() -> void:
 	check(str(e.get("kind", "")) == "fire" and (e["hit"] as Array).size() == 3, "%d. Fehlversuch: die gewischte Reihe brennt" % Balance.FIRE_AFTER)
 	check(top(gs, -1, 0).burning and gs.misses == 0, "Felder brennen, Zähler beginnt von vorn")
 	check(gs.lives == Balance.LIVES - (1 if Balance.FIRE_COSTS_LIFE else 0), "Brand kostet ein Leben (wenn eingestellt)")
-	gs.end_round()
-	check(top(gs, -1, 0).stage == before - 1, "brennendes Feld verliert jeden Zug eine Stufe (%d → %d)" % [before, top(gs, -1, 0).stage])
 	gs.rain = 1
-	var lit := top(gs, -1, 0)
-	var st := lit.stage
-	gs.apply_bonus("rain", lit)
-	check(not lit.burning and lit.stage == st and top(gs, -1, 1).burning, "Regen löscht genau ein Feld")
+	var saved_f := top(gs, -1, 1)
+	var saved_st := saved_f.stage
+	gs.apply_bonus("rain", saved_f)
+	check(not saved_f.burning and top(gs, -1, 0).burning, "Regen löscht genau ein Feld")
 	gs.end_round()
-	check(lit.stage == st, "gelöschtes Feld brennt nicht weiter")
+	check(top(gs, -1, 0).stage == before - 1 and not top(gs, -1, 0).burning, "Brand: eine Stufe zurück, dann ist das Feuer aus (%d → %d)" % [before, top(gs, -1, 0).stage])
+	check(saved_f.stage == saved_st, "gelöschtes Feld verliert nichts")
+	gs.end_round()
+	check(top(gs, -1, 0).stage == before - 1, "Brand dauert nur eine Runde")
 	# Ein Erfolg setzt den Zähler nicht zurück
 	var gm := empty_state()
 	gm.misses = 1

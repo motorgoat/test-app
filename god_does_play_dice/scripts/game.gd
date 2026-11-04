@@ -110,7 +110,9 @@ func finish_round(result: Dictionary) -> void:
 		message.emit("%s Die Welt erreicht %s.%s" % [praise(), state.age_name(), " Ein Leben zurück." if Balance.LIVES > 0 else ""], "good")
 	var got: Dictionary = result.get("bonus_gained", {})
 	if not state.is_over():
-		if int(got.get("bolt", 0)) > 0:
+		if int(got.get("monsoon", 0)) > 0:
+			message.emit("Monsun! Tippe eine Seite an: Alle 9 Felder steigen eine Stufe.", "good")
+		elif int(got.get("bolt", 0)) > 0:
 			message.emit("Blitz! Tippe ein Feld an: Seine ganze Reihe steigt eine Stufe.", "good")
 		elif int(got.get("rain", 0)) > 0:
 			message.emit("Regen! Tippe ein Feld an und gieß es: Es steigt eine Stufe (Tropfen = lohnt sich).", "good")
@@ -144,6 +146,11 @@ func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 	undo_state = state.clone()
 	var before := snapshot(state)
 	var hit: Array = row.duplicate() if kind == "bolt" and not row.is_empty() else [fid]
+	if kind == "monsoon":
+		hit = [fid]
+		for g in state.fields:
+			if (g as FieldData).n == f.n and (g as FieldData).id != fid:
+				hit.append((g as FieldData).id)
 	state.apply_bonus(kind, f, row)
 	var stages := {}
 	for i in hit:
@@ -193,6 +200,12 @@ func continue_game() -> void:
 		state.rain = maxi(state.rain, 2)
 	over = false
 	message.emit("%s Die Welt bekommt noch eine Chance." % praise(), "good")
+	state_changed.emit()
+
+
+## Bonus schenken oder kaufen (außerhalb eines Zugs).
+func grant(kind: String) -> void:
+	state.grant(kind)
 	state_changed.emit()
 
 

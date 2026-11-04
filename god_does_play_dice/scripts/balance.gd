@@ -43,6 +43,13 @@ static var RAIN_MAX := 3                  # … bis höchstens so viele
 static var BOLT_START := 0                # Blitz: hebt eine ganze Reihe eine Stufe
 static var BOLT_EVERY := 40
 static var BOLT_MAX := 2
+static var MONSOON_FROM_STAGE := 5        # Monsun (hebt eine ganze Seite): freigeschaltet ab dem ersten Haus (Bronzezeit) …
+static var MONSOON_EVERY := 120           # … danach alle so viele Punkte einer
+static var MONSOON_MAX := 1
+# Kaufen mit Credits, wenn keiner da ist
+static var RAIN_COST := 2
+static var BOLT_COST := 3
+static var MONSOON_COST := 5
 
 # --- Modi ------------------------------------------------------------------------------
 # Zeitalter: bestimmt die höchste erreichte Stufe. Jedes neue Zeitalter gibt ein Leben zurück.

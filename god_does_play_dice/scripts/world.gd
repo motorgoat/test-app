@@ -702,6 +702,9 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			bonus_ids[int(i)] = true
 		if kind == "bolt":
 			await _bolt_fx(bd["fields"])
+		elif kind == "monsoon":
+			rig.shake(0.5)
+			await _rain_fx(bd["fields"])
 		else:
 			await _rain_fx(bd["fields"])
 		var stages: Dictionary = bd["stages"]

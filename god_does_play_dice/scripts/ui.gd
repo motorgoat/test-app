@@ -20,6 +20,7 @@ var toast: PanelContainer
 var toast_label: Label
 var bolt_btn: Button
 var rain_btn: Button
+var monsoon_btn: Button
 var mode_label: Label
 var mode_card: PanelContainer
 var sheet: PanelContainer
@@ -38,6 +39,7 @@ var miss_flames: Array = []
 var gift_layer: Control
 var _last_rain := -1
 var _last_bolts := -1
+var _last_monsoons := -1
 var hint_btn: Button
 var continue_btn: Button
 var over_undo_btn: Button
@@ -265,13 +267,16 @@ func _build() -> void:
 	brow.add_child(rain_btn)
 	bolt_btn = _bonus_button("lightning", _on_bonus_pressed.bind("bolt"))
 	brow.add_child(bolt_btn)
+	monsoon_btn = _bonus_button("monsoon", _on_bonus_pressed.bind("monsoon"))
+	monsoon_btn.visible = false
+	brow.add_child(monsoon_btn)
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp2)
 	# Fehlversuche: groß und eindeutig
 	miss_pill = Button.new()
-	miss_pill.custom_minimum_size = Vector2(100, 50)
+	miss_pill.custom_minimum_size = Vector2(92, 50)
 	var flames := HBoxContainer.new()
 	flames.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	flames.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -298,11 +303,11 @@ func _build() -> void:
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp3)
-	undo_btn = _round_button("undo", _on_undo_pressed, 54)
+	undo_btn = _round_button("undo", _on_undo_pressed, 50)
 	brow.add_child(undo_btn)
-	hint_btn = _round_button("bulb", _on_hint_pressed, 54)
+	hint_btn = _round_button("bulb", _on_hint_pressed, 50)
 	brow.add_child(hint_btn)
-	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 54))
+	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 50))
 
 	gift_layer = Control.new()
 	gift_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -342,7 +347,7 @@ func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	b.add_theme_constant_override("icon_max_width", 30)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.expand_icon = false
-	b.custom_minimum_size = Vector2(72, 54)
+	b.custom_minimum_size = Vector2(62, 54)
 	# Punkte unten im Knopf: so viele hast du (statt einer Zahl)
 	var pips := HBoxContainer.new()
 	pips.name = "Pips"
@@ -406,7 +411,20 @@ func _show_gift(icon_name: String, target: Control) -> void:
 
 
 func _on_bonus_pressed(kind: String) -> void:
+	var gs := Game.state
+	var have := gs.rain if kind == "rain" else (gs.bolts if kind == "bolt" else gs.monsoons)
+	if have <= 0:
+		# Keiner da: kaufen
+		var cost := Balance.RAIN_COST if kind == "rain" else (Balance.BOLT_COST if kind == "bolt" else Balance.MONSOON_COST)
+		var what := "Ein Regen" if kind == "rain" else ("Ein Blitz" if kind == "bolt" else "Ein Monsun")
+		_pay(cost, what, _buy_and_use.bind(kind))
+		return
 	_set_bonus_mode("" if bonus_mode == kind else kind)
+
+
+func _buy_and_use(kind: String) -> void:
+	Game.grant(kind)
+	_set_bonus_mode(kind)
 
 
 func _build_sheet() -> void:
@@ -491,9 +509,11 @@ func _build_help() -> void:
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde. Willst du doch nicht: Finger unten auf „Abbrechen“ ziehen."))
 	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. Ab dem kleinen Wald zählen auch Diagonalen (quer über die Seite)."))
-	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
+	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf, ein brennendes Feld wird gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Wähl den Blitz und zieh den Finger über eine Reihe, in jede Richtung. Die ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
+	v.add_child(_help_row("monsoon", "Monsun (ab der Bronzezeit): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
+	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
 	v.add_child(_help_row("heart", "Herzen sind die Leben der Welt. Ein Erdbeben (mehr als %d%% Zivilisation) kostet eines, jedes neue Zeitalter gibt eines zurück. Sind alle weg oder ist nichts mehr zu verbinden, ist das Spiel vorbei. Einmal kannst du mit Werbung weiterspielen." % int(round(Balance.CIVILISATION_MAX * 100.0))))
@@ -587,9 +607,15 @@ func _on_hint_pressed() -> void:
 	if Game.busy or Game.over or world.animating:
 		return
 	if Game.state.best_move().is_empty():
-		_on_message("Auch in zwei Zügen bringt keine Drehung etwas. Probier Regen oder Blitz.", "info")
+		# Keine Drehung bringt etwas: statt eines Tipps gibt es einen Regen (ein Feld eine Stufe hoch)
+		_pay(Balance.HINT_COST, "Ein Tipp", _hint_gives_rain)
 		return
 	_pay(Balance.HINT_COST, "Ein Tipp", _use_hint)
+
+
+func _hint_gives_rain() -> void:
+	Game.grant("rain")
+	_on_message("Gerade bringt keine Drehung etwas. Hier ist ein Regen: Gieß ein Feld eine Stufe hoch.", "good")
 
 
 func _use_hint() -> void:
@@ -788,6 +814,11 @@ func refresh() -> void:
 	rain_ready.visible = gs.rain > 0 and not Game.over and bonus_mode == ""
 	_set_pips(rain_btn, gs.rain, Balance.RAIN_MAX, Style.WATER)
 	_set_pips(bolt_btn, gs.bolts, Balance.BOLT_MAX, Color("#e0a100"))
+	_set_pips(monsoon_btn, gs.monsoons, Balance.MONSOON_MAX, Style.WATER)
+	monsoon_btn.visible = gs.monsoon_unlocked or gs.monsoons > 0
+	if _last_monsoons >= 0 and gs.monsoons > _last_monsoons:
+		_show_gift("monsoon", monsoon_btn)
+	_last_monsoons = gs.monsoons
 	if _last_rain >= 0 and gs.rain > _last_rain:
 		_show_gift("rain", rain_btn)
 	if _last_bolts >= 0 and gs.bolts > _last_bolts:
@@ -820,8 +851,9 @@ func _update_buttons() -> void:
 	var blocked := Game.busy or Game.over or world.animating
 	hint_btn.disabled = blocked
 	undo_btn.disabled = blocked or not Game.can_undo()
-	rain_btn.disabled = blocked or gs.rain <= 0
-	bolt_btn.disabled = blocked or gs.bolts <= 0
+	rain_btn.disabled = blocked
+	bolt_btn.disabled = blocked
+	monsoon_btn.disabled = blocked
 
 
 func _pop(c: Control) -> void:
@@ -863,6 +895,8 @@ func _set_bonus_mode(kind: String) -> void:
 		mode_label.text = "Tippe auf ein Feld (Wolke = lohnt sich):\nEs steigt auf oder wird gelöscht"
 	elif kind == "bolt":
 		mode_label.text = "Zieh den Finger über eine Reihe:\nDer Blitz hebt sie eine Stufe"
+	elif kind == "monsoon":
+		mode_label.text = "Tippe eine Seite an:\nAlle 9 Felder steigen eine Stufe"
 	_close_sheet()
 
 
@@ -1166,6 +1200,7 @@ func _on_new_game() -> void:
 	_shown_score = -1
 	_last_rain = -1
 	_last_bolts = -1
+	_last_monsoons = -1
 	for bd in _bubbles:
 		(bd["node"] as Control).queue_free()
 	_bubbles.clear()

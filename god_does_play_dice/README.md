@@ -19,10 +19,12 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
 4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die
    gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
-   Brennende Felder verlieren jeden Zug eine Stufe, bis sie Erde sind. Regen löscht ein brennendes Feld.
+   Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist das Feuer aus. Regen vorher rettet ein Feld.
 5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld eine Stufe oder löscht ein Feuer.
    **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
    Wiese wächst nur durch Regen.
+   **Monsun** (ab der Bronzezeit, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.
+   Kein Bonus da? Antippen und mit Credits kaufen (Regen 2, Blitz 3, Monsun 5). Bringt ein Tipp nichts, gibt es dafür einen Regen.
 6. **Nach unten geht es nur durch Katastrophen** (Brand, Erdbeben).
 7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 8. **Herzen** = Leben der Welt (3). Ein Erdbeben kostet eines, jedes neue Zeitalter gibt eines zurück.
