@@ -47,3 +47,13 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
   - **Grafik überarbeiten** (Spielzeug-Look, klarere Felder).
   - **Kirche und Krieg zerstören Felder** (Vorschlag offen, siehe Chat).
   - Der Test-Bot kommt kaum über den großen Wald hinaus: prüfen, ob die Leiter für Menschen zu steil ist.
+
+## Neue Ideen (Philipp, 4. November 2026, noch offen)
+- **Modus „Maximum“**: den Würfel auf die höchste Stufe bringen, ganz ohne Hinweise.
+  Achtung: Eine Metropole braucht rechnerisch etwa 511 Wiesen (jede Stufe verdoppelt den Aufwand: 2^Stufe − 1).
+- **Felder, die nicht zusammenpassen**, fallen nebeneinander zurück oder zerstören sich.
+- **Regen**: Wiese nicht nur von selbst nachwachsen lassen, sondern gezielt per Antippen regnen lassen
+  (z. B. wenn man genug Punkte hat).
+- **Einfaches Handyspiel mit Punkten**: die Leiste oben (Leiter, Balken, Texte) entfernen, nur Punkte zählen.
+- Kirche und Krieg zerstören Felder (Vorschlag im Chat).
+- Umgesetzt: Aufstieg dort, wo das letzte Teil dazugekommen ist. Würfel drehen nur daneben oder nach 1 s Halten.

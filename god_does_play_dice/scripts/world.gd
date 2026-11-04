@@ -20,8 +20,9 @@ var selected := -1
 var animating := false
 
 # Eingabe
-var _mode := ""                 # "", "pending", "twist", "orbit"
+var _mode := ""                 # "", "pending", "pending_tap", "twist", "orbit", "hold_orbit", "blocked"
 var _press_pos := Vector2.ZERO
+var _press_ms := 0
 var _last_move_ms := 0
 var _hit_field := -1
 var _hit_point := Vector3.ZERO
@@ -186,6 +187,13 @@ func _process(delta: float) -> void:
 			_show_hint()
 	else:
 		_idle = 0.0
+	# Auf dem Würfel halten (ohne Bewegen): danach dreht Ziehen die Ansicht statt einer Reihe
+	if (_mode == "pending" or _mode == "pending_tap") and Time.get_ticks_msec() - _press_ms > int(Balance.HOLD_TO_ORBIT_SECONDS * 1000.0):
+		_mode = "hold_orbit"
+		Input.vibrate_handheld(30)
+		var tw := cube_root.create_tween()
+		tw.tween_property(cube_root, "scale", Vector3.ONE * 0.96, 0.08)
+		tw.tween_property(cube_root, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if _mode == "twist" and _pivot != null:
 		_tw_display = lerpf(_tw_display, _tw_angle, 1.0 - exp(-delta * Balance.TWIST_FOLLOW))
 		var ax := Vector3.ZERO
@@ -312,7 +320,8 @@ func _clear_hint() -> void:
 func _press(pos: Vector2) -> void:
 	_clear_hint()
 	_press_pos = pos
-	_last_move_ms = Time.get_ticks_msec()
+	_press_ms = Time.get_ticks_msec()
+	_last_move_ms = _press_ms
 	rig.stop()
 	var hit := _raycast(pos)
 	if not hit.is_empty() and not animating and not Game.busy and not Game.over:
@@ -338,10 +347,10 @@ func _motion(pos: Vector2, rel: Vector2) -> void:
 					_update_twist(pos)
 		"pending_tap":
 			if pos.distance_to(_press_pos) > Balance.DRAG_START_PX:
-				_mode = "orbit"
+				_mode = "blocked"
 		"twist":
 			_update_twist(pos)
-		"orbit":
+		"orbit", "hold_orbit":
 			rig.orbit(rel, dt)
 
 
@@ -352,7 +361,7 @@ func _release(pos: Vector2) -> void:
 				field_tapped.emit(_hit_field)
 		"twist":
 			_finish_twist()
-		"orbit":
+		"orbit", "hold_orbit":
 			if Time.get_ticks_msec() - _last_move_ms > 90:
 				rig.stop()
 	if _mode != "twist":
@@ -406,7 +415,7 @@ func _begin_twist(drag: Vector2) -> void:
 			best_dir = st.normalized()
 			best_len = st.length() * 2.0
 	if best_t == Vector3i.ZERO:
-		_mode = "orbit"
+		_mode = "blocked"
 		return
 	var sgn := 1 if best_dot > 0.0 else -1
 	var t_s := Vector3(best_t) * sgn
@@ -452,7 +461,7 @@ func _show_preview(q: int) -> void:
 	for line in lines:
 		for g in line:
 			lit[(g as FieldData).id] = true
-		var mid: FieldData = line[1]
+		var mid: FieldData = line[GameState.target_index(line, arranged.moved)]
 		mids[mid.id] = GameState.STAGE_SHORT[mini(mid.stage + 1, Balance.MAX_STAGE)]
 	var danger := {}
 	for e in pv["events"]:

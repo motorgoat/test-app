@@ -5,7 +5,7 @@ extends RefCounted
 ## Regeln:
 ##   1. Start: nur leere Erde und Wiesen.
 ##   2. Vervollständigt eine Drehung eine NEUE Reihe aus 3 gleichen Feldern, verschmelzen sie:
-##      die Mitte steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt
+##      das Feld, das zuletzt dazugekommen ist, steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt
 ##      → Großstadt → Metropole), die beiden äußeren fallen eine Stufe zurück.
 ##   3. Leere Erde wird wieder Wiese, wenn genug Natur daneben ist.
 ##   4. Großstädte und Metropolen zerstören Natur daneben.
@@ -321,6 +321,18 @@ func moved_lines() -> Array:
 	return out
 
 
+## Welches Feld einer Reihe steigt auf? Das, das zuletzt dazugekommen ist (von der Drehung bewegt
+## bzw. bei einer Kettenreaktion gerade verändert). Liegt die ganze Reihe in der gedrehten Scheibe, die Mitte.
+static func target_index(line: Array, focus: Dictionary) -> int:
+	var hits: Array = []
+	for i in 3:
+		if focus.has((line[i] as FieldData).id):
+			hits.append(i)
+	if hits.size() == 1:
+		return int(hits[0])
+	return 1
+
+
 ## Punkte, die die letzte Drehung sofort durch Verschmelzen bringt (ohne Kettenreaktion).
 func merge_value() -> int:
 	var pts := 0
@@ -345,6 +357,7 @@ func resolve_merges(ev: Array) -> int:
 		var found := moved_lines() if pass_i == 0 else lines(focus)
 		if found.is_empty():
 			break
+		var last_focus := focus
 		focus = {}
 		combo += 1
 		var used := {}
@@ -357,9 +370,10 @@ func resolve_merges(ev: Array) -> int:
 				continue
 			for f in line:
 				used[(f as FieldData).id] = true
-			var mid: FieldData = line[1]
-			var a: FieldData = line[0]
-			var b: FieldData = line[2]
+			var ti := target_index(line, moved if pass_i == 0 else last_focus)
+			var mid: FieldData = line[ti]
+			var a: FieldData = line[(ti + 1) % 3]
+			var b: FieldData = line[(ti + 2) % 3]
 			var pts: int = int(Balance.MERGE_POINTS[mid.stage]) * combo
 			total += pts
 			var was := mid.stage

@@ -122,14 +122,21 @@ func test_merge() -> void:
 	check((waited.fields[b.id] as FieldData).stage == 1, "Warten lässt die Reihe stehen")
 	gs.moved[c.id] = true
 	var r := gs.end_round()
-	check(b.stage == 2, "Mitte wird Wald (%d)" % b.stage)
-	check(a.stage == 0 and c.stage == 0, "Außen fällt zurück (Wiese → Erde)")
+	check(c.stage == 2, "das zuletzt dazugekommene Feld wird kleiner Wald (%d)" % c.stage)
+	check(a.stage == 0 and b.stage == 0, "die anderen beiden fallen zurück (Wiese → Erde)")
 	var gs4 := empty_state()
 	for x in [-1, 0, 1]:
 		top(gs4, x, 1).stage = 3
 	gs4.moved = {top(gs4, 1, 1).id: true}
 	gs4.resolve_merges([])
-	check(top(gs4, 0, 1).stage == 4 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte und zwei kleine Wälder")
+	check(top(gs4, 1, 1).stage == 4 and top(gs4, 0, 1).stage == 2 and top(gs4, -1, 1).stage == 2, "3 große Wälder → Hütte (wo zuletzt dazugekommen) und zwei kleine Wälder")
+	var gs5 := empty_state()
+	for x in [-1, 0, 1]:
+		top(gs5, x, 1).stage = 1
+	for x in [-1, 0, 1]:
+		gs5.moved[top(gs5, x, 1).id] = true
+	gs5.resolve_merges([])
+	check(top(gs5, 0, 1).stage == 2, "ganze Reihe mitgedreht: die Mitte steigt auf")
 	check(int(r["gain"]) == int(Balance.MERGE_POINTS[1]), "Wert fürs Verschmelzen (%d)" % int(r["gain"]))
 	# Die ganze Leiter hinauf
 	var gs2 := empty_state()
@@ -140,7 +147,7 @@ func test_merge() -> void:
 		top(gs2, -1, 1).stage = s
 		gs2.moved = {top(gs2, -1, 1).id: true}
 		gs2.resolve_merges([])
-		names.append(top(gs2, -1, 0).stage)
+		names.append(top(gs2, -1, 1).stage)
 	check(names == [2, 3, 4, 5, 6, 7, 8, 9], "Leiter Wiese … Metropole (%s)" % str(names))
 	# Nebeneinander allein bringt nichts
 	var gs3 := empty_state()
@@ -186,19 +193,20 @@ func test_back_and_forth() -> void:
 
 
 func test_cascade() -> void:
-	# Spalte x=1 oben: Wald, Wiese, Wald; dazu zwei Wälder neben der Mitte, die eine Kombo auslösen
+	# Spalte x=1 oben: drei Wiesen, (1,1) kommt zuletzt dazu und wird Wald. Daneben zwei Wälder: Kombo
 	var gs := empty_state()
 	top(gs, 1, -1).stage = 1
 	top(gs, 1, 0).stage = 1
 	top(gs, 1, 1).stage = 1
-	top(gs, 0, 0).stage = 2
-	top(gs, -1, 0).stage = 2
+	top(gs, 0, 1).stage = 2
+	top(gs, -1, 1).stage = 2
 	gs.moved = {top(gs, 1, 1).id: true}
 	var ev: Array = []
 	var pts := gs.resolve_merges(ev)
 	check(ev.size() == 2, "Kettenreaktion: zwei Verschmelzungen (%d)" % ev.size())
 	if ev.size() == 2:
 		check(int(ev[1]["combo"]) == 2, "zweite zählt als Kombo")
+		check(int(ev[1]["field"]) == top(gs, 1, 1).id and top(gs, 1, 1).stage == 3, "Kombo steigt am selben Feld weiter auf")
 	check(pts == int(Balance.MERGE_POINTS[1]) + int(Balance.MERGE_POINTS[2]) * 2, "Kombo verdoppelt (%d)" % pts)
 
 
