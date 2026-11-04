@@ -210,15 +210,20 @@ static func roof(parent: Node3D, size: Vector3, color: Color, pos: Vector3, rot_
 # Landschaft
 # =============================================================================
 
+## Laubbaum: brauner Stamm, runde Krone aus drei Kugeln (oben heller).
 static func tree(parent: Node3D, pos: Vector3, s: float, color: Color) -> void:
-	cyl(parent, 0.016 * s, 0.022 * s, 0.07 * s, WOOD, pos, 8)
-	sphere(parent, 0.085 * s, color, pos + Vector3(0, 0.12 * s, 0), null, 1.15)
+	cyl(parent, 0.014 * s, 0.02 * s, 0.1 * s, WOOD, pos, 7)
+	sphere(parent, 0.075 * s, color.darkened(0.08), pos + Vector3(-0.035 * s, 0.12 * s, 0.01 * s), null, 1.0)
+	sphere(parent, 0.07 * s, color.darkened(0.04), pos + Vector3(0.04 * s, 0.115 * s, -0.01 * s), null, 1.0)
+	sphere(parent, 0.08 * s, color.lightened(0.08), pos + Vector3(0, 0.17 * s, 0), null, 1.05)
 
 
+## Tanne: Stamm und drei gestufte Kegel.
 static func pine(parent: Node3D, pos: Vector3, s: float, color: Color) -> void:
-	cyl(parent, 0.014 * s, 0.018 * s, 0.05 * s, WOOD, pos, 8)
-	cone(parent, 0.08 * s, 0.13 * s, color, pos + Vector3(0, 0.04 * s, 0), 10)
-	cone(parent, 0.06 * s, 0.1 * s, color.lightened(0.08), pos + Vector3(0, 0.11 * s, 0), 10)
+	cyl(parent, 0.013 * s, 0.017 * s, 0.05 * s, WOOD, pos, 7)
+	cone(parent, 0.085 * s, 0.12 * s, color.darkened(0.06), pos + Vector3(0, 0.04 * s, 0), 9)
+	cone(parent, 0.068 * s, 0.11 * s, color, pos + Vector3(0, 0.1 * s, 0), 9)
+	cone(parent, 0.048 * s, 0.1 * s, color.lightened(0.08), pos + Vector3(0, 0.16 * s, 0), 9)
 
 
 static func rock(parent: Node3D, pos: Vector3, s: float, snow: bool) -> void:

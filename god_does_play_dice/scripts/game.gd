@@ -7,6 +7,8 @@ signal new_game_started
 signal round_resolved(result: Dictionary, before: Dictionary)   # World spielt die Effekte ab
 signal message(text: String, kind: String)                     # kind: info, good, bad
 signal game_over
+signal move_done(kind: String)                                   # "twist", "rain", "bolt", "monsoon" (fürs Tutorial)
+signal tutorial_changed
 
 const SAVE_PATH := "user://rekord.cfg"
 const PRAISE = ["Dein Wille geschehe!", "Euer Wille geschehe!", "Halleluja!", "Gelobt sei der Herr!"]
@@ -19,6 +21,8 @@ var continued := false     # einmal pro Spiel weiterspielen
 var undo_state: GameState = null   # Stand vor dem letzten Zug (ein Schritt zurück)
 var best := 0              # Rekord in Punkten (je Modus)
 var tutorial_done := false
+var tutorial_step := -1    # Schritt im Tutorial, -1 = kein Tutorial
+var _last_kind := ""
 var credits := 0           # Credits für Tipps (gibt es für Werbung)
 var new_record := false
 var endless := true
@@ -45,6 +49,8 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1, surviv
 	if not endless:
 		survival = false
 	best = int(_best.get(_mode_key(), 0))
+	if not tutorial_done and tutorial_step < 0:
+		tutorial_step = 0
 	state = GameState.new()
 	state.setup(seed_value, endless, level, survival)
 	busy = false
@@ -72,14 +78,29 @@ func rounds_survived() -> int:
 	return state.turn - 1
 
 
-## Im allerersten Spiel: Drehtipps und Vorschau, was eine Drehung bringt.
+## Schritt-für-Schritt-Tutorial im allerersten Spiel: Tipps und Vorschau inklusive.
 func tutorial() -> bool:
-	return not tutorial_done and state != null and state.turn <= Balance.TUTORIAL_ROUNDS
+	return tutorial_step >= 0
 
 
 func restart_tutorial() -> void:
 	tutorial_done = false
+	tutorial_step = 0
 	new_game(0, 1, 1, 0)
+
+
+func tutorial_next() -> void:
+	if tutorial_step < 0:
+		return
+	tutorial_step += 1
+	tutorial_changed.emit()
+
+
+func end_tutorial() -> void:
+	tutorial_step = -1
+	tutorial_done = true
+	_save_best()
+	tutorial_changed.emit()
 
 
 ## Was zählt: die Punkte.
@@ -118,6 +139,7 @@ func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	var before := snapshot(state)
 	if turns != 0:
 		state.apply_rotation(axis, layer, turns, row)
+	_last_kind = "twist" if turns != 0 else "wait"
 	var result := state.end_round()
 	round_resolved.emit(result, before)
 
@@ -141,9 +163,6 @@ func finish_round(result: Dictionary) -> void:
 			if state.survival:
 				tail = "Noch %d %s. Gieß die brennenden Felder, um sie zu retten." % [state.lives, "Herz" if state.lives == 1 else "Herzen"]
 			message.emit("%s %s! %s. %s" % [gasp(), GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
-	if not tutorial_done and state.turn > Balance.TUTORIAL_ROUNDS:
-		tutorial_done = true
-		_save_best()
 	# Nichts mehr zu verbinden? Die Welt stirbt nicht: Es gibt einen Regen geschenkt.
 	if not state.is_over() and state.gadgets and state.stuck():
 		state.grant("rain")
@@ -153,6 +172,7 @@ func finish_round(result: Dictionary) -> void:
 		_save_best()
 		game_over.emit()
 	state_changed.emit()
+	move_done.emit(_last_kind)
 
 
 ## Bonus: "rain" auf ein Feld oder "bolt" auf eine Reihe (row, 3 IDs). Zählt als Zug; die World spielt ihn ab.
@@ -182,6 +202,7 @@ func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 	# Regen ist kein ganzer Zug: Man kann mehrmals hintereinander gießen
 	var result := state.resolve_now() if kind == "rain" else state.end_round()
 	result["bonus"] = {"kind": kind, "field": fid, "fields": hit, "stages": stages}
+	_last_kind = kind
 	round_resolved.emit(result, before)
 	return true
 

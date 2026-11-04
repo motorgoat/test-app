@@ -43,7 +43,7 @@ var last_row: Array = []      # IDs der zuletzt gedrehten Reihe (brennt beim 3. 
 var _rotated := false         # dieser Zug war eine Drehung
 var twists: int = 0           # Drehungen bisher (40-Drehungen-Modus)
 var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Verschmelzen bevorzugt auf
-var before_lines := {}        # Reihen, die vor diesem Zug schon dastanden: lösen nichts aus (nur neue Reihen zählen)
+var seen := {}                # jede Reihe (Felder + Stufe), die es je gab: zählt nur beim ersten Mal (kein Hin- und Herschieben)
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # Überleben: so viele Brände hält die Welt noch aus
@@ -171,7 +171,7 @@ func clone() -> GameState:
 	gs._rotated = _rotated
 	gs.twists = twists
 	gs.tapped = tapped
-	gs.before_lines = before_lines.duplicate()
+	gs.seen = seen.duplicate()
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
@@ -411,13 +411,17 @@ static func line_key(line: Array) -> String:
 	return "%s@%d" % [str(ids), (line[0] as FieldData).stage]
 
 
-## Vor der ersten Änderung eines Zugs merken, welche Reihen schon dastehen.
+## Vor der ersten Änderung eines Zugs merken, welche Reihen schon dastehen (zählen nicht).
 func _remember_before() -> void:
 	if not moved.is_empty():
 		return
-	before_lines = {}
+	_record_lines()
+
+
+## Alle Reihen, die gerade dastehen, als „schon da gewesen“ merken.
+func _record_lines() -> void:
 	for ln in lines():
-		before_lines[line_key(ln)] = true
+		seen[line_key(ln)] = true
 
 
 ## Die aktuell niedrigste Stufe auf dem Würfel (nur die hebt der Regen).
@@ -523,7 +527,7 @@ func resolve_merges(ev: Array) -> int:
 		var found: Array = []
 		for ln in lines(focus):
 			# nur neu gebildete Reihen lösen aus (im ersten Durchgang)
-			if pass_i == 0 and before_lines.has(line_key(ln)):
+			if pass_i == 0 and seen.has(line_key(ln)):
 				continue
 			found.append(ln)
 		if found.is_empty():
@@ -543,9 +547,9 @@ func resolve_merges(ev: Array) -> int:
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			var mid: FieldData = line[ti]
 			if easy:
-				# Einfach (wie Candy Crush): Eine neue Reihe löst aus. Die ganze zusammenhängende Gruppe
-				# verschmilzt ins zuletzt dazugekommene Feld; die übrigen sind verbraucht und werden mit
-				# Erde oder Wiese neu aufgefüllt. So wächst nichts endlos durch Hin- und Herschieben.
+				# Einfach: Eine neue Reihe löst aus, dann steigen alle gleichen Felder auf, die damit
+				# zusammenhängen. Nichts verschwindet. Weil jede Reihe nur einmal zählt, wächst durch
+				# Hin- und Herschieben nichts endlos.
 				combo += 1
 				var st0 := mid.stage
 				var grp := group_of(mid)
@@ -558,14 +562,11 @@ func resolve_merges(ev: Array) -> int:
 					var h: FieldData = g
 					h.burning = false
 					done[h.id] = true
-					if h == mid:
-						h.stage = mini(Balance.MAX_STAGE, st0 + 1)
-						focus[h.id] = true
-					else:
-						h.stage = 1 if rng.randf() < Balance.EASY_REFILL_MEADOW else 0
-						h.fresh = 0
+					h.stage = mini(Balance.MAX_STAGE, st0 + 1)
+					focus[h.id] = true
+					if h != mid:
 						gids.append(h.id)
-				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "consume": true})
+				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "all": true})
 				continue
 			var rest: Array = []
 			for i in line.size():
@@ -665,7 +666,7 @@ func end_round() -> Dictionary:
 	_rotated = false
 
 	moved = {}
-	before_lines = {}
+	_record_lines()
 	turn += 1
 	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": bool(pr["new_age"])}
 
@@ -734,7 +735,7 @@ func resolve_now() -> Dictionary:
 	var gain := resolve_merges(ev)
 	moved = {}
 	tapped = -1
-	before_lines = {}
+	_record_lines()
 	var pr := _progress(gain, corners)
 	return {"events": ev, "gain": gain, "bonus_gained": pr["got"], "new_age": bool(pr["new_age"])}
 

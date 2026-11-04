@@ -48,6 +48,19 @@ var credits_btn: Button
 var ad_label: Label
 var rain_ready: Button
 var cancel_btn: Button
+var tut_card: PanelContainer
+var tut_label: Label
+var tut_next: Button
+var _tut_target: Control = null
+const TUT_STEPS = [
+	{"wait": "twist", "text": "Willkommen, Gott! Wisch über eine Reihe des Würfels, um sie zu drehen."},
+	{"wait": "merge", "text": "Bring drei gleiche Felder in eine Reihe: Sie verschmelzen, und das neue Feld steigt auf. Die goldene Scheibe zeigt dir, wo es klappt."},
+	{"wait": "tap", "text": "Drehst du, ohne dass etwas verschmilzt, ist das ein Fehlversuch (die Flammen oben). Beim 3. fängt die gedrehte Reihe Feuer."},
+	{"wait": "rain", "text": "Das ist Regen. Tippe unten auf Regen und dann auf ein Feld der niedrigsten Stufe: Es steigt eine Stufe."},
+	{"wait": "bolt", "text": "Drei gleiche an einer Würfelecke bringen einen Blitz. Probier ihn: Blitz antippen, dann ein Eckfeld. Die Diagonale steigt."},
+	{"wait": "tap", "text": "Zurück und Tipp kosten Credits (die Münze oben). Credits gibt es für eine kurze Werbung."},
+	{"wait": "done", "text": "Fertig! Im Menü findest du Stufen und Modi. Viel Spaß, Gott!"},
+]
 var _pending: Callable = Callable()
 var _pending_cost := 0
 var over_label: Label
@@ -82,8 +95,11 @@ func setup(w: World) -> void:
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
 	Game.game_over.connect(_on_game_over)
+	Game.move_done.connect(_on_move_done)
+	Game.tutorial_changed.connect(_tutorial_show)
 	refresh()
-	if not _seen_help():
+	_tutorial_show()
+	if not _seen_help() and not Game.tutorial():
 		_open_modal(help_card)
 
 
@@ -232,6 +248,35 @@ func _build() -> void:
 	preview_card.add_child(preview_label)
 	preview_card.modulate.a = 0.0
 	top.add_child(preview_card)
+	# Tutorial: eine Karte mit dem aktuellen Schritt; weiter geht es mit der Aktion oder „Weiter“
+	tut_card = _card(Color(0.118, 0.133, 0.169, 0.94))
+	tut_card.mouse_filter = Control.MOUSE_FILTER_STOP
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 8)
+	tut_card.add_child(tv)
+	tut_label = _label("", 16, Color.WHITE)
+	tut_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tut_label.custom_minimum_size = Vector2(300, 0)
+	tv.add_child(tut_label)
+	var th := HBoxContainer.new()
+	th.alignment = BoxContainer.ALIGNMENT_END
+	th.add_theme_constant_override("separation", 8)
+	tv.add_child(th)
+	var skip := Button.new()
+	skip.text = "Überspringen"
+	skip.add_theme_font_size_override("font_size", 14)
+	skip.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	skip.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	skip.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
+	skip.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
+	skip.pressed.connect(func() -> void: Game.end_tutorial())
+	th.add_child(skip)
+	tut_next = _wide_button("Weiter", Color.WHITE, Style.TEXT)
+	tut_next.custom_minimum_size = Vector2(120, 44)
+	tut_next.pressed.connect(_on_tut_next)
+	th.add_child(tut_next)
+	tut_card.visible = false
+	top.add_child(tut_card)
 	# Ein Hinweis über dem Würfel: Regen ist bereit (statt Symbolen auf jedem Feld)
 	rain_ready = Button.new()
 	rain_ready.icon = Style.icon("rain")
@@ -262,7 +307,7 @@ func _build() -> void:
 	toast.add_child(toast_label)
 	toast.modulate.a = 0.0
 	bottom.add_child(toast)
-	# Beim Drehen: Finger hierher ziehen und loslassen = Drehung abbrechen
+	# Beim Drehen erscheint oben „Abbrechen“: Finger dorthin ziehen und loslassen = Drehung abbrechen
 	cancel_btn = Button.new()
 	cancel_btn.text = "  Abbrechen"
 	cancel_btn.icon = Style.icon("undo")
@@ -274,7 +319,7 @@ func _build() -> void:
 	cancel_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pill_style(cancel_btn, Color.WHITE)
 	cancel_btn.visible = false
-	bottom.add_child(cancel_btn)
+	top.add_child(cancel_btn)      # oben: Finger beim Drehen nach oben ziehen = abbrechen
 	mode_card = _card(Color("#2f3442"))
 	mode_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var mh := HBoxContainer.new()
@@ -527,13 +572,13 @@ func _modal_card(title: String) -> PanelContainer:
 func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
-	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde. Willst du doch nicht: Finger unten auf „Abbrechen“ ziehen."))
+	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde. Willst du doch nicht: Finger oben auf „Abbrechen“ ziehen."))
 	v.add_child(_help_row("up", "Bildest du eine neue Reihe aus drei gleichen Feldern, verschmelzen sie: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole. In der Stufe Mittel zählen ab dem kleinen Wald auch Diagonalen."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß ein Feld der gerade niedrigsten Stufe (zuerst Erde, dann Wiese …), es steigt eine Stufe. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
-	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – eine neue Reihe löst aus, dann verschmilzt die ganze zusammenhängende Gruppe ins neue Feld; die übrigen Felder füllen sich neu mit Erde oder Wiese (wie bei Candy Crush). Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
+	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – eine neue Reihe löst aus, dann steigen alle gleichen Felder auf, die damit zusammenhängen. Jede Reihe zählt nur einmal. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
@@ -559,7 +604,7 @@ func _build_menu() -> void:
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	v.add_child(grid)
-	var subs := ["Gruppen + Nachschub", "auch diagonal", "nur gerade", "ohne Gadgets"]
+	var subs := ["ganze Gruppe steigt", "auch diagonal", "nur gerade", "ohne Gadgets"]
 	for i in 4:
 		var b := _wide_button("%s\n%s" % [Game.LEVELS[i], subs[i]], Color.WHITE, Style.TEXT)
 		b.add_theme_font_size_override("font_size", 15)
@@ -918,6 +963,9 @@ func _process(delta: float) -> void:
 	_update_bubbles(delta)
 	if Game.state == null or score_label == null:
 		return
+	if _tut_target != null and is_instance_valid(_tut_target) and _tut_target.visible:
+		_tut_target.pivot_offset = _tut_target.size * 0.5
+		_tut_target.scale = Vector2.ONE * (1.0 + 0.08 * (0.5 + 0.5 * sin(_time * 6.0)))
 	if rain_ready.visible:
 		rain_ready.pivot_offset = rain_ready.size * 0.5
 		var k := 0.5 + 0.5 * sin(_time * 3.0)
@@ -983,6 +1031,65 @@ func _on_preview(info: Dictionary) -> void:
 # =============================================================================
 # Info-Karte
 # =============================================================================
+
+# =============================================================================
+# Tutorial Schritt für Schritt
+# =============================================================================
+
+func _tutorial_show() -> void:
+	if _tut_target != null and is_instance_valid(_tut_target):
+		_tut_target.scale = Vector2.ONE
+	_tut_target = null
+	if not Game.tutorial() or Game.tutorial_step >= TUT_STEPS.size():
+		if Game.tutorial():
+			Game.end_tutorial()
+		tut_card.visible = false
+		return
+	var st: Dictionary = TUT_STEPS[Game.tutorial_step]
+	var wait := str(st["wait"])
+	tut_label.text = str(st["text"])
+	tut_next.visible = wait == "tap" or wait == "done"
+	tut_next.text = "Los geht's" if wait == "done" else "Weiter"
+	tut_card.visible = true
+	tut_card.modulate.a = 0.0
+	tut_card.create_tween().tween_property(tut_card, "modulate:a", 1.0, 0.25)
+	var gs := Game.state
+	if wait == "rain":
+		if gs.rain <= 0:
+			Game.grant("rain")
+		_tut_target = rain_btn
+	elif wait == "bolt":
+		if gs.bolts <= 0:
+			Game.grant("bolt")
+		_tut_target = bolt_btn
+	elif Game.tutorial_step == 2:
+		_tut_target = miss_pill
+	elif Game.tutorial_step == 5:
+		_tut_target = credits_btn
+
+
+func _on_tut_next() -> void:
+	if not Game.tutorial():
+		return
+	if str(TUT_STEPS[Game.tutorial_step]["wait"]) == "done":
+		Game.end_tutorial()
+	else:
+		Game.tutorial_next()
+
+
+func _tut_wait() -> String:
+	if not Game.tutorial() or Game.tutorial_step >= TUT_STEPS.size():
+		return ""
+	return str(TUT_STEPS[Game.tutorial_step]["wait"])
+
+
+func _on_move_done(kind: String) -> void:
+	var w := _tut_wait()
+	if w == "twist" and kind == "twist":
+		Game.tutorial_next()
+	elif (w == "rain" and kind == "rain") or (w == "bolt" and kind == "bolt"):
+		Game.tutorial_next()
+
 
 func _on_twist_state(on: bool) -> void:
 	cancel_btn.visible = on
@@ -1077,6 +1184,8 @@ func _fill_sheet(fid: int) -> void:
 # =============================================================================
 
 func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
+	if _tut_wait() == "merge":
+		Game.tutorial_next.call_deferred()
 	_bubble(fid, "+%d" % points, "up", Color("#f2a900"))
 	if combo >= 2:
 		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]

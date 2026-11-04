@@ -870,11 +870,11 @@ func _merge_fx(e: Dictionary) -> void:
 			v.set_highlight(false)
 	target.set_highlight(false)
 	target.burst(Color("#ffd23f"))
-	if bool(e.get("consume", false)):
+	if bool(e.get("consume", false)) or bool(e.get("all", false)):
 		for o in others:
 			var ov: FieldView = views.get(int(o))
 			if ov != null:
-				ov.burst(Color("#8fd162"))
+				ov.burst(Color("#ffd23f"))
 	_sparks(target.global_position + target.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 10)
 	rig.shake(0.25 + 0.15 * int(e["combo"]))
 	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]), int(e.get("stage", 0)))

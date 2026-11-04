@@ -338,14 +338,17 @@ func _build_content(f: FieldData) -> void:
 				Models.cone(_content, 0.02, 0.05, Color("#86c95a"), Vector3(0.05, 0, -0.04), 5)
 				Models.cone(_content, 0.016, 0.04, Color("#86c95a"), Vector3(0.09, 0, -0.01), 5)
 		1:
-			# Wiese mit kleinem See
-			Models.rbox(_content, Vector3(0.24, 0.016, 0.2), 0.09, WATER, Vector3(0.08, 0.0, 0.07), Vector3.ZERO, Models.mat(WATER, 0.1))
-			var flowers := [Color("#ffffff"), Color("#ff9ec4"), Color("#ffe066")]
-			for k in 6:
-				var fp := Vector3(rng.randf_range(-0.26, -0.02), 0.015, rng.randf_range(-0.26, 0.24))
-				Models.sphere(_content, 0.017, flowers[k % 3], fp)
-			Models.cone(_content, 0.03, 0.06, Color("#79c24f"), Vector3(0.18, 0, -0.18), 5)
-			_animal("lake", Vector3(0.09, 0.012, 0.07), rng)
+			# Wiese: Grasbüschel und Blumen, keine Bäume, kein Wasser
+			var grass := [Color("#6fb544"), Color("#86c95a"), Color("#5ea83c")]
+			for k in 9:
+				var gp := Vector3(rng.randf_range(-0.27, 0.27), 0.0, rng.randf_range(-0.27, 0.27))
+				Models.cone(_content, 0.022, rng.randf_range(0.05, 0.08), grass[k % 3], gp, 4)
+				Models.cone(_content, 0.016, rng.randf_range(0.04, 0.06), grass[(k + 1) % 3], gp + Vector3(0.018, 0, 0.01), 4)
+			var flowers := [Color("#ffffff"), Color("#ff9ec4"), Color("#ffe066"), Color("#b58cff")]
+			for k in 7:
+				var fp := Vector3(rng.randf_range(-0.26, 0.26), 0.03, rng.randf_range(-0.26, 0.26))
+				Models.sphere(_content, 0.02, flowers[k % 4], fp)
+			_animal("meadow", Vector3(0.1, 0.0, 0.08), rng)
 		2:
 			# Kleiner Wald: vier Bäume, deutlich als Wald erkennbar (die Wiese hat keine Bäume)
 			Models.tree(_content, Vector3(-0.14, 0, -0.12), 0.95, greens[1])

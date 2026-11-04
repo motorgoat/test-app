@@ -435,11 +435,13 @@ func test_easy() -> void:
 	top(gs, -1, 0).stage = 1
 	gs.moved = {top(gs, -1, 0).id: true}
 	var r := gs.end_round()
-	var rest_ok := true
-	for fd in [top(gs, 0, 0), top(gs, 1, 0), top(gs, 1, 1)]:
-		if (fd as FieldData).stage > 1:
-			rest_ok = false
-	check(int(r["gain"]) > 0 and top(gs, -1, 0).stage == 2 and rest_ok, "einfacher Modus: die ganze Gruppe verschmilzt ins neue Feld, der Rest wird neu aufgefüllt")
+	var all2 := top(gs, -1, 0).stage == 2 and top(gs, 0, 0).stage == 2 and top(gs, 1, 0).stage == 2 and top(gs, 1, 1).stage == 2
+	check(int(r["gain"]) > 0 and all2, "einfacher Modus: Reihe löst aus, alle zusammenhängenden steigen auf, nichts verschwindet")
+	# Hin- und Herschieben bringt nichts: dieselbe Reihe zählt nur einmal
+	gs.apply_rotation(0, -1, 1)
+	gs.end_round()
+	gs.apply_rotation(0, -1, -1)
+	check(int(gs.end_round()["gain"]) == 0 and top(gs, 0, 0).stage == 2, "einfacher Modus: hin und her bringt nichts")
 	var r2 := gs.end_round()
 	check(int(r2["gain"]) == 0, "aufgestiegene Gruppe steigt nicht von allein weiter")
 
