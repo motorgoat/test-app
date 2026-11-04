@@ -37,6 +37,13 @@ func _apply_scale() -> void:
 
 func _shots(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
+	# Tutorial wie über das Menü neu gestartet: der erste Zug muss von selbst laufen
+	Game.restart_tutorial()
+	await _wait(1.0)
+	await _shot(dir, "00a_tutorial_start")
+	await _wait(4.5)
+	await _shot(dir, "00b_tutorial_nach_auto")
+	print("TUTORIAL-CHECK step=%d score=%d" % [Game.tutorial_step, Game.state.score])
 	Game.new_game(4242)
 	ui.debug_close_all()
 	await _wait(1.5)

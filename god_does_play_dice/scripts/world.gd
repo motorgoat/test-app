@@ -13,6 +13,7 @@ signal miss_shown(fid: int, count: int)
 signal twist_state(on: bool)               # eine Drehung läuft (unten erscheint „Abbrechen“)
 signal cancel_hover(on: bool)              # Finger ist über „Abbrechen“
 signal bolt_drawn(fid: int, row: Array)    # Blitz über eine Reihe gezogen
+signal tutorial_tap                        # im vorgeführten ersten Zug auf den Würfel getippt
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -398,8 +399,9 @@ func _clear_hint() -> void:
 
 
 func _press(pos: Vector2) -> void:
-	# Tutorial: der erste Zug spielt sich selbst, so lange ist der Würfel gesperrt
+	# Tutorial: der erste Zug spielt sich selbst. Tippen startet ihn sofort.
 	if Game.tutorial() and Game.tutorial_step == 0:
+		tutorial_tap.emit()
 		return
 	_clear_hint()
 	_press_pos = pos

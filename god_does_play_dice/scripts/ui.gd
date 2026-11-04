@@ -57,6 +57,8 @@ var coach_label: Label
 var _coach_queue: Array = []
 var _demo_at := 0.0
 var _auto_at := INF
+var _auto_fired := false      # der vorgeführte erste Zug lief schon
+var _tut_step_at := 0.0       # wann der aktuelle Tutorial-Schritt begann
 var _tut_merged := false
 const TUT_STEPS = [
 	{"wait": "auto", "text": "Schau: Drei gleiche Wiesen in einer Reihe verschmelzen und steigen auf."},
@@ -98,6 +100,7 @@ func setup(w: World) -> void:
 	world.twist_state.connect(_on_twist_state)
 	world.cancel_hover.connect(_on_cancel_hover)
 	world.bolt_drawn.connect(_on_bolt_drawn)
+	world.tutorial_tap.connect(_on_tutorial_tap)
 	world.cancel_zone = cancel_btn
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
@@ -1016,9 +1019,7 @@ func _process(delta: float) -> void:
 	_update_bubbles(delta)
 	if Game.state == null or score_label == null:
 		return
-	if _tut_wait() == "auto" and _time > _auto_at and not Game.busy and modal_bg != null and not modal_bg.visible:
-		if world.auto_twist(0, 1, 1):
-			_auto_at = INF
+	_tutorial_tick()
 	if rain_ready.visible:
 		rain_ready.pivot_offset = rain_ready.size * 0.5
 		var k := 0.5 + 0.5 * sin(_time * 3.0)
@@ -1105,10 +1106,45 @@ func _tutorial_show() -> void:
 	tut_card.create_tween().tween_property(tut_card, "modulate:a", 1.0, 0.25)
 	tap_catcher.visible = false
 	_place_tut.call_deferred()
+	_tut_step_at = _time
 	if str(st["wait"]) == "auto":
 		# Würfel dreht sich zu den leuchtenden Feldern, dann spielt sich der erste Zug von selbst
 		world.focus_place(Vector3i(0, 1, 0))
-		_auto_at = _time + 2.0
+		_auto_fired = false
+		_auto_at = _time + 1.6
+
+
+## Tippen während des Vorführ-Zugs: sofort loslegen statt warten.
+func _on_tutorial_tap() -> void:
+	if _tut_wait() == "auto" and not _auto_fired:
+		_auto_at = minf(_auto_at, _time)
+
+
+## Tutorial-Ablauf pro Frame. Robust: Der erste Zug startet sicher von selbst (auch nach
+## „Tutorial neu“), und klappt das nicht, darf man nach kurzer Zeit selbst drehen.
+func _tutorial_tick() -> void:
+	if _tut_wait() != "auto":
+		return
+	if _auto_at == INF and not _auto_fired:
+		_auto_at = _time + 1.6
+		_tut_step_at = _time
+		world.focus_place(Vector3i(0, 1, 0))
+	if _auto_fired:
+		if _time - _tut_step_at > 14.0 and not world.animating and not Game.busy:
+			Game.tutorial_next()      # Zug lief, Schritt ging aber nicht weiter: freigeben
+		return
+	if _time < _auto_at:
+		return
+	if modal_bg != null and modal_bg.visible:
+		return
+	if world.auto_twist(0, 1, 1):
+		_auto_fired = true
+		_auto_at = INF
+	elif _time - _tut_step_at > 6.0 and not world.animating and not Game.busy:
+		# Notausgang: nie festhängen, dann zeigt die Hand den Zug und man dreht selbst
+		push_warning("Tutorial: Auto-Zug blockiert, gebe Steuerung frei")
+		_auto_fired = true
+		Game.tutorial_next()
 
 
 ## Satz oben, unter der Kopfzeile.
