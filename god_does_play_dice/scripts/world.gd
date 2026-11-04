@@ -572,7 +572,7 @@ func _show_preview(q: int) -> void:
 	for line in lines:
 		for g in line:
 			lit[(g as FieldData).id] = true
-		var mid: FieldData = line[GameState.target_index(line, arranged.moved)]
+		var mid: FieldData = line[GameState.target_index(line, arranged.moved, arranged.tapped)]
 		mids[mid.id] = GameState.STAGE_SHORT[mini(mid.stage + 1, Balance.MAX_STAGE)]
 	var danger := {}
 	for e in pv["events"]:

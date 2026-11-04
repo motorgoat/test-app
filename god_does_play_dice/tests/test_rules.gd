@@ -290,6 +290,16 @@ func test_bonus() -> void:
 	top(gs, -1, 0).stage = 2
 	gs.apply_bonus("bolt", f, row)
 	check(top(gs, -1, 0).stage == 3 and f.stage == 2 and top(gs, 1, 0).stage == 1 and gs.bolts == 0, "Blitz hebt die ganze Reihe")
+	# Blitz: das angetippte Feld steigt beim Verschmelzen auf
+	var gb := empty_state()
+	gb.bolts = 1
+	for x in [-1, 0, 1]:
+		top(gb, x, 0).stage = 1
+	var tap := top(gb, 1, 0)
+	gb.apply_bonus("bolt", tap, gb.line_through(tap, 0))
+	# jetzt drei kleine Wälder in einer Reihe, alle verändert: das angetippte steigt auf
+	gb.end_round()
+	check(tap.stage == 3 and top(gb, 0, 0).stage == 2, "Blitz: das angetippte Feld steigt beim Verschmelzen auf")
 	# Regen kann eine Reihe vervollständigen: Dann verschmilzt sie dort
 	var gl := empty_state()
 	gl.rain = 1

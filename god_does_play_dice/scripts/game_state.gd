@@ -39,6 +39,7 @@ var next_bolt: int = 0        # … und den nächsten Blitz
 var misses: int = 0           # Fehlversuche seit dem letzten Brand
 var last_row: Array = []      # IDs der zuletzt gedrehten Reihe (brennt beim 3. Fehlversuch)
 var _rotated := false         # dieser Zug war eine Drehung
+var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Verschmelzen bevorzugt auf
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
@@ -151,6 +152,7 @@ func clone() -> GameState:
 	gs.next_monsoon = next_monsoon
 	gs.last_row = last_row.duplicate()
 	gs._rotated = _rotated
+	gs.tapped = tapped
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
@@ -395,7 +397,10 @@ func lines(only: Dictionary = {}) -> Array:
 
 ## Welches Feld einer Reihe steigt auf? Das, das zuletzt dazugekommen ist (von der Drehung bewegt
 ## bzw. bei einer Kettenreaktion gerade verändert). Liegt die ganze Reihe in der gedrehten Scheibe, die Mitte.
-static func target_index(line: Array, focus: Dictionary) -> int:
+static func target_index(line: Array, focus: Dictionary, prefer: int = -1) -> int:
+	for i in 3:
+		if (line[i] as FieldData).id == prefer:
+			return i
 	var hits: Array = []
 	for i in 3:
 		if focus.has((line[i] as FieldData).id):
@@ -480,7 +485,7 @@ func resolve_merges(ev: Array) -> int:
 				continue
 			for f in line:
 				used[(f as FieldData).id] = true
-			var ti := target_index(line, moved if pass_i == 0 else last_focus)
+			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			var mid: FieldData = line[ti]
 			var a: FieldData = line[(ti + 1) % 3]
 			var b: FieldData = line[(ti + 2) % 3]
@@ -508,6 +513,7 @@ func end_round() -> Dictionary:
 	# 1. Drei in einer Reihe verschmelzen sofort
 	var gain := resolve_merges(ev)
 	moved = {}
+	tapped = -1
 	var dirty := {}             # was sich nach dem Verschmelzen verändert, kann im nächsten Zug verschmelzen
 
 	# 2. Großstädte und Metropolen zerstören Natur daneben
@@ -766,6 +772,7 @@ func grant(kind: String) -> void:
 ## Blitz: Die ganze Reihe (row, 3 IDs) steigt eine Stufe auf und hört auf zu brennen.
 ## Was aufsteigt, zählt als zuletzt dazugekommen und kann verschmelzen. Danach wird der Zug normal ausgewertet.
 func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
+	tapped = f.id
 	var targets: Array = [f]
 	if kind == "rain":
 		rain -= 1
