@@ -494,6 +494,7 @@ func resolve_merges(ev: Array) -> int:
 	var total := resolve_faces(ev, locked)
 	var combo := 0
 	var focus := moved.duplicate()
+	var done := {}      # Einfach: was in diesem Zug schon aufgestiegen ist, steigt nicht gleich nochmal
 	for pass_i in Balance.MAX_CASCADES:
 		if focus.is_empty():
 			break
@@ -506,7 +507,7 @@ func resolve_merges(ev: Array) -> int:
 		for line in found:
 			var skip := false
 			for f in line:
-				if used.has((f as FieldData).id) or locked.has((f as FieldData).id):
+				if used.has((f as FieldData).id) or locked.has((f as FieldData).id) or done.has((f as FieldData).id):
 					skip = true
 			if skip:
 				continue
@@ -514,6 +515,23 @@ func resolve_merges(ev: Array) -> int:
 				used[(f as FieldData).id] = true
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			var mid: FieldData = line[ti]
+			if easy:
+				# Berühr-Modus: alle gleichen Felder, die sich berühren, steigen gemeinsam auf
+				combo += 1
+				var st0 := mid.stage
+				var gpts: int = int(Balance.MERGE_POINTS[st0]) * combo * line.size() / 3
+				total += gpts
+				var gids: Array = []
+				for g in line:
+					var h: FieldData = g
+					h.stage = mini(Balance.MAX_STAGE, st0 + 1)
+					h.burning = false
+					done[h.id] = true
+					focus[h.id] = true
+					if h != mid:
+						gids.append(h.id)
+				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "all": true})
+				continue
 			var rest: Array = []
 			for i in line.size():
 				if i != ti:

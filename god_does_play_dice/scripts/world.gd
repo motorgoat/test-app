@@ -64,15 +64,16 @@ func _ready() -> void:
 	Game.new_game_started.connect(rebuild)
 	Game.state_changed.connect(_on_state_changed)
 	Game.round_resolved.connect(_on_round_resolved)
+	_add_clouds()
 	rebuild()
 
 
 func _setup_environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#7cc0f0")
-	sky_mat.sky_horizon_color = Color("#e6f3fb")
-	sky_mat.ground_horizon_color = Color("#e6f3fb")
-	sky_mat.ground_bottom_color = Color("#cfe6f5")
+	sky_mat.sky_top_color = Color("#9fd3f5")
+	sky_mat.sky_horizon_color = Color("#fdeedd")
+	sky_mat.ground_horizon_color = Color("#fdeedd")
+	sky_mat.ground_bottom_color = Color("#f6dcc0")
 	sky_mat.sun_angle_max = 0.0
 	sky_mat.sky_curve = 0.12
 	var sky := Sky.new()
@@ -120,7 +121,7 @@ func rebuild() -> void:
 	var gs := Game.state
 	var by_pos := {}
 	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.12, 4)
-	var body_mat := Models.mat(Color("#2b6fa8"), 0.25)   # Meer zwischen den Feldern: der Würfel ist eine Welt
+	var body_mat := Models.mat(Color("#3a3d4a"), 0.35)
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
 			for z in [-1, 0, 1]:
@@ -145,7 +146,6 @@ func rebuild() -> void:
 		v.build(f)
 		views[f.id] = v
 	refresh_all()
-	_add_clouds()
 
 
 static func _is_center_cubie(p: Vector3i) -> bool:
@@ -185,22 +185,24 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 
 
 
-## Ein paar Wolken ziehen langsam um die Welt.
+## Ein paar Wolken im Hintergrund: hängen an der Kamera, immer hinter dem Würfel, ohne Schatten.
 var _clouds: Node3D
+var _cloud_base: Array = []
 
 
 func _add_clouds() -> void:
 	_clouds = Node3D.new()
-	cube_root.add_child(_clouds)
-	var cm := Models.mat(Color("#ffffff"), 0.9)
-	# weit genug draußen und eher oben/unten, damit keine Wolke Felder verdeckt
-	var spots := [Vector3(3.3, 2.1, 0.6), Vector3(-1.4, 2.6, 2.8), Vector3(-3.4, -1.6, -1.0), Vector3(0.9, -2.6, -3.0), Vector3(2.4, 2.3, -2.6)]
+	rig.add_child(_clouds)
+	var cm := Models.unshaded(Color(1, 1, 1, 0.85))
+	var spots := [Vector3(-2.9, 2.2, -5.0), Vector3(2.7, 1.2, -6.0), Vector3(-2.2, -2.4, -5.5)]
 	for sp in spots:
 		var c := Node3D.new()
 		c.position = sp
 		_clouds.add_child(c)
-		for k in 4:
-			Models.sphere(c, randf_range(0.14, 0.22), Color.WHITE, Vector3(randf_range(-0.25, 0.25), randf_range(-0.04, 0.06), randf_range(-0.12, 0.12)), cm)
+		_cloud_base.append(sp)
+		for k in 3:
+			var m := Models.sphere(c, [0.42, 0.55, 0.38][k], Color.WHITE, Vector3([-0.45, 0.0, 0.45][k], [0.0, 0.12, -0.02][k], 0.0), cm)
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 ## Regensymbole auf den Feldern, wo Gießen etwas bringt (nur solange man den Regen gewählt hat).
@@ -219,8 +221,12 @@ func select(fid: int) -> void:
 
 
 func _process(delta: float) -> void:
-	if _clouds != null and is_instance_valid(_clouds):
-		_clouds.rotate_y(delta * 0.06)
+	if _clouds != null:
+		var t := Time.get_ticks_msec() / 1000.0
+		for i in _clouds.get_child_count():
+			var c: Node3D = _clouds.get_child(i)
+			var b: Vector3 = _cloud_base[i]
+			c.position = b + Vector3(sin(t * 0.07 + i * 2.0) * 0.6, 0.0, 0.0)
 	if _mode == "" and not animating and not Game.busy and not Game.over:
 		_idle += delta
 		if Game.tutorial() and _idle > 1.2 and not _hinted:
@@ -774,7 +780,7 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 					var mv: FieldView = views.get(int(fid))
 					if mv != null:
 						mv.refresh(gs.fields[int(fid)])
-			await get_tree().create_timer(0.35).timeout
+			await get_tree().create_timer(0.55).timeout
 		last_combo = combo
 		merged_ids[int(e["field"])] = true
 		for o in e["others"]:
@@ -846,6 +852,11 @@ func _merge_fx(e: Dictionary) -> void:
 			v.set_highlight(false)
 	target.set_highlight(false)
 	target.burst(Color("#ffd23f"))
+	if bool(e.get("all", false)):
+		for o in others:
+			var ov: FieldView = views.get(int(o))
+			if ov != null:
+				ov.burst(Color("#ffd23f"))
 	_sparks(target.global_position + target.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 10)
 	rig.shake(0.25 + 0.15 * int(e["combo"]))
 	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]), int(e.get("stage", 0)))

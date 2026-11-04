@@ -508,7 +508,7 @@ func _build_help() -> void:
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer: Im nächsten Zug verliert jedes brennende Feld eine Stufe, außer du gießt es vorher." % Balance.FIRE_AFTER))
 	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Gieß leere Erde, sie wird zur Wiese. Ein brennendes Feld wird gelöscht. Wolken über Feldern zeigen, wo es sich lohnt. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz: Den bekommst du, wenn an einer Würfelecke drei gleiche Felder zusammenkommen. Wähl ihn und tippe ein Eckfeld an: Die Diagonale dieser Seite (3 Felder) steigt eine Stufe auf."))
-	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – alle gleichen Felder, die sich berühren, verschmelzen ab drei. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
+	v.add_child(_help_row("up", "Stufen (im Menü): Einfach – alle gleichen Felder, die sich berühren (ab drei), steigen gemeinsam auf. Mittel – Reihen und Diagonalen. Schwer – nur gerade Reihen. Profi – nur gerade Reihen, ohne Regen, Blitz, Monsun und Tipp."))
 	v.add_child(_help_row("monsoon", "Monsun (ab der Antike): Tippe eine Seite an, alle 9 Felder steigen eine Stufe."))
 	v.add_child(_help_row("coin", "Kein Regen, Blitz oder Monsun da? Antippen und mit Credits kaufen. Bringt ein Tipp gerade nichts, bekommst du dafür einen Regen."))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
@@ -1078,8 +1078,8 @@ func _pop_banner() -> void:
 	var tw := combo_label.create_tween()
 	tw.tween_property(combo_label, "scale", Vector2(1.1, 1.1), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(combo_label, "scale", Vector2.ONE, 0.12)
-	tw.tween_interval(0.6)
-	tw.tween_property(combo_label, "modulate:a", 0.0, 0.35)
+	tw.tween_interval(1.5)
+	tw.tween_property(combo_label, "modulate:a", 0.0, 0.5)
 
 
 func _on_deltas(list: Array, gain: int) -> void:
@@ -1107,7 +1107,7 @@ func _bubble(fid: int, text: String, icon_name: String, color: Color) -> void:
 	b.add_theme_stylebox_override("normal", s)
 	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bubble_layer.add_child(b)
-	_bubbles.append({"node": b, "fid": fid, "t": 0.0, "dur": 1.8})
+	_bubbles.append({"node": b, "fid": fid, "t": 0.0, "dur": 2.8})
 	_update_bubbles(0.0)
 
 

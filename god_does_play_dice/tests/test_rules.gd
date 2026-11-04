@@ -413,7 +413,9 @@ func test_easy() -> void:
 	top(gs, 1, 1).stage = 1
 	gs.moved = {top(gs, 1, 1).id: true}
 	var r := gs.end_round()
-	check(int(r["gain"]) > 0 and top(gs, 1, 1).stage == 2 and top(gs, 0, 0).stage == 1, "einfacher Modus: drei sich berührende Wiesen verschmelzen")
+	check(int(r["gain"]) > 0 and top(gs, 1, 1).stage == 2 and top(gs, 0, 0).stage == 2 and top(gs, 1, 0).stage == 2, "einfacher Modus: alle drei sich berührenden Wiesen steigen auf")
+	var r2 := gs.end_round()
+	check(int(r2["gain"]) == 0 and top(gs, 0, 0).stage == 2, "aufgestiegene Gruppe steigt nicht von allein weiter")
 	var gn := empty_state()
 	top(gn, 0, 0).stage = 1
 	top(gn, 1, 0).stage = 1
