@@ -75,3 +75,5 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Sprüche: „Dein Wille geschehe“, „Euer Wille geschehe“; bei Katastrophen „Um Gottes Willen“, „Gottverdammt“,
   „Grundgütiger“ … (erste Version umgesetzt).
 - Echte Werbung (z. B. AdMob) für Credits; im Prototyp ein Platzhalter-Knopf.
+- **Regen und Blitz kaufbar** (Shop, später).
+- **„Über Kreuz“** als Verbindung? Offene Frage (diagonal oder als Plus-Form, siehe Chat).
