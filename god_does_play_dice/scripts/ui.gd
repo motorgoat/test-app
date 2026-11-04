@@ -35,7 +35,6 @@ var ad_card: PanelContainer
 var sheet_rain: Button
 var sheet_bolt: Button
 var miss_pill: Button
-var dock_divider: ColorRect
 var miss_flames: Array = []
 var gift_layer: Control
 var _last_rain := -1
@@ -118,77 +117,106 @@ func _build() -> void:
 	cv.add_theme_constant_override("separation", 10)
 	card.add_child(cv)
 
+	# Kopfzeile wie in einem Handyspiel: links Menü, Mitte groß die Punkte, rechts die Credits
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	cv.add_child(row)
-	# Punkte
+	var menu_b := _round_button("menu", func() -> void: _open_modal(menu_card), 50)
+	menu_b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(menu_b)
+	var spl := Control.new()
+	spl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(spl)
 	var sv := VBoxContainer.new()
-	sv.add_theme_constant_override("separation", -4)
+	sv.add_theme_constant_override("separation", -8)
 	sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(sv)
-	score_label = _label("0", 48, Style.TEXT, true)
+	score_label = _label("0", 54, Style.TEXT, true)
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sv.add_child(score_label)
-	round_label = _label("Punkte", 12, Style.SOFT, true)
+	round_label = _label("Punkte", 13, Style.SOFT, true)
+	round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sv.add_child(round_label)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(sp)
-	# Entwicklungsstufe (höchste erreichte Stufe)
-	var st := HBoxContainer.new()
-	st.add_theme_constant_override("separation", 6)
-	st.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(st)
-	stage_icon = TextureRect.new()
-	stage_icon.custom_minimum_size = Vector2(34, 34)
-	stage_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	stage_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	stage_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	stage_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	st.add_child(stage_icon)
-	var stv := VBoxContainer.new()
-	stv.add_theme_constant_override("separation", -3)
-	stv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	stv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	st.add_child(stv)
-	stv.add_child(_label("Zeitalter", 12, Style.SOFT, true))
-	stage_label = _label("Wiese", 18, Style.TEXT, true)
-	stv.add_child(stage_label)
-	var sp_top := Control.new()
-	sp_top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(sp_top)
-	# Leben der Welt (klein)
-	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 3)
-	lv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	lv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(lv)
-	var hrow := HBoxContainer.new()
-	hrow.add_theme_constant_override("separation", 1)
-	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lv.add_child(hrow)
-	for i in Balance.LIVES:
-		var h := TextureRect.new()
-		h.texture = Style.icon("heart")
-		h.custom_minimum_size = Vector2(18, 18)
-		h.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		h.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hrow.add_child(h)
-		hearts.append(h)
-	# Credits (für Tipp, Schritt zurück, Weiterspielen)
+	var spr := Control.new()
+	spr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(spr)
 	var cb := Button.new()
 	cb.icon = Style.icon("coin")
-	cb.add_theme_constant_override("icon_max_width", 22)
+	cb.add_theme_constant_override("icon_max_width", 24)
 	cb.add_theme_font_override("font", Style.bold())
-	cb.add_theme_font_size_override("font_size", 17)
-	cb.custom_minimum_size = Vector2(0, 46)
+	cb.add_theme_font_size_override("font_size", 18)
+	cb.custom_minimum_size = Vector2(76, 50)
+	cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_pill_style(cb, Color.WHITE)
 	cb.pressed.connect(_on_credits_pressed)
 	row.add_child(cb)
 	credits_btn = cb
-	row.add_child(_round_button("menu", func() -> void: _open_modal(menu_card), 46))
+
+	# Zweite Zeile: links Zeitalter, Mitte Fehlversuche (Flammen), rechts Herzen
+	var row2 := HBoxContainer.new()
+	row2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cv.add_child(row2)
+	var left := HBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row2.add_child(left)
+	var age_chip := PanelContainer.new()
+	age_chip.add_theme_stylebox_override("panel", _sb(Color(1, 1, 1, 0.75), 18, 4, true))
+	age_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(age_chip)
+	var ah := HBoxContainer.new()
+	ah.add_theme_constant_override("separation", 6)
+	ah.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	age_chip.add_child(ah)
+	stage_icon = TextureRect.new()
+	stage_icon.custom_minimum_size = Vector2(26, 26)
+	stage_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	stage_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	stage_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ah.add_child(stage_icon)
+	stage_label = _label("Urzeit", 15, Style.TEXT, true)
+	stage_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ah.add_child(stage_label)
+	# Fehlversuche: drei Flammen
+	miss_pill = Button.new()
+	miss_pill.custom_minimum_size = Vector2(104, 40)
+	_flat_style(miss_pill, Color(0, 0, 0, 0))
+	var flames := HBoxContainer.new()
+	flames.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	flames.alignment = BoxContainer.ALIGNMENT_CENTER
+	flames.add_theme_constant_override("separation", 4)
+	flames.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	miss_pill.add_child(flames)
+	for i in Balance.FIRE_AFTER:
+		var fl := TextureRect.new()
+		fl.texture = Style.icon("fire_off")
+		fl.custom_minimum_size = Vector2(28, 28)
+		fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		flames.add_child(fl)
+		miss_flames.append(fl)
+	miss_pill.pressed.connect(func() -> void: _on_message("Fehlversuche: Drehungen, die nichts verschmelzen. Beim %d. fängt die gedrehte Reihe Feuer." % Balance.FIRE_AFTER, "info"))
+	row2.add_child(miss_pill)
+	var right := HBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.alignment = BoxContainer.ALIGNMENT_END
+	right.add_theme_constant_override("separation", 2)
+	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row2.add_child(right)
+	for i in Balance.LIVES:
+		var h := TextureRect.new()
+		h.texture = Style.icon("heart")
+		h.custom_minimum_size = Vector2(22, 22)
+		h.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		h.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		h.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		right.add_child(h)
+		hearts.append(h)
 	# Warnung, nur wenn etwas droht
 	danger_label = _label("", 15, Style.BAD, true)
 	danger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -217,7 +245,6 @@ func _build() -> void:
 	_pill_style(rain_ready, Color(1, 1, 1, 0.9))
 	rain_ready.pressed.connect(func() -> void: _set_bonus_mode("rain"))
 	rain_ready.visible = false
-	top.add_child(rain_ready)
 
 	# --- Unten ---
 	var bottom := VBoxContainer.new()
@@ -260,64 +287,21 @@ func _build() -> void:
 	mh.add_child(cancel)
 	mode_card.visible = false
 	bottom.add_child(mode_card)
-	# Unten: in der Mitte ein schlichtes Dock (Regen, Blitz, Monsun | Fehlversuche),
-	# links „Zurück“, rechts „Tipp“. Die Hilfe ist im Menü.
-	var brow := HBoxContainer.new()
-	brow.alignment = BoxContainer.ALIGNMENT_CENTER
-	brow.add_theme_constant_override("separation", 12)
-	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bottom.add_child(brow)
-	undo_btn = _round_button("undo", _on_undo_pressed, 46)
-	undo_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	brow.add_child(undo_btn)
-	var dock := PanelContainer.new()
-	var ds := _sb(Color(1, 1, 1, 0.95), 26, 6, true)
-	ds.content_margin_left = 8
-	ds.content_margin_right = 8
-	dock.add_theme_stylebox_override("panel", ds)
-	brow.add_child(dock)
-	var dh := HBoxContainer.new()
-	dh.add_theme_constant_override("separation", 2)
-	dh.alignment = BoxContainer.ALIGNMENT_CENTER
-	dock.add_child(dh)
-	rain_btn = _bonus_button("rain", _on_bonus_pressed.bind("rain"))
-	dh.add_child(rain_btn)
-	bolt_btn = _bonus_button("lightning", _on_bonus_pressed.bind("bolt"))
-	dh.add_child(bolt_btn)
-	monsoon_btn = _bonus_button("monsoon", _on_bonus_pressed.bind("monsoon"))
-	monsoon_btn.visible = false
-	dh.add_child(monsoon_btn)
-	dock_divider = ColorRect.new()
-	dock_divider.color = Style.LINE
-	dock_divider.custom_minimum_size = Vector2(1, 38)
-	dock_divider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	dock_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dh.add_child(dock_divider)
-	# Fehlversuche: drei Flammen
-	miss_pill = Button.new()
-	miss_pill.custom_minimum_size = Vector2(108, 60)
-	_flat_style(miss_pill, Color(0, 0, 0, 0))
-	var flames := HBoxContainer.new()
-	flames.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	flames.alignment = BoxContainer.ALIGNMENT_CENTER
-	flames.add_theme_constant_override("separation", 2)
-	flames.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	miss_pill.add_child(flames)
-	for i in Balance.FIRE_AFTER:
-		var fl := TextureRect.new()
-		fl.texture = Style.icon("fire_off")
-		fl.custom_minimum_size = Vector2(30, 30)
-		fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		flames.add_child(fl)
-		miss_flames.append(fl)
-	miss_pill.pressed.connect(func() -> void: _on_message("Fehlversuche: Drehungen, die nichts verschmelzen. Beim %d. fängt die gedrehte Reihe Feuer." % Balance.FIRE_AFTER, "info"))
-	dh.add_child(miss_pill)
-	hint_btn = _round_button("bulb", _on_hint_pressed, 46)
-	hint_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	brow.add_child(hint_btn)
+	# Unten: Booster-Leiste über die ganze Breite, große runde Knöpfe mit Beschriftung und Zähler
+	var bar := PanelContainer.new()
+	var bs := _sb(Color(1, 1, 1, 0.96), 28, 10, true)
+	bs.shadow_size = 10
+	bs.shadow_color = Color(0.1, 0.12, 0.2, 0.06)
+	bar.add_theme_stylebox_override("panel", bs)
+	bottom.add_child(bar)
+	var bh := HBoxContainer.new()
+	bh.add_theme_constant_override("separation", 0)
+	bar.add_child(bh)
+	undo_btn = _slot(bh, "undo", "Zurück", _on_undo_pressed, Color("#f1eee9"))
+	rain_btn = _slot(bh, "rain", "Regen", _on_bonus_pressed.bind("rain"), Color("#e3f1fc"))
+	bolt_btn = _slot(bh, "lightning", "Blitz", _on_bonus_pressed.bind("bolt"), Color("#fdf3d6"))
+	monsoon_btn = _slot(bh, "monsoon", "Monsun", _on_bonus_pressed.bind("monsoon"), Color("#e1e9f5"))
+	hint_btn = _slot(bh, "bulb", "Tipp", _on_hint_pressed, Color("#f1eee9"))
 
 	gift_layer = Control.new()
 	gift_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -351,30 +335,55 @@ func _build() -> void:
 	_build_over()
 
 
-func _bonus_button(icon_name: String, cb: Callable) -> Button:
+## Ein Platz in der Booster-Leiste: großer runder Knopf, Zähler-Abzeichen, Beschriftung darunter.
+func _slot(parent: Control, icon_name: String, title: String, cb: Callable, tint: Color) -> Button:
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 4)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(v)
 	var b := Button.new()
 	b.icon = Style.icon(icon_name)
 	b.add_theme_constant_override("icon_max_width", 40)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	b.expand_icon = false
-	b.custom_minimum_size = Vector2(64, 60)
-	# Punkte unten im Knopf: so viele hast du (statt einer Zahl)
-	var pips := HBoxContainer.new()
-	pips.name = "Pips"
-	pips.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	pips.offset_top = -10
-	pips.offset_bottom = -4
-	pips.offset_left = -24
-	pips.offset_right = 24
-	pips.alignment = BoxContainer.ALIGNMENT_CENTER
-	pips.add_theme_constant_override("separation", 3)
-	pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(pips)
-	b.add_theme_font_override("font", Style.bold())
-	b.add_theme_font_size_override("font_size", 18)
-	_flat_style(b, Color(0, 0, 0, 0))
+	b.custom_minimum_size = Vector2(70, 70)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b.set_meta("tint", tint)
+	b.set_meta("slot", v)
+	_circle_style(b, tint, false)
 	b.pressed.connect(cb)
+	v.add_child(b)
+	var badge := PanelContainer.new()
+	badge.name = "Badge"
+	badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	badge.offset_left = -22
+	badge.offset_right = 4
+	badge.offset_top = -4
+	badge.offset_bottom = 22
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.visible = false
+	b.add_child(badge)
+	var bl := _label("", 13, Color.WHITE, true)
+	bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.add_child(bl)
+	var lab := _label(title, 13, Style.SOFT, true)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lab)
 	return b
+
+
+func _circle_style(b: Button, bg: Color, ring: bool) -> void:
+	var n := _sb(bg, 35, 6)
+	if ring:
+		n.set_border_width_all(3)
+		n.border_color = Style.TEXT
+	b.add_theme_stylebox_override("normal", n)
+	b.add_theme_stylebox_override("hover", n)
+	b.add_theme_stylebox_override("pressed", _sb(bg.darkened(0.08), 35, 6))
+	b.add_theme_stylebox_override("disabled", _sb(Color(bg.r, bg.g, bg.b, 0.5), 35, 6))
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
 ## Knopf im Dock: ohne eigenen Rahmen, nur beim Drücken ein leichter Hintergrund.
@@ -387,17 +396,13 @@ func _flat_style(b: Button, bg: Color) -> void:
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
-func _set_pips(b: Button, have: int, most: int, color: Color) -> void:
-	var pips: HBoxContainer = b.get_node("Pips")
-	while pips.get_child_count() < most:
-		var d := TextureRect.new()
-		d.texture = Style.icon("dot")
-		d.custom_minimum_size = Vector2(7, 7)
-		d.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		d.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		pips.add_child(d)
-	for i in pips.get_child_count():
-		(pips.get_child(i) as TextureRect).modulate = color if i < have else Color(0, 0, 0, 0.12)
+## Zähler-Abzeichen am Knopf: Anzahl, oder „+“ zum Kaufen, wenn keiner da ist.
+func _set_pips(b: Button, have: int, _most: int, color: Color) -> void:
+	var badge: PanelContainer = b.get_node("Badge")
+	var bl: Label = badge.get_child(0)
+	badge.visible = true
+	bl.text = str(have) if have > 0 else "+"
+	badge.add_theme_stylebox_override("panel", _sb(color if have > 0 else Color("#e0a100"), 13, 0))
 
 
 ## Neuer Bonus: ein Geschenk springt auf, zeigt den Bonus und fliegt in seinen Knopf.
@@ -848,11 +853,10 @@ func refresh() -> void:
 	_set_pips(rain_btn, gs.rain, Balance.RAIN_MAX, Style.WATER)
 	_set_pips(bolt_btn, gs.bolts, Balance.BOLT_MAX, Color("#e0a100"))
 	_set_pips(monsoon_btn, gs.monsoons, Balance.MONSOON_MAX, Style.WATER)
-	monsoon_btn.visible = gs.gadgets and (gs.monsoon_unlocked or gs.monsoons > 0)
-	rain_btn.visible = gs.gadgets
-	bolt_btn.visible = gs.gadgets
-	hint_btn.visible = gs.gadgets
-	dock_divider.visible = gs.gadgets
+	(monsoon_btn.get_meta("slot") as Control).visible = gs.gadgets and (gs.monsoon_unlocked or gs.monsoons > 0)
+	(rain_btn.get_meta("slot") as Control).visible = gs.gadgets
+	(bolt_btn.get_meta("slot") as Control).visible = gs.gadgets
+	(hint_btn.get_meta("slot") as Control).visible = gs.gadgets
 	if _last_monsoons >= 0 and gs.monsoons > _last_monsoons:
 		_show_gift("monsoon", monsoon_btn)
 	_last_monsoons = gs.monsoons
@@ -920,6 +924,9 @@ func _process(delta: float) -> void:
 
 func _set_bonus_mode(kind: String) -> void:
 	bonus_mode = kind
+	for pair in [[rain_btn, "rain"], [bolt_btn, "bolt"], [monsoon_btn, "monsoon"]]:
+		var bb: Button = pair[0]
+		_circle_style(bb, bb.get_meta("tint"), kind == str(pair[1]))
 	mode_card.visible = kind != ""
 	world.show_rain_spots(kind == "rain")
 	world.bolt_mode = false      # Blitz wird nicht mehr gezogen, sondern auf ein Eckfeld getippt
