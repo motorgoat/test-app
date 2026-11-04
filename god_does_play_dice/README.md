@@ -19,16 +19,17 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    **Ganze Seite** aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (Punkte × 9) und bleibt stehen.
 4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die
    gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
-   Brennende Felder verlieren jeden Zug eine Stufe, bis sie Erde sind. Ein Guss auf ein brennendes Feld löscht den ganzen Brand.
+   Brennende Felder verlieren jeden Zug eine Stufe, bis sie Erde sind. Regen löscht ein brennendes Feld.
 5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld eine Stufe oder löscht ein Feuer.
    **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
    Wiese wächst nur durch Regen.
 6. **Nach unten geht es nur durch Katastrophen** (Brand, Erdbeben).
 7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
-8. **Spielende:** wenn nichts mehr zu verbinden ist (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
-   Leben der Welt sind abschaltbar vorbereitet (`LIVES`), im Moment aus.
+8. **Herzen** = Leben der Welt (3). Ein Erdbeben kostet eines, jedes neue Zeitalter gibt eines zurück.
+   **Spielende:** alle Herzen weg oder nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
+   Einmal pro Spiel kann man mit Werbung weiterspielen (im Prototyp ein Platzhalter).
 9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf),
-   Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole).
+   Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Herz zurück.
 10. **Tipp** (Glühbirne): Die lohnendste Drehung leuchtet auf (schaut zwei Züge voraus). Kostet 1 Credit, Credits gibt es für Werbung
    (im Prototyp ein Platzhalter). Im Tutorial sind Tipps gratis.
 11. **Modi:** Endlos oder 40 Runden. Rekord = Punkte.

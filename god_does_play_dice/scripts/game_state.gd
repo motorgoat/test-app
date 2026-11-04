@@ -715,8 +715,7 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	return ""
 
 
-## Regen: Auf ein brennendes Feld gegossen, löscht er den ganzen Brand (alle brennenden Felder, die zusammenhängen).
-## Sonst steigt das Feld eine Stufe auf.
+## Regen: Ein brennendes Feld wird gelöscht (nur dieses), sonst steigt es eine Stufe auf.
 ## Blitz: Die ganze Reihe (row, 3 IDs) steigt eine Stufe auf und hört auf zu brennen.
 ## Was aufsteigt, zählt als zuletzt dazugekommen und kann verschmelzen. Danach wird der Zug normal ausgewertet.
 func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
@@ -724,15 +723,7 @@ func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
 	if kind == "rain":
 		rain -= 1
 		if f.burning:
-			var todo: Array = [f]
-			while not todo.is_empty():
-				var h: FieldData = todo.pop_back()
-				if not h.burning:
-					continue
-				h.burning = false
-				for g in neighbors(h):
-					if (g as FieldData).burning:
-						todo.append(g)
+			f.burning = false
 			return
 	else:
 		bolts -= 1

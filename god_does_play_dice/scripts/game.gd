@@ -15,6 +15,7 @@ const GASP = ["Um Gottes Willen!", "Grundgütiger!", "Gottverdammt!", "Herrgott 
 var state: GameState
 var busy := false          # Runde wird ausgewertet/animiert
 var over := false
+var continued := false     # einmal pro Spiel mit Werbung weiterspielen
 var best := 0              # Rekord in Punkten (je Modus)
 var tutorial_done := false
 var credits := 0           # Credits für Tipps (gibt es für Werbung)
@@ -36,6 +37,7 @@ func new_game(seed_value: int = 0, endless_mode: int = -1) -> void:
 	state.setup(seed_value, endless)
 	busy = false
 	over = false
+	continued = false
 	new_record = false
 	new_game_started.emit()
 	state_changed.emit()
@@ -112,7 +114,7 @@ func finish_round(result: Dictionary) -> void:
 	for e in result["events"]:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])
-			var tail := "Gieß ein brennendes Feld, das löscht den ganzen Brand." if kind == "fire" else "Die Reihe mit der meisten Zivilisation fällt zurück."
+			var tail := "Gieß die brennenden Felder, um sie zu löschen." if kind == "fire" else "Die Reihe mit der meisten Zivilisation fällt zurück."
 			if kind == "quake" and Balance.LIVES > 0:
 				tail = "Die Welt hält noch %d %s aus." % [state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"]
 			message.emit("%s %s! %s. %s" % [gasp(), GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind], tail], "bad")
@@ -154,6 +156,24 @@ static func praise() -> String:
 
 static func gasp() -> String:
 	return str(GASP[randi() % GASP.size()])
+
+
+## Einmal pro Spiel nach dem Ende mit Werbung weiterspielen (Platzhalter für die Werbung).
+func can_continue() -> bool:
+	return over and not continued and (state.died() or state.stuck())
+
+
+func continue_with_ad() -> void:
+	if not can_continue():
+		return
+	continued = true
+	if state.died():
+		state.lives = 1
+	if state.stuck():
+		state.rain = maxi(state.rain, 2)
+	over = false
+	message.emit("%s Die Welt bekommt noch eine Chance." % praise(), "good")
+	state_changed.emit()
 
 
 ## Tipp kaufen: kostet Credits. true = bezahlt.

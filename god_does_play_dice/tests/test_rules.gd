@@ -315,7 +315,7 @@ func test_fire() -> void:
 	var lit := top(gs, -1, 0)
 	var st := lit.stage
 	gs.apply_bonus("rain", lit)
-	check(not lit.burning and lit.stage == st and not top(gs, -1, 1).burning, "ein Guss löscht den ganzen Brand")
+	check(not lit.burning and lit.stage == st and top(gs, -1, 1).burning, "Regen löscht genau ein Feld")
 	gs.end_round()
 	check(lit.stage == st, "gelöschtes Feld brennt nicht weiter")
 	# Ein Erfolg setzt den Zähler nicht zurück

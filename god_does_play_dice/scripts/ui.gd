@@ -35,6 +35,7 @@ var sheet_rain: Button
 var sheet_bolt: Button
 var miss_pill: Button
 var hint_btn: Button
+var continue_btn: Button
 var over_label: Label
 var bubble_layer: Control
 var combo_label: Label
@@ -362,12 +363,12 @@ func _build_help() -> void:
 	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (unten in der Mitte gezählt). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
-	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf. Gießt du ein brennendes Feld, ist der ganze Brand gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
+	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf, ein brennendes Feld wird gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
-	v.add_child(_help_row("trophy", "Das Spiel endet, wenn nichts mehr zu verbinden ist (keine Stufe mit 3 Feldern, kein Regen, kein Blitz)."))
-	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf), Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Im Menü gibt es auch 40 Runden."))
+	v.add_child(_help_row("heart", "Herzen sind die Leben der Welt. Ein Erdbeben (mehr als %d%% Zivilisation) kostet eines, jedes neue Zeitalter gibt eines zurück. Sind alle weg oder ist nichts mehr zu verbinden, ist das Spiel vorbei. Einmal kannst du mit Werbung weiterspielen." % int(round(Balance.CIVILISATION_MAX * 100.0))))
+	v.add_child(_help_row("trophy", "Zeitalter: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf), Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Leben zurück. Im Menü gibt es auch 40 Runden."))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -447,9 +448,17 @@ func _build_over() -> void:
 	over_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	over_label.custom_minimum_size = Vector2(300, 0)
 	v.add_child(over_label)
+	continue_btn = _wide_button("Weiterspielen (Werbung)", Style.WATER, Color.WHITE)
+	continue_btn.pressed.connect(_on_continue)
+	v.add_child(continue_btn)
 	var again := _wide_button("Nochmal", Style.ACCENT, Color.WHITE)
 	again.pressed.connect(_restart)
 	v.add_child(again)
+
+
+func _on_continue() -> void:
+	_close_modal()
+	Game.continue_with_ad()
 
 
 # --- Bausteine ---------------------------------------------------------------
@@ -903,7 +912,7 @@ func _show_help() -> void:
 
 
 func _open_modal(card: PanelContainer) -> void:
-	for c in [help_card, menu_card, over_card]:
+	for c in [help_card, menu_card, over_card, ad_card]:
 		(c as Control).visible = false
 	modal_bg.visible = true
 	modal_bg.modulate.a = 0.0
@@ -929,7 +938,7 @@ func _recenter(card: Control) -> void:
 
 
 func _close_modal() -> void:
-	for c in [help_card, menu_card, over_card]:
+	for c in [help_card, menu_card, over_card, ad_card]:
 		(c as Control).visible = false
 	modal_bg.visible = false
 
@@ -970,6 +979,7 @@ func _on_game_over() -> void:
 	else:
 		lines.append("Rekord: %d Punkte" % Game.best)
 	over_label.text = "\n".join(lines)
+	continue_btn.visible = Game.can_continue()
 	_open_modal(over_card)
 
 
