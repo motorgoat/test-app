@@ -20,7 +20,7 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 4. **Fehlversuch** = Drehung, die nichts verschmilzt (oben als Flammen). Jeder **3. Fehlversuch** setzt die
    gewischte Reihe in **Brand**. Der Zähler läuft weiter, ein Erfolg setzt ihn nicht zurück.
    Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist das Feuer aus. Regen vorher rettet ein Feld.
-5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) hebt ein Feld eine Stufe oder löscht ein Feuer.
+5. **Boni aus Punkten:** **Regen** (alle 12 Punkte) macht leere Erde zur Wiese (nur die unterste Stufe) oder löscht ein Feuer.
    **Blitz** (alle 40 Punkte) hebt eine ganze Reihe eine Stufe. Ein Bonus zählt als Zug.
    Wiese wächst nur durch Regen.
    **Monsun** (ab der Antike, dann alle 120 Punkte): hebt alle 9 Felder einer Seite.

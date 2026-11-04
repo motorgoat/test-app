@@ -477,7 +477,7 @@ func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
 						moves.append([axis, layer, turns])
 			if gs.rain > 0:
 				for f in gs.fields:
-					if f.burning or f.stage < Balance.MAX_STAGE:
+					if f.burning or f.stage == 0:
 						moves.append(["rain", f.id, []])
 			if gs.bolts > 0:
 				for line in gs.all_rows():

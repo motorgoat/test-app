@@ -13,7 +13,7 @@ extends RefCounted
 ##      die zuletzt gedrehte Reihe in Brand: Im nächsten Zug verliert jedes brennende Feld eine Stufe, dann ist
 ##      das Feuer aus. Regen vorher rettet ein Feld.
 ##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
-##   7. Boni aus Punkten: Regen hebt ein Feld eine Stufe (oder löscht es), Blitz hebt eine ganze Reihe.
+##   7. Boni aus Punkten: Regen macht leere Erde zur Wiese (oder löscht ein Feuer), Blitz hebt eine ganze Reihe.
 ##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Nach unten geht es nur durch Katastrophen.
 ##      Das Zeitalter folgt der höchsten erreichten Stufe (Hütte = Steinzeit …); jedes neue gibt ein Leben zurück.
 ##  10. Ganze Seite aus 9 gleichen Feldern: Die ganze Seite steigt eine Stufe auf (viele Punkte) und bleibt stehen.
@@ -732,7 +732,7 @@ func rain_spots() -> Dictionary:
 		if f.burning:
 			out[f.id] = "fire"
 			continue
-		if f.stage >= Balance.MAX_STAGE:
+		if f.stage != 0:
 			continue
 		f.stage += 1
 		var hit := not lines({f.id: true}).is_empty()
@@ -747,8 +747,8 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	if kind == "rain":
 		if rain <= 0:
 			return "Der nächste Regen kommt bei %d Punkten" % next_rain
-		if not f.burning and f.stage >= Balance.MAX_STAGE:
-			return "Höher geht es nicht"
+		if not f.burning and f.stage != 0:
+			return "Regen macht nur leere Erde zur Wiese (oder löscht ein Feuer)"
 	elif kind == "bolt":
 		if bolts <= 0:
 			return "Der nächste Blitz kommt bei %d Punkten" % next_bolt
@@ -768,7 +768,7 @@ func grant(kind: String) -> void:
 		monsoons += 1
 
 
-## Regen: Ein brennendes Feld wird gelöscht (nur dieses), sonst steigt es eine Stufe auf.
+## Regen: Ein brennendes Feld wird gelöscht (nur dieses), sonst wird leere Erde zur Wiese (nur die unterste Stufe).
 ## Blitz: Die ganze Reihe (row, 3 IDs) steigt eine Stufe auf und hört auf zu brennen.
 ## Was aufsteigt, zählt als zuletzt dazugekommen und kann verschmelzen. Danach wird der Zug normal ausgewertet.
 func apply_bonus(kind: String, f: FieldData, row: Array = []) -> void:
