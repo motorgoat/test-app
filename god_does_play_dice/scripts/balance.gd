@@ -31,7 +31,7 @@ static var METEOR_COST_STEP := 15         # jeder weitere kostet mehr
 
 # --- Spielende --------------------------------------------------------------------
 static var MAX_ROUNDS := 40               # Rundenzahl einer Partie (0 = endlos)
-static var STARS := [80, 180, 320]        # Glaube für 1, 2, 3 Sterne
+static var STARS := [50, 120, 220]        # Glaube für 1, 2, 3 Sterne
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42

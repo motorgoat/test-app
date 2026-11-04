@@ -659,7 +659,8 @@ func _on_meteor(fid: int, ids: Array) -> void:
 		await get_tree().create_timer(0.06).timeout
 		trail_t += 0.06
 		_sparks(rock.global_position, rock.global_position + (start - target).normalized() * 0.4, Color("#ffb347"), 2)
-	await tw.finished
+	if tw.is_running():
+		await tw.finished
 	rock.queue_free()
 	var flash := OmniLight3D.new()
 	flash.light_color = Color("#ffb347")
