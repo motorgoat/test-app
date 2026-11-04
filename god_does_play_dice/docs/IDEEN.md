@@ -32,3 +32,8 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
   und neu erschaffen (Wunder), Glaube als Ziel, immer schwerer (Zeitalter), 6 feste Mitten als Wahrzeichen.
 - Noch offen: Glaube sinkt bei Wohlstand ohne Kirche, die Mitten als Heiligtümer der Völker oder als Symbole
   (Industrie, Natur …) mit eigener Wirkung.
+
+## Prototyp „Leiter“ (4. November 2026)
+- Umgesetzt nach Philipps Vorschlag: Start mit leerer Erde und Natur, Verbinden entwickelt die Felder weiter
+  (Wiese → Wald → Dorf → Stadt → Fabrik), Meteorit selbst im richtigen Moment auslösen.
+- Vorerst entfernt, für später: Völker, Kirchen, Krieg und Handel, Katastrophen als Strafe, Blitz und Wunder.
