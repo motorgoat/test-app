@@ -106,9 +106,9 @@ func _shots(dir: String) -> void:
 	await _wait(1.6)
 	await _shot(dir, "14_brand")
 	await _wait(2.5)
-	# Erdbeben: nur Zivilisation, schachbrettartig (keine Dreierreihe)
+	# Erdbeben: nur Zivilisation, ohne Dreierreihe (auch nicht diagonal)
 	Game.state.lives = 1
-	_fill(func(f: FieldData) -> int: return 4 if (f.p.x + f.p.y + f.p.z) % 2 == 0 else 5)
+	_fill(func(f: FieldData) -> int: return int([[4, 5, 4], [6, 4, 6], [5, 6, 5]][f.p[(GameState.axis_of(f.n) + 1) % 3] + 1][f.p[(GameState.axis_of(f.n) + 2) % 3] + 1]))
 	await _wait(0.8)
 	world.wait_turn()
 	await _wait(0.8)

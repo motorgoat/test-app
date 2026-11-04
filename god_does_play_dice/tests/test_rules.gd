@@ -74,6 +74,14 @@ func ids(fs: Array) -> Array:
 	return out
 
 
+## Lauter Siedlungen ohne Dreierreihe, auch nicht diagonal.
+func civ_pattern(f: FieldData) -> int:
+	var a := GameState.axis_of(f.n)
+	var i: int = f.p[(a + 1) % 3] + 1
+	var j: int = f.p[(a + 2) % 3] + 1
+	return int([[4, 5, 4], [6, 4, 6], [5, 6, 5]][i][j])
+
+
 func _disaster_of(r: Dictionary) -> Dictionary:
 	for e in r["events"]:
 		if str(e["type"]) == "disaster":
@@ -345,10 +353,10 @@ func test_fire() -> void:
 
 
 func test_quake() -> void:
-	# Lauter Siedlungen im Schachbrett (keine Dreierreihe), oben eine besonders große Reihe
+	# Lauter Siedlungen ohne Dreierreihe, oben eine besonders große Reihe
 	var gq := empty_state()
 	for f in gq.fields:
-		f.stage = 4 if absi(f.p.x + f.p.y + f.p.z) % 2 == 0 else 5
+		f.stage = civ_pattern(f)
 	var big := [top(gq, -1, 1), top(gq, 0, 1), top(gq, 1, 1)]
 	(big[0] as FieldData).stage = 8
 	(big[1] as FieldData).stage = 9
@@ -369,7 +377,7 @@ func test_quake() -> void:
 	var gd := empty_state()
 	gd.lives = 1
 	for f in gd.fields:
-		f.stage = 4 if absi(f.p.x + f.p.y + f.p.z) % 2 == 0 else 5
+		f.stage = civ_pattern(f)
 	gd.end_round()
 	check(gd.died() == (Balance.LIVES > 0), "ohne Leben stirbt die Welt (nur wenn es Leben gibt)")
 	var gx := empty_state()
