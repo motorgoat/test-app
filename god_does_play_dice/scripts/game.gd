@@ -85,13 +85,15 @@ func play_turn(axis: int, layer: int, turns: int) -> void:
 
 func finish_round(result: Dictionary) -> void:
 	busy = false
-	if bool(result.get("new_age", false)):
-		message.emit("Zeitalter %d: Die Welt braucht jetzt mindestens %d%% Natur und höchstens %d%% Zivilisation." % [
-			state.age(), int(round(state.nature_min() * 100.0)), int(round(state.civilisation_max() * 100.0))], "bad")
-	if state.bad_rounds > 0 and not state.is_over():
-		var left := Balance.LOSE_AFTER - state.bad_rounds
-		var why := "Zu wenig Natur!" if state.nature_share() < state.nature_min() else "Zu viel Zivilisation!"
-		message.emit("%s Die Welt stirbt in %d %s. Ein Meteorit kann helfen." % [why, left, "Runde" if left == 1 else "Runden"], "bad")
+	if bool(result.get("new_age", false)) and not state.is_over():
+		message.emit("Zeitalter %d: ein Leben zurück. Jetzt Natur %d–%d%%, Zivilisation höchstens %d%%." % [
+			state.age(), int(round(state.nature_min() * 100.0)), int(round(state.nature_max() * 100.0)),
+			int(round(state.civilisation_max() * 100.0))], "info")
+	for e in result["events"]:
+		if str(e["type"]) == "disaster" and not state.is_over():
+			var kind := str(e["kind"])
+			message.emit("%s! %s. Die Welt hält noch %d %s aus." % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind],
+				state.lives, "Katastrophe" if state.lives == 1 else "Katastrophen"], "bad")
 	if state.is_over():
 		over = true
 		_save_best()

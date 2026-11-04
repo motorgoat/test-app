@@ -20,6 +20,8 @@ var _preview_label: Label3D
 var _sel: MeshInstance3D
 var _glow: MeshInstance3D
 var _glow_top: MeshInstance3D
+var _danger: MeshInstance3D
+var _danger_top: MeshInstance3D
 var _hint: MeshInstance3D
 var _hint_mat: StandardMaterial3D
 var _hint_on := false
@@ -47,6 +49,12 @@ func build(f: FieldData) -> void:
 	_glow_top = Models.rbox(self, Vector3(TILE - 0.03, 0.014, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.006, 0), Vector3.ZERO,
 		Models.unshaded(Color(1.0, 0.82, 0.15, 0.55)))
 	_glow_top.visible = false
+	_danger = Models.rbox(self, Vector3(TILE + 0.08, 0.03, TILE + 0.08), 0.05, Color("#e5483c"), Vector3(0, 0.012, 0), Vector3.ZERO,
+		Models.mat(Color("#e5483c"), 0.3, 2.0))
+	_danger.visible = false
+	_danger_top = Models.rbox(self, Vector3(TILE - 0.03, 0.014, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.008, 0), Vector3.ZERO,
+		Models.unshaded(Color(0.9, 0.18, 0.12, 0.42)))
+	_danger_top.visible = false
 	_hint_mat = Models.unshaded(Color(1.0, 0.85, 0.25, 0.5)).duplicate() as StandardMaterial3D
 	_hint = Models.rbox(self, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.004, 0), Vector3.ZERO, _hint_mat)
 	_hint.visible = false
@@ -108,6 +116,62 @@ func set_hint(on: bool) -> void:
 func set_highlight(on: bool) -> void:
 	_glow.visible = on
 	_glow_top.visible = on
+
+
+## Rotes Leuchten: hier würde gleich eine Katastrophe zuschlagen.
+func set_danger(on: bool) -> void:
+	_danger.visible = on
+	_danger_top.visible = on
+
+
+## Erdbeben: der Inhalt ruckelt und kippt.
+func quake(dur: float = 0.9) -> void:
+	var tw := create_tween()
+	var base := Vector3(0, TOP, 0)
+	var steps := 10
+	for i in steps:
+		var k := 1.0 - float(i) / float(steps)
+		tw.tween_property(_content, "position", base + Vector3(randf_range(-0.07, 0.07) * k, randf_range(0.0, 0.05) * k, randf_range(-0.07, 0.07) * k), dur / float(steps))
+		tw.parallel().tween_property(_content, "rotation", Vector3(randf_range(-0.15, 0.15) * k, 0.0, randf_range(-0.15, 0.15) * k), dur / float(steps))
+	tw.tween_property(_content, "position", base, 0.08)
+	tw.parallel().tween_property(_content, "rotation", Vector3.ZERO, 0.08)
+
+
+## Überschwemmung: Wasser steigt über das Feld und fließt wieder ab.
+func flood(dur: float = 1.3) -> void:
+	var m := Models.unshaded(Color(0.24, 0.62, 0.95, 0.78))
+	var water := Models.rbox(self, Vector3(TILE, 0.02, TILE), 0.04, Color.WHITE, Vector3(0, TOP, 0), Vector3.ZERO, m)
+	var tw := water.create_tween()
+	tw.tween_property(water, "scale", Vector3(1.0, 16.0, 1.0), dur * 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(water, "position", Vector3(0, TOP + 0.16, 0), dur * 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(dur * 0.25)
+	tw.tween_property(water, "scale", Vector3(1.0, 0.5, 1.0), dur * 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(water, "position", Vector3(0, TOP, 0), dur * 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(water.queue_free)
+	var sink := create_tween()
+	sink.tween_interval(dur * 0.3)
+	sink.tween_property(_content, "scale", Vector3.ONE * 0.05, dur * 0.3).set_ease(Tween.EASE_IN)
+
+
+## Waldbrand: Flammen lodern auf, der Wald verkohlt.
+func burn(dur: float = 1.1) -> void:
+	var fire := Node3D.new()
+	fire.position = Vector3(0, TOP, 0)
+	add_child(fire)
+	for i in 5:
+		var fl := Models.flame(fire, Vector3(randf_range(-0.3, 0.3), 0.0, randf_range(-0.3, 0.3)), randf_range(1.6, 2.6))
+		fl.scale = Vector3.ONE * 0.05
+		var tw := fl.create_tween()
+		tw.tween_interval(randf_range(0.0, 0.2))
+		tw.tween_property(fl, "scale", Vector3.ONE, dur * 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(fl, "scale", Vector3(1.2, 1.4, 1.2), dur * 0.2)
+		tw.tween_property(fl, "scale", Vector3.ONE * 0.05, dur * 0.3).set_ease(Tween.EASE_IN)
+	var dark := create_tween()
+	dark.tween_interval(dur * 0.35)
+	dark.tween_property(_content, "scale", Vector3(CONTENT_SCALE, 0.05, CONTENT_SCALE), dur * 0.4).set_ease(Tween.EASE_IN)
+	var done := create_tween()
+	done.tween_interval(dur)
+	done.tween_callback(fire.queue_free)
 
 
 ## Inhalt wird ins Nachbarfeld „eingesaugt“ (Verschmelzen). Danach wird neu gebaut.

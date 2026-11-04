@@ -24,11 +24,16 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 5. **Glaube:** fürs Verschmelzen (je höher die Stufe, desto mehr, × Kombo), dazu jede Runde
    +1 je Dorf, +2 je Stadt, +4 je Großstadt, +8 je Metropole.
 6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
-7. **Gleichgewicht:** mindestens 30 % Natur, höchstens 40 % Zivilisation. Wer 3 Runden in Folge daneben liegt, dessen Welt stirbt.
+7. **Gleichgewicht:** Natur 30–75 %, Zivilisation höchstens 40 %. Endet eine Runde daneben, schlägt eine Katastrophe zu:
+   - zu viel Zivilisation → **Erdbeben**: Die größte Siedlung fällt 2 Stufen, die Siedlungen daneben je eine.
+   - zu wenig Natur → **Überschwemmung**: Die 3 kleinsten Siedlungen werden weggespült.
+   - zu viel Natur → **Waldbrand**: Der dichteste Wald brennt mit aller Natur daneben nieder.
+   Beim Drehen leuchten die Felder, die es treffen würde, rot. Die Welt hat **3 Leben**, jede Katastrophe kostet eines.
 8. **Meteorit** (kostet Glauben, wird jedes Mal teurer): Feld und Nachbarn werden zu Erde. Du wählst Ort und Zeitpunkt.
 9. **Modi:**
-   - **Endlos** (Standard): Alle 20 Runden beginnt ein neues Zeitalter, dann braucht die Welt 2 % mehr Natur
-     und verträgt 2 % weniger Zivilisation (bis 42 % / 28 %). Ziel: so lange wie möglich, so viel Glaube wie möglich.
+   - **Endlos** (Standard): Alle 20 Runden beginnt ein neues Zeitalter, dann braucht die Welt 2 % mehr Natur (bis 40 %)
+     und verträgt weniger Natur (–3 %, bis 60 %) und weniger Zivilisation (–1 %, bis 35 %). Du bekommst ein Leben zurück.
+     Ziel: so lange wie möglich, so viel Glaube wie möglich.
    - **40 Runden:** danach zählt der Glaube: 50 / 120 / 220 = 1 / 2 / 3 Sterne.
    Beide Modi haben einen eigenen Rekord.
 

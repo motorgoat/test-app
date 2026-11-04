@@ -7,15 +7,21 @@ var failures := 0
 var checks := 0
 
 
+var _saved := {}
+
+
 func _init() -> void:
 	test_setup()
+	calm()
 	test_geometry()
 	test_merge()
 	test_only_new_lines()
 	test_back_and_forth()
 	test_cascade()
 	test_regrow_and_pollution()
+	restore()
 	test_income_and_balance()
+	test_disasters()
 	test_meteor()
 	test_preview_matches()
 	test_modes()
@@ -23,6 +29,20 @@ func _init() -> void:
 	print("")
 	print("%d Prüfungen, %d Fehler" % [checks, failures])
 	quit(1 if failures > 0 else 0)
+
+
+## Für die reinen Regeltests: Gleichgewicht so weit, dass keine Katastrophe dazwischenfunkt.
+func calm() -> void:
+	_saved = {"nmin": Balance.NATURE_MIN, "nmax": Balance.NATURE_MAX, "cmax": Balance.CIVILISATION_MAX}
+	Balance.NATURE_MIN = 0.0
+	Balance.NATURE_MAX = 1.0
+	Balance.CIVILISATION_MAX = 1.0
+
+
+func restore() -> void:
+	Balance.NATURE_MIN = _saved["nmin"]
+	Balance.NATURE_MAX = _saved["nmax"]
+	Balance.CIVILISATION_MAX = _saved["cmax"]
 
 
 func check(cond: bool, what: String) -> void:
@@ -203,10 +223,63 @@ func test_income_and_balance() -> void:
 	top(gs, 1, 1).stage = 8
 	top(gs, -1, -1).stage = 9
 	check(gs.income() == int(Balance.INCOME[8]) + int(Balance.INCOME[9]), "Großstadt und Metropole bringen Glauben")
-	check(not gs.in_balance(), "nur Erde: zu wenig Natur")
-	for i in Balance.LOSE_AFTER:
+	check(gs.threat() == "flood", "nur Erde: zu wenig Natur, Überschwemmung droht")
+	for i in Balance.LIVES:
+		check(not gs.is_over(), "Welt lebt noch vor Katastrophe %d" % (i + 1))
 		gs.end_round()
-	check(gs.is_over(), "zu lange aus dem Gleichgewicht: Ende")
+	check(gs.is_over() and gs.died(), "nach %d Katastrophen stirbt die Welt" % Balance.LIVES)
+
+
+func _disaster_of(r: Dictionary) -> Dictionary:
+	for e in r["events"]:
+		if str(e["type"]) == "disaster":
+			return e
+	return {}
+
+
+func test_disasters() -> void:
+	# Erdbeben: zu viel Zivilisation, die größte Siedlung stürzt ein
+	var gs := empty_state()
+	for f in gs.fields:
+		f.stage = 5 if f.id < 24 else 1
+	var big := top(gs, 0, 0)
+	big.stage = 7
+	check(gs.threat() == "quake", "zu viel Zivilisation: Erdbeben droht")
+	var r := gs.end_round()
+	var e := _disaster_of(r)
+	check(str(e.get("kind", "")) == "quake" and int(e["field"]) == big.id, "Erdbeben trifft die größte Siedlung")
+	check(big.stage == 7 - Balance.QUAKE_DROP, "größte Siedlung fällt %d Stufen" % Balance.QUAKE_DROP)
+	check(gs.lives == Balance.LIVES - 1, "Katastrophe kostet ein Leben")
+	# Waldbrand: zu viel Natur, der dichteste Wald brennt
+	var gf := empty_state()
+	for f in gf.fields:
+		f.stage = 1
+	var forest := top(gf, 0, 0)
+	forest.stage = 3
+	check(gf.threat() == "fire", "zu viel Natur: Waldbrand droht")
+	var rf := gf.end_round()
+	var ef := _disaster_of(rf)
+	check(str(ef.get("kind", "")) == "fire" and (ef["hit"] as Array).size() == 5, "Waldbrand: Wald und 4 Nachbarn brennen")
+	check(forest.stage == 0 and gf.count(0) == 5, "verbrannt ist Erde")
+	gf.end_round()
+	check(forest.stage == 0, "Brandfläche wächst nicht sofort nach")
+	# Überschwemmung: zu wenig Natur, die kleinsten Siedlungen werden weggespült
+	var gw := empty_state()
+	top(gw, 1, 1).stage = 4
+	top(gw, -1, -1).stage = 4
+	top(gw, -1, 1).stage = 4
+	top(gw, 1, -1).stage = 5
+	check(gw.threat() == "flood", "zu wenig Natur: Überschwemmung droht")
+	var rw := gw.end_round()
+	check(str(_disaster_of(rw).get("kind", "")) == "flood", "Überschwemmung kommt")
+	check(gw.count(4) == 0 and top(gw, 1, -1).stage == 5, "die %d kleinsten Siedlungen sind weg" % Balance.FLOOD_FIELDS)
+	# Im Gleichgewicht passiert nichts, neues Zeitalter gibt ein Leben zurück
+	var ga := new_state(5)
+	ga.lives = 1
+	ga.turn = Balance.AGE_LENGTH
+	var ra := ga.end_round()
+	check(_disaster_of(ra).is_empty(), "im Gleichgewicht keine Katastrophe")
+	check(ga.lives == 2, "neues Zeitalter: ein Leben zurück")
 
 
 func test_meteor() -> void:
@@ -243,28 +316,34 @@ func test_preview_matches() -> void:
 	check(same, "Vorschau = echte Runde")
 
 
-## Ein einfacher Bot: wählt die beste Drehung, setzt den Meteoriten auf die dichteste Zivilisation,
-## wenn das Gleichgewicht kippt. Zeigt, ob das Spiel lange spielbar ist.
-func test_bot() -> void:
-	for s in [11, 22, 33]:
-		var gs := new_state(s)
-		var rounds := 0
-		var meteors := 0
-		for t in 150:
-			if gs.faith >= gs.meteor_cost() and (gs.civilisation_share() > Balance.CIVILISATION_MAX - 0.04 or gs.nature_share() < Balance.NATURE_MIN + 0.04):
+## Ein einfacher Bot: wählt die beste Drehung (ein Zug voraus), setzt den Meteoriten, wenn das
+## Gleichgewicht kippt. passive = immer nur warten. Zeigt, ob das Spiel lange spielbar ist.
+func run_bot(s: int, passive: bool, max_rounds: int = 150) -> Dictionary:
+	var gs := new_state(s)
+	var meteors := 0
+	for t in max_rounds:
+		if not passive and gs.faith >= gs.meteor_cost():
+			var want := ""
+			if gs.civilisation_share() > gs.civilisation_max() - 0.03 or gs.nature_share() < gs.nature_min() + 0.03:
+				want = "civ"
+			elif gs.nature_share() > gs.nature_max() - 0.03:
+				want = "nature"
+			if want != "":
 				var best_f: FieldData = null
 				var best_c := -1
 				for f in gs.fields:
-					var c := 1 if f.is_civilisation() else 0
-					for g in gs.neighbors(f):
-						if g.is_civilisation():
+					var c := 0
+					for g in [f] + gs.neighbors(f):
+						var h: FieldData = g
+						if (want == "civ" and h.is_civilisation()) or (want == "nature" and h.is_nature()):
 							c += 1
 					if c > best_c:
 						best_c = c
 						best_f = f
 				gs.use_meteor(best_f)
 				meteors += 1
-			var best := [0, 0, 0]
+		var best := [0, 0, 0]
+		if not passive:
 			var best_score := -INF
 			for axis in 3:
 				for layer in [-1, 0, 1]:
@@ -276,24 +355,43 @@ func test_bot() -> void:
 							sim.apply_rotation(axis, layer, turns)
 						var r := sim.end_round()
 						var score: float = int(r["gain"])
+						if sim.lives < gs.lives:
+							score -= 60.0
 						if not sim.in_balance():
-							score -= 50.0
+							score -= 10.0
 						if sim.is_over():
 							score -= 10000.0
 						if score > best_score:
 							best_score = score
 							best = [axis, layer, turns]
-			if int(best[2]) != 0:
-				gs.apply_rotation(int(best[0]), int(best[1]), int(best[2]))
-			gs.end_round()
-			rounds += 1
-			if gs.is_over():
-				break
-		var counts := []
-		for st in range(0, Balance.MAX_STAGE + 1):
-			counts.append(gs.count(st))
-		print("Bot Seed %d: %d Runden (Zeitalter %d), Glaube %d, Meteoriten %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
-			s, rounds, gs.age(), gs.faith, meteors, gs.nature_share() * 100.0, gs.civilisation_share() * 100.0, str(counts)])
+		if int(best[2]) != 0:
+			gs.apply_rotation(int(best[0]), int(best[1]), int(best[2]))
+		gs.end_round()
+		if gs.is_over():
+			break
+	var counts := []
+	for st in range(0, Balance.MAX_STAGE + 1):
+		counts.append(gs.count(st))
+	return {"rounds": gs.turn - 1, "age": gs.age(), "faith": gs.faith, "meteors": meteors, "disasters": gs.disasters,
+		"nature": gs.nature_share(), "civ": gs.civilisation_share(), "counts": counts, "dead": gs.died()}
+
+
+func test_bot() -> void:
+	var saved := Balance.NATURE_MAX
+	for nmax in [0.70, 0.75, 0.80]:
+		Balance.NATURE_MAX = nmax
+		print("--- Natur höchstens %d%% ---" % int(round(nmax * 100.0)))
+		for s in [11, 22, 33]:
+			var p := run_bot(s, true)
+			print("  Nur warten, Seed %d: %d Runden, Katastrophen %d, %s" % [s, int(p["rounds"]), int(p["disasters"]), "tot" if bool(p["dead"]) else "lebt"])
+		for s in [11, 22, 33]:
+			var b := run_bot(s, false)
+			print("  Bot Seed %d: %d Runden (Zeitalter %d), Glaube %d, Meteoriten %d, Katastrophen %d, Natur %.0f%%, Zivilisation %.0f%%, Stufen %s" % [
+				s, int(b["rounds"]), int(b["age"]), int(b["faith"]), int(b["meteors"]), int(b["disasters"]),
+				float(b["nature"]) * 100.0, float(b["civ"]) * 100.0, str(b["counts"])])
+	Balance.NATURE_MAX = saved
+	var passive := run_bot(11, true)
+	check(bool(passive["dead"]) and int(passive["rounds"]) < 80, "Nur warten verliert irgendwann")
 
 
 func test_modes() -> void:
@@ -303,7 +401,7 @@ func test_modes() -> void:
 	var nmin := gs.nature_min()
 	gs.turn = Balance.AGE_LENGTH + 1
 	check(gs.age() == 2, "nach %d Runden Zeitalter 2" % Balance.AGE_LENGTH)
-	check(gs.nature_min() > nmin and gs.civilisation_max() < Balance.CIVILISATION_MAX, "Gleichgewicht wird enger")
+	check(gs.nature_min() > nmin and gs.nature_max() < Balance.NATURE_MAX and gs.civilisation_max() < Balance.CIVILISATION_MAX, "Gleichgewicht wird enger")
 	gs.turn = 999
 	check(not gs.finished(), "Endlos endet nicht nach Runden")
 	var ch := GameState.new()

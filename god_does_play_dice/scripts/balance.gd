@@ -26,21 +26,28 @@ static var POLLUTION_FROM := 8            # ab dieser Stufe (Großstadt) wird Na
 static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
 
 # --- Gleichgewicht ------------------------------------------------------------------
-static var NATURE_MIN := 0.30             # mindestens so viel Natur (Wiese, Wälder)
-static var CIVILISATION_MAX := 0.40       # höchstens so viel Zivilisation (ab Hütte)
-static var LOSE_AFTER := 3                # so viele Runden in Folge außerhalb = die Welt stirbt
+static var NATURE_MIN := 0.30             # mindestens so viel Natur (Wiese, Wälder), sonst Überschwemmung
+static var NATURE_MAX := 0.75             # höchstens so viel Natur, sonst Waldbrand
+static var CIVILISATION_MAX := 0.40       # höchstens so viel Zivilisation (ab Hütte), sonst Erdbeben
+
+# --- Katastrophen (Strafe, wenn eine Runde außerhalb des Gleichgewichts endet) -------
+static var LIVES := 3                     # so viele Katastrophen hält die Welt aus
+static var QUAKE_DROP := 2                # Erdbeben: die größte Siedlung fällt so viele Stufen, Siedlungen daneben eine
+static var FLOOD_FIELDS := 3              # Überschwemmung: so viele kleinste Siedlungen werden weggespült
 
 # --- Meteorit -------------------------------------------------------------------------
 static var METEOR_COST := 30              # Glaube für den ersten Meteoriten
 static var METEOR_COST_STEP := 15         # jeder weitere kostet mehr
 
 # --- Modi ------------------------------------------------------------------------------
-# Endlos: alle AGE_LENGTH Runden ein neues Zeitalter, der gesunde Bereich wird enger.
+# Endlos: alle AGE_LENGTH Runden ein neues Zeitalter: ein Leben zurück, aber der gesunde Bereich wird enger.
 static var AGE_LENGTH := 20
 static var NATURE_MIN_STEP := 0.02        # pro Zeitalter mehr Natur nötig …
-static var NATURE_MIN_MAX := 0.42
-static var CIVILISATION_MAX_STEP := 0.02  # … und weniger Zivilisation erlaubt
-static var CIVILISATION_MAX_MIN := 0.28
+static var NATURE_MIN_MAX := 0.40
+static var NATURE_MAX_STEP := 0.03        # … weniger Natur erlaubt (die Menschen brauchen Platz) …
+static var NATURE_MAX_MIN := 0.60
+static var CIVILISATION_MAX_STEP := 0.01  # … und etwas weniger Zivilisation
+static var CIVILISATION_MAX_MIN := 0.35
 # 40 Runden: am Ende zählt der Glaube.
 static var MAX_ROUNDS := 40
 static var STARS := [50, 120, 220]        # Glaube für 1, 2, 3 Sterne

@@ -7,6 +7,7 @@ extends Node3D
 signal field_tapped(fid: int)
 signal preview_changed(info: Dictionary)   # {} = keine Vorschau
 signal merged(fid: int, points: int, combo: int, stage: int)
+signal disaster_shown(kind: String, fid: int)
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -159,12 +160,12 @@ func _on_state_changed() -> void:
 	refresh_all()
 
 
-func refresh_all(gs: GameState = null) -> void:
+func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 	if gs == null:
 		gs = Game.state
 	for f in gs.fields:
 		var v: FieldView = views.get(f.id)
-		if v == null:
+		if v == null or skip.has(f.id):
 			continue
 		v.refresh(f)
 		v.set_selected(f.id == selected)
@@ -452,12 +453,23 @@ func _show_preview(q: int) -> void:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[1]
 		mids[mid.id] = int(Balance.MERGE_POINTS[mid.stage])
+	var danger := {}
+	for e in pv["events"]:
+		if str(e["type"]) == "disaster":
+			for i in e["hit"]:
+				danger[int(i)] = true
 	for f in Game.state.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
 			continue
-		v.set_preview("+%d" % int(mids[f.id]) if mids.has(f.id) else "", Color("#d99a00"))
+		if mids.has(f.id):
+			v.set_preview("+%d" % int(mids[f.id]), Color("#d99a00"))
+		elif danger.has(f.id):
+			v.set_preview("!", Color("#e5483c"))
+		else:
+			v.set_preview("", Color.WHITE)
 		v.set_highlight(lit.has(f.id))
+		v.set_danger(danger.has(f.id) and not lit.has(f.id))
 	preview_changed.emit(pv)
 
 
@@ -465,6 +477,7 @@ func _clear_preview() -> void:
 	for fid in views:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
 		(views[fid] as FieldView).set_highlight(false)
+		(views[fid] as FieldView).set_danger(false)
 	refresh_all()
 	preview_changed.emit({})
 
@@ -488,6 +501,7 @@ func _finish_twist() -> void:
 	for fid in views:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
 		(views[fid] as FieldView).set_highlight(false)
+		(views[fid] as FieldView).set_danger(false)
 	preview_changed.emit({})
 	if _tw_quarter != 0:
 		Game.play_turn(_tw_axis, _tw_layer, _tw_quarter)
@@ -557,6 +571,11 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	# Verschmelzen, Kombo für Kombo
 	var last_combo := 0
 	var merged_ids := {}
+	var disaster_ids := {}
+	for e in events:
+		if str(e["type"]) == "disaster":
+			for i in e["hit"]:
+				disaster_ids[int(i)] = true
 	for e in events:
 		if str(e["type"]) != "merge":
 			continue
@@ -565,7 +584,7 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			merged_ids[int(o)] = true
 		var combo := int(e["combo"])
 		if combo != last_combo and last_combo > 0:
-			refresh_all()
+			refresh_all(null, disaster_ids)
 			await get_tree().create_timer(0.35).timeout
 		last_combo = combo
 		await _merge_fx(e)
@@ -577,10 +596,15 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			var v: FieldView = views.get(int(e["field"]))
 			if v != null:
 				_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#6b6e78"), 4)
+	# Katastrophe
+	for e in events:
+		if str(e["type"]) == "disaster":
+			refresh_all(null, disaster_ids)
+			await _disaster_fx(e)
 	refresh_all()
 	var changes: Array = []
 	for f in gs.fields:
-		if merged_ids.has(f.id):
+		if merged_ids.has(f.id) or disaster_ids.has(f.id):
 			continue
 		var b := int(before.get(f.id, f.stage))
 		if f.stage == 0 and b > 0:
@@ -617,6 +641,46 @@ func _merge_fx(e: Dictionary) -> void:
 	rig.shake(0.25 + 0.15 * int(e["combo"]))
 	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]), int(e.get("stage", 0)))
 	await get_tree().create_timer(0.12).timeout
+
+
+## Erdbeben, Überschwemmung oder Waldbrand abspielen.
+func _disaster_fx(e: Dictionary) -> void:
+	var kind := str(e["kind"])
+	var hit: Array = e["hit"]
+	var fid := int(e["field"])
+	if fid >= 0:
+		focus_field(fid)
+		await get_tree().create_timer(0.45).timeout
+	disaster_shown.emit(kind, fid)
+	var dur := 1.0
+	for i in hit:
+		var v: FieldView = views.get(int(i))
+		if v == null:
+			continue
+		var p := v.global_position + v.world_normal() * 0.25
+		v.set_danger(true)
+		if kind == "quake":
+			v.quake(dur)
+			_sparks(p, Vector3.ZERO, Color("#a5805c"), 6)
+		elif kind == "flood":
+			v.flood(dur * 1.2)
+			_sparks(p, Vector3.ZERO, Color("#7cc8ff"), 6)
+		else:
+			v.burn(dur)
+			_sparks(p, Vector3.ZERO, Color("#ff8a3d"), 7)
+	if kind == "quake":
+		rig.shake(1.6)
+	elif kind == "fire":
+		rig.shake(0.4)
+	else:
+		rig.shake(0.3)
+	await get_tree().create_timer(dur * (1.25 if kind == "flood" else 1.05)).timeout
+	for i in hit:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_danger(false)
+			if kind == "fire":
+				_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 1.0, Color("#6b6e78"), 4)
 
 
 ## Funken: fliegen von a nach b (oder bei b == ZERO in alle Richtungen nach außen).

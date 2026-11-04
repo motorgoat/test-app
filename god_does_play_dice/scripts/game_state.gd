@@ -9,19 +9,25 @@ extends RefCounted
 ##      → Großstadt → Metropole), die beiden äußeren fallen eine Stufe zurück.
 ##   3. Leere Erde wird wieder Wiese, wenn genug Natur daneben ist.
 ##   4. Ab dem Dorf gibt es jede Runde Glauben. Großstädte und Metropolen zerstören Natur daneben.
-##   5. Zu wenig Natur oder zu viel Zivilisation: nach ein paar Runden stirbt die Welt.
+##   5. Endet eine Runde außerhalb des Gleichgewichts, kommt eine Katastrophe:
+##      zu viel Zivilisation → Erdbeben, zu wenig Natur → Überschwemmung, zu viel Natur → Waldbrand.
+##      Jede kostet ein Leben der Welt. Ohne Leben stirbt sie. Jedes neue Zeitalter gibt eines zurück.
 ##   6. Meteorit (kostet Glauben): Feld und Nachbarn werden zu leerer Erde.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_ICON = ["empty", "meadow", "smallforest", "nature", "hut", "house", "village", "town", "bigcity", "metropolis"]
+const DISASTER_NAME = {"quake": "Erdbeben", "flood": "Überschwemmung", "fire": "Waldbrand"}
+const DISASTER_WHY = {"quake": "Zu viel Zivilisation", "flood": "Zu wenig Natur", "fire": "Zu viel Natur"}
 const FACE_NORMALS = [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]
 
 var fields: Array = []        # FieldData, Index = id
 var turn: int = 1
 var faith: int = 0            # Glaube = Punkte und Währung für Meteoriten
 var meteors_used: int = 0
-var bad_rounds: int = 0       # Runden in Folge außerhalb des Gleichgewichts
+var lives: int = 3            # so viele Katastrophen hält die Welt noch aus
+var disasters: int = 0        # Katastrophen bisher
+var last_disaster := ""       # die letzte Katastrophe (für das Spielende)
 var moved: Dictionary = {}    # IDs der Felder, die die letzte Drehung bewegt hat
 var seen: Dictionary = {}     # jede Reihe (drei Felder + Stufe), die es je gab: zählt nie wieder
 var endless := true           # Endlos-Modus oder 40 Runden
@@ -42,7 +48,9 @@ func setup(seed_value: int = 0, endless_mode: bool = true) -> void:
 	turn = 1
 	faith = 0
 	meteors_used = 0
-	bad_rounds = 0
+	lives = Balance.LIVES
+	disasters = 0
+	last_disaster = ""
 	moved = {}
 	seen = {}
 	fields.clear()
@@ -74,7 +82,9 @@ func clone() -> GameState:
 	gs.endless = endless
 	gs.faith = faith
 	gs.meteors_used = meteors_used
-	gs.bad_rounds = bad_rounds
+	gs.lives = lives
+	gs.disasters = disasters
+	gs.last_disaster = last_disaster
 	gs.moved = moved.duplicate()
 	gs.seen = seen.duplicate()
 	gs.rng.seed = rng.seed
@@ -204,8 +214,25 @@ func civilisation_max() -> float:
 	return maxf(Balance.CIVILISATION_MAX_MIN, Balance.CIVILISATION_MAX - Balance.CIVILISATION_MAX_STEP * (age() - 1))
 
 
+func nature_max() -> float:
+	return maxf(Balance.NATURE_MAX_MIN, Balance.NATURE_MAX - Balance.NATURE_MAX_STEP * (age() - 1))
+
+
 func in_balance() -> bool:
-	return nature_share() >= nature_min() and civilisation_share() <= civilisation_max()
+	return threat() == ""
+
+
+## Was gerade aus dem Gleichgewicht ist: "quake" (zu viel Zivilisation), "flood" (zu wenig Natur),
+## "fire" (zu viel Natur) oder "" (alles gut).
+func threat() -> String:
+	if civilisation_share() > civilisation_max() + 0.0001:
+		return "quake"
+	var nat := nature_share()
+	if nat < nature_min() - 0.0001:
+		return "flood"
+	if nat > nature_max() + 0.0001:
+		return "fire"
+	return ""
 
 
 func income() -> int:
@@ -224,7 +251,7 @@ func is_over() -> bool:
 
 
 func died() -> bool:
-	return bad_rounds >= Balance.LOSE_AFTER
+	return lives <= 0
 
 
 func finished() -> bool:
@@ -393,20 +420,93 @@ func end_round() -> Dictionary:
 		if f.fresh > 0:
 			f.fresh -= 1
 
-	# Alles, was jetzt als Reihe dasteht, ist verbraucht
-	remember_lines()
-
 	# 4. Glaube aus Dörfern und Städten
 	gain += income()
 	faith += gain
 
-	# 5. Gleichgewicht
-	if in_balance():
-		bad_rounds = 0
-	else:
-		bad_rounds += 1
+	# 5. Gleichgewicht: sonst Katastrophe
+	var kind := threat()
+	if kind != "":
+		disaster(kind, ev)
+		lives -= 1
+		disasters += 1
 	turn += 1
+	# Neues Zeitalter: ein Leben zurück
+	if endless and (turn - 1) % Balance.AGE_LENGTH == 0 and lives > 0:
+		lives = mini(Balance.LIVES, lives + 1)
+	# Alles, was jetzt als Reihe dasteht, ist verbraucht
+	remember_lines()
 	return {"events": ev, "gain": gain}
+
+
+## Die Katastrophe trifft (deterministisch, damit die Vorschau stimmt).
+## Ereignis: {"type": "disaster", "kind", "field" (Zentrum oder -1), "hit": [ids]}
+func disaster(kind: String, ev: Array) -> void:
+	var hit: Array = []
+	var center: FieldData = null
+	if kind == "quake":
+		# Die größte Siedlung (bei Gleichstand die mit den meisten Siedlungen daneben) bebt
+		var best := -1
+		for f in fields:
+			if not f.is_civilisation():
+				continue
+			var score := f.stage * 100 + _count_neighbors(f, "civ")
+			if score > best:
+				best = score
+				center = f
+		if center != null:
+			center.stage = maxi(0, center.stage - Balance.QUAKE_DROP)
+			hit.append(center.id)
+			for g in neighbors(center):
+				var h: FieldData = g
+				if h.is_civilisation():
+					h.stage -= 1
+					hit.append(h.id)
+	elif kind == "flood":
+		# Ohne Wald hält nichts das Wasser: die kleinsten Siedlungen werden weggespült
+		var cand: Array = []
+		for f in fields:
+			if f.is_civilisation():
+				cand.append([f.stage * 10 + _count_neighbors(f, "nature"), f.id, f])
+		cand.sort_custom(func(x, y): return x[0] < y[0] or (x[0] == y[0] and x[1] < y[1]))
+		for item in cand.slice(0, Balance.FLOOD_FIELDS):
+			var f: FieldData = item[2]
+			f.stage = 0
+			f.fresh = 0
+			hit.append(f.id)
+		if not hit.is_empty():
+			center = fields[int(hit[0])]
+	elif kind == "fire":
+		# Der dichteste Wald brennt, mit aller Natur daneben
+		var best := -1
+		for f in fields:
+			if not f.is_nature():
+				continue
+			var score := _count_neighbors(f, "nature") * 100 + f.stage
+			if score > best:
+				best = score
+				center = f
+		if center != null:
+			var burn: Array = [center]
+			for g in neighbors(center):
+				if (g as FieldData).is_nature():
+					burn.append(g)
+			for g in burn:
+				var h: FieldData = g
+				h.stage = 0
+				h.fresh = 2
+				hit.append(h.id)
+	last_disaster = kind
+	ev.append({"type": "disaster", "kind": kind, "field": center.id if center != null else -1, "hit": hit})
+
+
+func _count_neighbors(f: FieldData, what: String) -> int:
+	var c := 0
+	for g in neighbors(f):
+		var h: FieldData = g
+		if (what == "civ" and h.is_civilisation()) or (what == "nature" and h.is_nature()):
+			c += 1
+	return c
 
 
 # =============================================================================

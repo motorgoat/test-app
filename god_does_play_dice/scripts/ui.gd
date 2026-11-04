@@ -15,6 +15,7 @@ var ladder_counts: Array = []
 var nature_bar: Dictionary = {}
 var civ_bar: Dictionary = {}
 var danger_label: Label
+var hearts: Array = []
 var preview_card: PanelContainer
 var preview_label: Label
 var toast: PanelContainer
@@ -51,6 +52,7 @@ func setup(w: World) -> void:
 	world.preview_changed.connect(_on_preview)
 	world.deltas_shown.connect(_on_deltas)
 	world.merged.connect(_on_merged)
+	world.disaster_shown.connect(_on_disaster)
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -86,9 +88,28 @@ func _build() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	cv.add_child(row)
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 2)
+	rv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(rv)
 	round_label = _label("Runde 1", 20, Style.SOFT, true)
-	round_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(round_label)
+	rv.add_child(round_label)
+	var hrow := HBoxContainer.new()
+	hrow.add_theme_constant_override("separation", 3)
+	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rv.add_child(hrow)
+	for i in Balance.LIVES:
+		var h := TextureRect.new()
+		h.texture = Style.icon("heart")
+		h.custom_minimum_size = Vector2(20, 20)
+		h.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		h.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hrow.add_child(h)
+		hearts.append(h)
+	var hl := _label("Leben der Welt", 11, Style.SOFT)
+	hl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hrow.add_child(hl)
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -134,8 +155,8 @@ func _build() -> void:
 	var bars := HBoxContainer.new()
 	bars.add_theme_constant_override("separation", 14)
 	cv.add_child(bars)
-	nature_bar = _bar(bars, "nature", "Natur", Color("#4fae55"), Balance.NATURE_MIN, true)
-	civ_bar = _bar(bars, "town", "Zivilisation", Color("#e0a54a"), Balance.CIVILISATION_MAX, false)
+	nature_bar = _bar(bars, "nature", "Natur", Color("#4fae55"), true)
+	civ_bar = _bar(bars, "town", "Zivilisation", Color("#e0a54a"), false)
 	danger_label = _label("", 15, Style.BAD, true)
 	danger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	danger_label.visible = false
@@ -236,7 +257,7 @@ func _build() -> void:
 	_build_over()
 
 
-func _bar(parent: Control, icon_name: String, title: String, color: Color, limit: float, is_min: bool) -> Dictionary:
+func _bar(parent: Control, icon_name: String, title: String, color: Color, is_nature: bool) -> Dictionary:
 	var v := VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 3)
@@ -271,9 +292,14 @@ func _bar(parent: Control, icon_name: String, title: String, color: Color, limit
 	mark.color = Style.TEXT
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	back.add_child(mark)
-	var hint := _label(("mind. %d%%" if is_min else "höchstens %d%%") % int(round(limit * 100.0)), 11, Style.SOFT)
+	var mark2 := ColorRect.new()
+	mark2.color = Style.TEXT
+	mark2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark2.visible = is_nature
+	back.add_child(mark2)
+	var hint := _label("", 11, Style.SOFT)
 	v.add_child(hint)
-	return {"back": back, "fill": fill, "mark": mark, "pct": pct, "color": color, "limit": limit, "is_min": is_min, "hint": hint}
+	return {"back": back, "fill": fill, "mark": mark, "mark2": mark2, "pct": pct, "color": color, "is_nature": is_nature, "hint": hint}
 
 
 func _build_sheet() -> void:
@@ -331,9 +357,13 @@ func _build_help() -> void:
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("meadow", "Leere Erde wird wieder zur Wiese, wenn 2 Natur-Felder daneben liegen."))
 	v.add_child(_help_row("metropolis", "Ab dem Dorf gibt es jede Runde Glauben. Großstädte und Metropolen zerstören aber die Natur daneben."))
-	v.add_child(_help_row("balance", "Zu wenig Natur oder zu viel Zivilisation: Die Welt stirbt."))
+	v.add_child(_help_row("balance", "Halte das Gleichgewicht. Endet eine Runde daneben, schlägt eine Katastrophe zu und kostet ein Leben der Welt:"))
+	v.add_child(_help_row("quake", "Zu viel Zivilisation → Erdbeben: Die größte Siedlung stürzt ein."))
+	v.add_child(_help_row("flood", "Zu wenig Natur → Überschwemmung: Die kleinsten Siedlungen werden weggespült."))
+	v.add_child(_help_row("fire", "Zu viel Natur → Waldbrand: Der dichteste Wald brennt nieder."))
+	v.add_child(_help_row("heart", "Die Welt hält %d Katastrophen aus. Leuchtet beim Drehen ein Feld rot, droht dort eine." % Balance.LIVES))
 	v.add_child(_help_row("meteor", "Der Meteorit kostet Glauben und macht ein Feld samt Nachbarn zu Erde. Setz ihn im richtigen Moment ein."))
-	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter, dann braucht die Welt mehr Natur und verträgt weniger Zivilisation. Im Menü gibt es auch 40 Runden mit Sternen." % Balance.AGE_LENGTH))
+	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber der gesunde Bereich wird enger. Im Menü gibt es auch 40 Runden mit Sternen." % Balance.AGE_LENGTH))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
@@ -516,9 +546,11 @@ func refresh() -> void:
 	for s in range(1, Balance.MAX_STAGE + 1):
 		(ladder_counts[s - 1] as Label).text = str(gs.count(s))
 	meteor_btn.text = str(gs.meteor_cost())
-	if gs.bad_rounds > 0 and not Game.over:
-		var left := Balance.LOSE_AFTER - gs.bad_rounds
-		danger_label.text = "Die Welt stirbt in %d %s!" % [left, "Runde" if left == 1 else "Runden"]
+	for i in hearts.size():
+		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
+	var th := gs.threat()
+	if th != "" and not Game.over:
+		danger_label.text = "%s! Bring das in Ordnung, sonst: %s" % [GameState.DISASTER_WHY[th], GameState.DISASTER_NAME[th]]
 		danger_label.visible = true
 	else:
 		danger_label.visible = false
@@ -538,14 +570,26 @@ func _draw_bar(b: Dictionary, value: float) -> void:
 	var back: ColorRect = b["back"]
 	var fill: ColorRect = b["fill"]
 	var mark: ColorRect = b["mark"]
+	var mark2: ColorRect = b["mark2"]
 	var w := back.size.x
-	var limit: float = Game.state.nature_min() if bool(b["is_min"]) else Game.state.civilisation_max()
+	var gs := Game.state
 	var hint: Label = b["hint"]
-	hint.text = ("mind. %d%%" if bool(b["is_min"]) else "höchstens %d%%") % int(round(limit * 100.0))
-	var ok := value >= limit if bool(b["is_min"]) else value <= limit
+	var ok := true
+	if bool(b["is_nature"]):
+		var lo := gs.nature_min()
+		var hi := gs.nature_max()
+		hint.text = "%d–%d%%  (sonst Flut / Waldbrand)" % [int(round(lo * 100.0)), int(round(hi * 100.0))]
+		ok = value >= lo - 0.0001 and value <= hi + 0.0001
+		mark.position = Vector2(w * lo - 1.5, -3)
+		mark2.position = Vector2(w * hi - 1.5, -3)
+		mark2.size = Vector2(3, 16)
+	else:
+		var limit := gs.civilisation_max()
+		hint.text = "höchstens %d%%  (sonst Erdbeben)" % int(round(limit * 100.0))
+		ok = value <= limit + 0.0001
+		mark.position = Vector2(w * limit - 1.5, -3)
 	fill.size = Vector2(maxf(2.0, w * clampf(value, 0.0, 1.0)), 10)
 	fill.color = b["color"] if ok else Style.BAD
-	mark.position = Vector2(w * limit - 1.5, -3)
 	mark.size = Vector2(3, 16)
 	var pct: Label = b["pct"]
 	pct.text = "%d%%" % int(round(value * 100.0))
@@ -596,12 +640,19 @@ func _on_preview(info: Dictionary) -> void:
 	var arranged: GameState = info["arranged"]
 	var merges := arranged.moved_lines().size()
 	var gain := int(info["gain"])
+	var kind := ""
+	for e in info["events"]:
+		if str(e["type"]) == "disaster":
+			kind = str(e["kind"])
 	if merges > 0:
 		preview_label.text = "%d× Verschmelzen   ·   +%d Glaube" % [merges, gain]
 		preview_label.add_theme_color_override("font_color", Color("#c98a00"))
 	else:
 		preview_label.text = "Keine Dreierreihe   ·   +%d Glaube" % gain
 		preview_label.add_theme_color_override("font_color", Style.SOFT)
+	if kind != "":
+		preview_label.text += "\nDanach: %s! (%s)" % [GameState.DISASTER_NAME[kind], GameState.DISASTER_WHY[kind]]
+		preview_label.add_theme_color_override("font_color", Style.BAD)
 	tw.tween_property(preview_card, "modulate:a", 1.0, 0.12)
 
 
@@ -671,6 +722,19 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 		combo_label.text = "%s! Kombo ×%d" % [GameState.stage_name(stage), combo]
 	else:
 		combo_label.text = GameState.stage_name(stage) + "!"
+	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
+	_pop_banner()
+
+
+func _on_disaster(kind: String, fid: int) -> void:
+	combo_label.text = GameState.DISASTER_NAME[kind] + "!"
+	combo_label.add_theme_color_override("font_color", Style.BAD)
+	_pop_banner()
+	if fid >= 0:
+		_bubble(fid, "-1 Leben", "heart", Style.BAD)
+
+
+func _pop_banner() -> void:
 	combo_label.pivot_offset = combo_label.size * 0.5
 	combo_label.scale = Vector2(0.5, 0.5)
 	combo_label.modulate.a = 1.0
@@ -819,10 +883,9 @@ func _on_game_over() -> void:
 	var title: Label = (over_card.get_child(0) as VBoxContainer).get_child(0)
 	if gs.died():
 		title.text = "Die Welt ist gestorben"
-		if gs.nature_share() < gs.nature_min():
-			lines.append("Es gab zu wenig Natur.")
-		else:
-			lines.append("Es gab zu viel Zivilisation.")
+		lines.append("Zu viele Katastrophen.")
+		if gs.last_disaster != "":
+			lines.append("Zuletzt: %s (%s)." % [GameState.DISASTER_NAME[gs.last_disaster], GameState.DISASTER_WHY[gs.last_disaster].to_lower()])
 		lines.append("Überlebt: %d Runden" % Game.rounds_survived() + (" (Zeitalter %d)" % gs.age() if gs.endless else ""))
 	else:
 		title.text = "Geschafft!"
