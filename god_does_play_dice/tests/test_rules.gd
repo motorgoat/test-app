@@ -332,6 +332,14 @@ func test_quake() -> void:
 		f.stage = 4 if absi(f.p.x + f.p.y + f.p.z) % 2 == 0 else 5
 	gd.end_round()
 	check(gd.died() and gd.is_over(), "ohne Leben stirbt die Welt")
+	var gx := empty_state()
+	gx.rain = 0
+	gx.bolts = 0
+	top(gx, 0, 0).stage = 1
+	top(gx, 1, 1).stage = 1
+	check(gx.stuck() and gx.is_over(), "nichts mehr zu verbinden: Spielende")
+	gx.rain = 1
+	check(not gx.stuck(), "mit Regen geht es weiter")
 	var ga := new_state(5)
 	ga.lives = 1
 	ga.turn = Balance.AGE_LENGTH

@@ -24,7 +24,8 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
    Wiese wächst nur durch Regen.
 6. **Großstädte und Metropolen** zerstören jede Runde ein Natur-Feld daneben.
 7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
-8. Brand und Erdbeben kosten je ein **Leben** der Welt (3 Leben). Ohne Leben ist das Spiel vorbei.
+8. Ein Erdbeben kostet ein **Leben** der Welt (3 Leben). Ohne Leben ist das Spiel vorbei, ebenso wenn nichts mehr
+   zu verbinden ist (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
 9. **Modi:** Endlos (alle 20 Runden ein neues Zeitalter: ein Leben zurück, weniger Zivilisation erlaubt) oder 40 Runden.
    Rekord = Punkte.
 

@@ -321,7 +321,7 @@ func _build_help() -> void:
 	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("metropolis", "Großstädte und Metropolen zerstören jede Runde ein Natur-Feld daneben."))
-	v.add_child(_help_row("heart", "Brand und Erdbeben kosten je ein Leben der Welt. Ohne Leben ist das Spiel vorbei."))
+	v.add_child(_help_row("heart", "Ein Erdbeben kostet ein Leben der Welt. Ohne Leben, oder wenn nichts mehr zu verbinden ist, ist das Spiel vorbei."))
 	v.add_child(_help_row("trophy", "Endlos: Alle %d Runden beginnt ein neues Zeitalter. Du bekommst ein Leben zurück, aber es ist weniger Zivilisation erlaubt. Im Menü gibt es auch 40 Runden: so viele Punkte wie möglich." % Balance.AGE_LENGTH))
 	var go := _wide_button("Los geht's", Style.ACCENT, Color.WHITE)
 	go.pressed.connect(_on_help_done)
@@ -824,7 +824,10 @@ func _on_game_over() -> void:
 	var gs := Game.state
 	var lines := PackedStringArray()
 	var title: Label = (over_card.get_child(0) as VBoxContainer).get_child(0)
-	if gs.died():
+	if gs.stuck() and not gs.died():
+		title.text = "Nichts mehr zu verbinden"
+		lines.append("Keine Stufe hat mehr drei Felder, und es gibt keinen Regen und keinen Blitz.")
+	elif gs.died():
 		title.text = "Die Welt ist gestorben"
 		lines.append("Zu viele Katastrophen.")
 		if gs.last_disaster != "":

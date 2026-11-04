@@ -13,7 +13,8 @@ extends RefCounted
 ##      die zuletzt gedrehte Reihe in Brand: Brennende Felder verlieren jeden Zug eine Stufe, bis Regen sie löscht.
 ##   6. Zu viel Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 ##   7. Boni aus Punkten: Regen hebt ein Feld eine Stufe (oder löscht es), Blitz hebt eine ganze Reihe.
-##   8. Katastrophen kosten Leben der Welt (Brand abschaltbar). Jedes neue Zeitalter gibt eines zurück.
+##   8. Erdbeben kosten ein Leben der Welt (Brand nur, wenn eingeschaltet). Jedes neue Zeitalter gibt eines zurück.
+##   9. Ist nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz), ist das Spiel vorbei.
 
 const STAGE_NAME = ["Erde", "Wiese", "Kleiner Wald", "Großer Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
 const STAGE_SHORT = ["Erde", "Wiese", "kl. Wald", "gr. Wald", "Hütte", "Haus", "Dorf", "Stadt", "Großstadt", "Metropole"]
@@ -307,7 +308,17 @@ func threat() -> String:
 
 
 func is_over() -> bool:
-	return died() or finished()
+	return died() or finished() or stuck()
+
+
+## Nichts mehr zu verbinden: keine Stufe hat noch 3 Felder, und es gibt weder Regen noch Blitz.
+func stuck() -> bool:
+	if rain > 0 or bolts > 0:
+		return false
+	for st in range(1, Balance.MAX_STAGE + 1):
+		if count(st) >= 3:
+			return false
+	return true
 
 
 func died() -> bool:

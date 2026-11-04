@@ -31,7 +31,7 @@ static var CIVILISATION_MAX := 0.40       # höchstens so viel Zivilisation (ab 
 # --- Katastrophen ------------------------------------------------------------------------
 static var LIVES := 3                     # so viele Katastrophen hält die Welt aus
 static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
-static var FIRE_COSTS_LIFE := true        # kostet ein Brand ein Leben?
+static var FIRE_COSTS_LIFE := false       # kostet ein Brand ein Leben?
 
 # --- Boni ------------------------------------------------------------------------------
 static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es
