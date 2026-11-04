@@ -27,11 +27,12 @@ gesammelte Ideen: [`docs/IDEEN.md`](docs/IDEEN.md).
 7. **Mehr als 40 % Zivilisation:** **Erdbeben**, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück.
 8. **Herzen** = Leben der Welt (3). Ein Erdbeben kostet eines, jedes neue Zeitalter gibt eines zurück.
    **Spielende:** alle Herzen weg oder nichts mehr zu verbinden (keine Stufe mit 3 Feldern, kein Regen, kein Blitz).
-   Einmal pro Spiel kann man mit Werbung weiterspielen (im Prototyp ein Platzhalter).
+   Einmal pro Spiel kann man für Credits weiterspielen.
 9. **Zeitalter** folgen der höchsten erreichten Stufe: Urzeit, Steinzeit (Hütte), Bronzezeit (Haus), Antike (Dorf),
    Mittelalter (Stadt), Industriezeitalter (Großstadt), Moderne (Metropole). Jedes neue gibt ein Herz zurück.
-10. **Tipp** (Glühbirne): Die lohnendste Drehung leuchtet auf (schaut zwei Züge voraus). Kostet 1 Credit, Credits gibt es für Werbung
-   (im Prototyp ein Platzhalter). Im Tutorial sind Tipps gratis.
+10. **Credits** (Münze oben): eine Währung für alle Hilfen. **Tipp** (1, schaut zwei Züge voraus), **Schritt zurück** (1),
+   **Weiterspielen** nach dem Ende (2, einmal pro Spiel). Credits gibt es für eine kurze Werbung (im Prototyp ein
+   Platzhalter), später auch im Shop. Im Tutorial sind Tipps gratis.
 11. **Modi:** Endlos oder 40 Runden. Rekord = Punkte.
 
 Oben stehen nur die Punkte, die Entwicklungsstufe (höchste erreichte Stufe), die Leben und die Fehlversuche.
@@ -53,7 +54,7 @@ und was eine Drehung verschmilzt. Danach nur noch die Warnung vor Katastrophen (
 | Handy schwenken | Würfel neigt sich leicht mit |
 | Feld antippen | Info-Karte: was das Feld braucht und was gerade passiert |
 | Feld antippen | Info-Karte mit „Gießen“ / „Löschen“ und „Blitz auf Reihe“ (wenn vorhanden) |
-| Tropfen über einem Feld | dort lohnt sich Gießen (Feuer löschen oder eine Reihe vervollständigen) |
+| „Regen bereit“ über dem Würfel | du kannst gießen: antippen, dann ein Feld wählen |
 | 🔥 1/3 unten | Fehlversuche bis zum nächsten Brand |
 | Regen / Blitz unten | Bonus wählen, dann das Feld antippen (Blitz: dessen waagrechte Reihe) |
 

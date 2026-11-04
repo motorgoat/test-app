@@ -36,6 +36,13 @@ var sheet_bolt: Button
 var miss_pill: Button
 var hint_btn: Button
 var continue_btn: Button
+var over_undo_btn: Button
+var undo_btn: Button
+var credits_btn: Button
+var ad_label: Label
+var rain_ready: Button
+var _pending: Callable = Callable()
+var _pending_cost := 0
 var over_label: Label
 var bubble_layer: Control
 var combo_label: Label
@@ -158,6 +165,17 @@ func _build() -> void:
 		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hrow.add_child(h)
 		hearts.append(h)
+	# Credits (für Tipp, Schritt zurück, Weiterspielen)
+	var cb := Button.new()
+	cb.icon = Style.icon("coin")
+	cb.add_theme_constant_override("icon_max_width", 22)
+	cb.add_theme_font_override("font", Style.bold())
+	cb.add_theme_font_size_override("font_size", 17)
+	cb.custom_minimum_size = Vector2(0, 46)
+	_pill_style(cb, Color.WHITE)
+	cb.pressed.connect(_on_credits_pressed)
+	row.add_child(cb)
+	credits_btn = cb
 	row.add_child(_round_button("menu", func() -> void: _open_modal(menu_card), 46))
 	# Warnung, nur wenn etwas droht
 	danger_label = _label("", 15, Style.BAD, true)
@@ -174,6 +192,19 @@ func _build() -> void:
 	preview_card.add_child(preview_label)
 	preview_card.modulate.a = 0.0
 	top.add_child(preview_card)
+	# Ein Hinweis über dem Würfel: Regen ist bereit (statt Symbolen auf jedem Feld)
+	rain_ready = Button.new()
+	rain_ready.text = "Regen bereit: Feld antippen"
+	rain_ready.icon = Style.icon("rain")
+	rain_ready.add_theme_constant_override("icon_max_width", 26)
+	rain_ready.add_theme_font_override("font", Style.bold())
+	rain_ready.add_theme_font_size_override("font_size", 15)
+	rain_ready.add_theme_color_override("font_color", Style.WATER)
+	rain_ready.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_pill_style(rain_ready, Color(1, 1, 1, 0.9))
+	rain_ready.pressed.connect(func() -> void: _set_bonus_mode("rain"))
+	rain_ready.visible = false
+	top.add_child(rain_ready)
 
 	# --- Unten ---
 	var bottom := VBoxContainer.new()
@@ -204,7 +235,7 @@ func _build() -> void:
 	mode_card.visible = false
 	bottom.add_child(mode_card)
 	var brow := HBoxContainer.new()
-	brow.add_theme_constant_override("separation", 12)
+	brow.add_theme_constant_override("separation", 8)
 	brow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bottom.add_child(brow)
 	rain_btn = _bonus_button("rain", _on_bonus_pressed.bind("rain"))
@@ -219,7 +250,7 @@ func _build() -> void:
 	miss_pill = Button.new()
 	miss_pill.icon = Style.icon("fire")
 	miss_pill.add_theme_constant_override("icon_max_width", 26)
-	miss_pill.custom_minimum_size = Vector2(84, 52)
+	miss_pill.custom_minimum_size = Vector2(76, 50)
 	miss_pill.add_theme_font_override("font", Style.bold())
 	miss_pill.add_theme_font_size_override("font_size", 18)
 	miss_pill.add_theme_color_override("font_color", Style.BAD)
@@ -235,9 +266,11 @@ func _build() -> void:
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp3)
-	hint_btn = _bonus_button("bulb", _on_hint_pressed)
+	undo_btn = _round_button("undo", _on_undo_pressed, 54)
+	brow.add_child(undo_btn)
+	hint_btn = _round_button("bulb", _on_hint_pressed, 54)
 	brow.add_child(hint_btn)
-	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 62))
+	brow.add_child(_round_button("help", func() -> void: _open_modal(help_card), 54))
 
 	bubble_layer = Control.new()
 	bubble_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -271,7 +304,7 @@ func _bonus_button(icon_name: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.icon = Style.icon(icon_name)
 	b.add_theme_constant_override("icon_max_width", 30)
-	b.custom_minimum_size = Vector2(84, 62)
+	b.custom_minimum_size = Vector2(72, 54)
 	b.add_theme_font_override("font", Style.bold())
 	b.add_theme_font_size_override("font_size", 18)
 	_pill_style(b, Color.WHITE)
@@ -395,49 +428,87 @@ func _build_menu() -> void:
 
 
 ## „Werbung ansehen“ für einen Tipp. Noch ein Platzhalter: Die echte Werbung kommt später.
+## Credits: eine Währung für alle Hilfen (Tipp, Schritt zurück, Weiterspielen).
+## Reichen sie nicht, wird eine kurze Werbung angeboten (im Prototyp ein Platzhalter).
 func _build_ad() -> void:
-	ad_card = _modal_card("Tipp gefällig?")
+	ad_card = _modal_card("Credits")
 	var v: VBoxContainer = ad_card.get_child(0)
-	var l := _label("Schau eine kurze Werbung an und bekomm einen Tipp: Die lohnendste Drehung leuchtet auf.", 17, Style.TEXT)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(300, 0)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(l)
-	var watch := _wide_button("Werbung ansehen", Style.ACCENT, Color.WHITE)
+	ad_label = _label("", 17, Style.TEXT)
+	ad_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ad_label.custom_minimum_size = Vector2(300, 0)
+	ad_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(ad_label)
+	var watch := _wide_button("Werbung ansehen (+%d)" % Balance.CREDITS_PER_AD, Style.ACCENT, Color.WHITE)
+	watch.icon = Style.icon("coin")
+	watch.add_theme_constant_override("icon_max_width", 24)
 	watch.pressed.connect(_on_ad_watched)
 	v.add_child(watch)
 	var no := _wide_button("Nein danke", Color.WHITE, Style.TEXT)
-	no.pressed.connect(_close_modal)
+	no.pressed.connect(_on_ad_declined)
 	v.add_child(no)
 
 
-func _on_hint_pressed() -> void:
-	if Game.busy or Game.over or world.animating:
+## Kostet cost Credits und führt dann action aus. Reicht es nicht, wird erst eine Werbung angeboten.
+func _pay(cost: int, what: String, action: Callable) -> void:
+	if Game.spend(cost):
+		action.call()
+		refresh()
 		return
-	if Game.credits < Balance.HINT_COST:
-		_open_modal(ad_card)
-		return
-	_use_hint()
-
-
-func _use_hint() -> void:
-	var best := world.show_hint()
-	if best.is_empty():
-		_on_message("Auch in zwei Zügen bringt keine Drehung etwas. Probier Regen oder Blitz.", "info")
-		return
-	Game.spend_hint()
-	if int(best["steps"]) == 2:
-		_on_message("Diese Scheibe drehen: Danach kannst du verschmelzen.", "info")
-	else:
-		_on_message("Diese Scheibe drehen: Das verschmilzt sofort.", "info")
-	refresh()
+	_pending = action
+	_pending_cost = cost
+	ad_label.text = "%s kostet %d %s. Du hast %d.\nSchau eine kurze Werbung an und bekomm %d %s." % [
+		what, cost, "Credit" if cost == 1 else "Credits", Game.credits,
+		Balance.CREDITS_PER_AD, "Credit" if Balance.CREDITS_PER_AD == 1 else "Credits"]
+	_open_modal(ad_card)
 
 
 func _on_ad_watched() -> void:
 	_close_modal()
 	Game.reward_ad()
-	_on_message("Danke! Hier ist dein Tipp.", "good")
-	_use_hint()
+	_on_message("Danke! +%d Credit." % Balance.CREDITS_PER_AD, "good")
+	refresh()
+	if _pending.is_valid():
+		var act := _pending
+		_pending = Callable()
+		_pay(_pending_cost, "Das", act)
+
+
+func _on_ad_declined() -> void:
+	_pending = Callable()
+	_close_modal()
+	if Game.over:
+		_open_modal(over_card)
+
+
+func _on_credits_pressed() -> void:
+	_pending = Callable()
+	ad_label.text = "Credits brauchst du für Tipp (%d), Schritt zurück (%d) und Weiterspielen (%d).\nDu hast %d." % [
+		Balance.HINT_COST, Balance.UNDO_COST, Balance.CONTINUE_COST, Game.credits]
+	_open_modal(ad_card)
+
+
+func _on_hint_pressed() -> void:
+	if Game.busy or Game.over or world.animating:
+		return
+	if Game.state.best_move().is_empty():
+		_on_message("Auch in zwei Zügen bringt keine Drehung etwas. Probier Regen oder Blitz.", "info")
+		return
+	_pay(Balance.HINT_COST, "Ein Tipp", _use_hint)
+
+
+func _use_hint() -> void:
+	var best := world.show_hint()
+	if int(best.get("steps", 1)) == 2:
+		_on_message("Diese Scheibe drehen: Danach kannst du verschmelzen.", "info")
+	else:
+		_on_message("Diese Scheibe drehen: Das verschmilzt sofort.", "info")
+
+
+func _on_undo_pressed() -> void:
+	if world.animating or not Game.can_undo():
+		_on_message("Gerade gibt es keinen Schritt zum Zurücknehmen.", "info")
+		return
+	_pay(Balance.UNDO_COST, "Ein Schritt zurück", Game.undo)
 
 
 func _build_over() -> void:
@@ -448,9 +519,12 @@ func _build_over() -> void:
 	over_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	over_label.custom_minimum_size = Vector2(300, 0)
 	v.add_child(over_label)
-	continue_btn = _wide_button("Weiterspielen (Werbung)", Style.WATER, Color.WHITE)
+	continue_btn = _wide_button("Weiterspielen (%d Credits)" % Balance.CONTINUE_COST, Style.WATER, Color.WHITE)
 	continue_btn.pressed.connect(_on_continue)
 	v.add_child(continue_btn)
+	over_undo_btn = _wide_button("Einen Schritt zurück (%d Credit)" % Balance.UNDO_COST, Color.WHITE, Style.TEXT)
+	over_undo_btn.pressed.connect(_on_over_undo)
+	v.add_child(over_undo_btn)
 	var again := _wide_button("Nochmal", Style.ACCENT, Color.WHITE)
 	again.pressed.connect(_restart)
 	v.add_child(again)
@@ -458,7 +532,12 @@ func _build_over() -> void:
 
 func _on_continue() -> void:
 	_close_modal()
-	Game.continue_with_ad()
+	_pay(Balance.CONTINUE_COST, "Weiterspielen", Game.continue_game)
+
+
+func _on_over_undo() -> void:
+	_close_modal()
+	_pay(Balance.UNDO_COST, "Ein Schritt zurück", Game.undo)
 
 
 # --- Bausteine ---------------------------------------------------------------
@@ -613,7 +692,8 @@ func refresh() -> void:
 		_pop(rain_btn)
 	if bolt_btn.text != "" and gs.bolts > int(bolt_btn.text):
 		_pop(bolt_btn)
-	hint_btn.text = str(Game.credits)
+	credits_btn.text = str(Game.credits)
+	rain_ready.visible = gs.rain > 0 and not Game.over and bonus_mode == ""
 	rain_btn.text = str(gs.rain)
 	bolt_btn.text = str(gs.bolts)
 	miss_pill.text = "%d/%d" % [gs.misses, Balance.FIRE_AFTER]
@@ -637,6 +717,7 @@ func _update_buttons() -> void:
 	var gs := Game.state
 	var blocked := Game.busy or Game.over or world.animating
 	hint_btn.disabled = blocked
+	undo_btn.disabled = blocked or not Game.can_undo()
 	rain_btn.disabled = blocked or gs.rain <= 0
 	bolt_btn.disabled = blocked or gs.bolts <= 0
 
@@ -655,6 +736,10 @@ func _process(delta: float) -> void:
 	_update_bubbles(delta)
 	if Game.state == null or score_label == null:
 		return
+	if rain_ready.visible:
+		rain_ready.pivot_offset = rain_ready.size * 0.5
+		var k := 0.5 + 0.5 * sin(_time * 3.0)
+		rain_ready.scale = Vector2.ONE * (0.97 + 0.05 * k)
 	var target := float(Game.state.score)
 	_score_display = move_toward(_score_display, target, maxf(1.0, absf(target - _score_display)) * delta * 4.0)
 	score_label.text = str(int(round(_score_display)))
@@ -668,6 +753,8 @@ func _process(delta: float) -> void:
 func _set_bonus_mode(kind: String) -> void:
 	bonus_mode = kind
 	mode_card.visible = kind != ""
+	if rain_ready != null:
+		rain_ready.visible = kind == "" and Game.state.rain > 0 and not Game.over
 	if kind == "rain":
 		mode_label.text = "Tippe auf ein Feld: Es steigt auf\noder wird gelöscht"
 	elif kind == "bolt":
@@ -980,6 +1067,7 @@ func _on_game_over() -> void:
 		lines.append("Rekord: %d Punkte" % Game.best)
 	over_label.text = "\n".join(lines)
 	continue_btn.visible = Game.can_continue()
+	over_undo_btn.visible = Game.can_undo()
 	_open_modal(over_card)
 
 

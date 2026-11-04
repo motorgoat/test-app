@@ -15,7 +15,8 @@ const GASP = ["Um Gottes Willen!", "Grundgütiger!", "Gottverdammt!", "Herrgott 
 var state: GameState
 var busy := false          # Runde wird ausgewertet/animiert
 var over := false
-var continued := false     # einmal pro Spiel mit Werbung weiterspielen
+var continued := false     # einmal pro Spiel weiterspielen
+var undo_state: GameState = null   # Stand vor dem letzten Zug (ein Schritt zurück)
 var best := 0              # Rekord in Punkten (je Modus)
 var tutorial_done := false
 var credits := 0           # Credits für Tipps (gibt es für Werbung)
@@ -38,6 +39,7 @@ func new_game(seed_value: int = 0, endless_mode: int = -1) -> void:
 	busy = false
 	over = false
 	continued = false
+	undo_state = null
 	new_record = false
 	new_game_started.emit()
 	state_changed.emit()
@@ -94,6 +96,7 @@ func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	if busy or over:
 		return
 	busy = true
+	undo_state = state.clone()
 	var before := snapshot(state)
 	if turns != 0:
 		state.apply_rotation(axis, layer, turns, row)
@@ -138,6 +141,7 @@ func use_bonus(kind: String, fid: int, row: Array = []) -> bool:
 		message.emit(err, "bad")
 		return false
 	busy = true
+	undo_state = state.clone()
 	var before := snapshot(state)
 	var hit: Array = row.duplicate() if kind == "bolt" and not row.is_empty() else [fid]
 	state.apply_bonus(kind, f, row)
@@ -158,12 +162,28 @@ static func gasp() -> String:
 	return str(GASP[randi() % GASP.size()])
 
 
-## Einmal pro Spiel nach dem Ende mit Werbung weiterspielen (Platzhalter für die Werbung).
+## Einmal pro Spiel nach dem Ende weiterspielen (kostet Credits).
 func can_continue() -> bool:
 	return over and not continued and (state.died() or state.stuck())
 
 
-func continue_with_ad() -> void:
+## Einen Schritt zurück: der Stand vor dem letzten Zug (nur einmal hintereinander).
+func can_undo() -> bool:
+	return undo_state != null and not busy
+
+
+func undo() -> void:
+	if not can_undo():
+		return
+	state = undo_state
+	undo_state = null
+	over = false
+	new_game_started.emit()
+	state_changed.emit()
+	message.emit("Ein Schritt zurück.", "info")
+
+
+func continue_game() -> void:
 	if not can_continue():
 		return
 	continued = true
@@ -176,18 +196,18 @@ func continue_with_ad() -> void:
 	state_changed.emit()
 
 
-## Tipp kaufen: kostet Credits. true = bezahlt.
-func spend_hint() -> bool:
-	if credits < Balance.HINT_COST:
+## Credits ausgeben. true = bezahlt.
+func spend(cost: int) -> bool:
+	if credits < cost:
 		return false
-	credits -= Balance.HINT_COST
+	credits -= cost
 	_save_best()
 	return true
 
 
-## Platzhalter für „Werbung ansehen“: gibt einen Credit. Später kommt hier die echte Werbung hin.
+## Platzhalter für „Werbung ansehen“: gibt Credits. Später kommt hier die echte Werbung hin.
 func reward_ad() -> void:
-	credits += 1
+	credits += Balance.CREDITS_PER_AD
 	_save_best()
 
 

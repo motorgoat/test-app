@@ -57,6 +57,10 @@ static var TWIST_FOLLOW := 9.0            # wie schnell die Scheibe dem Finger f
 static var DRAG_START_PX := 12.0
 static var TILT_MAX := 0.16               # Handy schwenken: so weit (Bogenmaß, ~9°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
-static var HINT_COST := 1                 # ein Tipp kostet so viele Credits (Credits gibt es für Werbung)
-static var CREDITS_START := 1             # so viele Credits zum Ausprobieren
+# Credits: eine Währung für alle Hilfen. Es gibt sie für eine kurze Werbung (später auch im Shop).
+static var HINT_COST := 1                 # Tipp: die lohnendste Drehung leuchtet auf
+static var UNDO_COST := 1                 # einen Schritt zurück
+static var CONTINUE_COST := 2             # nach dem Spielende weiterspielen (einmal pro Spiel)
+static var CREDITS_PER_AD := 1            # so viele Credits bringt eine Werbung
+static var CREDITS_START := 3             # so viele Credits zum Ausprobieren
 static var TUTORIAL_ROUNDS := 5           # im allerersten Spiel: so viele Runden mit Drehtipps und Vorschau

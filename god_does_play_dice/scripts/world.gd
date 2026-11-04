@@ -174,15 +174,7 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 			continue
 		v.refresh(f)
 		v.set_selected(f.id == selected)
-	if gs == Game.state and skip.is_empty():
-		update_badges()
 
-
-## Tropfen über den Feldern, wo Gießen gerade etwas bringt (Feuer löschen oder eine Reihe vervollständigen).
-func update_badges() -> void:
-	var spots := Game.state.rain_spots() if not Game.over else {}
-	for fid in views:
-		(views[fid] as FieldView).set_badge("rain" if spots.has(int(fid)) else "")
 
 
 func select(fid: int) -> void:

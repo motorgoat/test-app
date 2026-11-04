@@ -9,7 +9,7 @@ const TILE_H := 0.09
 const TOP := 0.09
 const CONTENT_SCALE := 1.4
 
-const TILE_COLOR = ["#a5805c", "#8fd162", "#6cc25a", "#2b6b35", "#d9c08a", "#ebc97f", "#e6b468", "#d4cdc2", "#bdb6ad", "#9aa0ab"]
+const TILE_COLOR = ["#a5805c", "#c3e07a", "#4f9a46", "#24552d", "#d9c08a", "#ebc97f", "#e6b468", "#d4cdc2", "#bdb6ad", "#9aa0ab"]
 const WATER := Color("#36aef0")
 const ROOF := Color("#e5574a")
 
@@ -347,11 +347,11 @@ func _build_content(f: FieldData) -> void:
 			Models.cone(_content, 0.03, 0.06, Color("#79c24f"), Vector3(0.18, 0, -0.18), 5)
 			_animal("lake", Vector3(0.09, 0.012, 0.07), rng)
 		2:
-			# Kleiner Wald: ein paar junge Bäume
-			Models.tree(_content, Vector3(-0.12, 0, -0.1), 0.75, greens[1])
-			Models.pine(_content, Vector3(0.12, 0, -0.06), 0.7, greens[0])
-			Models.tree(_content, Vector3(0.0, 0, 0.14), 0.65, greens[2])
-			Models.cone(_content, 0.03, 0.06, Color("#79c24f"), Vector3(-0.18, 0, 0.18), 5)
+			# Kleiner Wald: vier Bäume, deutlich als Wald erkennbar (die Wiese hat keine Bäume)
+			Models.tree(_content, Vector3(-0.14, 0, -0.12), 0.95, greens[1])
+			Models.pine(_content, Vector3(0.14, 0, -0.1), 0.95, greens[0])
+			Models.tree(_content, Vector3(-0.08, 0, 0.15), 0.85, greens[2])
+			Models.pine(_content, Vector3(0.15, 0, 0.13), 0.85, greens[1])
 			_animal("meadow", Vector3(0.15, 0, 0.16), rng)
 		3:
 			# Großer Wald
