@@ -59,8 +59,8 @@ var _demo_at := 0.0
 var _auto_at := INF
 var _tut_merged := false
 const TUT_STEPS = [
-	{"wait": "auto", "text": "Schau: Drei gleiche Wiesen in einer Reihe\nverschmelzen und steigen auf."},
-	{"wait": "twist", "text": "Jetzt du! Wisch über eine Reihe,\num sie zu drehen."},
+	{"wait": "auto", "text": "Schau: Drei gleiche Wiesen in einer Reihe verschmelzen und steigen auf."},
+	{"wait": "twist", "text": "Jetzt du! Wisch über eine Reihe, um sie zu drehen."},
 ]
 const COACH = {
 	"miss": "Fehlversuch! Drehungen ohne Verschmelzen zählen hier. Beim dritten brennt die gedrehte Reihe.",
@@ -274,7 +274,7 @@ func _build() -> void:
 	tut_label = _label("", 21, Style.TEXT, true)
 	tut_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tut_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tut_label.custom_minimum_size = Vector2(380, 0)
+	tut_label.custom_minimum_size = Vector2(420, 0)
 	tut_card.add_child(tut_label)
 	tut_card.visible = false
 	root.add_child(tut_card)

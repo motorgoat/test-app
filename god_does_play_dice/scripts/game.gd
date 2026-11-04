@@ -68,8 +68,9 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1, surviv
 	new_record = false
 	new_game_started.emit()
 	state_changed.emit()
-	var how := "Drei gleiche Felder, die sich berühren, verschmelzen." if level == 0 else ("Dreh drei gleiche in eine Reihe (auch diagonal)." if level == 1 else "Dreh drei gleiche in eine gerade Reihe.")
-	message.emit("%s: %s Jeder 3. Fehlversuch löst einen Brand aus." % [LEVELS[level], how], "info")
+	if tutorial_step < 0:
+		var how := "Eine neue Reihe lässt die ganze Gruppe aufsteigen." if level == 0 else ("Dreh drei gleiche in eine Reihe (auch diagonal)." if level == 1 else "Dreh drei gleiche in eine gerade Reihe.")
+		message.emit("%s: %s" % [LEVELS[level], how], "info")
 
 
 func level_name() -> String:
