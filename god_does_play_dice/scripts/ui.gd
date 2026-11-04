@@ -670,7 +670,7 @@ func _on_disaster(kind: String, fid: int) -> void:
 	combo_label.text = GameState.DISASTER_NAME[kind] + "!"
 	combo_label.add_theme_color_override("font_color", Style.BAD)
 	_pop_banner()
-	if fid >= 0:
+	if fid >= 0 and (kind == "quake" or Balance.FIRE_COSTS_LIFE):
 		_bubble(fid, "-1 Leben", "heart", Style.BAD)
 
 

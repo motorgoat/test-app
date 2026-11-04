@@ -9,7 +9,7 @@ const TILE_H := 0.09
 const TOP := 0.09
 const CONTENT_SCALE := 1.4
 
-const TILE_COLOR = ["#a5805c", "#8fd162", "#6cc25a", "#3f9a4b", "#d9c08a", "#ebc97f", "#e6b468", "#d4cdc2", "#bdb6ad", "#9aa0ab"]
+const TILE_COLOR = ["#a5805c", "#8fd162", "#6cc25a", "#2b6b35", "#d9c08a", "#ebc97f", "#e6b468", "#d4cdc2", "#bdb6ad", "#9aa0ab"]
 const WATER := Color("#36aef0")
 const ROOF := Color("#e5574a")
 
@@ -333,7 +333,7 @@ func _build_content(f: FieldData) -> void:
 			var spots := [Vector3(-0.17, 0, -0.15), Vector3(0.16, 0, -0.18), Vector3(-0.02, 0, 0.0),
 				Vector3(0.17, 0, 0.14), Vector3(-0.18, 0, 0.17)]
 			for k in spots.size():
-				var g: Color = greens[k % greens.size()]
+				var g: Color = (greens[k % greens.size()] as Color).darkened(0.35)
 				if k % 2 == 0:
 					Models.tree(_content, spots[k], rng.randf_range(1.05, 1.3), g)
 				else:
