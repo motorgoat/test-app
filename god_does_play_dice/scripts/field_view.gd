@@ -30,6 +30,8 @@ var _bobbers: Array = []
 var _smoke: Array = []
 var _time := 0.0
 var _labels_on := true
+var _badge: Sprite3D             # Abzeichen über dem Feld (z. B. Tropfen: hier lohnt sich Gießen)
+var _badge_name := ""
 
 
 func build(f: FieldData) -> void:
@@ -80,6 +82,14 @@ func build(f: FieldData) -> void:
 	_preview_label.outline_render_priority = 2
 	_preview_label.visible = false
 	add_child(_preview_label)
+	_badge = Sprite3D.new()
+	_badge.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_badge.pixel_size = 0.0042
+	_badge.position = Vector3(0, 0.55, 0)
+	_badge.render_priority = 4
+	_badge.no_depth_test = true
+	_badge.visible = false
+	add_child(_badge)
 
 
 func world_normal() -> Vector3:
@@ -97,6 +107,17 @@ func set_selected(on: bool) -> void:
 func set_labels_visible(on: bool) -> void:
 	_labels_on = on
 	_preview_label.visible = on and _preview_label.text != ""
+	_badge.visible = on and _badge_name != "" and _preview_label.text == ""
+
+
+## Abzeichen über dem Feld: Symbolname (z. B. "rain") oder "" zum Ausblenden. Hüpft leicht.
+func set_badge(icon_name: String) -> void:
+	if icon_name == _badge_name:
+		return
+	_badge_name = icon_name
+	if icon_name != "":
+		_badge.texture = Style.icon(icon_name)
+	_badge.visible = _labels_on and icon_name != ""
 
 
 ## Vorschau über dem Feld (+5). "" blendet aus.
@@ -247,6 +268,10 @@ func refresh(f: FieldData) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _badge.visible:
+		var k := 0.5 + 0.5 * sin(_time * 4.0 + float(field_id))
+		_badge.position.y = 0.55 + k * 0.08
+		_badge.scale = Vector3.ONE * (0.9 + 0.15 * k)
 	if _hint_on:
 		_hint_mat.albedo_color.a = 0.1 + 0.5 * (0.5 + 0.5 * sin(_time * 3.5))
 	for i in _bobbers.size():

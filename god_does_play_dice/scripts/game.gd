@@ -106,9 +106,9 @@ func finish_round(result: Dictionary) -> void:
 	var got: Dictionary = result.get("bonus_gained", {})
 	if not state.is_over():
 		if int(got.get("bolt", 0)) > 0:
-			message.emit("Blitz! Er hebt eine ganze Reihe eine Stufe.", "good")
+			message.emit("Blitz! Tippe ein Feld an: Seine ganze Reihe steigt eine Stufe.", "good")
 		elif int(got.get("rain", 0)) > 0:
-			message.emit("Regen! Er hebt ein Feld eine Stufe oder löscht ein Feuer.", "good")
+			message.emit("Regen! Tippe ein Feld an und gieß es: Es steigt eine Stufe (Tropfen = lohnt sich).", "good")
 	for e in result["events"]:
 		if str(e["type"]) == "disaster" and not state.is_over():
 			var kind := str(e["kind"])

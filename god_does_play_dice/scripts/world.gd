@@ -9,6 +9,7 @@ signal preview_changed(info: Dictionary)   # {} = keine Vorschau
 signal merged(fid: int, points: int, combo: int, stage: int)
 signal disaster_shown(kind: String, fid: int)
 signal face_completed(fid: int, points: int, stage: int)
+signal miss_shown(fid: int, count: int)
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
@@ -173,6 +174,15 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 			continue
 		v.refresh(f)
 		v.set_selected(f.id == selected)
+	if gs == Game.state and skip.is_empty():
+		update_badges()
+
+
+## Tropfen über den Feldern, wo Gießen gerade etwas bringt (Feuer löschen oder eine Reihe vervollständigen).
+func update_badges() -> void:
+	var spots := Game.state.rain_spots() if not Game.over else {}
+	for fid in views:
+		(views[fid] as FieldView).set_badge("rain" if spots.has(int(fid)) else "")
 
 
 func select(fid: int) -> void:
@@ -657,14 +667,19 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	for e in events:
 		if str(e["type"]) != "merge":
 			continue
+		var combo := int(e["combo"])
+		if combo != last_combo and last_combo > 0:
+			# Nur zeigen, was schon verschmolzen ist; der Rest kommt der Reihe nach
+			for fid in merged_ids:
+				if not disaster_ids.has(fid):
+					var mv: FieldView = views.get(int(fid))
+					if mv != null:
+						mv.refresh(gs.fields[int(fid)])
+			await get_tree().create_timer(0.35).timeout
+		last_combo = combo
 		merged_ids[int(e["field"])] = true
 		for o in e["others"]:
 			merged_ids[int(o)] = true
-		var combo := int(e["combo"])
-		if combo != last_combo and last_combo > 0:
-			refresh_all(null, disaster_ids)
-			await get_tree().create_timer(0.35).timeout
-		last_combo = combo
 		await _merge_fx(e)
 	if last_combo > 0:
 		await get_tree().create_timer(0.25).timeout
@@ -686,6 +701,10 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				v.burn(0.8)
 				_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 1.0, Color("#6b6e78"), 3)
 		await get_tree().create_timer(0.9).timeout
+	# Fehlversuch zählen
+	for e in events:
+		if str(e["type"]) == "miss":
+			miss_shown.emit(int(e["field"]), int(e["count"]))
 	# Katastrophe
 	for e in events:
 		if str(e["type"]) == "disaster":

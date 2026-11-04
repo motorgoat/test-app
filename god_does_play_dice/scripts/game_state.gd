@@ -445,7 +445,6 @@ func resolve_merges(ev: Array) -> int:
 			break
 		var last_focus := focus
 		focus = {}
-		combo += 1
 		var used := {}
 		for line in found:
 			var skip := false
@@ -460,6 +459,7 @@ func resolve_merges(ev: Array) -> int:
 			var mid: FieldData = line[ti]
 			var a: FieldData = line[(ti + 1) % 3]
 			var b: FieldData = line[(ti + 2) % 3]
+			combo += 1          # jede weitere Verschmelzung im selben Zug zählt mehr (Kombo)
 			var pts: int = int(Balance.MERGE_POINTS[mid.stage]) * combo
 			total += pts
 			var was := mid.stage
@@ -553,6 +553,8 @@ func end_round() -> Dictionary:
 	# 6. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
 	if _rotated and gain == 0:
 		misses += 1
+		var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
+		ev.append({"type": "miss", "count": misses, "field": mid_id})
 		if misses >= Balance.FIRE_AFTER:
 			misses = 0
 			disaster("fire", ev)
@@ -642,6 +644,25 @@ func _count_neighbors(f: FieldData, what: String) -> int:
 # =============================================================================
 # Boni: Regen (ein Feld) und Blitz (eine Reihe)
 # =============================================================================
+
+## Wo lohnt sich Regen gerade? Brennende Felder (löschen) und Felder, deren Aufstieg eine Reihe vervollständigt.
+func rain_spots() -> Dictionary:
+	var out := {}
+	if rain <= 0:
+		return out
+	for f in fields:
+		if f.burning:
+			out[f.id] = "fire"
+			continue
+		if f.stage >= Balance.MAX_STAGE:
+			continue
+		f.stage += 1
+		var hit := not lines({f.id: true}).is_empty()
+		f.stage -= 1
+		if hit:
+			out[f.id] = "up"
+	return out
+
 
 ## "" = geht, sonst der Grund, warum nicht.
 func can_bonus(kind: String, f: FieldData) -> String:

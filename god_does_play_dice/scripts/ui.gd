@@ -14,7 +14,6 @@ var stage_label: Label
 var stage_icon: TextureRect
 var danger_label: Label
 var hearts: Array = []
-var miss_icons: Array = []
 var preview_card: PanelContainer
 var preview_label: Label
 var toast: PanelContainer
@@ -32,6 +31,9 @@ var help_card: PanelContainer
 var menu_card: PanelContainer
 var over_card: PanelContainer
 var ad_card: PanelContainer
+var sheet_rain: Button
+var sheet_bolt: Button
+var miss_pill: Button
 var hint_btn: Button
 var over_label: Label
 var bubble_layer: Control
@@ -56,6 +58,7 @@ func setup(w: World) -> void:
 	world.merged.connect(_on_merged)
 	world.disaster_shown.connect(_on_disaster)
 	world.face_completed.connect(_on_face)
+	world.miss_shown.connect(_on_miss)
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -138,19 +141,6 @@ func _build() -> void:
 	hrow.add_theme_constant_override("separation", 1)
 	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lv.add_child(hrow)
-	var mrow := HBoxContainer.new()
-	mrow.add_theme_constant_override("separation", 1)
-	mrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lv.add_child(mrow)
-	for i in Balance.FIRE_AFTER:
-		var m := TextureRect.new()
-		m.texture = Style.icon("fire_off")
-		m.custom_minimum_size = Vector2(18, 18)
-		m.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		m.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mrow.add_child(m)
-		miss_icons.append(m)
 	for i in Balance.LIVES:
 		var h := TextureRect.new()
 		h.texture = Style.icon("heart")
@@ -217,6 +207,22 @@ func _build() -> void:
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brow.add_child(sp2)
+	# Fehlversuche: groß und eindeutig
+	miss_pill = Button.new()
+	miss_pill.icon = Style.icon("fire")
+	miss_pill.add_theme_constant_override("icon_max_width", 26)
+	miss_pill.custom_minimum_size = Vector2(84, 52)
+	miss_pill.add_theme_font_override("font", Style.bold())
+	miss_pill.add_theme_font_size_override("font_size", 18)
+	miss_pill.add_theme_color_override("font_color", Style.BAD)
+	miss_pill.add_theme_color_override("font_disabled_color", Style.BAD)
+	miss_pill.tooltip_text = "Fehlversuche"
+	miss_pill.pressed.connect(func() -> void: _on_message("Fehlversuche: Drehungen, die nichts verschmelzen. Beim %d. fängt die gedrehte Reihe Feuer." % Balance.FIRE_AFTER, "info"))
+	brow.add_child(miss_pill)
+	var sp4 := Control.new()
+	sp4.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp4.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	brow.add_child(sp4)
 	var sp3 := Control.new()
 	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp3.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -297,6 +303,32 @@ func _build_sheet() -> void:
 	sheet_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sheet_body.custom_minimum_size = Vector2(280, 0)
 	v.add_child(sheet_body)
+	# Direkt am Feld handeln: gießen oder Blitz
+	var acts := HBoxContainer.new()
+	acts.add_theme_constant_override("separation", 10)
+	v.add_child(acts)
+	sheet_rain = _wide_button("Gießen", Color("#3fa7e8"), Color.WHITE)
+	sheet_rain.icon = Style.icon("rain")
+	sheet_rain.add_theme_constant_override("icon_max_width", 30)
+	sheet_rain.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sheet_rain.pressed.connect(_sheet_bonus.bind("rain"))
+	acts.add_child(sheet_rain)
+	sheet_bolt = _wide_button("Blitz", Color("#f2a900"), Color.WHITE)
+	sheet_bolt.icon = Style.icon("lightning")
+	sheet_bolt.add_theme_constant_override("icon_max_width", 30)
+	sheet_bolt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sheet_bolt.pressed.connect(_sheet_bonus.bind("bolt"))
+	acts.add_child(sheet_bolt)
+
+
+func _sheet_bonus(kind: String) -> void:
+	var fid := _sheet_field
+	if fid < 0:
+		return
+	var row: Array = world.screen_row(fid) if kind == "bolt" else []
+	_close_sheet()
+	if Game.use_bonus(kind, fid, row):
+		_bubble(fid, Game.praise(), "up", Color("#4a90d9"))
 
 
 func _modal_card(title: String) -> PanelContainer:
@@ -320,10 +352,10 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's")
 	var v: VBoxContainer = help_card.get_child(0)
 	v.add_child(_help_row("round", "Wisch über eine Reihe des Würfels, um sie zu drehen. Jede Drehung ist eine Runde."))
-	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte."))
+	v.add_child(_help_row("up", "Drei gleiche Felder in einer Reihe verschmelzen immer: Das Feld, das zuletzt dazugekommen ist, steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind. Das gibt Punkte. Mehrere Verschmelzungen in einem Zug sind eine Kombo: jede zählt mehr (×2, ×3 …)."))
 	v.add_child(_help_row("smallforest", "Die Leiter: Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole."))
 	v.add_child(_help_row("fire", "Jede Drehung, die nichts verschmilzt, ist ein Fehlversuch (oben die Flammen). Beim %d. fängt die gedrehte Reihe Feuer und brennt jeden Zug eine Stufe ab." % Balance.FIRE_AFTER))
-	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Ein Feld steigt eine Stufe auf, ein brennendes wird gelöscht. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
+	v.add_child(_help_row("rain", "Regen (alle %d Punkte): Tippe ein Feld an und gieß es. Es steigt eine Stufe auf, ein brennendes wird gelöscht. Ein Tropfen über dem Feld heißt: Gießen lohnt sich hier. Wiese wächst nur durch Regen." % Balance.RAIN_EVERY))
 	v.add_child(_help_row("lightning", "Blitz (alle %d Punkte): Eine ganze Reihe steigt eine Stufe auf." % Balance.BOLT_EVERY))
 	v.add_child(_help_row("quake", "Mehr als %d%% Zivilisation: Erdbeben, die Reihe mit der meisten Zivilisation fällt eine Stufe zurück." % int(round(Balance.CIVILISATION_MAX * 100.0))))
 	v.add_child(_help_row("bulb", "Tipp: Die lohnendste Drehung leuchtet auf. Kostet einen Credit, den gibt es für eine kurze Werbung."))
@@ -557,11 +589,15 @@ func refresh() -> void:
 		_pop(stage_icon)
 	stage_label.text = gs.age_name()
 	stage_icon.texture = Style.icon(STAGE_ICON[best_stage])
+	if rain_btn.text != "" and gs.rain > int(rain_btn.text):
+		_pop(rain_btn)
+	if bolt_btn.text != "" and gs.bolts > int(bolt_btn.text):
+		_pop(bolt_btn)
 	hint_btn.text = str(Game.credits)
 	rain_btn.text = str(gs.rain)
 	bolt_btn.text = str(gs.bolts)
-	for i in miss_icons.size():
-		(miss_icons[i] as TextureRect).texture = Style.icon("fire" if i < gs.misses else "fire_off")
+	miss_pill.text = "%d/%d" % [gs.misses, Balance.FIRE_AFTER]
+	_pill_style(miss_pill, Color("#ffe1d6") if gs.misses >= Balance.FIRE_AFTER - 1 else Color.WHITE)
 	for i in hearts.size():
 		(hearts[i] as TextureRect).texture = Style.icon("heart" if i < gs.lives else "heart_empty")
 	var th := gs.threat()
@@ -695,11 +731,25 @@ func _fill_sheet(fid: int) -> void:
 		lines.append("Dreh 3 davon in eine Reihe: Das zuletzt dazugekommene wird %s." % GameState.stage_name(f.stage + 1))
 	if f.stage >= Balance.POLLUTION_FROM:
 		lines.append("Zerstört jede Runde ein Natur-Feld daneben.")
-	if f.is_nature():
-		lines.append("Zählt zur Natur.")
+	if f.burning:
+		lines.insert(0, "Brennt! Verliert jeden Zug eine Stufe, bis du es gießt.")
 	elif f.is_civilisation():
-		lines.append("Zählt zur Zivilisation.")
+		lines.append("Zählt zur Zivilisation (mehr als %d%% lösen ein Erdbeben aus)." % int(round(Balance.CIVILISATION_MAX * 100.0)))
 	sheet_body.text = "\n".join(lines)
+	var gs := Game.state
+	var blocked := Game.busy or Game.over or world.animating
+	sheet_rain.visible = gs.rain > 0
+	sheet_rain.disabled = blocked or gs.can_bonus("rain", f) != ""
+	if f.burning:
+		sheet_rain.text = "Löschen (%d)" % gs.rain
+	elif f.stage < Balance.MAX_STAGE:
+		sheet_rain.text = "Gießen: %s (%d)" % [GameState.STAGE_SHORT[f.stage + 1], gs.rain]
+	else:
+		sheet_rain.text = "Höchste Stufe"
+	sheet_bolt.visible = gs.bolts > 0
+	sheet_bolt.disabled = blocked
+	sheet_bolt.text = "Blitz auf Reihe (%d)" % gs.bolts
+	(sheet_rain.get_parent() as Control).visible = sheet_rain.visible or sheet_bolt.visible
 
 
 # =============================================================================
@@ -714,6 +764,12 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 		combo_label.text = GameState.stage_name(stage) + "!"
 	combo_label.add_theme_color_override("font_color", Color("#ffb400"))
 	_pop_banner()
+
+
+func _on_miss(fid: int, count: int) -> void:
+	_pop(miss_pill)
+	if fid >= 0:
+		_bubble(fid, "Fehlversuch %d/%d" % [count, Balance.FIRE_AFTER], "fire", Color("#e8772e"))
 
 
 func _on_face(fid: int, points: int, stage: int) -> void:
