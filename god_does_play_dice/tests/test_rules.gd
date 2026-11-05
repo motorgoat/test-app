@@ -23,6 +23,8 @@ func _init() -> void:
 	test_start_no_ready_lines()
 	test_tutorial_flow()
 	test_easy()
+	test_new_rows()
+	test_rain_rules()
 	test_preview_matches()
 	test_modes()
 	test_bot()
@@ -81,6 +83,25 @@ func civ_pattern(f: FieldData) -> int:
 	var i: int = f.p[(a + 1) % 3] + 1
 	var j: int = f.p[(a + 2) % 3] + 1
 	return int([[4, 5, 4], [6, 4, 6], [5, 6, 5]][i][j])
+
+
+func _event(r: Dictionary, kind: String) -> Dictionary:
+	for e in r["events"]:
+		if str(e["type"]) == kind:
+			return e
+	return {}
+
+
+func _has_event(r: Dictionary, kind: String) -> bool:
+	return not _event(r, kind).is_empty()
+
+
+func _merges(r: Dictionary) -> int:
+	var n := 0
+	for e in r["events"]:
+		if str(e["type"]) == "merge":
+			n += 1
+	return n
 
 
 func _disaster_of(r: Dictionary) -> Dictionary:
@@ -444,9 +465,33 @@ func test_easy() -> void:
 	gs.apply_rotation(0, -1, 1)
 	gs.end_round()
 	gs.apply_rotation(0, -1, -1)
-	check(int(gs.end_round()["gain"]) == 0 and top(gs, 0, 0).stage == 2, "einfacher Modus: hin und her bringt nichts")
+	var rb := gs.end_round()
+	check(int(rb["gain"]) == 0 and top(gs, 0, 0).stage == 2, "einfacher Modus: hin und her bringt nichts")
+	check(_has_event(rb, "repeat") and str(_event(rb, "miss").get("why", "")) == "repeat", "hin und her: die Oberfläche erfährt, warum nichts wächst")
 	var r2 := gs.end_round()
 	check(int(r2["gain"]) == 0, "aufgestiegene Gruppe steigt nicht von allein weiter")
+	# Auch mit einem anderen Zug dazwischen: Dieselben drei Felder sind zusammen aufgestiegen, die Reihe zählt nie wieder
+	# (sonst: auflösen, anderer Zug, zurückdrehen – und die ganze Gruppe steigt immer weiter)
+	gs.misses = 0
+	gs.apply_rotation(0, -1, 1)
+	gs.end_round()
+	gs.misses = 0
+	gs.apply_rotation(1, -1, 1)
+	gs.end_round()
+	gs.misses = 0
+	gs.apply_rotation(0, -1, -1)
+	var r3 := gs.end_round()
+	check(int(r3["gain"]) == 0 and top(gs, 0, 0).stage == 2, "einfacher Modus: zusammen aufgestiegene Reihe nach einem anderen Zug wieder zusammengedreht zählt nicht (%d)" % int(r3["gain"]))
+	check(str(_event(r3, "miss").get("why", "")) == "spent", "zusammen aufgestiegene Reihe: die Oberfläche erfährt, warum nichts wächst (%s)" % str(_event(r3, "miss").get("why", "")))
+	# Ein anderes Feld derselben Stufe kommt in die Reihe: neue Reihe, sie wächst
+	gs.misses = 0
+	var newcomer: FieldData = gs.field_at(Vector3i(-1, 0, -1), Vector3i(0, 0, -1))     # kommt mit x = -1 nach oben (-1, 0)
+	newcomer.stage = 2
+	newcomer.burning = false
+	gs.apply_rotation(0, -1, 1)
+	var r4 := gs.end_round()
+	check(top(gs, -1, 0) == newcomer, "einfacher Modus: das neue Feld liegt oben in der Reihe")
+	check(int(r4["gain"]) > 0 and newcomer.stage == 3 and top(gs, 0, 0).stage == 3, "einfacher Modus: Reihe mit einem anderen Feld wächst (%d)" % int(r4["gain"]))
 
 
 func test_hint() -> void:
@@ -473,13 +518,13 @@ func test_hint() -> void:
 	check(not b2.is_empty() and (int(b2["steps"]) == 1) == (direct > 0), "Tipp schaut zwei Züge voraus, wenn sofort nichts geht (%s)" % str(b2))
 
 
-## Eine Reihe, die schon da war, bringt nichts: Der Tipp schlägt sie nicht vor.
+## Eine Reihe, die schon dasteht, bringt nichts (auch nicht mitgedreht oder hin und zurück): Der Tipp schlägt sie nicht vor.
 func test_hint_ignores_seen() -> void:
 	var gs := empty_state()
 	top(gs, -1, 1).stage = 2
 	top(gs, 0, 1).stage = 2
 	top(gs, 1, 1).stage = 2
-	gs.end_round()       # merkt die Reihe als „schon da gewesen“
+	gs.end_round()       # die Reihe steht zu Beginn des nächsten Zugs schon da
 	check(gs.best_move().is_empty(), "Tipp ignoriert Reihen, die es schon gab (%s)" % str(gs.best_move()))
 	var sim := gs.clone()
 	sim.moved = {}
@@ -539,14 +584,232 @@ func test_tutorial_flow() -> void:
 			kept += 1
 	check(kept == grown, "nach dem Tutorial: was gewachsen ist, bleibt")
 	check(gs.misses == 0, "nach dem Tutorial: keine Flamme")
+	# Die neuen Wiesen bilden keine Reihe (was im Tutorial gewachsen ist, darf stehen bleiben)
 	var fresh := true
 	for ln in gs.lines():
-		if not gs.seen.has(GameState.line_key(ln)):
-			fresh = false
+		for g in ln:
+			if bloomed.has((g as FieldData).id):
+				fresh = false
 	check(fresh, "nach dem Tutorial: keine fertige neue Reihe")
+	check(gs.standing.is_empty() and gs.broken.is_empty() and gs.spent.is_empty(), "nach dem Tutorial: keine Reihe ist vorgemerkt (frischer Start)")
+	check(gs.rain >= Balance.RAIN_START and not gs.rain_targets().is_empty(), "nach dem Tutorial: Regen ist da (%d) und hat Ziele" % gs.rain)
 	check(gs.nature_share() >= 0.3, "nach dem Tutorial: genug Natur (%.0f%%)" % (gs.nature_share() * 100.0))
 	var bm2 := gs.best_move()
 	check(not bm2.is_empty() and int(bm2["steps"]) == 1, "nach dem Tutorial: eine Drehung wächst sofort (%s)" % str(bm2))
+
+
+## Jede neu gebildete Reihe wächst: nichts bleibt als fertige Dreierreihe stehen, ohne dass etwas passiert.
+func test_new_rows() -> void:
+	# Mittel: eine Drehung macht eine gerade und eine schräge Reihe, die sich ein Feld teilen (das nicht bewegt wurde)
+	var gm := GameState.new()
+	gm.setup(12345, true, 1)
+	for f in gm.fields:
+		f.stage = 0
+	top(gm, -1, 1).stage = 2
+	top(gm, 0, 1).stage = 2
+	top(gm, 0, 0).stage = 2
+	gm.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).stage = 2     # kommt nach oben (1, 1)
+	gm.field_at(Vector3i(1, -1, -1), Vector3i(0, 0, -1)).stage = 2    # kommt nach oben (1, -1)
+	gm.apply_rotation(0, 1, 1)
+	check(gm.lines().size() == 2, "Mittel: eine Drehung bildet zwei Reihen (%d)" % gm.lines().size())
+	var rm := gm.end_round()
+	check(_merges(rm) == 2 and gm.lines().is_empty(), "Mittel: beide Reihen wachsen, auch wenn sie sich ein Feld teilen (%d, übrig %d)" % [_merges(rm), gm.lines().size()])
+	# Einfach: Die aufgestiegene Gruppe bildet mit alten kleinen Wäldern eine neue Reihe: Kettenreaktion
+	var ge := GameState.new()
+	ge.setup(12345, true, 0)
+	for f in ge.fields:
+		f.stage = 0
+	top(ge, -1, 1).stage = 1
+	top(ge, 0, 1).stage = 1
+	top(ge, -1, 0).stage = 2
+	top(ge, -1, -1).stage = 2
+	ge.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).stage = 1
+	ge.apply_rotation(0, 1, 1)
+	var re := ge.end_round()
+	check(_merges(re) == 2 and top(ge, -1, 0).stage == 3 and top(ge, -1, -1).stage == 3, "Einfach: neue Reihe aus aufgestiegenen und alten Feldern wächst weiter (%d)" % _merges(re))
+	check(not _has_event(re, "miss"), "Einfach: Kettenreaktion ist kein Fehlversuch")
+	# Einfach: eine schräge Reihe aus Wiesen wächst ganz (nicht nur ein Feld) und bringt Punkte
+	var gd := GameState.new()
+	gd.setup(12345, true, 0)
+	for f in gd.fields:
+		f.stage = 0
+	top(gd, -1, -1).stage = 1
+	top(gd, 0, 0).stage = 1
+	gd.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).stage = 1     # kommt nach oben (1, 1)
+	gd.apply_rotation(0, 1, 1)
+	var rd := gd.end_round()
+	check(int(rd["gain"]) > 0 and not _has_event(rd, "miss") and top(gd, -1, -1).stage == 2 and top(gd, 0, 0).stage == 2 and top(gd, 1, 1).stage == 2, "Einfach: schräge Wiesen-Reihe wächst ganz und zählt (%d Punkte)" % int(rd["gain"]))
+	# Dieselben Felder an anderer Stelle neu zusammengebracht: zählt (Mittel, die ganze Reihe wandert nach vorn)
+	var gp := GameState.new()
+	gp.setup(12345, true, 1)
+	for f in gp.fields:
+		f.stage = 0
+	for x in [-1, 0, 1]:
+		top(gp, x, 1).stage = 2
+	var gains: Array = []
+	for layer in [-1, 0, 1]:
+		gp.apply_rotation(0, layer, 1)
+		gains.append(int(gp.end_round()["gain"]))
+	check(int(gains[0]) == 0 and int(gains[1]) == 0 and int(gains[2]) > 0, "dieselben Felder an anderer Stelle wieder in einer Reihe: wächst (%s)" % str(gains))
+	# Mitgedreht (die Reihe stand schon da) zählt weiterhin nicht
+	var gc := GameState.new()
+	gc.setup(12345, true, 1)
+	for f in gc.fields:
+		f.stage = 0
+	for x in [-1, 0, 1]:
+		top(gc, x, 1).stage = 2
+	gc.apply_rotation(2, 1, 1)
+	check(int(gc.end_round()["gain"]) == 0, "eine Reihe, die nur mitgedreht wird, wächst nicht")
+	# Feuer: Ein Feld brennt ab und passt dann zu seinen Nachbarn: Die neue Reihe wächst gleich (wird nach dem Brand gezeigt)
+	var gb := GameState.new()
+	gb.setup(12345, true, 1)
+	for f in gb.fields:
+		f.stage = 0
+	top(gb, -1, 1).stage = 2
+	top(gb, 0, 1).stage = 2
+	top(gb, 1, 1).stage = 3
+	top(gb, 1, 1).burning = true
+	var rb := gb.end_round()
+	var late := false
+	for e in rb["events"]:
+		if str(e["type"]) == "merge" and bool(e.get("late", false)):
+			late = true
+	check(late and gb.lines().is_empty() and int(rb["gain"]) > 0, "durch Feuer entstandene Reihe bleibt nicht tot stehen")
+	# Zufallsspiele: Nach jedem Zug steht keine neu gebildete Reihe da, die nicht gewachsen ist
+	# (erlaubt: mitgedreht, sofort zurückgedreht, gerade zusammen aufgestiegen, früher zusammen aufgestiegen, Metropolen)
+	for lv in [0, 1, 2]:
+		var bad := 0
+		var twists := 0
+		for sd in [3, 4, 5]:
+			var g := GameState.new()
+			g.setup(sd, true, lv)
+			g.no_fire = true
+			g.rain = 0
+			var rng := RandomNumberGenerator.new()
+			rng.seed = sd * 31 + lv
+			for i in 50:
+				var before_pos := {}
+				for pl in _lines_at(g):
+					before_pos[pl] = true
+				var st0 := {}
+				for f in g.fields:
+					st0[f.id] = (f as FieldData).stage
+				var prev_broken: Dictionary = g.broken.duplicate()
+				var prev_spent: Dictionary = g.spent.duplicate()
+				var mv := _quick_move(g)
+				if mv.is_empty() or rng.randf() < 0.4:
+					mv = {"axis": rng.randi_range(0, 2), "layer": rng.randi_range(-1, 1), "turns": [1, -1, 2][rng.randi_range(0, 2)]}
+				g.apply_rotation(int(mv["axis"]), int(mv["layer"]), int(mv["turns"]))
+				var was_standing: Dictionary = g.standing.duplicate()
+				g.end_round()
+				twists += 1
+				for pl in _lines_at(g):
+					if before_pos.has(pl):
+						continue
+					var k: String = str(pl).get_slice("|", 1)
+					if was_standing.has(k) or prev_broken.has(k) or prev_spent.has(k):
+						continue
+					var rose := true
+					var maxed := false
+					for ln in g.lines():
+						if GameState.line_key(ln) == k:
+							for h in ln:
+								if (h as FieldData).stage <= int(st0[(h as FieldData).id]):
+									rose = false
+								if (h as FieldData).stage >= Balance.MAX_STAGE:
+									maxed = true
+					if not rose and not maxed:
+						bad += 1
+		print("  MERGE-FUZZ Stufe %d: %d Drehungen, %d tote Reihen" % [lv, twists, bad])
+		check(bad == 0, "Stufe %d: keine neu gebildete Reihe bleibt ohne Wachsen stehen (%d)" % [lv, bad])
+
+
+## Die erste Drehung, die sofort etwas wachsen lässt ({} = keine).
+func _quick_move(g: GameState) -> Dictionary:
+	for axis in 3:
+		for layer in [-1, 0, 1]:
+			for turns in [1, -1, 2]:
+				var sim := g.clone()
+				sim.moved = {}
+				sim.apply_rotation(axis, layer, turns)
+				if sim.merge_value() > 0:
+					return {"axis": axis, "layer": layer, "turns": turns}
+	return {}
+
+
+## Alle Reihen mit Platz: "Seite/Linie|Schlüssel".
+func _lines_at(g: GameState) -> Array:
+	var out: Array = []
+	for ln in g.lines():
+		var pos := ""
+		for h in ln:
+			pos += str(GameState.pos_key((h as FieldData).p, (h as FieldData).n)) + ","
+		out.append(pos + "|" + GameState.line_key(ln))
+	return out
+
+
+## Regen: geht auf jedes leuchtende Feld, lässt es wachsen und bleibt wählbar, solange Regen da ist.
+func test_rain_rules() -> void:
+	var gs := GameState.new()
+	gs.setup(4242, true, 0)
+	gs.rain = 2
+	var tg := gs.rain_targets()
+	check(not tg.is_empty(), "Regen: es gibt leuchtende Ziele")
+	var ok := true
+	for fid in tg:
+		if gs.can_bonus("rain", gs.fields[int(fid)]) != "":
+			ok = false
+	check(ok, "Regen: jedes leuchtende Feld kann gegossen werden")
+	var fid0: int = int(tg.keys()[0])
+	var f0: FieldData = gs.fields[fid0]
+	var st0 := f0.stage
+	gs.apply_bonus("rain", f0)
+	gs.resolve_now()
+	check(f0.stage >= st0 + 1 and gs.rain == 1, "Regen: das Feld wächst (%d → %d), ein Regen verbraucht" % [st0, f0.stage])
+	check(not gs.rain_targets().is_empty(), "Regen: bleibt wählbar, solange noch Regen da ist")
+	# Ein Feld, das nicht leuchtet, wird abgelehnt (mit Grund)
+	var other := -1
+	for f in gs.fields:
+		if not gs.rain_targets().has(f.id):
+			other = f.id
+			break
+	check(other < 0 or gs.can_bonus("rain", gs.fields[other]) != "", "Regen: nicht leuchtende Felder gehen nicht")
+	# Regen, der eine Reihe fertig macht, wird als lohnend angezeigt und lässt sie wirklich wachsen
+	var gl := GameState.new()
+	gl.setup(12345, true, 0)
+	for f in gl.fields:
+		f.stage = 0
+	gl.rain = 1
+	top(gl, -1, 0).stage = 1
+	top(gl, 0, 0).stage = 1
+	check(str(gl.rain_spots().get(top(gl, 1, 0).id, "")) == "up", "Regen: das Feld, das die Reihe fertig macht, ist lohnend")
+	gl.apply_bonus("rain", top(gl, 1, 0))
+	var rr := gl.resolve_now()
+	check(int(rr["gain"]) > 0 and top(gl, 0, 0).stage == 2, "Regen macht die Reihe fertig: sie wächst")
+	# Einfach: Die drei sind zusammen aufgestiegen. Auflösen, anderer Zug, wieder zusammendrehen bringt nichts (kein Hochzüchten)
+	gl.apply_rotation(0, 1, 1)
+	gl.end_round()
+	gl.misses = 0
+	gl.apply_rotation(1, -1, 1)
+	gl.end_round()
+	gl.misses = 0
+	gl.apply_rotation(0, 1, -1)
+	var rg := gl.end_round()
+	check(int(rg["gain"]) == 0 and top(gl, 0, 0).stage == 2, "durch Regen zusammen aufgestiegene Reihe zählt nicht noch einmal (%d)" % int(rg["gain"]))
+	# Lohnend heißt wirklich lohnend: Jede Wolke über einem Feld bringt beim Gießen Punkte
+	var gz := GameState.new()
+	gz.setup(99, true, 1)
+	gz.rain = 3
+	var spots := gz.rain_spots()
+	var lies := 0
+	for fid in spots:
+		if str(spots[fid]) != "up":
+			continue
+		var sim := gz.clone()
+		sim.apply_bonus("rain", sim.fields[int(fid)])
+		if int(sim.resolve_now()["gain"]) <= 0:
+			lies += 1
+	check(lies == 0, "Regen: jedes lohnende Feld lässt wirklich etwas wachsen (%d falsch)" % lies)
 
 
 func test_preview_matches() -> void:

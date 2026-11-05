@@ -9,7 +9,7 @@ signal preview_changed(info: Dictionary)   # {} = keine Vorschau
 signal merged(fid: int, points: int, combo: int, stage: int)
 signal disaster_shown(kind: String, fid: int)
 signal face_completed(fid: int, points: int, stage: int)
-signal miss_shown(fid: int, count: int)
+signal miss_shown(fid: int, count: int, why: String)   # why: "", "repeat" (nur zurückgedreht) oder "spent" (zusammen aufgestiegene Reihe wieder gebildet)
 signal twist_state(on: bool)               # eine Drehung läuft (oben erscheint der Abbrechen-Streifen)
 signal cancel_hover(on: bool)              # Finger ist über dem Abbrechen-Streifen
 signal bolt_drawn(fid: int, row: Array)    # Blitz über eine Reihe gezogen
@@ -385,6 +385,19 @@ func _input(event: InputEvent) -> void:
 		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 			_release(mb.position)
 			get_viewport().set_input_as_handled()
+
+
+## App verliert den Fokus (Android: kurz pausiert): Das Loslassen kommt dann nicht mehr an.
+## Ein angefangener Druck zählt nicht, eine Drehung unter dem Finger gleitet zurück.
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_APPLICATION_FOCUS_OUT:
+		return
+	_touches.clear()
+	if _mode == "twist" and _tw_live:
+		_cancel_drag()
+	elif _mode in ["pending", "pending_tap", "orbit", "hold_orbit", "bolt"]:
+		_set_bolt_row([])
+		_mode = ""
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -797,7 +810,7 @@ func _buzz(ms: int) -> void:
 	var b := AudioServer.get_bus_index("SFX")
 	if b >= 0 and AudioServer.is_bus_mute(b):
 		return
-	Input.vibrate_handheld(ms)
+	Style.haptic(ms)
 
 
 ## Vierteldrehungen auf -1, 0, 1, 2 zurückführen (3 Viertel = 1 zurück, 4 = gar nichts).
@@ -817,8 +830,8 @@ func _show_preview(q: int) -> void:
 	# Was eine Drehung bringt, zeigt nur das Tutorial. Gefahr zeigt die Vorschau immer.
 	var lines: Array = arranged.lines(arranged.moved) if Game.tutorial() else []
 	for line in lines:
-		if arranged.seen.has(GameState.line_key(line)):
-			continue      # gab es schon: wächst nicht
+		if not arranged.counts(line):
+			continue      # stand schon da oder gerade zurückgedreht: wächst nicht
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[GameState.target_index(line, arranged.moved, arranged.tapped)]
@@ -865,6 +878,8 @@ func _finish_twist() -> void:
 		if not (_tw_axis == 0 and _tw_layer == 1 and _norm_turns(_tw_quarter) == 1):
 			_tw_quarter = 0
 			Game.message.emit("Probier die leuchtende Reihe – so wie die Hand es zeigt.", "info")
+	if Game.busy or Game.over:
+		_tw_quarter = 0      # läuft gerade eine Runde (oder ist das Spiel aus), zählt die Drehung nicht: zurückgleiten statt hängen
 	animating = true
 	var ax := Vector3.ZERO
 	ax[_tw_axis] = 1.0
@@ -1071,7 +1086,7 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 		elif str(e["type"]) == "burn":
 			disaster_ids[int(e["field"])] = true
 	for e in events:
-		if str(e["type"]) != "merge":
+		if str(e["type"]) != "merge" or bool(e.get("late", false)):
 			continue
 		var combo := int(e["combo"])
 		if combo != last_combo and last_combo > 0:
@@ -1107,10 +1122,22 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				v.burn(0.8)
 				_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 1.0, Color("#6b6e78"), 3)
 		await get_tree().create_timer(0.9).timeout
+	# Hat das Abbrennen eine neue Reihe ergeben, wächst sie jetzt (erst nach dem Brand zu sehen)
+	var late_any := false
+	for e in events:
+		if str(e["type"]) != "merge" or not bool(e.get("late", false)):
+			continue
+		late_any = true
+		merged_ids[int(e["field"])] = true
+		for o in e["others"]:
+			merged_ids[int(o)] = true
+		await _merge_fx(e)
+	if late_any:
+		await get_tree().create_timer(0.25).timeout
 	# Fehlversuch zählen
 	for e in events:
 		if str(e["type"]) == "miss":
-			miss_shown.emit(int(e["field"]), int(e["count"]))
+			miss_shown.emit(int(e["field"]), int(e["count"]), str(e.get("why", "")))
 	# Katastrophe
 	for e in events:
 		if str(e["type"]) == "disaster":

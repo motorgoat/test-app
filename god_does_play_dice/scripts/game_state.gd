@@ -7,6 +7,8 @@ extends RefCounted
 ##   2. Drei gleiche Felder in einer Reihe (ab dem kleinen Wald auch diagonal) verschmelzen, sobald sich darin etwas verändert hat: Das Feld, das zuletzt dazugekommen ist,
 ##      steigt auf (Wiese → kleiner Wald → großer Wald → Hütte → Haus → Dorf → Stadt → Großstadt → Metropole),
 ##      die beiden anderen bleiben, wie sie sind (OTHERS_DROP). Das gibt Punkte.
+##      Jede neu gebildete Reihe zählt, auch mit denselben Feldern an anderer Stelle. Nicht zählen nur Reihen, die schon
+##      dastanden (auch mitgedreht), und das sofortige Zurückdrehen der Reihe, die die Drehung davor aufgelöst hat.
 ##   3. Wiese wächst nicht von allein (abschaltbar: REGROW_PER_ROUND).
 ##   4. Großstädte und Metropolen zerstören Natur daneben.
 ##   5. Fehlversuch = Drehung, die nichts verschmilzt. Jeder 3. Fehlversuch (der Zähler läuft weiter) setzt
@@ -42,7 +44,11 @@ var last_row: Array = []      # IDs der zuletzt gedrehten Reihe (brennt beim 3. 
 var _rotated := false         # dieser Zug war eine Drehung
 var twists: int = 0           # Drehungen bisher (40-Drehungen-Modus)
 var tapped := -1              # angetipptes Feld eines Bonus: steigt beim Verschmelzen bevorzugt auf
-var seen := {}                # jede Reihe (Felder + Stufe), die es je gab: zählt nur beim ersten Mal (kein Hin- und Herschieben)
+var standing := {}            # Reihen (Felder + Stufe), die zu Beginn dieses Zugs schon dastanden: zählen nicht (mitgedreht, unverändert)
+var broken := {}              # Reihen, die die letzte Drehung aufgelöst hat: sofort zurückdrehen zählt nicht (kein Hin- und Herschieben)
+var _broke_now := {}          # Reihen, die die Drehung dieses Zugs aufgelöst hat (werden am Zugende zu broken)
+var spent := {}               # Einfach: Reihen, die als ganze Gruppe zusammen aufgestiegen sind (dieselben Felder, eine Stufe höher).
+                              # Sie hat nicht der Spieler gebildet: Auflösen und wieder zusammendrehen zählt nie (kein Hochzüchten)
 var meteors_used: int = 0
 var best_stage: int = 1       # höchste Stufe, die je erreicht wurde
 var lives: int = 3            # Herzen: so viele Brände hält die Welt noch aus
@@ -91,6 +97,10 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, with_
 	next_monsoon = 0
 	last_row = []
 	_rotated = false
+	standing = {}
+	broken = {}
+	_broke_now = {}
+	spent = {}
 	meteors_used = 0
 	best_stage = 1
 	lives = Balance.LIVES if hearts else 0
@@ -146,17 +156,21 @@ func setup(seed_value: int = 0, endless_mode: bool = true, level: int = 1, with_
 
 
 ## Steht irgendwo schon eine fertige Reihe (z. B. eine schräge aus 3 Wiesen)? Dann ein Feld davon zu Erde.
-## Reihen, die schon gezählt wurden (seen), bleiben stehen.
-func _break_ready_lines() -> void:
+## Mit only: nur Reihen mit einem dieser Felder (was schon gewachsen ist, bleibt stehen).
+func _break_ready_lines(only: Dictionary = {}) -> void:
 	for guard in 60:
 		var hit: Array = []
-		for ln in lines():
-			if not seen.has(line_key(ln)):
-				hit = ln
-				break
+		for ln in lines(only):
+			hit = ln
+			break
 		if hit.is_empty():
 			return
-		(hit[1] as FieldData).stage = 0
+		var k := 1
+		if not only.is_empty() and not only.has((hit[1] as FieldData).id):
+			for i in hit.size():
+				if only.has((hit[i] as FieldData).id):
+					k = i
+		(hit[k] as FieldData).stage = 0
 
 
 ## Darf hier am Start eine Wiese hin, ohne dass drei Wiesen beisammen liegen?
@@ -193,7 +207,10 @@ func clone() -> GameState:
 	gs._rotated = _rotated
 	gs.twists = twists
 	gs.tapped = tapped
-	gs.seen = seen.duplicate()
+	gs.standing = standing.duplicate()
+	gs.broken = broken.duplicate()
+	gs._broke_now = _broke_now.duplicate()
+	gs.spent = spent.duplicate()
 	gs.best_stage = best_stage
 	gs.meteors_used = meteors_used
 	gs.lives = lives
@@ -273,7 +290,9 @@ func neighbors(f: FieldData) -> Array:
 func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	var d := 1 if turns > 0 else -1
 	_rotated = true
+	var first := moved.is_empty()
 	_remember_before()
+	var had := standing if first else _line_keys()
 	last_row = row.duplicate() if not row.is_empty() else slice_row(axis, layer)
 	for f in fields:
 		if f.p[axis] == layer:
@@ -284,6 +303,11 @@ func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 				f.p = rv(f.p, axis, d)
 				f.n = rv(f.n, axis, d)
 		rebuild_index()
+	# Welche Reihen hat diese Drehung aufgelöst? Sofort zurückdrehen bringt sie nicht noch einmal zum Wachsen.
+	var now := _line_keys()
+	for k in had:
+		if not now.has(k):
+			_broke_now[k] = true
 
 
 ## Tutorial: ein ruhiger Würfel. Oben liegen zwei Wiesen in einer Reihe, die dritte kommt mit einer
@@ -307,13 +331,21 @@ func setup_tutorial_board() -> void:
 	field_at(Vector3i(0, 1, -1), Vector3i(0, 1, 0)).stage = 1
 	field_at(Vector3i(1, -1, 1), Vector3i(0, -1, 0)).stage = 1    # kommt bei der 2. Drehung nach oben (1, 1, -1)
 	moved = {}
-	seen = {}
+	standing = {}
+	broken = {}
+	_broke_now = {}
+	spent = {}
 
 
 ## Nach dem Tutorial: Die leere Erde erblüht zu einem normalen Start (wie in setup()).
 ## Behält alles, was schon gewachsen ist (und die Punkte). Keine fertige Dreierreihe, aber möglichst
 ## eine Drehung, die sofort wächst. Gibt die IDs der neuen Wiesen zurück (für die Animation).
 func fill_after_tutorial() -> Array:
+	# Ein frischer Start: Nichts ist vorgemerkt. Was dasteht, zählt erst wieder, wenn es neu gebildet wird.
+	standing = {}
+	broken = {}
+	_broke_now = {}
+	spent = {}
 	var picked: Array = []
 	for attempt in 12:
 		picked = _bloom_once()
@@ -324,7 +356,10 @@ func fill_after_tutorial() -> Array:
 			for i in picked:
 				(fields[int(i)] as FieldData).stage = 0
 	# Eine neue fertige Reihe gibt es nicht (was schon gewachsen ist, bleibt)
-	_break_ready_lines()
+	var fresh := {}
+	for i in picked:
+		fresh[int(i)] = true
+	_break_ready_lines(fresh)
 	var out: Array = []
 	for i in picked:
 		if (fields[int(i)] as FieldData).stage > 0:
@@ -334,7 +369,6 @@ func fill_after_tutorial() -> Array:
 	moved = {}
 	tapped = -1
 	_rotated = false
-	_record_lines()
 	return out
 
 
@@ -511,17 +545,39 @@ static func line_key(line: Array) -> String:
 	return "%s@%d" % [str(ids), (line[0] as FieldData).stage]
 
 
-## Vor der ersten Änderung eines Zugs merken, welche Reihen schon dastehen (zählen nicht).
+## Vor der ersten Änderung eines Zugs merken, welche Reihen schon dastehen (zählen nicht, auch nicht mitgedreht).
 func _remember_before() -> void:
 	if not moved.is_empty():
 		return
-	_record_lines()
+	standing = _line_keys()
+	_broke_now = {}
 
 
-## Alle Reihen, die gerade dastehen, als „schon da gewesen“ merken.
-func _record_lines() -> void:
+## Schlüssel aller Reihen, die gerade dastehen.
+func _line_keys() -> Dictionary:
+	var out := {}
 	for ln in lines():
-		seen[line_key(ln)] = true
+		out[line_key(ln)] = true
+	return out
+
+
+## Zählt diese Reihe in diesem Zug? Nur, wenn sie neu gebildet ist: Sie stand zu Beginn des Zugs nicht da,
+## ist nicht die Reihe, die die letzte Drehung aufgelöst hat (sofort zurückdrehen bringt nichts), und ist keine
+## Reihe, die als ganze Gruppe aufgestiegen ist (Einfach: dieselben drei Felder eine Stufe höher zählen nie neu).
+func counts(line: Array) -> bool:
+	var k := line_key(line)
+	return not standing.has(k) and not broken.has(k) and not spent.has(k)
+
+
+## Stehen die drei Felder (noch) als Reihe da? (Eine Verschmelzung im selben Durchgang kann eines verändert haben.)
+static func _still_line(line: Array) -> bool:
+	var st := (line[0] as FieldData).stage
+	if st <= 0:
+		return false
+	for g in line:
+		if (g as FieldData).stage != st:
+			return false
+	return true
 
 
 ## Die aktuell niedrigste Stufe auf dem Würfel (nur die hebt der Regen).
@@ -568,7 +624,7 @@ static func target_index(line: Array, focus: Dictionary, prefer: int = -1) -> in
 func merge_value() -> int:
 	var pts := 0
 	for line in lines(moved):
-		if seen.has(line_key(line)):
+		if not counts(line):
 			continue
 		pts += int(Balance.MERGE_POINTS[(line[1] as FieldData).stage])
 	return pts
@@ -618,47 +674,68 @@ func resolve_faces(ev: Array, locked: Dictionary) -> int:
 
 ## Verschmilzt Reihen aus drei gleichen Feldern, in denen sich gerade etwas verändert hat,
 ## dann Kettenreaktionen. Ganze Seiten zuerst. Gibt die Punkte zurück.
-func resolve_merges(ev: Array) -> int:
+## Jede Reihe, die neu dasteht, verschmilzt (auch zwei Reihen derselben Drehung, die sich ein Feld teilen).
+## late: Ereignisse für Reihen, die erst am Rundenende entstanden sind (z. B. durch Feuer), werden danach gezeigt.
+func resolve_merges(ev: Array, late: bool = false) -> int:
 	var locked := {}
 	var total := resolve_faces(ev, locked)
 	var combo := 0
 	var focus := moved.duplicate()
 	var done := {}      # Einfach: was in diesem Zug schon aufgestiegen ist, steigt nicht gleich nochmal
+	var told := {}
 	for pass_i in Balance.MAX_CASCADES:
 		if focus.is_empty():
 			break
 		var found: Array = []
 		for ln in lines(focus):
-			# nur neu gebildete Reihen lösen aus (im ersten Durchgang)
-			if pass_i == 0 and seen.has(line_key(ln)):
+			# nur neu gebildete Reihen lösen aus (im ersten Durchgang; danach ist jede gefundene Reihe neu)
+			if pass_i == 0 and not counts(ln):
+				var k := line_key(ln)
+				if (broken.has(k) or spent.has(k)) and not standing.has(k) and not told.has(k):
+					told[k] = true
+					var rids: Array = []
+					for g in ln:
+						rids.append((g as FieldData).id)
+					# hin und zurück (oder eine zusammen aufgestiegene Reihe wieder zusammengedreht): zählt nicht
+					ev.append({"type": "repeat", "fields": rids, "spent": spent.has(k) and not broken.has(k)})
 				continue
 			found.append(ln)
 		if found.is_empty():
 			break
 		var last_focus := focus
 		focus = {}
-		var used := {}
 		for line in found:
-			var skip := false
-			for f in line:
-				if used.has((f as FieldData).id) or locked.has((f as FieldData).id) or done.has((f as FieldData).id):
-					skip = true
-			if skip:
+			# Hat eine Verschmelzung davor ein Feld dieser Reihe verändert, steht sie nicht mehr
+			if not _still_line(line):
 				continue
-			for f in line:
-				used[(f as FieldData).id] = true
+			var skip := false
+			var free: Array = []        # Felder, die in diesem Zug noch nicht aufgestiegen sind
+			for i in line.size():
+				var fd: FieldData = line[i]
+				if locked.has(fd.id):
+					skip = true
+				if not done.has(fd.id):
+					free.append(i)
+			if skip or free.is_empty():
+				continue                # alle drei sind gerade zusammen aufgestiegen: keine neue Reihe
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
+			if not free.has(ti):
+				ti = 1 if free.has(1) else int(free[0])
 			var mid: FieldData = line[ti]
 			if easy:
-				# Einfach: Eine neue Reihe löst aus, dann steigen alle gleichen Felder auf, die damit
-				# zusammenhängen. Nichts verschwindet. Weil jede Reihe nur einmal zählt, wächst durch
-				# Hin- und Herschieben nichts endlos.
+				# Einfach: Eine neue Reihe löst aus, dann steigen die Reihe und alle gleichen Felder auf, die damit
+				# zusammenhängen (außer dem, was in diesem Zug schon aufgestiegen ist). Nichts verschwindet.
 				combo += 1
 				var st0 := mid.stage
-				var grp := group_of(mid)
-				for g in grp:
-					used[(g as FieldData).id] = true
-				var gpts: int = int(Balance.MERGE_POINTS[st0]) * combo * grp.size() / 3
+				var grp: Array = []
+				var in_grp := {}
+				for i in free:
+					for g in group_of(line[int(i)] as FieldData):
+						var gd: FieldData = g
+						if not in_grp.has(gd.id) and not done.has(gd.id):
+							in_grp[gd.id] = true
+							grp.append(gd)
+				var gpts: int = int(Balance.MERGE_POINTS[st0]) * combo * maxi(grp.size(), 3) / 3
 				total += gpts
 				var gids: Array = []
 				for g in grp:
@@ -669,7 +746,7 @@ func resolve_merges(ev: Array) -> int:
 					focus[h.id] = true
 					if h != mid:
 						gids.append(h.id)
-				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "all": true})
+				ev.append({"type": "merge", "field": mid.id, "others": gids, "points": gpts, "combo": combo, "stage": mid.stage, "all": true, "late": late})
 				continue
 			var rest: Array = []
 			for i in line.size():
@@ -690,7 +767,17 @@ func resolve_merges(ev: Array) -> int:
 				if Balance.OTHERS_DROP > 0:
 					o.stage = maxi(0, was - Balance.OTHERS_DROP)
 					focus[o.id] = true
-			ev.append({"type": "merge", "field": mid.id, "others": other_ids, "points": pts, "combo": combo, "stage": mid.stage})
+			ev.append({"type": "merge", "field": mid.id, "others": other_ids, "points": pts, "combo": combo, "stage": mid.stage, "late": late})
+	# Einfach: Reihen, deren drei Felder alle gerade zusammen aufgestiegen sind, hat nicht der Spieler gebildet.
+	# Sie zählen nie wieder (sonst: auflösen, anderer Zug, zurückdrehen, und die ganze Gruppe steigt erneut).
+	if not done.is_empty():
+		for ln in lines():
+			var all_done := true
+			for g in ln:
+				if not done.has((g as FieldData).id):
+					all_done = false
+			if all_done:
+				spent[line_key(ln)] = true
 	return total
 
 
@@ -703,7 +790,7 @@ func end_round() -> Dictionary:
 	var gain := resolve_merges(ev)
 	moved = {}
 	tapped = -1
-	var dirty := {}             # was sich nach dem Verschmelzen verändert, kann im nächsten Zug verschmelzen
+	var dirty := {}             # was sich nach dem Verschmelzen verändert: bildet es eine Reihe, verschmilzt sie noch in dieser Runde
 
 	# 2. Großstädte und Metropolen zerstören Natur daneben
 	for f in fields:
@@ -751,27 +838,45 @@ func end_round() -> Dictionary:
 		f.burning = false
 		dirty[f.id] = true
 		ev.append({"type": "burn", "field": f.id})
+	# Hat das eine neue Reihe ergeben (z. B. ein Feld ist abgebrannt und passt jetzt zu den Nachbarn)?
+	# Dann verschmilzt sie gleich (wird nach dem Brand gezeigt). Weil man das Wachsen sieht, ist der Zug dann kein Fehlversuch.
+	var late_gain := 0
+	if not dirty.is_empty():
+		moved = dirty
+		late_gain = resolve_merges(ev, true)
+		moved = {}
 
 	# 5. Punkte, Fortschritt, Boni
-	var pr := _progress(gain, corners)
+	var pr := _progress(gain + late_gain, corners)
 	var got: Dictionary = pr["got"]
 
 	# 6. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
 	if _rotated:
 		twists += 1
-	if _rotated and gain == 0 and not no_fire:
+	if _rotated and gain + late_gain == 0 and not no_fire:
 		misses += 1
 		var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
-		ev.append({"type": "miss", "count": misses, "field": mid_id})
+		var why := ""
+		for e in ev:
+			if str(e["type"]) == "repeat":
+				if bool(e.get("spent", false)):
+					if why == "":
+						why = "spent"   # eine zusammen aufgestiegene Reihe wieder zusammengedreht: zählt nie wieder
+				else:
+					why = "repeat"      # nur die Reihe zurückgedreht, die die Drehung davor aufgelöst hat
+		ev.append({"type": "miss", "count": misses, "field": mid_id, "why": why})
 		if misses >= Balance.FIRE_AFTER:
 			misses = 0
 			disaster("fire", ev)
+	# Was diese Drehung aufgelöst hat, zählt im nächsten Zug nicht beim sofortigen Zurückdrehen.
+	# Jeder andere Zug dazwischen (auch ein Blitz) hebt das auf; Regen ist kein Zug und lässt es stehen.
+	broken = _broke_now if _rotated else {}
+	_broke_now = {}
 	_rotated = false
 
 	moved = {}
-	_record_lines()
 	turn += 1
-	return {"events": ev, "gain": gain, "bonus_gained": got, "new_age": bool(pr["new_age"])}
+	return {"events": ev, "gain": gain + late_gain, "bonus_gained": got, "new_age": bool(pr["new_age"])}
 
 
 ## Punkte gutschreiben, Fortschritt merken, Boni verteilen. corners = neu geschaffte Ecken (Blitz).
@@ -838,7 +943,6 @@ func resolve_now() -> Dictionary:
 	var gain := resolve_merges(ev)
 	moved = {}
 	tapped = -1
-	_record_lines()
 	var pr := _progress(gain, corners)
 	return {"events": ev, "gain": gain, "bonus_gained": pr["got"], "new_age": bool(pr["new_age"])}
 
@@ -941,6 +1045,7 @@ func best_move() -> Dictionary:
 				continue
 			var sim2 := sim.clone()
 			sim2.moved = {}
+			sim2.broken = sim._broke_now.duplicate()      # gleich zurückdrehen zählt nicht
 			sim2.apply_rotation(int(m2[0]), int(m2[1]), int(m2[2]))
 			var pts := sim2.merge_value()
 			if pts > best_pts:
@@ -993,7 +1098,13 @@ func rain_spots() -> Dictionary:
 		if f.stage != low or f.stage >= Balance.MAX_STAGE:
 			continue
 		f.stage += 1
-		var hit := not lines({f.id: true}).is_empty()
+		var hit := false
+		for ln in lines({f.id: true}):
+			# nur Reihen, die dann auch wirklich verschmelzen (mit der neuen Stufe stand sie noch nicht da;
+			# das sofortige Zurückholen einer gerade aufgelösten Reihe und zusammen aufgestiegene Reihen zählen nicht)
+			var lk := line_key(ln)
+			if not broken.has(lk) and not spent.has(lk):
+				hit = true
 		f.stage -= 1
 		if hit:
 			out[f.id] = "up"

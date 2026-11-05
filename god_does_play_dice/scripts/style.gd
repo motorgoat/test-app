@@ -166,6 +166,10 @@ static func icon(name: String) -> Texture2D:
 	return tex
 
 
+## Vibrieren. Auf Android braucht das die Berechtigung VIBRATE im Manifest (export_presets.cfg:
+## permissions/vibrate=true). Sie ist eine „normale“ Berechtigung: Mit dem Manifest-Eintrag ist sie
+## sofort erteilt, Godot fragt dann nicht nach und verschluckt keine Berührungen.
+## (OS.get_granted_permissions() listet nur „gefährliche“ Berechtigungen, VIBRATE taucht dort nie auf.)
 static func haptic(ms: int) -> void:
 	if haptics_on:
 		Input.vibrate_handheld(ms)

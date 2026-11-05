@@ -21,7 +21,7 @@ const MODE_KEYS = ["einfach", "mittel", "schwer"]
 const CHALLENGE_LEVEL := 1
 const MODE_INTRO = {
 	"einfach": "Einfach: Ganze Gruppen wachsen mit.",
-	"mittel": "Mittel: Auch schräge Reihen zählen.",
+	"mittel": "Mittel: Schräge Reihen zählen ab dem kleinen Wald.",
 	"schwer": "Schwer: Nur gerade Reihen zählen.",
 	"challenge": "40 Drehungen: Wie viele Punkte schaffst du?",
 }

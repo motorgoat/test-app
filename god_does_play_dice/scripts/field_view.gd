@@ -150,7 +150,7 @@ func set_target(on: bool, color: Color = Color("#3B8EEA")) -> void:
 		return
 	if on:
 		_target_mat.albedo_color = Color(color, 0.8)
-		_target_top_mat.albedo_color = Color(color, 0.3)
+		_target_top_mat.albedo_color = Color(color, 0.45)
 	_target.visible = on
 	_target_top.visible = on
 
@@ -310,7 +310,7 @@ func _process(delta: float) -> void:
 	if _target_on and _target_mat != null:
 		var pk := 0.5 + 0.5 * sin(_time * 3.0)
 		_target_mat.albedo_color.a = 0.45 + 0.45 * pk
-		_target_top_mat.albedo_color.a = 0.12 + 0.22 * pk
+		_target_top_mat.albedo_color.a = 0.28 + 0.3 * pk      # deutlich: das sind die Felder, die gerade gehen
 	for i in _bobbers.size():
 		var b: Node3D = _bobbers[i]
 		if is_instance_valid(b):

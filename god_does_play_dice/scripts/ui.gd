@@ -195,7 +195,7 @@ const TOOLTIPS = {
 	"profile": {"icon": "profile", "title": "Profil", "body": "Kommt bald: dein Profil mit Rekorden und Erfolgen."},
 	"mode_close": {"icon": "close", "title": "Abbrechen", "body": "Doch nicht? Damit legst du den Bonus wieder weg."},
 	"mode_einfach": {"icon": "meadow", "title": "Einfach", "body": "Ganze Gruppen wachsen mit. 3 Herzen."},
-	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Auch schräge Reihen zählen. 3 Herzen."},
+	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Schräge Reihen zählen ab dem kleinen Wald. 3 Herzen."},
 	"mode_schwer": {"icon": "nature", "title": "Schwer", "body": "Nur gerade Reihen zählen. 3 Herzen."},
 	"mode_challenge": {"icon": "trophy", "title": "40 Drehungen", "body": "Wie viele Punkte schaffst du in 40 Drehungen? Regeln wie Mittel, 3 Herzen."},
 }
@@ -205,6 +205,7 @@ var _lp_pos := Vector2.ZERO
 var _lp_fired := false
 var _lp_swallow: Control = null
 var _tip_hide_at := INF
+var _queued_tap := -1          # Bonus-Feld, angetippt während einer Animation: wird danach eingesetzt
 var _tip_owner: Control = null
 
 # Meldungen (oben in der Spur, nacheinander)
@@ -225,7 +226,7 @@ const SLOT_TINT = {"undo": Color("#F2EDE5"), "rain": Color("#E3EFFC"), "bolt": C
 const SLOT_COLOR = {"undo": Color("#4B5163"), "rain": Color("#3B8EEA"), "bolt": Color("#F2A93B"), "monsoon": Color("#5B74D6"), "hint": Color("#F2A93B")}
 const MODES = [
 	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Ganze Gruppen wachsen mit", "tint": 1},
-	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Auch schräge Reihen", "tint": 2},
+	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Schräg ab dem kleinen Wald", "tint": 2},
 	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen", "tint": 3},
 	{"key": "challenge", "icon": "trophy", "title": "40 Drehungen · Mittel", "sub": "Wie viele Punkte schaffst du?", "tint": 4},
 ]
@@ -1684,6 +1685,9 @@ func _on_info_input(ev: InputEvent, c: Control) -> void:
 
 
 func _hold_tick(delta: float) -> void:
+	# Kam das Loslassen nicht an (z. B. weil die App kurz den Fokus verlor), ist das Halten vorbei
+	if _lp_node != null and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_lp_node = null
 	if _lp_node != null and not _lp_fired:
 		if not is_instance_valid(_lp_node) or not _lp_node.is_visible_in_tree():
 			_lp_node = null
@@ -1794,6 +1798,15 @@ func _tint_for_icon(icon_name: String) -> Color:
 # Eingabe & Takt
 # =============================================================================
 
+## App verliert den Fokus (Android: kurz pausiert): ein angefangenes Halten zählt nicht, eine Erklärung verschwindet bald.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		_lp_node = null
+		_lp_fired = false
+		if tip_card != null and tip_card.visible and _tip_hide_at == INF:
+			_tip_hide_at = _time + 2.0
+
+
 func _input(event: InputEvent) -> void:
 	var down := (event is InputEventMouseButton and (event as InputEventMouseButton).pressed) or (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed)
 	if not down:
@@ -1810,6 +1823,7 @@ func _process(delta: float) -> void:
 	if Game.state == null or score_label == null:
 		return
 	_hold_tick(delta)
+	_queued_tick()
 	_toast_tick()
 	_coach_tick()
 	_tutorial_tick()
@@ -1875,6 +1889,7 @@ func refresh() -> void:
 			_set_bonus_mode("")
 		elif not world.animating:
 			_world_targets("rain")
+			_rain_mode_text()
 	_sync_slots(settled)
 	_set_badge(rain_btn, gs.rain)
 	_set_badge(bolt_btn, gs.bolts)
@@ -2085,6 +2100,8 @@ func _on_mode_close() -> void:
 func _set_bonus_mode(kind: String) -> void:
 	var was := bonus_mode
 	bonus_mode = kind
+	if kind == "":
+		_queued_tap = -1
 	for pair in [[rain_btn, "rain"], [bolt_btn, "bolt"], [monsoon_btn, "monsoon"]]:
 		var bb: Button = pair[0]
 		var sel := kind == str(pair[1])
@@ -2100,8 +2117,8 @@ func _set_bonus_mode(kind: String) -> void:
 	_close_sheet()
 	if kind == "rain":
 		_set_tile(mode_tile, "rain", Style.WATER_TINT)
-		mode_label.text = "Tippe auf ein leuchtendes Feld."
-		mode_hint.text = "Brennende Felder löschst du so auch."
+		_rain_mode_text()
+		_focus_targets()
 	elif kind == "bolt":
 		_set_tile(mode_tile, "lightning", Style.SUN_TINT)
 		mode_label.text = "Tippe auf ein leuchtendes Eckfeld."
@@ -2113,6 +2130,43 @@ func _set_bonus_mode(kind: String) -> void:
 	if was == "" or not mode_card.visible:
 		_place_context(mode_card)
 		_appear(mode_card, Vector2(0, 20), Style.DUR_IN, 0.98)
+
+
+## Regen: sagen, welche Felder gerade gehen (nur die niedrigste Stufe wächst, Feuer wird gelöscht).
+func _rain_mode_text() -> void:
+	var gs := Game.state
+	mode_label.text = "Tippe auf ein blau leuchtendes Feld."
+	if gs == null:
+		return
+	var low := gs.lowest_stage()
+	if low == 0:
+		mode_hint.text = "Leere Erde wird zur Wiese. Feuer löschst du so auch."
+	else:
+		mode_hint.text = "%s wächst eine Stufe. Feuer löschst du so auch." % GameState.stage_name(low)
+
+
+## Leuchtet auf der sichtbaren Seite kein Ziel, dreht sich die Ansicht zur Seite mit den meisten.
+func _focus_targets() -> void:
+	var gs := Game.state
+	if gs == null:
+		return
+	var tg := gs.rain_targets()
+	if tg.is_empty():
+		return
+	var per_face := {}
+	for fid in tg:
+		if bool(world.field_screen(int(fid))["visible"]):
+			return
+		var fn: Vector3i = (gs.fields[int(fid)] as FieldData).n
+		per_face[fn] = int(per_face.get(fn, 0)) + 1
+	var best := Vector3i.ZERO
+	var best_c := 0
+	for nk in per_face:
+		if int(per_face[nk]) > best_c:
+			best_c = int(per_face[nk])
+			best = nk
+	if best != Vector3i.ZERO:
+		world.focus_place(best)
 
 
 ## Kontextzone: wächst nach oben, direkt über dem Dock. Breite Karten mittig.
@@ -2224,7 +2278,7 @@ func _on_preview(info: Dictionary) -> void:
 	var arranged: GameState = info["arranged"]
 	var merges := 0
 	for ln in arranged.lines(arranged.moved):
-		if not arranged.seen.has(GameState.line_key(ln)):
+		if arranged.counts(ln):
 			merges += 1
 	var kind := ""
 	for e in info["events"]:
@@ -2591,6 +2645,7 @@ func _on_twist_state(on: bool) -> void:
 	if on and (_time < _demo_until or (Game.tutorial() and Game.tutorial_step == 0)):
 		return      # die Hand führt vor: kein Abbrechen-Streifen
 	if on:
+		_queued_tap = -1
 		_hide_finger()
 		_hide_tip()
 		_coach_dismiss()
@@ -2633,14 +2688,20 @@ func _on_bolt_drawn(fid: int, row: Array) -> void:
 func _on_field_tapped(fid: int) -> void:
 	if bonus_mode != "":
 		var kind := bonus_mode
-		if Game.busy or Game.over or world.animating:
+		if Game.over:
+			return
+		if Game.busy or world.animating:
+			# Es läuft noch eine Animation (z. B. der letzte Regen): merken und gleich danach einsetzen
+			_queued_tap = fid
+			world.select(fid)
 			return
 		var err := Game.state.can_bonus(kind, Game.state.fields[fid])
 		if err != "":
-			# Hier geht es nicht: Feld wackelt, die Ziele leuchten noch einmal auf, die Karte zeigt, was zu tun ist
+			# Hier geht es nicht: Feld wackelt, die Ziele leuchten noch einmal auf, die Karte und eine Meldung sagen, was geht
 			world.nudge(fid)
 			_world_targets(kind)
 			_pop(mode_card, 1.05)
+			_on_message(_bonus_refusal(kind, err), "info")
 			return
 		if Game.use_bonus(kind, fid, [], true):
 			_bubble(fid, Game.praise(), "up", Style.WATER_DEEP if kind != "bolt" else Style.SUN_DEEP)
@@ -2661,6 +2722,31 @@ func _on_field_tapped(fid: int) -> void:
 		_pop(sheet_tile, 1.1)
 	else:
 		_appear(sheet, Vector2(0, 20), Style.DUR_IN)
+
+
+## Warum der Bonus hier nicht geht, in Worten, die man versteht.
+func _bonus_refusal(kind: String, err: String) -> String:
+	var gs := Game.state
+	if kind == "rain" and gs != null and gs.rain > 0:
+		var low := gs.lowest_stage()
+		var what := "leere Erde" if low == 0 else "Felder der Stufe %s" % GameState.stage_name(low)
+		return "Regen geht gerade nur auf %s (leuchtet blau) und auf Feuer." % what
+	return err
+
+
+## Feld, das während einer Animation für den Bonus angetippt wurde: jetzt einsetzen.
+func _queued_tick() -> void:
+	if _queued_tap < 0:
+		return
+	if bonus_mode == "" or Game.over:
+		_queued_tap = -1
+		return
+	if Game.busy or world.animating:
+		return
+	var q := _queued_tap
+	_queued_tap = -1
+	world.select(-1)
+	_on_field_tapped(q)
 
 
 func _sheet_bonus(kind: String) -> void:
@@ -2766,7 +2852,7 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 
 
 ## Fehlversuch: Pille zeigen, dann fliegt eine Flamme oben in ihren Platz.
-func _on_miss(_fid: int, count: int) -> void:
+func _on_miss(_fid: int, count: int, why: String = "") -> void:
 	if Game.tutorial():
 		return
 	_miss_streak += 1
@@ -2775,8 +2861,18 @@ func _on_miss(_fid: int, count: int) -> void:
 	_chip_show(flame_chip, true, true)
 	_coach_once("miss", flame_chip)
 	if count < Balance.FIRE_AFTER:
-		_show_banner("miss", "", "Nichts gewachsen", "fire_off")
+		# Nur zurückgedreht? Dann sagen, warum die Reihe diesmal nicht wächst
+		if why == "repeat":
+			_show_banner("miss", "Zurückgedreht · Erst anderer Zug", "Zählt noch nicht", "fire_off")
+		elif why == "spent":
+			_show_banner("miss", "Schon gewachsen", "Zählt nur einmal", "fire_off")
+		else:
+			_show_banner("miss", "", "Nichts gewachsen", "fire_off")
 		Style.haptic(Style.HAPTIC_TAP)
+	elif why == "repeat":
+		_on_message("Nur zurückgedreht – das zählt nicht.", "info")       # gleich brennt es: sagen, warum
+	elif why == "spent":
+		_on_message("Diese Reihe ist schon gewachsen – sie zählt nur einmal.", "info")
 	var slot: TextureRect = miss_flames[clampi(count - 1, 0, miss_flames.size() - 1)]
 	slot.set_meta("lock", _time + 1.2)
 	var fl := TextureRect.new()

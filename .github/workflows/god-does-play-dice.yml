@@ -63,8 +63,15 @@ jobs:
           cd $PROJECT
           mkdir -p ../shots
           timeout 540 xvfb-run -a -s "-screen 0 1100x2400x24" \
-            godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots 2>&1 | tail -40 || true
+            godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || true
+          tail -40 ../shots.log
           ls -la ../shots
+          # Prüfungen mit echter Eingabe (Regen antippen, Drehung bildet eine Reihe): Fehler lassen den Build scheitern
+          grep -E "RAIN-CHECK|MERGE-CHECK|TUTORIAL-CHECK|BLOOM-CHECK|REGEN-TOUR" ../shots.log || true
+          if grep -n "SCRIPT ERROR" -A3 ../shots.log; then echo "Skriptfehler in der Screenshot-Tour"; exit 1; fi
+          if grep -E "RAIN-CHECK ok=false|MERGE-CHECK ok=false" ../shots.log; then echo "Regen oder Verschmelzen über echte Eingabe kaputt"; exit 1; fi
+          grep -q "RAIN-CHECK ok=true" ../shots.log || { echo "RAIN-CHECK fehlt"; exit 1; }
+          grep -q "MERGE-CHECK ok=true" ../shots.log || { echo "MERGE-CHECK fehlt"; exit 1; }
 
       - name: Screenshots ins Repo legen (docs/screenshots)
         if: github.event_name == 'push'
@@ -79,10 +86,13 @@ jobs:
           git diff --cached --quiet || (git commit -q -m "Screenshots aus Build ${GITHUB_RUN_NUMBER} [skip ci]" && git push -q origin HEAD:${GITHUB_REF_NAME}) || echo "Push der Screenshots fehlgeschlagen"
 
       - name: Screenshots hochladen
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: shots/
+          path: |
+            shots/
+            shots.log
           if-no-files-found: warn
 
       - name: Android-APK exportieren
