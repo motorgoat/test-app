@@ -11,8 +11,12 @@ sammelt Ressourcen und steigt in Zeitaltern auf. Mit einer **Drehung** schiebt m
 an die Grenze des Gegners (Angriff) oder holt sich eines seiner Grundstücke auf die eigene Seite.
 
 ## Warum der Würfel dafür passt
-- **Hauptstadt ist sicher:** Das Mittelfeld jeder Seite bewegt sich beim Drehen nie. Dort steht die
-  Hauptstadt (das Rathaus) jedes Spielers.
+- **Hauptstadt im Mittelfeld:** Dort steht die Hauptstadt (das Rathaus) jedes Spielers. Achtung: Bei
+  äußeren Scheiben bleibt das Mittelfeld stehen, aber dreht man die **mittlere** Scheibe, wandern
+  4 Mittelfelder mit auf andere Seiten. Fest bleibt nur, welche Mitte welcher gegenüberliegt.
+  Für Würfelreiche gibt es zwei Wege: Mittlere Scheiben sind gesperrt (dann bleibt die Hauptstadt
+  wirklich fest), oder die Hauptstadt fährt mit, und ihr Gebiet ist immer die Seite, auf der sie
+  gerade steht. Die Entscheidung trifft der Prototyp und begründet sie in `DECISIONS.md`.
 - **Kanten und Ecken sind Front:** Diese Felder wandern beim Drehen auf andere Seiten. Eckfelder
   grenzen an drei Seiten gleichzeitig: wertvoll, aber am stärksten umkämpft.
 - **Spielerzahl:** 2 Spieler auf gegenüberliegenden Seiten (4 neutrale Seiten dazwischen) oder bis

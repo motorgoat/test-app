@@ -43,8 +43,9 @@ selbst bleibt unverändert.
 ### Spiel (Prototyp-Umfang)
 Rundenbasiert, 1 Spieler gegen 1 Computergegner auf gegenüberliegenden Würfelseiten, 4 neutrale
 Seiten. Jedes Feld ist ein Grundstück mit Bau-Raster (z. B. 6×6) und einer Landschaft mit
-Ressourcen (Wiese, Wald, Berg, Wasser, Sand). Mittelfeld jeder Spielerseite = Hauptstadt (bewegt
-sich nie). Runde: Wirtschaft (sammeln, bauen, ausbilden), höchstens eine Drehung (mit Kosten oder
+Ressourcen (Wiese, Wald, Berg, Wasser, Sand). Mittelfeld jeder Spielerseite = Hauptstadt (Achtung:
+beim Drehen einer mittleren Scheibe wandern Mittelfelder mit, siehe Konzept; entscheide, ob mittlere
+Scheiben gesperrt sind oder die Hauptstadt mitfährt). Runde: Wirtschaft (sammeln, bauen, ausbilden), höchstens eine Drehung (mit Kosten oder
 Abklingzeit), Kampf wo sich fremde Grundstücke berühren, Besitzwechsel. Zeitalter wie im Konzept,
 im Prototyp mindestens Urzeit bis Antike. Mindestens 8 Gebäude und 3 Einheitentypen. Siegbedingung:
 gegnerische Hauptstadt erobern. Offene Fragen aus dem Konzept entscheidest du selbst, sinnvoll und

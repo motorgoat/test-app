@@ -11,7 +11,7 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Glaube sinkt bei zu wenigen Kirchen oder zu viel Abstand zu ihnen (Wohlstand, modern denkende Menschen).
 
 ## Die 6 Mittelfelder
-- Die 6 Felder, die sich nicht verschieben (Mitten der Seiten), als symbolische Felder für 6 wichtige Dinge der Welt:
+- Die 6 Mitten der Seiten (Hinweis: Sie bleiben nur bei äußeren Scheiben stehen; dreht man die mittlere Scheibe, wandern 4 davon mit), als symbolische Felder für 6 wichtige Dinge der Welt:
   Industrie, Natur usw. Alle müssen zusammenspielen. (Schwer perfekt auszubalancieren.)
 - Oder: 6 Völker bzw. 6 Religionen, jede Mitte ist ein Heiligtum.
 
@@ -92,3 +92,6 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
 - Jedes Feld ein Grundstück mit Gebäuden und Äckern, Ressourcen je Landschaft, Drehen als Angriff.
 - Eigenes Projekt, eigener Chat. Konzept: [STRATEGIE_KONZEPT.md](STRATEGIE_KONZEPT.md),
   Start-Prompt: [STRATEGIE_PROMPT.md](STRATEGIE_PROMPT.md).
+
+## Göttergame
+- Recherche und Vorschläge: [GOTTSPIEL_RECHERCHE.md](GOTTSPIEL_RECHERCHE.md).
