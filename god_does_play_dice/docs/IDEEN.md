@@ -87,3 +87,8 @@ Gesammelte Ideen von Philipp, noch nicht (oder nur teilweise) umgesetzt. Stand: 
   - **Farben** (jede Stufe eine klare Farbe),
   - **immer dunkler** (jede Stufe eine Spur dunkler),
   - **Zeitalter/Epochen** (Stufen als Epochen dargestellt).
+
+## Strategie-Ausbau für PC („Würfelreiche“)
+- Jedes Feld ein Grundstück mit Gebäuden und Äckern, Ressourcen je Landschaft, Drehen als Angriff.
+- Eigenes Projekt, eigener Chat. Konzept: [STRATEGIE_KONZEPT.md](STRATEGIE_KONZEPT.md),
+  Start-Prompt: [STRATEGIE_PROMPT.md](STRATEGIE_PROMPT.md).
