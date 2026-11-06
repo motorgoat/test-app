@@ -192,8 +192,8 @@ func _test_character() -> void:
 				_fail("Text fehlt: %s/%s" % [key, ton])
 			for v in vs:
 				var tx := String(v)
-				var lim := 160 if String(key).begins_with("d") and String(key)[1].is_valid_int() else 115
-				if tx.length() > lim or tx.strip_edges() != tx or tx.begins_with("{tag}"):
+				# Regel (NAECHSTE_SCHRITTE „Texte“): ein kurzer Satz, höchstens 8 Wörter, nie „3 Erden zusammen“
+				if tx.split(" ", false).size() > 8 or tx.strip_edges() != tx or tx.begins_with("{tag}") or tx.contains("Erden"):
 					_fail("Text %s/%s: %s" % [key, ton, tx])
 	var last := ""
 	for i in 40:
@@ -201,7 +201,7 @@ func _test_character() -> void:
 		if p == last:
 			_fail("Lob zweimal hintereinander")
 		last = p
-	if CharacterTexts.line("streak_n", "lieb", {"streak": 5}) != "5 Tage in Folge! Ich freu mich jeden Tag auf dich.":
+	if CharacterTexts.line("streak_n", "lieb", {"streak": 5}) != "5 Tage in Folge!":
 		_fail("Platzhalter")
 	var ids := {}
 	for ton in CharacterTexts.TONES:
@@ -210,8 +210,7 @@ func _test_character() -> void:
 			_fail("Benachrichtigungen %s: %d" % [ton, all.size()])
 		for n_v in all:
 			var n: Dictionary = n_v
-			var lim2 := 110 if String(n["cat"]) == "F" else 90
-			if String(n["text"]).length() > lim2:
+			if String(n["text"]).split(" ", false).size() > 8:
 				_fail("Benachrichtigung zu lang: " + String(n["id"]))
 			if ids.has(n["id"]):
 				_fail("Benachrichtigung doppelt: " + String(n["id"]))

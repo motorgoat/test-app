@@ -87,8 +87,8 @@ static var COMPLETE_BONUS_PCT_PER_HEART := 10   # … und WILD_AT < W < SMOG_AT.
 static var AGES := ["Urzeit", "Steinzeit", "Antike", "Mittelalter", "Neuzeit", "Industriezeitalter", "Moderne"]
 ## Eine typische Art je Zeitalter (für Icons; alter Name).
 static var AGE_FROM_STAGE := [FieldData.MEADOW, FieldData.HUT, FieldData.HOUSE, FieldData.VILLAGE, FieldData.TOWN, FieldData.BIGCITY, FieldData.METROPOLIS]
-static var AGE_GOAL := ["Steinzeit – leg einen Acker an oder bau eine Hütte.", "Antike – bau ein Haus.", "Mittelalter – bau ein Dorf.",
-	"Neuzeit – bau eine Stadt oder eine Kirche.", "Industriezeitalter – bau eine Großstadt oder Industrie.", "Moderne – bau eine Metropole.",
+static var AGE_GOAL := ["Steinzeit – Acker oder Hütte.", "Antike – ein Haus.", "Mittelalter – ein Dorf.",
+	"Neuzeit – Stadt oder Kirche.", "Industriezeitalter – Großstadt oder Industrie.", "Moderne – eine Metropole.",
 	"Vollende deine Welt!"]
 # Challenge: 40 Drehungen nach Mittel-Regeln, so viel Glauben wie möglich.
 static var MAX_TWISTS := 40

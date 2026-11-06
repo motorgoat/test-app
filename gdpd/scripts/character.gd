@@ -23,9 +23,9 @@ const SLOTS := ["haupt", "haut", "haar", "akzent", "augen"]
 const TONES := ["lieb", "frech", "streng"]
 const TONE_TITLE := {"lieb": "Lieb", "frech": "Frech", "streng": "Streng"}
 const TONE_SAMPLE := {
-	"lieb": "Schön, dass du da bist! Bauen wir zusammen eine Welt?",
-	"frech": "Na endlich! Ich dachte schon, ich muss die Welt allein würfeln.",
-	"streng": "Gut. Eine Welt baut sich nicht von selbst. Fangen wir an.",
+	"lieb": "Schön, dass du da bist!",
+	"frech": "Na endlich! Los geht's!",
+	"streng": "Gut. Fangen wir an.",
 }
 
 # --- Paletten (3.4): Schlüssel -> Farbe -------------------------------------------------------------

@@ -108,7 +108,7 @@ did not grow, it gets an event `{"type": "still", "why", "kind", "fields", "diag
 |---|---|---|---|
 | `rest` | kind rests today (1.2) | lock · „Ruht heute · Wälder wachsen erst ab Tag 3 weiter“ / „Mach lieber neue Wälder aus Wiesen“ | **no** |
 | `diag` | diagonal, and diagonals do not count here (days: never; Mittel: from Wald; Einfach: from Wiese; Schwer: never) | X · „Schräg zählt nicht“ / „Leg die drei gerade nebeneinander“ (free play with diagonals: „Schräg“ / „Schräg zählt erst ab Wald“) | yes (keeps the pool solutions valid), the miss pill says why |
-| `water` | three Wasser | water badge, only when nothing else grew; miss pill „Wasser wächst nie“ / „Bring drei Erden zusammen“ | yes |
+| `water` | three Wasser | water badge, only when nothing else grew; miss pill „Wasser wächst nie“ / „Bring 3 gleiche in eine Reihe“ | yes |
 | `finished` | finished kind (free play) | check · „Fertig – Wächst nicht mehr“ | yes |
 | `repeat` / `spent` / `standing` | twisted back / grew together (Einfach) / stood there before and was only moved | undo / check · „Zurückgedreht“ / „Dreh eine andere Scheibe“, „Schon gewachsen“ / „Bau eine neue Reihe mit einem anderen Feld“, „Stand schon da“ / „Bring ein neues Feld in die Reihe“ | yes |
 
@@ -256,6 +256,9 @@ All boards: no ready row of a kind that can row today; kinds placed by sticker t
      dreht eine Scheibe – drei Erden in einer geraden Reihe werden eine Wiese.“ (`coach_demo`). A tap or swipe
      during the lock does not count, but the lane hops (`DayUI.blocked_tap`), so the tap visibly arrives.
      This demo move is free (`GameState.gift_twists`): it costs no twist and no star.
+  (Texts here are the first drafts. Shipped texts follow the text rule in `NAECHSTE_SCHRITTE.md` „Texte“: one short
+  sentence, ≤ 8 words, „Bring 3 gleiche in eine Reihe.“ – e.g. demo „Pass auf, ich zeig's dir!“, then „Zack, eine
+  Wiese!“, then „Dein Zug! Wisch die leuchtende Reihe.“; see `scripts/character_texts.gd` and `scripts/days.gd`.)
   2. The moment the Wiese appears, input unlocks (no waiting for the camera) and „Aus drei Erden wird eine Wiese.
      Super!“ shows; 2.6 s later „Jetzt du! Wisch über die leuchtende Scheibe – oder finde selbst drei Erden.“ From
      here on **no code path moves a slice without the player** (`World.can_self_move()`: only day 1, tutorial board,

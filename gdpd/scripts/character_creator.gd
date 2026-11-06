@@ -313,20 +313,20 @@ func _fill_step() -> void:
 	_next.text = "Weiter"
 	match step:
 		0:
-			_title.text = "Dein Charakter" if edit_mode else "Wer hilft dir beim Erschaffen?"
-			_sub.text = "Such dir deinen Gott aus. Du kannst ihn später ändern."
+			_title.text = "Dein Charakter" if edit_mode else "Wer hilft dir?"
+			_sub.text = "Wähl deinen Gott."
 			_step_form()
 		1:
 			_title.text = "Deine Farben"
-			_sub.text = "Tipp auf eine Farbe – %s zeigt sie dir gleich." % String(look["name"])
+			_sub.text = "Tipp auf eine Farbe."
 			_step_colors()
 		2:
 			_title.text = "Gesicht und Schmuck"
-			_sub.text = "Augen, Hut, Brille – ganz wie du magst."
+			_sub.text = "Ganz wie du magst."
 			_step_face()
 		3:
 			_title.text = "Wie heißt du?"
-			_sub.text = "Gib deinem Gott einen Namen."
+			_sub.text = "Gib ihm einen Namen."
 			_step_name()
 			_next.text = "Speichern" if edit_mode else "Fertig – los geht's!"
 	_scroll.scroll_vertical = 0

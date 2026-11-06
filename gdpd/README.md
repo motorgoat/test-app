@@ -47,12 +47,12 @@ das kostet Glauben, rettet aber die Welt. Eine einzige Waage zeigt Natur ↔ Sta
 - **Drehen:** Wisch über eine Reihe. Kommen drei gleiche Felder in eine *neue* Reihe, wachsen sie
   (Wiese → Wald → großer Wald …, Acker → Hütte → Haus → Dorf …). In Einfach wächst die ganze Gruppe mit.
   Wächst eine Reihe aus drei gleichen nicht, sagt das Spiel immer, warum: Die drei Felder leuchten mit einem
-  Abzeichen, dazu eine Pille mit dem Grund und was man stattdessen tun kann („Schräg zählt nicht · Leg die drei
-  gerade nebeneinander“, „Wasser wächst nie · Bring drei Erden zusammen“, „Ruht heute · Wälder wachsen erst ab
-  Tag 3 weiter · Mach lieber neue Wälder aus Wiesen“) – auch, wenn Regen die Reihe fertig macht. Eine Reihe, die
+  Abzeichen, dazu eine Pille mit dem Grund und was man stattdessen tun kann („Schräg zählt nicht · Bring 3 gleiche
+  in eine gerade Reihe“, „Wasser wächst nie · Bring 3 gleiche in eine Reihe“, „Ruht · Wälder erst ab Tag 3 · Mach
+  neue Wälder aus Wiesen“) – auch, wenn Regen die Reihe fertig macht. Eine Reihe, die
   heute nur ruht, ist kein Fehlversuch.
-- **Tag 1 – Schau zu!:** Die Ziel-Karte kündigt es an („Zeig mir, wie es geht“) und nennt die Regel („Nur gerade
-  Reihen zählen · Wasser wächst nie“). Dann spielt die Hand genau einmal, ganz am Anfang, einen Zug vor (kostet
+- **Tag 1 – Schau zu!:** Die Ziel-Karte kündigt es an („Zeig's mir“) und nennt die Regel („Nur gerade
+  Reihen · Wasser wächst nie“). Dann spielt die Hand genau einmal, ganz am Anfang, einen Zug vor (kostet
   nichts); ein Tippen in der Zeit zählt nicht, die Zeile hüpft. Sobald die Wiese da ist: „Jetzt du!“. Danach
   dreht sich keine Scheibe mehr von selbst; Hilfe ist nur Leuchten und der Tipp. Wer Tag 1 verlässt und
   wiederkommt, sieht die Vorführung nicht noch einmal.

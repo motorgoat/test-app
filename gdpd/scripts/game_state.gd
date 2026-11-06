@@ -35,8 +35,8 @@ const RAIN_NEXT = {FieldData.EMPTY: FieldData.MEADOW, FieldData.MEADOW: FieldDat
 ## Wünsche: Typ → Arten, die neben dem Feld stehen müssen (Regen: Regen auf dieselbe Seite).
 const WISH_WANT = {"wald": [FieldData.FOREST, FieldData.BIGFOREST], "tiere": [FieldData.ANIMALS, FieldData.PARADISE], "acker": [FieldData.FIELD]}
 const WISH_ICON = {"wald": "smallforest", "tiere": "paw", "acker": "field", "regen": "rain"}
-const WISH_TEXT = {"wald": "Wir wünschen uns einen Wald neben uns.", "tiere": "Wir möchten Tiere sehen.",
-	"acker": "Wir haben Hunger. Bring uns einen Acker.", "regen": "Es ist so trocken. Lass es bei uns regnen."}
+const WISH_TEXT = {"wald": "Wald, bitte!", "tiere": "Tiere, bitte!",
+	"acker": "Acker, bitte!", "regen": "Regen, bitte!"}
 ## Zonen der Weltwaage.
 const ZONE_NAME = {"wild": "Wildnis", "ok": "Gleichgewicht", "city": "Viel Stadt", "smog": "Smog"}
 
@@ -2116,11 +2116,11 @@ func can_bonus(kind: String, f: FieldData) -> String:
 				if rain_grows(k):
 					names.append(FieldData.kind_name(k))
 			if names.size() == 3:
-				return "Regen geht auf Erde, Wiese und Wald – oder auf Feuer."
-			return "Regen geht auf %s – oder auf Feuer." % " und ".join(PackedStringArray(names))
+				return "Nur auf Erde, Wiese, Wald oder Feuer."
+			return "Nur auf %s oder Feuer." % " und ".join(PackedStringArray(names))
 	elif kind == "bolt":
 		if bolts <= 0:
-			return "Einen Blitz gibt es, wenn sich an einer Ecke 3 gleiche treffen."
+			return "Blitz: 3 gleiche an einer Ecke."
 		if corner_diagonal(f).is_empty():
 			return "Tippe auf ein leuchtendes Eckfeld."
 	elif kind == "monsoon":
@@ -2130,7 +2130,7 @@ func can_bonus(kind: String, f: FieldData) -> String:
 		if faith < Balance.STRIKE_COST:
 			return "Dafür brauchst du %d Glauben." % Balance.STRIKE_COST
 		if f.kind == FieldData.EMPTY or f.kind == FieldData.WATER:
-			return "Hier ist nichts. Tippe auf ein Feld, das schrumpfen soll."
+			return "Hier ist nichts zu strafen."
 	elif kind == "flood":
 		if faith < Balance.FLOOD_COST:
 			return "Dafür brauchst du %d Glauben." % Balance.FLOOD_COST
@@ -2140,7 +2140,7 @@ func can_bonus(kind: String, f: FieldData) -> String:
 			if h.is_civilisation() or h.burning:
 				any = true
 		if not any:
-			return "Auf dieser Seite gibt es nichts wegzuspülen."
+			return "Hier gibt's nichts wegzuspülen."
 	else:
 		return "Unbekanntes Werkzeug."
 	return ""

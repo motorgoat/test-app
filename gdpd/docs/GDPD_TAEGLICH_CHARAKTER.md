@@ -486,7 +486,15 @@ placeholders, and `Voice.face(key) -> String` returns the expression. Placeholde
 `{tag}` („Tag 3 · Tiere“, or „die Welt des Tages“ after day 7), `{streak}` (number). **Never start a sentence with
 `{tag}`** (lowercase „die Welt des Tages“).
 
-Rules for all texts: short (≤ 110 characters for bubbles, ≤ 90 for notification bodies, ≤ 110 for the final message), du-form, no guilt („du hast
+**Text rule (Philipp, overrides the longer texts below):** every player text is one short sentence, ideally 2–6
+words, at most 8 (coach lines, cards, pills, banners, long-press, notifications, tone banks). The rule is explained
+generically: „Bring 3 gleiche in eine Reihe.“ – never „Bring 3 Erden zusammen“. The texts quoted in this section are
+the original long drafts; the shipped texts are in `scripts/character_texts.gd` (tone banks and notifications, one
+source – `ReminderPlan` reads `CharacterTexts.NOTIFY`), `scripts/days.gd`, `scripts/ui.gd` and `scripts/day_ui.gd`.
+`tests/test_models.gd` and `test_short_texts` in `tests/test_rules.gd` fail on a text longer than 8 words or one
+that says „Erden“/„zusammen“.
+
+Further rules: du-form, no guilt („du hast
 mich enttäuscht“), no threats, no swearing, no religious jokes or real religious names; the rule content of a coach
 line stays the same in all tones (only the voice changes). Dynamic coach lines that carry numbers (the wish line with
 „in %d Drehungen“, the age line) keep their text in every tone – only the face changes – so tour checks stay valid.

@@ -1115,7 +1115,7 @@ func _finish_twist() -> void:
 	if Game.tutorial() and Game.tutorial_step == 0 and _tw_quarter != 0:
 		if not (_tw_axis == 0 and _tw_layer == 1 and _norm_turns(_tw_quarter) == 1):
 			_tw_quarter = 0
-			Game.message.emit("Probier die leuchtende Reihe – so wie die Hand es zeigt.", "info")
+			Game.message.emit("Probier die leuchtende Reihe.", "info")
 	if Game.busy or Game.over:
 		_tw_quarter = 0      # läuft gerade eine Runde (oder ist das Spiel aus), zählt die Drehung nicht: zurückgleiten statt hängen
 	animating = true

@@ -262,31 +262,31 @@ var _auto_fired := false      # der vorgeführte erste Zug lief schon
 var _tut_step_at := 0.0       # wann der aktuelle Tutorial-Schritt begann
 var _tut_merged := false
 const TUT_STEPS = [
-	{"wait": "auto", "text": "Drei gleiche in einer Reihe wachsen. Du bestimmst, was daraus wird!"},
-	{"wait": "twist", "text": "Jetzt du! Wisch über die leuchtende Reihe."},
+	{"wait": "auto", "text": "Bring 3 gleiche in eine Reihe."},
+	{"wait": "twist", "text": "Jetzt du! Wisch die leuchtende Reihe."},
 ]
 
 # Hinweise im richtigen Moment (nicht blockierend, einer nach dem anderen, je einmal)
 const COACH = {
-	"miss": "Hier ist nichts gewachsen. Bei 3 Flammen fängt die Reihe Feuer.",
-	"rain": "Das ist Regen. Er lässt ein Feld wachsen. Tippe drauf – dann leuchten die Felder, die du gießen kannst.",
-	"fire": "Feuer! Gieß die brennenden Felder mit Regen – sonst schrumpfen sie. Jedes Feuer kostet ein Herz.",
-	"bolt": "Blitz! Drei gleiche haben sich an einer Ecke getroffen. Tippe auf Blitz und dann auf ein leuchtendes Eckfeld.",
-	"monsoon": "Monsun! Er lässt eine ganze Seite wachsen. Tippe drauf und dann auf den Würfel.",
-	"hint": "Kommst du nicht weiter? Tipp zeigt dir die beste Drehung. Kostet 1 Münze.",
-	"undo": "Vertan? Zurück nimmt deinen letzten Zug zurück. Kostet 1 Münze.",
-	"coins": "Das sind deine Münzen. Neue gibt es für ein kurzes Video.",
+	"miss": "Nichts gewachsen. 3 Flammen: Feuer.",
+	"rain": "Regen! Tipp drauf, dann aufs Feld.",
+	"fire": "Feuer! Gieß es mit Regen.",
+	"bolt": "Blitz! Tipp drauf, dann aufs Eckfeld.",
+	"monsoon": "Monsun! Tipp drauf, dann auf den Würfel.",
+	"hint": "Fest? Tipp zeigt die beste Drehung.",
+	"undo": "Vertan? Zurück hilft.",
+	"coins": "Deine Münzen. Mehr gibt's per Video.",
 	"age": "",      # Text kommt aus _coach_text (Zeitalter und was als Nächstes kommt)
-	"hold": "Tipp: Halte ein Symbol gedrückt – dann erklärt es sich.",
-	"scale": "Das ist deine Weltwaage: links Natur, rechts Stadt. Mit Menschen kommt sie in die grüne Mitte.",
-	"wish": "Die Menschen haben einen Wunsch! Erfüll ihn bald – das bringt Glauben.",
-	"church": "Eine Kirche bringt jede Runde Glauben. Aber bring nie zwei Kirchen zusammen!",
-	"war": "Krieg! Zwei Kirchen haben sich getroffen. Halte sie auseinander.",
-	"finished": "Fertig! Dieses Feld wächst nicht mehr, bringt aber Glauben. Mit Gewitter machst du wieder Platz.",
-	"industry": "Industrie bringt viel Glauben – aber zu viel macht Smog.",
-	"smog": "Smog! Wälder welken, Tiere fliehen. Pflanz Wald oder strafe die Industrie.",
-	"nopeople": "Ohne Menschen glaubt niemand an dich. Wähl auch mal Acker oder Hütte.",
-	"mini": "Ab jetzt fragt eine kleine Pille über dem Feld. Tipp schnell das andere Bild – oder halte sie für die große Karte.",
+	"hold": "Halte ein Symbol für Hilfe.",
+	"scale": "Die Waage: links Natur, rechts Stadt.",
+	"wish": "Ein Wunsch! Erfüll ihn bald.",
+	"church": "Kirchen geben Glauben. Zwei geben Krieg!",
+	"war": "Krieg! Halte Kirchen auseinander.",
+	"finished": "Fertig! Bringt jetzt Glauben.",
+	"industry": "Industrie: viel Glaube, aber Smog.",
+	"smog": "Smog! Pflanz Wald oder schick Gewitter.",
+	"nopeople": "Ohne Menschen kein Glaube.",
+	"mini": "Tipp schnell das andere Bild.",
 }
 const COACH_ICON = {"miss": "fire", "rain": "rain", "bolt": "lightning", "monsoon": "monsoon", "fire": "fire", "hold": "hand",
 	"hint": "bulb", "undo": "undo", "coins": "coin", "scale": "balance", "wish": "wish", "church": "church", "war": "swords",
@@ -306,30 +306,30 @@ var _coach_in_hud := false    # der Hinweis hängt oben (dann wartet die Meldung
 
 # Erklärung bei langem Drücken: TOOLTIPS[key] = {icon, title, body}; dynamische Teile in _tooltip_for.
 const TOOLTIPS = {
-	"menu": {"icon": "menu", "title": "Menü", "body": "Pause, neues Spiel, Ton und Hilfe."},
-	"score": {"icon": "faith", "title": "Glaube", "body": "Glaube. Du bekommst ihn, wenn etwas wächst, für erfüllte Wünsche und jede Runde von fertigen Feldern. Wunder und Strafen kosten Glauben."},
-	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Die Weltwaage. Links Natur, rechts Stadt. Grün in der Mitte ist gut. Ganz rechts kommt Smog. Ganz links fehlt den Menschen Essen – sobald es Menschen gibt."},
-	"goal": {"icon": "star", "title": "Vollenden", "body": "Vollende deine Welt: %d fertige Felder – und die Waage nicht im Roten."},
-	"choice": {"icon": "wish", "title": "Dein Wille geschehe", "body": "Dein Wille geschehe: Du entscheidest, was hier wächst. Tippst du daneben, gilt deine letzte Wahl."},
-	"mini": {"icon": "check", "title": "Deine Wahl", "body": "Deine letzte Wahl gilt. Tipp auf das andere Bild, um zu wechseln."},
-	"strike": {"icon": "strike", "title": "Gewitter", "body": "Gewitter: Du strafst ein Feld. Industrie wird zu Erde, alles andere schrumpft. Kostet 15 Glauben."},
-	"flood": {"icon": "flood", "title": "Flut", "body": "Flut: Eine Seite wird reingewaschen. Städte und Industrie schrumpfen, die Natur bleibt. Kostet 40 Glauben."},
-	"always_ask": {"icon": "help", "title": "Wahl-Karte immer zeigen", "body": "An: Bei jeder Wahl kommt die große Karte. Aus: Nach ein paar Mal reicht eine kleine Pille."},
-	"credits": {"icon": "coin", "title": "Münzen", "body": "Damit bezahlst du Tipp und Zurück. Neue gibt es für ein kurzes Video."},
+	"menu": {"icon": "menu", "title": "Menü", "body": "Pause, Spiel, Ton, Hilfe."},
+	"score": {"icon": "faith", "title": "Glaube", "body": "Kommt vom Wachsen und von Wünschen."},
+	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Links Natur, rechts Stadt. Grün ist gut."},
+	"goal": {"icon": "star", "title": "Vollenden", "body": "Vollende %d fertige Felder."},
+	"choice": {"icon": "wish", "title": "Dein Wille geschehe", "body": "Du wählst, was hier wächst."},
+	"mini": {"icon": "check", "title": "Deine Wahl", "body": "Tipp das andere Bild zum Wechseln."},
+	"strike": {"icon": "strike", "title": "Gewitter", "body": "Straft ein Feld. Kostet 15 Glauben."},
+	"flood": {"icon": "flood", "title": "Flut", "body": "Wäscht eine Seite rein. 40 Glauben."},
+	"always_ask": {"icon": "help", "title": "Wahl-Karte immer zeigen", "body": "An: immer die große Karte."},
+	"credits": {"icon": "coin", "title": "Münzen", "body": "Für Tipp und Zurück."},
 	"age": {"icon": "hut", "title": "Zeitalter", "body": "Zeigt, wie weit deine Welt ist."},
-	"flames": {"icon": "fire", "title": "Flammen", "body": "Wächst bei einer Drehung nichts, leuchtet eine Flamme. Bei 3 Flammen fängt die gedrehte Reihe Feuer."},
-	"hearts": {"icon": "heart", "title": "Herzen", "body": "Jedes Feuer kostet ein Herz. Sind alle weg, ist das Spiel vorbei."},
+	"flames": {"icon": "fire", "title": "Flammen", "body": "Wächst nichts: Flamme. 3 Flammen: Feuer."},
+	"hearts": {"icon": "heart", "title": "Herzen", "body": "Jedes Feuer kostet ein Herz."},
 	"undo": {"icon": "undo", "title": "Zurück", "body": "Nimmt deinen letzten Zug zurück."},
-	"rain": {"icon": "rain", "title": "Regen", "body": "Regen lässt Natur wachsen: Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Er löscht auch Feuer."},
-	"bolt": {"icon": "lightning", "title": "Blitz", "body": "Blitz: Die Schräge an einer Ecke wächst. Du bekommst ihn, wenn sich an einer Ecke 3 gleiche treffen."},
+	"rain": {"icon": "rain", "title": "Regen", "body": "Lässt Natur wachsen. Löscht Feuer."},
+	"bolt": {"icon": "lightning", "title": "Blitz", "body": "Die Schräge an der Ecke wächst."},
 	"monsoon": {"icon": "monsoon", "title": "Monsun", "body": "Monsun: Eine ganze Seite wächst."},
 	"hint": {"icon": "bulb", "title": "Tipp", "body": "Zeigt dir die beste Drehung."},
-	"profile": {"icon": "profile", "title": "Profil", "body": "Kommt bald: dein Profil mit Rekorden und Erfolgen."},
-	"mode_close": {"icon": "close", "title": "Abbrechen", "body": "Doch nicht? Damit legst du das Werkzeug wieder weg."},
-	"mode_einfach": {"icon": "meadow", "title": "Einfach", "body": "Ganze Gruppen wachsen mit. Fertige Felder entstehen aber nur in der Reihe. 5 Herzen."},
-	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Schräge Reihen zählen ab dem Wald. 3 Herzen."},
+	"profile": {"icon": "profile", "title": "Profil", "body": "Kommt bald."},
+	"mode_close": {"icon": "close", "title": "Abbrechen", "body": "Werkzeug weglegen."},
+	"mode_einfach": {"icon": "meadow", "title": "Einfach", "body": "Ganze Gruppen wachsen mit. 5 Herzen."},
+	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Schräg zählt ab Wald. 3 Herzen."},
 	"mode_schwer": {"icon": "nature", "title": "Schwer", "body": "Nur gerade Reihen zählen. 3 Herzen."},
-	"mode_challenge": {"icon": "trophy", "title": "40 Drehungen", "body": "Wie viel Glauben schaffst du in 40 Drehungen? Regeln wie Mittel, 3 Herzen."},
+	"mode_challenge": {"icon": "trophy", "title": "40 Drehungen", "body": "Wie viel Glaube in 40 Drehungen?"},
 }
 var _lp_node: Control = null
 var _lp_t := 0.0
@@ -362,9 +362,9 @@ const PUNISH_TINT := Color("#EEE7FA")
 const PUNISH := Color("#7E57C9")
 const PUNISH_DEEP := Color("#5B3AA0")
 const MODES = [
-	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Entspannt – mehr wächst mit", "tint": 1},
+	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Ganze Gruppen wachsen mit", "tint": 1},
 	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Auch schräge Reihen zählen", "tint": 2},
-	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen – wie in den 7 Tagen", "tint": 4},
+	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen", "tint": 4},
 	{"key": "challenge", "icon": "trophy", "title": "40 Drehungen · Mittel", "sub": "Wie viel Glauben schaffst du?", "tint": 3},
 ]
 
@@ -1020,12 +1020,12 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's", true)
 	var inner := _modal_scroll(help_card, 150.0)
 	# An den Tagen zuerst: die Aufgabe, die Drehungen und die Sterne
-	_help_rows["task"] = _help_row("goal", Style.SUN_TINT, "Deine Aufgabe", "Oben steht dein Ziel und wie viele Drehungen du noch hast. Weniger Drehungen = mehr Sterne.")
+	_help_rows["task"] = _help_row("goal", Style.SUN_TINT, "Deine Aufgabe", "Weniger Drehungen, mehr Sterne.")
 	inner.add_child(_help_rows["task"])
-	inner.add_child(_help_row("round", Style.SURFACE_2, "Drehen", "Wisch über eine Reihe, um sie zu drehen. Nach ganz oben ziehen bricht ab."))
-	inner.add_child(_help_row("up", Style.LEAF_TINT, "Wachsen", "Drei gleiche in einer neuen Reihe? Sie wachsen."))
+	inner.add_child(_help_row("round", Style.SURFACE_2, "Drehen", "Wisch über eine Reihe."))
+	inner.add_child(_help_row("up", Style.LEAF_TINT, "Wachsen", "Bring 3 gleiche in eine Reihe."))
 	# Was wächst woraus (an den Tagen: nur, was heute schon wachsen kann), als Bildreihe
-	var tree := _help_row("up", Style.LEAF_TINT, "Was wächst woraus", "Aus drei gleichen in einer Reihe wird das Nächste:")
+	var tree := _help_row("up", Style.LEAF_TINT, "Was wächst woraus", "Daraus wird das Nächste:")
 	inner.add_child(tree)
 	_help_rows["tree"] = tree
 	_help_tree = HFlowContainer.new()
@@ -1035,7 +1035,7 @@ func _build_help() -> void:
 	_help_tree.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 44 - 14 - 8, 0)
 	(tree.get_child(1) as Control).add_child(_help_tree)
 	# Die Wahl als Bild: Wiese → Wald oder Acker
-	var will := _help_row("hand", Style.SUN_TINT, "Dein Wille geschehe", "An manchen Stellen wählst du, was wächst. Tippst du daneben, gilt deine letzte Wahl.")
+	var will := _help_row("hand", Style.SUN_TINT, "Dein Wille geschehe", "Hier wählst du, was wächst.")
 	inner.add_child(will)
 	_help_rows["will"] = will
 	var pic := _hbox(6)
@@ -1047,27 +1047,27 @@ func _build_help() -> void:
 	orl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	pic.add_child(orl)
 	pic.add_child(_icon(_kind_icon(FieldData.FIELD), 26))
-	_help_rows["faith"] = _help_row("faith", Style.SUN_TINT, "Glaube", "Deine Zahl oben. Du bekommst Glauben, wenn etwas wächst, für erfüllte Wünsche und jede Runde von fertigen Feldern.")
+	_help_rows["faith"] = _help_row("faith", Style.SUN_TINT, "Glaube", "Kommt vom Wachsen und von Wünschen.")
 	inner.add_child(_help_rows["faith"])
-	_help_rows["scale"] = _help_row("balance", Style.LEAF_TINT, "Weltwaage", "Links Natur, rechts Stadt. Grün in der Mitte ist gut. Ganz rechts kommt Smog. Ganz links fehlt den Menschen Essen – sobald es Menschen gibt.")
-	_help_rows["wish"] = _help_row("wish", Style.SUN_TINT, "Wünsche", "Die Menschen wünschen sich etwas. Erfüll es in %d Drehungen – das bringt Glauben." % Balance.WISH_TWISTS)
-	_help_rows["war"] = _help_row("swords", Style.FIRE_TINT, "Krieg", "Bring nie zwei Kirchen durch eine Drehung zusammen. Sonst gibt es Krieg.")
-	_help_rows["smog"] = _help_row("smog", Style.FIRE_TINT, "Smog", "Zu viel Stadt und Industrie: Wälder welken, Tiere fliehen, es gibt keinen Glauben pro Runde.")
-	_help_rows["goal"] = _help_row("star", Style.SUN_TINT, "Vollenden", "Fertige Felder wachsen nicht mehr, bringen aber Glauben. In Einfach wächst die ganze Gruppe mit. Fertige Felder entstehen aber nur in der Reihe.")
+	_help_rows["scale"] = _help_row("balance", Style.LEAF_TINT, "Weltwaage", "Links Natur, rechts Stadt. Grün ist gut.")
+	_help_rows["wish"] = _help_row("wish", Style.SUN_TINT, "Wünsche", "Erfüll Wünsche in %d Drehungen." % Balance.WISH_TWISTS)
+	_help_rows["war"] = _help_row("swords", Style.FIRE_TINT, "Krieg", "Treffen sich zwei Kirchen: Krieg.")
+	_help_rows["smog"] = _help_row("smog", Style.FIRE_TINT, "Smog", "Zu viel Industrie: Natur welkt.")
+	_help_rows["goal"] = _help_row("star", Style.SUN_TINT, "Vollenden", "Fertige Felder bringen Glauben.")
 	for key in ["scale", "wish", "war", "smog", "goal"]:
 		inner.add_child(_help_rows[key])
 	_help_goal = ((_help_rows["goal"] as Control).get_child(1) as Control).get_child(1) as Label
-	_help_rows["fire"] = _help_row("fire", Style.FIRE_TINT, "Flammen & Herzen", "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – das kostet ein Herz. Ohne Herzen ist das Spiel vorbei.")
+	_help_rows["fire"] = _help_row("fire", Style.FIRE_TINT, "Flammen & Herzen", "3 Flammen: Feuer. Kostet ein Herz.")
 	inner.add_child(_help_rows["fire"])
-	_help_rows["rain"] = _help_row("rain", Style.WATER_TINT, "Regen", "Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Regen löscht auch Feuer.")
+	_help_rows["rain"] = _help_row("rain", Style.WATER_TINT, "Regen", "Natur wächst. Feuer geht aus.")
 	inner.add_child(_help_rows["rain"])
 	_help_rows["bolt"] = _help_row("lightning", Style.SUN_TINT, "Blitz", "3 gleiche an einer Ecke. Dann wächst die schräge Linie dort.")
 	_help_rows["monsoon"] = _help_row("monsoon", Style.MONSOON_TINT, "Monsun", "Eine ganze Seite wächst.")
-	_help_rows["strike"] = _help_row("strike", PUNISH_TINT, "Gewitter", "Du strafst ein Feld: Industrie wird zu Erde, alles andere schrumpft. Kostet %d Glauben." % Balance.STRIKE_COST)
-	_help_rows["flood"] = _help_row("flood", Style.WATER_TINT, "Flut", "Eine Seite wird reingewaschen: Städte und Industrie schrumpfen, die Natur bleibt. Kostet %d Glauben." % Balance.FLOOD_COST)
+	_help_rows["strike"] = _help_row("strike", PUNISH_TINT, "Gewitter", "Straft ein Feld. Kostet %d Glauben." % Balance.STRIKE_COST)
+	_help_rows["flood"] = _help_row("flood", Style.WATER_TINT, "Flut", "Wäscht eine Seite rein. %d Glauben." % Balance.FLOOD_COST)
 	for key in ["bolt", "monsoon", "strike", "flood"]:
 		inner.add_child(_help_rows[key])
-	inner.add_child(_help_row("hand", Style.SUN_TINT, "Erklärungen", "Halte ein Symbol gedrückt – dann erklärt es sich."))
+	inner.add_child(_help_row("hand", Style.SUN_TINT, "Erklärungen", "Halte ein Symbol gedrückt."))
 	var v: VBoxContainer = help_card.get_meta("body")
 	var go := _button("Alles klar", "primary")
 	go.pressed.connect(_on_help_done)
@@ -1237,7 +1237,7 @@ func _build_menu_reminder(inner: VBoxContainer) -> void:
 	plus.add_theme_font_size_override("font_size", 24)
 	plus.pressed.connect(_on_remind_step.bind(15))
 	_remind_time_row.add_child(plus)
-	var foot := _label("Höchstens eine am Tag. Nie zwischen 21:30 und 8:00 Uhr.", 13, Style.INK_3, Style.W_LABEL)
+	var foot := _label("Max. 1 am Tag. Nie nachts.", 13, Style.INK_3, Style.W_LABEL)
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	foot.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 24, 0)
 	box.add_child(foot)
@@ -1313,9 +1313,9 @@ func _refresh_menu_daily() -> void:
 	_remind_time_row.visible = mode == "fest"
 	match mode:
 		"auto":
-			_remind_sub.text = "Etwa zu der Zeit, zu der du sonst spielst."
+			_remind_sub.text = "Wenn du sonst spielst."
 		"fest":
-			_remind_sub.text = "Jeden Tag um diese Uhrzeit – nur, wenn du noch nicht gespielt hast."
+			_remind_sub.text = "Täglich um diese Uhrzeit."
 		_:
 			_remind_sub.text = "Keine Erinnerungen."
 	var supported := Notifier.is_supported()
@@ -1329,7 +1329,7 @@ func _refresh_menu_daily() -> void:
 		_remind_note.add_theme_color_override("font_color", Style.INK_3)
 		_remind_note.visible = true
 	elif mode != "aus" and not notifier.notifications_enabled():
-		_remind_note.text = "Benachrichtigungen sind am Handy ausgeschaltet."
+		_remind_note.text = "Benachrichtigungen sind aus."
 		_remind_note.add_theme_color_override("font_color", Style.FIRE_DEEP)
 		_remind_note.visible = true
 		_remind_settings.visible = true
@@ -1530,7 +1530,7 @@ func _build_buy() -> void:
 func _build_confirm() -> void:
 	confirm_card = _modal_card("Neues Spiel starten?")
 	var v: VBoxContainer = confirm_card.get_meta("body")
-	var l := _label("Dein freies Spiel endet. Dein Glaube zählt für den Rekord.", 17, Style.INK_2, Style.W_BODY)
+	var l := _label("Dein Spiel endet. Glaube zählt.", 17, Style.INK_2, Style.W_BODY)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size = Vector2(Style.CONTENT_W - 56, 0)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2443,7 +2443,7 @@ func _kind_body(k: int, in_sheet: bool) -> String:
 	body = body.trim_prefix(FieldData.kind_name(k) + ". ")
 	if in_sheet:
 		if _re_finished == null:
-			_re_finished = RegEx.create_from_string("^Fertig\\.?( – wächst nicht mehr\\.)?\\s*(Bringt jede Runde \\d+ Glauben)?(\\.\\s*| – )?")
+			_re_finished = RegEx.create_from_string("^(Fertig\\.?( – wächst nicht mehr\\.)?\\s*)?(Bringt jede Runde \\d+ Glauben|\\+\\d+ Glauben)?(\\.\\s*| – )?")
 		body = _re_finished.sub(body, "").strip_edges()
 	if body != "":
 		body = body.substr(0, 1).to_upper() + body.substr(1)
@@ -2501,7 +2501,7 @@ func _tooltip_for(key: String) -> Dictionary:
 				body += " Du hast %d." % gs.finished_count()
 				if gs.endless and not gs.completed and gs.finished_count() >= gs.complete_goal():
 					d["icon"] = "balance"
-					body += " Genug Felder – jetzt bring die Waage ins Grüne."
+					body += " Jetzt Waage ins Grüne."
 		"scale":
 			if gs != null:
 				body += " Gerade: %s." % str(GameState.ZONE_NAME.get(gs.zone(), ""))
@@ -2513,18 +2513,18 @@ func _tooltip_for(key: String) -> Dictionary:
 			body += " Kostet %d %s." % [Balance.UNDO_COST, _coin_word(Balance.UNDO_COST)]
 		"hint":
 			if Game.hint_free():
-				body += " An den 7 Tagen ist er gratis."
+				body += " Heute gratis."
 			else:
 				body += " Kostet %d %s." % [Balance.HINT_COST, _coin_word(Balance.HINT_COST)]
 		"flames":
 			if Game.in_day():
-				body = "Wächst bei einer Drehung nichts, leuchtet eine Flamme. Bei 3 Flammen fängt die gedrehte Reihe Feuer – Regen löscht es."
+				body = "Wächst nichts: Flamme. 3 Flammen: Feuer."
 		"rain":
 			if Game.in_day() and gs != null:
-				body = "Regen lässt Natur wachsen: Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Er löscht auch Feuer. Du hast %d." % gs.rain
+				body = "Lässt Natur wachsen. Du hast %d." % gs.rain
 		"mode_close":
 			var what := str({"rain": "den Regen", "bolt": "den Blitz", "monsoon": "den Monsun", "strike": "das Gewitter", "flood": "die Flut"}.get(bonus_mode, "das Werkzeug"))
-			body = "Doch nicht? Damit legst du %s wieder weg." % what
+			body = "Doch nicht? %s weglegen." % what
 	d["body"] = body
 	return d
 
@@ -2689,9 +2689,9 @@ func refresh() -> void:
 	if _last_scale_zone != "" and zone != _last_scale_zone and scale_chip.visible:
 		_pop(scale_chip, 1.1)
 		if zone == "city":
-			_on_message("Viel Stadt! Die Menschen wünschen sich Natur.", "info")
+			_on_message("Viel Stadt! Mehr Natur, bitte.", "info")
 		elif zone == "wild" and wild_warn:
-			_on_message("Viel Wildnis! Die Menschen brauchen Äcker.", "info")
+			_on_message("Viel Wildnis! Äcker, bitte.", "info")
 		elif zone == "ok" and (_last_scale_zone == "smog" or _last_scale_zone == "city"):
 			_on_message("Die Waage ist wieder im Grünen.", "good")
 	_last_scale_zone = zone
@@ -2919,9 +2919,9 @@ func _offer_buy(kind: String) -> void:
 		var left := maxi(1, gs.next_rain - gs.twists)
 		when = "Der nächste Regen kommt in %d %s. " % [left, "Drehung" if left == 1 else "Drehungen"]
 	elif kind == "bolt":
-		when = "Einen Blitz gibt es, wenn sich an einer Ecke 3 gleiche treffen. "
+		when = "Blitz: 3 gleiche an einer Ecke. "
 	else:
-		when = "Der nächste Monsun kommt mit mehr Glauben. "
+		when = "Monsun kommt mit mehr Glauben. "
 	buy_label.text = when + "Oder jetzt für %d %s." % [cost, _coin_word(cost)]
 	buy_btn.text = "Kaufen (%d)" % cost
 	_open_modal(buy_card)
@@ -2988,12 +2988,12 @@ func _set_bonus_mode(kind: String) -> void:
 		mode_hint.text = "Alle 9 Felder dort wachsen."
 	elif kind == "strike":
 		_set_tile(mode_tile, "strike", PUNISH_TINT)
-		mode_label.text = "Tippe auf ein Feld, das du strafen willst."
-		mode_hint.text = "Industrie wird zu Erde. Kostet %d Glauben." % Balance.STRIKE_COST
+		mode_label.text = "Tipp ein Feld zum Strafen."
+		mode_hint.text = "Industrie wird Erde. %d Glauben." % Balance.STRIKE_COST
 	elif kind == "flood":
 		_set_tile(mode_tile, "flood", Style.WATER_TINT)
 		mode_label.text = "Tippe auf eine Seite mit Stadt."
-		mode_hint.text = "Städte und Industrie schrumpfen. Kostet %d Glauben." % Balance.FLOOD_COST
+		mode_hint.text = "Stadt schrumpft. %d Glauben." % Balance.FLOOD_COST
 	if was == "" or not mode_card.visible:
 		_place_context(mode_card)
 		_appear(mode_card, Vector2(0, 20), Style.DUR_IN, 0.98)
@@ -3004,7 +3004,7 @@ func _set_bonus_mode(kind: String) -> void:
 ## Regen: sagen, welche Felder gerade gehen (nur die niedrigste Stufe wächst, Feuer wird gelöscht).
 func _rain_mode_text() -> void:
 	mode_label.text = "Tippe auf ein blau leuchtendes Feld."
-	mode_hint.text = "Erde wird Wiese, Wiese wird Wald. Feuer löschst du so auch."
+	mode_hint.text = "Lässt wachsen. Löscht Feuer."
 
 
 ## Leuchtet auf der sichtbaren Seite kein Ziel, dreht sich die Ansicht zur Seite mit den meisten.
@@ -3062,7 +3062,7 @@ func _day_hint() -> void:
 	if t == "twist":
 		_hint_live = true
 		var best := world.show_hint(act)
-		_on_message("Dreh die leuchtende Reihe. Danach passt es." if int(best.get("steps", 1)) == 2 else "Dreh die leuchtende Reihe!", "info")
+		_on_message("Erst diese Reihe, dann passt's." if int(best.get("steps", 1)) == 2 else "Dreh die leuchtende Reihe!", "info")
 		return
 	if (t == "rain" and Game.state.rain > 0) or t == "strike":
 		_set_bonus_mode(t)
@@ -3076,19 +3076,19 @@ func _day_hint() -> void:
 		world.show_hint(mv)
 		_on_message("Dreh die leuchtende Reihe!", "info")
 		return
-	_on_message("Gerade passt keine Drehung. Dreh einfach eine Reihe – dann ergibt sich etwas.", "info")
+	_on_message("Kein guter Zug. Dreh einfach.", "info")
 
 
 func _hint_gives_rain() -> void:
 	Game.grant("rain")
-	_on_message("Gerade passt keine Drehung. Dafür bekommst du einen Regen!", "reward")
+	_on_message("Kein Zug passt. Hier, ein Regen!", "reward")
 
 
 func _use_hint() -> void:
 	_hint_live = true          # kommt bei dieser Drehung eine Wahl, leuchtet die empfohlene
 	var best := world.show_hint()
 	if int(best.get("steps", 1)) == 2:
-		_on_message("Dreh die leuchtende Reihe. Danach passt es.", "info")
+		_on_message("Erst diese Reihe, dann passt's.", "info")
 	else:
 		_on_message("Dreh die leuchtende Reihe!", "info")
 
@@ -3143,7 +3143,7 @@ func _on_ad_declined() -> void:
 
 func _on_credits_pressed() -> void:
 	_pending = Callable()
-	ad_label.text = "Mit Münzen bezahlst du Tipp (%d), Zurück (%d) und Weiterspielen (%d).\nDu hast %d." % [
+	ad_label.text = "Tipp %d · Zurück %d · Weiterspielen %d\nDu hast %d." % [
 		Balance.HINT_COST, Balance.UNDO_COST, Balance.CONTINUE_COST, Game.credits]
 	_open_modal(ad_card)
 
@@ -3482,17 +3482,19 @@ func _coach_text(key: String, fid: int = -1) -> String:
 		var w := gs.wish_at(fid)
 		if not w.is_empty():
 			var left := int(w["left"])
-			var why := "dann wächst ihr Haus" if Game.in_day() and not _faith_shown() else "das bringt Glauben"
-			return "%s Erfüll den Wunsch in %d %s – %s." % [str(GameState.WISH_TEXT.get(str(w["type"]), "")), left, "Drehung" if left == 1 else "Drehungen", why]
+			var wt := str(GameState.WISH_TEXT.get(str(w["type"]), ""))
+			if Game.in_day() and not _faith_shown():
+				return "%s Dann wächst ihr Haus." % wt
+			return "%s Noch %d %s." % [wt, left, "Drehung" if left == 1 else "Drehungen"]
 	if key == "fire" and Game.in_day():
 		return Voice.line("fire")
 	if Voice.has(key) and (Game.in_day() or ["miss", "war", "smog", "hold", "mini"].has(key)) and key != "fire":
 		return Voice.line(key)          # Der Charakter sagt es in seinem Ton (der Inhalt bleibt derselbe)
 	if key == "fire" and gs != null and gs.rain <= 0:
-		return "Feuer! Brennende Felder schrumpfen beim nächsten Zug. Regen löscht sie. Jedes Feuer kostet ein Herz."
+		return "Feuer! Gleich schrumpft es."
 	if key == "age" and gs != null:
 		var age := gs.age_name()
-		return "Deine Welt ist jetzt %s %s. %s" % [str(AGE_PREP.get(age, "in der")), age, _next_age_text()]
+		return "%s! %s" % [age, _next_age_text()]
 	return str(COACH.get(key, ""))
 
 
@@ -3700,7 +3702,7 @@ func _on_field_tapped(fid: int) -> void:
 func _bonus_refusal(kind: String, err: String) -> String:
 	var gs := Game.state
 	if kind == "rain" and gs != null and gs.rain > 0:
-		return "Regen geht auf Erde, Wiese und Wald (leuchtet blau) – oder auf Feuer."
+		return "Regen nur auf blau leuchtende Felder."
 	return err
 
 
@@ -3726,7 +3728,7 @@ func _punish_pick(kind: String, fid: int) -> void:
 		mode_hint.text = "%s wird %s. Kostet %d Glauben." % [FieldData.kind_name(f.kind), to, Balance.STRIKE_COST]
 	else:
 		mode_label.text = "Noch einmal tippen: Flut!"
-		mode_hint.text = "Diese Seite wird reingewaschen. Kostet %d Glauben." % Balance.FLOOD_COST
+		mode_hint.text = "Wäscht diese Seite. %d Glauben." % Balance.FLOOD_COST
 	_place_context(mode_card)
 	_pop(mode_card, 1.04)
 	Style.haptic(Style.HAPTIC_TAP)
@@ -3798,7 +3800,7 @@ func _fill_sheet(fid: int) -> void:
 	var tut := Game.tutorial()      # Regen und Blitz kommen erst nach dem Tutorial
 	var body := ""
 	if f.burning:
-		body = "Brennt! Beim nächsten Zug schrumpft es – außer du gießt es."
+		body = "Brennt! Gieß es schnell."
 	elif k == FieldData.EMPTY:
 		body = "Leere Erde." if tut else _kind_body(0, false) + " Mit Regen wird hier eine Wiese."
 	else:
@@ -3908,17 +3910,17 @@ func _miss_text(why: String) -> Array:
 	if why == "repeat":
 		return ["Zurückgedreht", "Dreh eine andere Scheibe"]
 	if why == "spent":
-		return ["Schon gewachsen", "Bau eine neue Reihe mit einem anderen Feld"]
+		return ["Schon gewachsen", "Bring ein anderes Feld rein"]
 	if why == "standing":
-		return ["Stand schon da", "Bring ein neues Feld in die Reihe"]
+		return ["Stand schon da", "Bring ein neues Feld rein"]
 	if why == "finished":
 		return ["Fertig", "Wächst nicht mehr"]
 	if why == "diag":
 		if _diag_text() == "Nur gerade Reihen zählen":
-			return ["Schräg zählt nicht", "Leg die drei gerade nebeneinander"]
+			return ["Schräg zählt nicht", "Bring 3 gleiche in eine gerade Reihe"]
 		return ["Schräg", _diag_text()]
 	if why == "water":
-		return ["Wasser wächst nie", "Bring drei Erden zusammen"]
+		return ["Wasser wächst nie", "Bring 3 gleiche in eine Reihe"]
 	return ["", "Nichts gewachsen"]
 
 
@@ -3928,7 +3930,7 @@ func _rest_action(k: int) -> String:
 	if gs != null:
 		for p in FieldData.KIND_COUNT:
 			if int(FieldData.NEXT[p]) == k and gs.can_row(p):
-				return "Mach lieber neue %s aus %s" % [FieldData.kind_plural(k), FieldData.kind_plural(p)]
+				return "Mach neue %s aus %s" % [FieldData.kind_plural(k), FieldData.kind_plural(p)]
 	return str(Days.TEXT["rest"])
 
 
@@ -3950,8 +3952,8 @@ func _rest_text(k: int, nx: int) -> String:
 	var from := Game.day_no + 1 if Game.in_day() else 1
 	for d in range(maxi(1, from), Days.count() + 1):
 		if (Days.config(d).get("unlocked", []) as Array).has(nx):
-			return "%s wachsen erst ab Tag %d weiter" % [name, d]
-	return "%s wachsen erst im freien Spiel weiter" % name
+			return "%s erst ab Tag %d" % [name, d]
+	return "%s erst im freien Spiel" % name
 
 
 ## Eine stille Reihe (World._still_fx): drei gleiche, die nicht wachsen. Die Felder leuchten schon mit Abzeichen;
@@ -3976,7 +3978,7 @@ func _on_still(info: Dictionary) -> void:
 	var icon_name := str(World.STILL_BADGE.get(why, "info"))
 	if why == "rest":
 		# Kopfzeile: warum (ruht bis Tag n), Satz: was heute stattdessen wächst (eine Pille, keine zweite Karte)
-		caps = "Ruht heute · " + _rest_text(int(info.get("kind", 0)), int(info.get("next", -1)))
+		caps = "Ruht · " + _rest_text(int(info.get("kind", 0)), int(info.get("next", -1)))
 		text = _rest_action(int(info.get("kind", 0)))
 	else:
 		var mt := _miss_text(why)
@@ -4017,11 +4019,11 @@ func _on_miss(_fid: int, count: int, why: String = "") -> void:
 		_show_banner("miss", str(mt[0]), str(mt[1]), "fire_off")
 		Style.haptic(Style.HAPTIC_TAP)
 	elif why == "repeat":
-		_on_message("Nur zurückgedreht – das zählt nicht.", "info")       # gleich brennt es: sagen, warum
+		_on_message("Zurückgedreht zählt nicht.", "info")       # gleich brennt es: sagen, warum
 	elif why == "spent" or why == "standing":
-		_on_message("Diese Reihe ist schon gewachsen – sie zählt nur einmal.", "info")
+		_on_message("Diese Reihe zählt nur einmal.", "info")
 	elif why == "diag":
-		_on_message(_diag_text() + " – schräg wächst hier nichts.", "info")
+		_on_message(_diag_text() + ".", "info")
 	var slot: TextureRect = miss_flames[clampi(count - 1, 0, miss_flames.size() - 1)]
 	slot.set_meta("lock", _time + 1.2)
 	var fl := TextureRect.new()
@@ -4369,7 +4371,7 @@ func _on_mode_row(key: String) -> void:
 		var row: Dictionary = _menu_rows.get(key, {})
 		var b: Control = row.get("btn", _menu_free_caps)
 		_shake(b)
-		_show_tooltip(b, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen. Dann geht das freie Spiel auf.")
+		_show_tooltip(b, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen.")
 		_tip_hide_at = _time + 2.4
 		return
 	if key == _current_mode_key() and _game_running():
@@ -4463,9 +4465,9 @@ func _show_help() -> void:
 	(_help_rows["smog"] as Control).visible = ever.has(FieldData.INDUSTRY) or (gs != null and gs.tool_unlocked("flood"))
 	(_help_rows["goal"] as Control).visible = gs != null and gs.tool_unlocked("strike")
 	if gs != null and gs.complete_goal() > 0:
-		_help_goal.text = "Fertige Felder wachsen nicht mehr, bringen aber Glauben. Vollende deine Welt mit %d fertigen Feldern – und die Waage nicht im Roten." % gs.complete_goal()
+		_help_goal.text = "Vollende %d fertige Felder." % gs.complete_goal()
 	else:
-		_help_goal.text = "Fertige Felder wachsen nicht mehr, bringen aber jede Runde Glauben."
+		_help_goal.text = "Fertige Felder bringen Glauben."
 	(_help_rows["bolt"] as Control).visible = seen.has("bolt") or _known("bolt") or (gs != null and gs.bolts > 0)
 	(_help_rows["monsoon"] as Control).visible = seen.has("monsoon") or (gs != null and gs.monsoon_unlocked)
 	(_help_rows["strike"] as Control).visible = gs != null and gs.tool_unlocked("strike")
@@ -4478,9 +4480,9 @@ func _show_help() -> void:
 		_fill_help_tree(gs)
 	var wish_l := ((_help_rows["wish"] as Control).get_child(1) as Control).get_child(1) as Label
 	if day and not _faith_shown():
-		wish_l.text = "Die Menschen wünschen sich etwas. Erfüll es in %d Drehungen – dann wächst ihr Haus." % Balance.WISH_TWISTS
+		wish_l.text = "Wunsch in %d Drehungen: Haus wächst." % Balance.WISH_TWISTS
 	else:
-		wish_l.text = "Die Menschen wünschen sich etwas. Erfüll es in %d Drehungen – das bringt Glauben." % Balance.WISH_TWISTS
+		wish_l.text = "Erfüll Wünsche in %d Drehungen." % Balance.WISH_TWISTS
 	(_help_rows["will"] as Control).visible = not day or not (gs.day.get("choices", []) as Array).is_empty()
 	(_help_rows["faith"] as Control).visible = not day or gs.goal_type() == "faith"
 	(_help_rows["fire"] as Control).visible = not day or not gs.no_fire
@@ -4489,10 +4491,10 @@ func _show_help() -> void:
 	var fire_t := ((_help_rows["fire"] as Control).get_child(1) as Control).get_child(0) as Label
 	if day:
 		fire_t.text = "Flammen"
-		fire_l.text = "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – Regen löscht das Feuer."
+		fire_l.text = "Wächst nichts: Flamme. 3 Flammen: Feuer."
 	else:
 		fire_t.text = "Flammen & Herzen"
-		fire_l.text = "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – das kostet ein Herz. Ohne Herzen ist das Spiel vorbei."
+		fire_l.text = "3 Flammen: Feuer. Kostet ein Herz."
 	_open_modal(help_card)
 
 
@@ -5011,7 +5013,7 @@ func _on_war(fids: Array, faith: int) -> void:
 func _on_smog(_w: int, withered: Array) -> void:
 	if _last_scale_zone != "smog" or not _smog_banner:
 		_smog_banner = true
-		_show_banner("smog", "Zu viel Industrie · kein Glaube pro Runde", "Smog!", "smog")
+		_show_banner("smog", "Zu viel Industrie", "Smog!", "smog")
 		_pop(scale_chip, 1.12)
 	var n := 0
 	for i in withered:

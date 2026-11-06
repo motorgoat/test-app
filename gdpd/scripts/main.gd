@@ -517,6 +517,9 @@ func _days_tour(dir: String) -> void:
 		"free_play", "tag=%s stufe=%d" % [str(Game.in_day()), Game.level])
 	# 12. Am Spieltag nach Tag 7: die Welt des Tages (Heute-Karte, echte Eingabe „Los!“ → ihre Ziel-Karte)
 	Game.debug_open_all = false
+	for i in Game.day_stars.size():        # die Tour hat die Tage 3–6 nur angespielt: als gewonnen zählen
+		if int(Game.day_stars[i]) <= 0:
+			Game.day_stars[i] = 1
 	Game.debug_next_day()
 	dui.show_overview(false)
 	await _wait(1.2)
@@ -1460,10 +1463,10 @@ func _rain_check(dir: String) -> void:
 		await _touch(w["pos"])
 		for i in 60:
 			await get_tree().process_frame
-			if ui.toast.visible and ui.toast_label.text.begins_with("Regen geht"):
+			if ui.toast.visible and ui.toast_label.text == "Regen nur auf blau leuchtende Felder.":
 				told = true
 			for m in ui._toasts:
-				if str((m as Dictionary)["text"]).begins_with("Regen geht"):
+				if str((m as Dictionary)["text"]).begins_with("Regen nur"):
 					told = true
 			if told:
 				break

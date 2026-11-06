@@ -62,36 +62,36 @@ const CHOICE_HEADER := "Dein Wille geschehe"
 const CHOICE_TITLE = {MEADOW: "Was soll hier wachsen?", VILLAGE: "Was baut das Dorf?", TOWN: "Wie wächst die Stadt?",
 	ANIMALS: "Was wird aus den Tieren?", BIGFOREST: "Wer soll hier leben?"}
 ## Kurzer Satz unter jeder Option (Schlüssel: die Art, die daraus wird).
-const CHOICE_LINE = {FOREST: "Für Tiere und frische Luft.", FIELD: "Essen für die Menschen.",
-	ANIMALS: "Tiere machen den Wald lebendig.", HUT: "Menschen ziehen zu den Tieren.",
-	TOWN: "Die Menschen bauen eine Stadt.", CHURCH: "Viel Glaube. Aber Kirchen streiten gern.",
-	BIGCITY: "Mehr Menschen, mehr Leben.", INDUSTRY: "Schnell viel Glaube – aber Smog.",
-	PARADISE: "Ein Naturwunder. Wächst nicht mehr, bringt Glauben."}
+const CHOICE_LINE = {FOREST: "Für Tiere und Luft.", FIELD: "Essen für die Menschen.",
+	ANIMALS: "Leben im Wald.", HUT: "Menschen ziehen ein.",
+	TOWN: "Eine Stadt entsteht.", CHURCH: "Viel Glaube, aber Streit.",
+	BIGCITY: "Mehr Menschen, mehr Leben.", INDUSTRY: "Viel Glaube, aber Smog.",
+	PARADISE: "Ein Naturwunder. Bringt Glauben."}
 ## Erklärung beim langen Drücken auf ein Feld (freies Spiel; an einem Tag: GameState.kind_help).
 const KIND_HELP = [
-	"Erde. Drei in einer Reihe werden eine Wiese.",
-	"Wiese. Drei in einer Reihe: Wald oder Acker – du wählst.",
-	"Wald. Drei in einer Reihe werden ein großer Wald.",
-	"Acker. Essen für Menschen. Drei in einer Reihe: eine Hütte.",
-	"Großer Wald. Drei in einer Reihe bringen Tiere.",
-	"Tiere. Drei in einer Reihe: Menschen ziehen ein – eine Hütte oder ein Paradies.",
-	"Hier wohnen Menschen. Drei in einer Reihe wachsen weiter.",
-	"Hier wohnen Menschen. Drei in einer Reihe wachsen weiter.",
-	"Dorf. Drei in einer Reihe: Stadt oder Kirche.",
-	"Stadt. Drei in einer Reihe: Großstadt oder Industrie.",
-	"Kirche. Fertig. Bringt jede Runde 3 Glauben. Treffen sich zwei Kirchen durch eine Drehung, gibt es Krieg.",
-	"Großstadt. Drei in einer Reihe: eine Metropole.",
-	"Industrie. Fertig. Bringt jede Runde 5 Glauben – aber sie macht die Welt schmutzig.",
-	"Metropole. Fertig. Bringt jede Runde 2 Glauben.",
-	"Paradies. Fertig – wächst nicht mehr. Bringt jede Runde 1 Glauben.",
+	"Erde. Wird zur Wiese.",
+	"Wiese. Wird Wald oder Acker.",
+	"Wald. Wird großer Wald.",
+	"Acker. Essen. Wird zur Hütte.",
+	"Großer Wald. Bringt Tiere.",
+	"Tiere. Werden Hütte oder Paradies.",
+	"Hier wohnen Menschen.",
+	"Hier wohnen Menschen.",
+	"Dorf. Wird Stadt oder Kirche.",
+	"Stadt. Wird Großstadt oder Industrie.",
+	"Kirche. +3 Glauben. Zwei Kirchen: Krieg!",
+	"Großstadt. Wird Metropole.",
+	"Industrie. +5 Glauben. Macht Smog.",
+	"Metropole. +2 Glauben.",
+	"Paradies. +1 Glauben.",
 	"Wasser. Hier wächst nichts.",
 ]
 ## Texte, solange die Wahl dieser Art noch nicht freigeschaltet ist (vor Tag 5 bzw. in den 7 Tagen).
-const KIND_HELP_NO_CHOICE = {MEADOW: "Wiese. Drei in einer Reihe werden ein Wald.",
-	ANIMALS: "Tiere. Drei in einer Reihe: Menschen ziehen ein – eine Hütte.",
-	VILLAGE: "Dorf. Drei in einer Reihe werden eine Stadt.", TOWN: "Stadt. Drei in einer Reihe werden eine Großstadt."}
+const KIND_HELP_NO_CHOICE = {MEADOW: "Wiese. Wird Wald.",
+	ANIMALS: "Tiere. Werden Hütte.",
+	VILLAGE: "Dorf. Wird Stadt.", TOWN: "Stadt. Wird Großstadt."}
 ## Zusatz für eine Art, die heute ruht (ihre nächste Art ist an diesem Tag noch nicht freigeschaltet).
-const REST_HELP := "Morgen wächst hier mehr."
+const REST_HELP := "Wächst erst später."
 
 # --- Ein Feld -----------------------------------------------------------------------------
 var id: int = 0

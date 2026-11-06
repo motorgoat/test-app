@@ -1022,7 +1022,7 @@ func _build_fail_card() -> void:
 func _build_free_card() -> void:
 	free_card = ui._modal_card(str(Days.TEXT["free"]), true)
 	var v: VBoxContainer = free_card.get_meta("body")
-	var sub := _center(ui._label("Bau deine Welt weiter, bis sie vollendet ist.", 16, Style.INK_2, Style.W_BODY))
+	var sub := _center(ui._label("Bau weiter, bis sie vollendet ist.", 16, Style.INK_2, Style.W_BODY))
 	v.add_child(sub)
 	free_continue = ui._button("Weiterspielen", "primary", "", 56)
 	free_continue.pressed.connect(_on_free_continue)
@@ -1062,7 +1062,7 @@ func _build_ask_card() -> void:
 	ask_text.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 84 - 16, 0)
 	ask_text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(ask_text)
-	var foot := _center(ui._label("Höchstens eine am Tag. Nie zwischen 21:30 und 8:00 Uhr.", 14, Style.INK_3, Style.W_LABEL))
+	var foot := _center(ui._label("Max. 1 am Tag. Nie nachts.", 14, Style.INK_3, Style.W_LABEL))
 	v.add_child(foot)
 	ask_yes = ui._button("Ja, gern", "primary", "check", 60)
 	ask_yes.pressed.connect(_on_ask_answer.bind(true))
@@ -1222,7 +1222,7 @@ func _fill_week(week: Array, streak: int, best: int) -> void:
 			st = str((e as Dictionary).get("state", "none")) if e is Dictionary else str(e)
 		(week_cells[i] as WeekDot).set_state(st)
 		(week_letters[i] as Label).add_theme_color_override("font_color", Style.SUN_DEEP if st == "today" or st == "streak" else Style.INK_3)
-	week_line.text = str(Days.TEXT["streak"]) % [streak, best] if streak != 1 else "Serie: 1 Tag · Rekord: %d" % best
+	week_line.text = str(Days.TEXT["streak"]) % [streak, best] if streak != 1 else "Serie 1 · Rekord %d" % best
 
 
 ## Was der Charakter in der Übersicht sagt: einmal das Wiederkommen (Serienschutz / neue Serie), spät am Abend
@@ -1378,7 +1378,7 @@ func _on_shield_buy() -> void:
 func _on_free_pressed() -> void:
 	if not Game.free_play_unlocked():
 		ui._shake(ov_free)
-		ui._show_tooltip(ov_free, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen. Dann ist deine Welt vollendet – und das freie Spiel geht auf.")
+		ui._show_tooltip(ov_free, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen.")
 		ui._tip_hide_at = ui._time + 2.6
 		return
 	_open_free()
@@ -1806,9 +1806,9 @@ func _on_move_done(kind: String) -> void:
 				ui._dock_in(0.0)
 		# Nur Text und Leuchten (die Scheibe bewegt sich nicht von selbst)
 		if Game.tutorial_move().is_empty():
-			_show_lane("Tipp auf „Tipp“ – dann leuchtet eine gute Reihe.", "Du bist dran", "bulb", Style.LEAF_TINT, INF)
+			_show_lane("Tipp auf „Tipp“.", "Du bist dran", "bulb", Style.LEAF_TINT, INF)
 		else:
-			_show_lane("Fast! Wisch über die leuchtende Reihe.", "Du bist dran", "touch", Style.LEAF_TINT, INF)
+			_show_lane("Fast! Wisch die leuchtende Reihe.", "Du bist dran", "touch", Style.LEAF_TINT, INF)
 	elif lane.visible and _lane_until == INF and _tut != 1 and _tut != 2:
 		_hide_lane()
 	elif lane.visible and _tut == 0 and _lane_until != INF:
@@ -1980,26 +1980,26 @@ func tooltip(key: String) -> Dictionary:
 		var info := Game.day_info()
 		var left := Game.state.twists_left()
 		if Game.state.day_free_build:
-			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Geschafft! Jetzt baust du ohne Grenze weiter. Die Zahl zeigt, wie viel seit dem Sieg gewachsen ist. Je 10 Felder gibt es 1 Münze (höchstens 3 am Tag)."}
+			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Grenze weiterbauen. Je 10 Felder 1 Münze."}
 		var body := "%s. %s" % [str(info.get("goal_text", "")), str(Days.TEXT["left"]) % left]
 		var st: Dictionary = info.get("status", {})
 		if bool(st.get("need_green", false)):
-			body += " Grün ist die Mitte der Weltwaage."
+			body += " Waage muss grün sein."
 		return {"icon": _goal_icon(info), "title": "Deine Aufgabe", "body": body}
 	if key == "day_rule":
-		return {"icon": "swords", "title": "Kein Krieg!", "body": "Bring nie zwei Kirchen durch eine Drehung zusammen. Ein Krieg beendet den Tag."}
+		return {"icon": "swords", "title": "Kein Krieg!", "body": "Treffen sich zwei Kirchen: Krieg."}
 	if key == "day_streak":
 		var st := Game.streak()
-		return {"icon": "streak", "title": "Deine Serie", "body": "%s Jeden Tag, an dem du ein Level schaffst, wächst sie um eins. Rekord: %d." % [
+		return {"icon": "streak", "title": "Deine Serie", "body": "%s Rekord: %d." % [
 			"Noch keine Serie." if st == 0 else ("1 Tag in Folge." if st == 1 else "%d Tage in Folge." % st), int(Game.daily.get("streak_best", 0))]}
 	if key == "day_week":
-		return {"icon": "streak", "title": str(Days.TEXT["week"]), "body": "Flamme: geschafft. Schild: dein Serienschutz hat den Tag gerettet. Leerer Kreis: verpasst."}
+		return {"icon": "streak", "title": str(Days.TEXT["week"]), "body": "Flamme: geschafft. Schild: gerettet. Kreis: verpasst."}
 	if key == "day_coins":
-		return {"icon": "coin", "title": "Münzen", "body": "Du hast %d Münzen. Damit kaufst du Serienschutz (5 Münzen) und im freien Spiel Tipps. Neue gibt es fürs Weiterbauen." % Game.credits}
+		return {"icon": "coin", "title": "Münzen", "body": "Du hast %d. Für Serienschutz und Tipps." % Game.credits}
 	if key == "day_stars":
-		return {"icon": "star", "title": "Sterne", "body": "Je weniger Drehungen du für einen Tag brauchst, desto mehr Sterne. Du hast %d von %d." % [Game.stars_total(), Game.stars_max()]}
+		return {"icon": "star", "title": "Sterne", "body": "Weniger Drehungen, mehr Sterne. %d von %d." % [Game.stars_total(), Game.stars_max()]}
 	if key == "day_free":
-		return {"icon": "trophy", "title": str(Days.TEXT["free"]), "body": "Bau deine Welt weiter, bis sie vollendet ist: Einfach, Mittel, Schwer oder 40 Drehungen. Geht nach Tag 7 auf."}
+		return {"icon": "trophy", "title": str(Days.TEXT["free"]), "body": "Nach Tag 7: frei weiterbauen."}
 	if key.begins_with("day_tile_"):
 		var n := int(key.substr(9))
 		var cfg := Days.config(n)
@@ -2242,7 +2242,7 @@ func _show_fail(info: Dictionary, gen: int) -> void:
 	var try_title := str(Days.TEXT["lost_close"] if close else Days.TEXT["lost_try"])
 	fc_body.text = str(Days.TEXT["lost_body"])
 	if why == "war":
-		fc_caps.text = "Krieg!"
+		fc_caps.text = "Zwei Kirchen trafen sich"
 		fc_title.text = str(Days.TEXT["lost_war"])
 		fc_body.text = str(Days.TEXT["lost_war_body"])
 		ui._set_tile(fc_tile, "swords", Style.FIRE_TINT)

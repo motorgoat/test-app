@@ -28,64 +28,8 @@ const DEFAULT_NAME := "Gott"
 ## Kategorie je Stufe der Leiter: A = 1. Tag nach dem letzten Besuch, B = 2., C = 4., F = letzte Nachricht (7.).
 const LADDER_CATS = ["A", "B", "C", "F"]
 
-## Texte (4.7). s = nur bei einer Serie ab 2 Tagen. Platzhalter: {name}, {tag}, {streak}. Nie mit {tag} beginnen.
-const TEMPLATES = {
-	"lieb": [
-		{"id": "l01", "cat": "A", "text": "Hallo! Heute wartet {tag} auf dich."},
-		{"id": "l02", "cat": "A", "text": "Deine Welt ist aufgewacht. Kommst du sie besuchen?"},
-		{"id": "l03", "cat": "A", "text": "Ich hab Regen für dich aufgehoben. Spielen wir eine Runde?"},
-		{"id": "l04", "cat": "A", "text": "Ein paar Drehungen, und deine Welt wird wieder ein Stück grüner."},
-		{"id": "l05", "cat": "A", "s": true, "text": "Deine Serie: {streak} Tage! Machen wir heute weiter?"},
-		{"id": "l06", "cat": "A", "text": "Die Wiesen fragen schon nach dir. Schaust du kurz vorbei?"},
-		{"id": "l07", "cat": "A", "text": "Heute ist ein guter Tag für {tag}. Ich freu mich auf dich!"},
-		{"id": "l08", "cat": "A", "text": "Nur fünf Minuten? Mehr braucht deine Welt heute nicht."},
-		{"id": "l09", "cat": "B", "text": "Ich hab dich gestern vermisst. Hast du heute ein bisschen Zeit?"},
-		{"id": "l10", "cat": "B", "text": "Deine Welt ist ein bisschen still ohne dich. Kommst du heute?"},
-		{"id": "l11", "cat": "B", "text": "Kein Stress! Wenn du Zeit hast: {tag} ist bereit."},
-		{"id": "l12", "cat": "C", "text": "Ich denk an dich! Deine Welt ist noch da – genau wie ich."},
-		{"id": "l13", "cat": "C", "text": "Wir können jederzeit neu anfangen. Ich warte gern auf dich."},
-		{"id": "l14", "cat": "C", "text": "Schau doch mal wieder rein. Ich hab dir viel zu zeigen!"},
-	],
-	"frech": [
-		{"id": "f01", "cat": "A", "text": "Psst! {tag} ist da. Ich hab nicht reingeschaut. Fast nicht."},
-		{"id": "f02", "cat": "A", "text": "Deine Welt dreht sich nicht von allein. Hilfst du mir?"},
-		{"id": "f03", "cat": "A", "text": "Mir ist langweilig. Rettest du mich mit ein paar Drehungen?"},
-		{"id": "f04", "cat": "A", "text": "Die Wiesen wollen Wald werden. Ich kann das nicht – du schon."},
-		{"id": "f05", "cat": "A", "s": true, "text": "{streak} Tage am Stück! Machen wir heute einen mehr draus?"},
-		{"id": "f06", "cat": "A", "text": "Achtung, Durchsage: {name} sucht Gesellschaft. Belohnung: Spaß!"},
-		{"id": "f07", "cat": "A", "text": "Ich hab ganz zufällig Regen übrig. Willst du?"},
-		{"id": "f08", "cat": "A", "text": "Kurze Frage: Wer hat hier die Welt erschaffen? Genau, du. Weiter geht's!"},
-		{"id": "f09", "cat": "B", "text": "Gestern keine Drehung? Ich hab's gesehen. Ich sag's aber keinem."},
-		{"id": "f10", "cat": "B", "text": "Huhu! Deine Welt hat ein kleines bisschen Staub angesetzt. Kommst du?"},
-		{"id": "f11", "cat": "B", "text": "Ich hab Kekse. Okay, hab ich nicht. Aber {tag} hab ich!"},
-		{"id": "f12", "cat": "C", "text": "Ich hab angefangen, mit den Wolken zu reden. Komm bitte zurück!"},
-		{"id": "f13", "cat": "C", "text": "Lange nicht gesehen! Ich hab neue Witze. Und deine Welt."},
-		{"id": "f14", "cat": "C", "text": "Hallooo? Ist da wer? Deine Welt würde gern weiterwachsen."},
-	],
-	"streng": [
-		{"id": "s01", "cat": "A", "text": "Die Welt wartet. Heute ist {tag} bereit."},
-		{"id": "s02", "cat": "A", "text": "Zeit für deine tägliche Schöpfung. Ein paar Minuten genügen."},
-		{"id": "s03", "cat": "A", "text": "Ordnung muss sein: heute eine Runde. Ich zähle auf dich."},
-		{"id": "s04", "cat": "A", "text": "Eine Welt baut sich nicht von selbst. Fangen wir an."},
-		{"id": "s05", "cat": "A", "s": true, "text": "{streak} Tage in Folge. So eine Serie pflegt man."},
-		{"id": "s06", "cat": "A", "text": "Heute steht {tag} an. Pünktlich, bitte."},
-		{"id": "s07", "cat": "A", "text": "Die Wiesen stehen bereit. Es fehlt nur noch jemand, der dreht."},
-		{"id": "s08", "cat": "A", "text": "Eine Runde am Tag. Das ist der Plan. Bleib dabei."},
-		{"id": "s09", "cat": "B", "text": "Gestern war Pause. Heute geht es weiter."},
-		{"id": "s10", "cat": "B", "text": "Deine Welt hat heute noch nichts von dir gehört. Eine Runde?"},
-		{"id": "s11", "cat": "B", "text": "Kurze Erinnerung: {tag} ist bereit. Mehr verlange ich nicht."},
-		{"id": "s12", "cat": "C", "text": "Es ist ruhig geworden. Wenn du bereit bist, machen wir weiter."},
-		{"id": "s13", "cat": "C", "text": "Deine Welt ist in Ordnung. Ich habe aufgepasst. Kommst du zurück?"},
-		{"id": "s14", "cat": "C", "text": "Jede Welt verdient eine zweite Chance. Deine auch."},
-	],
-}
-
-## Die letzte Nachricht je Ton (Kategorie F, immer dieselbe, zählt nicht für die Wiederholungs-Sperre).
-const FINALS = {
-	"lieb": {"id": "lF", "text": "Ich erinnere dich jetzt nicht mehr. Deine Welt und ich sind da, wenn du wiederkommst. Alles Liebe!"},
-	"frech": {"id": "fF", "text": "Okay, ich hab's kapiert: Pause! Ich bin jetzt still. Aber wenn du wiederkommst, freu ich mich riesig."},
-	"streng": {"id": "sF", "text": "Ich erinnere dich nicht mehr. Deine Welt bleibt, wie sie ist. Wenn du wiederkommst: Ich bin bereit."},
-}
+## Die Texte (4.7) stehen in CharacterTexts.NOTIFY (eine Quelle für Spiel und Erinnerung). streak = nur bei einer
+## Serie ab 2 Tagen. F = die letzte Nachricht je Ton (immer dieselbe, zählt nicht für die Wiederholungs-Sperre).
 
 
 static func _tone(t: String) -> String:
@@ -145,22 +89,23 @@ static func entry(id: int, at: int, key: int, cat: String, tpl: String, who: Str
 
 ## Alle Texte eines Tons (ohne die letzte Nachricht).
 static func templates(tone: String) -> Array:
-	return TEMPLATES.get(_tone(tone), [])
+	var out: Array = []
+	for e in (CharacterTexts.NOTIFY.get(_tone(tone), []) as Array):
+		if str((e as Dictionary)["cat"]) != "F":
+			out.append(e)
+	return out
 
 
 static func final_id(tone: String) -> String:
-	return str((FINALS[_tone(tone)] as Dictionary)["id"])
+	for e in (CharacterTexts.NOTIFY.get(_tone(tone), []) as Array):
+		if str((e as Dictionary)["cat"]) == "F":
+			return str((e as Dictionary)["id"])
+	return ""
 
 
 ## Text zu einer ID ("" = unbekannt).
 static func text_of(id: String) -> String:
-	for t in TONES:
-		if str((FINALS[t] as Dictionary)["id"]) == id:
-			return str((FINALS[t] as Dictionary)["text"])
-		for e in (TEMPLATES[t] as Array):
-			if str((e as Dictionary)["id"]) == id:
-				return str((e as Dictionary)["text"])
-	return ""
+	return str(CharacterTexts.notification_by_id(id).get("text", ""))
 
 
 static func is_final(id: String) -> bool:
@@ -178,7 +123,7 @@ static func _pool(tone: String, cat: String, streak: int) -> Array:
 		var d: Dictionary = e
 		if str(d["cat"]) != cat:
 			continue
-		if bool(d.get("s", false)) and (cat != "A" or streak < 2):
+		if bool(d.get("streak", false)) and (cat != "A" or streak < 2):
 			continue
 		out.append(str(d["id"]))
 	return out

@@ -47,10 +47,10 @@ const LEVELS = ["Einfach", "Mittel", "Schwer"]
 const MODE_KEYS = ["einfach", "mittel", "schwer"]
 const CHALLENGE_LEVEL := 1
 const MODE_INTRO = {
-	"einfach": "Einfach: Ganze Gruppen wachsen mit. Du hast 5 Herzen.",
-	"mittel": "Mittel: Schräge Reihen zählen ab dem Wald.",
-	"schwer": "Schwer: Nur gerade Reihen zählen.",
-	"challenge": "40 Drehungen: Wie viel Glauben schaffst du?",
+	"einfach": "Einfach: Gruppen wachsen mit. 5 Herzen.",
+	"mittel": "Mittel: Schräg zählt ab Wald.",
+	"schwer": "Schwer: Nur gerade Reihen.",
+	"challenge": "Wie viel Glaube in 40 Drehungen?",
 }
 ## Was neue Spieler nach und nach kennenlernen (in coach_seen gemerkt, „Tutorial nochmal“ setzt es zurück).
 const REVEAL_FLAGS = ["show_undo", "show_hint", "show_bolt", "show_coins", "show_flames"]
@@ -352,15 +352,15 @@ func finish_round(result: Dictionary) -> void:
 		if str(e["type"]) == "disaster" and not state.is_over() and coach_seen.has("fire"):
 			# Beim ersten Feuer erklärt ein Hinweis alles; danach eine kurze Meldung
 			if state.hearts:
-				message.emit("Feuer! Noch %d %s. Gieß die brennenden Felder." % [state.lives, "Herz" if state.lives == 1 else "Herzen"], "bad")
+				message.emit("Feuer! Noch %d %s." % [state.lives, "Herz" if state.lives == 1 else "Herzen"], "bad")
 			else:
-				message.emit("Feuer! Gieß die brennenden Felder.", "bad")
+				message.emit("Feuer! Gieß es mit Regen.", "bad")
 		if str(e["type"]) == "gift":
-			message.emit("Gerade passt nichts zusammen. Hier ist ein Regen!", "good")
+			message.emit("Nichts passt. Hier, ein Regen!", "good")
 	# Nichts mehr zu verbinden? Dann gibt es einen Regen geschenkt. (An den Tagen macht das der Spielstand.)
 	if not state.is_day() and not state.is_over() and state.gadgets and state.stuck():
 		state.grant("rain")
-		message.emit("Gerade passt nichts zusammen. Hier ist ein Regen!", "good")
+		message.emit("Nichts passt. Hier, ein Regen!", "good")
 	var moved_goal := false
 	for e in result["events"]:
 		if str(e["type"]) == "goal":
@@ -457,7 +457,7 @@ func continue_game() -> void:
 	if state.stuck():
 		state.rain = maxi(state.rain, 2)
 	over = false
-	message.emit("Deine Welt bekommt noch eine Chance!", "good")
+	message.emit("Noch eine Chance!", "good")
 	state_changed.emit()
 
 

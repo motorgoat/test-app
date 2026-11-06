@@ -1144,7 +1144,7 @@ func test_undo() -> void:
 func test_ages() -> void:
 	var gs := empty_state()
 	check(gs.age() == 1 and gs.age_name() == "Urzeit", "Start in der Urzeit")
-	check(gs.next_age_goal() == "Als Nächstes: Steinzeit – leg einen Acker an oder bau eine Hütte.", "Ziel-Text Urzeit")
+	check(gs.next_age_goal() == "Als Nächstes: Steinzeit – Acker oder Hütte.", "Ziel-Text Urzeit")
 	var names: Array = []
 	for k in [FOREST, ANIMALS, PARADISE, FIELD, HOUSE, VILLAGE, CHURCH, INDUSTRY, METROPOLIS]:
 		gs.ever[k] = true
@@ -1445,7 +1445,7 @@ func test_rests_today() -> void:
 	var t2 := ready_row(g2, MEADOW)
 	twist(g2, 0, 1, 1)
 	check(t2.kind == FOREST and g2.card == -1, "Tag 2 (Wald frei): die Wiesen-Reihe wird Wald, ohne Karte")
-	check(g2.kind_help(MEADOW) == "Wiese. Drei in einer Reihe werden ein Wald.", "Tag 2: Erklärung ohne Wahl")
+	check(g2.kind_help(MEADOW) == "Wiese. Wird Wald.", "Tag 2: Erklärung ohne Wahl")
 	var g3 := day_state(3)
 	var faces_ok := true
 	for f in g3.face_fields(UP):
@@ -2449,6 +2449,7 @@ func _daily_tests() -> void:
 	test_reminder_templates()
 	test_daily_debug()
 	test_voice_and_ask()
+	test_short_texts()
 
 
 ## Ortszeit (lokale Unix-Sekunden).
@@ -3090,3 +3091,44 @@ func test_voice_and_ask() -> void:
 	check(not g.reminder_ask_due(9) and int(g.remind["asked"]) == 2, "Fragen: höchstens zweimal")
 	g.free()
 	DirAccess.remove_absolute(path)
+
+
+## Regel für alle Spieler-Texte (NAECHSTE_SCHRITTE „Texte“): ein kurzer Satz, höchstens 8 Wörter; die Regel heißt
+## allgemein „Bring 3 gleiche in eine Reihe.“ – nie „Bring 3 Erden zusammen“.
+func test_short_texts() -> void:
+	var texts: Array = []
+	for k in Days.TEXT:
+		texts.append(str(Days.TEXT[k]))
+	for n in range(1, Days.count() + 1):
+		var c := Days.config(n)
+		texts.append(str(c.get("intro", "")))
+		texts.append(str(c.get("goal_text", "")))
+		texts.append(str(c.get("rule_line", "")))
+		texts.append(str(c.get("coach_demo", "")))
+		texts.append(str(c.get("coach_tool", "")))
+		texts.append(str((c.get("new", {}) as Dictionary).get("text", "")))
+		for t in (c.get("coach", []) as Array):
+			texts.append(str(t))
+	# ui.gd braucht das Autoload Game (im --script-Lauf nicht kompilierbar): die Texte aus dem Quelltext lesen
+	var src := FileAccess.get_file_as_string("res://scripts/ui.gd")
+	var re := RegEx.create_from_string('(?:"text"|"body"|"[a-z]+"): "([^"]*)"')
+	for block in ["const TUT_STEPS = [", "const COACH = {", "const TOOLTIPS = {"]:
+		var from := src.find(block)
+		var to := src.find("\n}", from) if block.ends_with("{") else src.find("\n]", from)
+		for m in re.search_all(src.substr(from, to - from)):
+			var v := m.get_string(1)
+			if v.contains(" "):
+				texts.append(v)
+	for t in FieldData.KIND_HELP:
+		texts.append(str(t))
+	for k in GameState.WISH_TEXT:
+		texts.append(str(GameState.WISH_TEXT[k]))
+	for k in Character.TONE_SAMPLE:
+		texts.append(str(Character.TONE_SAMPLE[k]))
+	var bad: Array = []
+	for t in texts:
+		var tx := str(t)
+		if tx.split(" ", false).size() > 8 or tx.contains("Erden") or tx.contains("zusammen"):
+			bad.append(tx)
+	check(bad.is_empty(), "Texte kurz (≤ 8 Wörter, „Bring 3 gleiche in eine Reihe“): %s" % str(bad))
+	check(str(Days.config(1)["new"]["text"]) == "Bring 3 gleiche in eine Reihe.", "Tag 1 erklärt die Regel allgemein")
