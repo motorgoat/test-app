@@ -5,7 +5,7 @@ extends Node3D
 ##
 ## gdpd: Was gezeigt wird, hängt an der ART (kind, Spec GDPD_REGELN.md §1), nicht mehr an der Stufe.
 ##   0 Erde, 1 Wiese, 2 Wald, 3 Acker, 4 Großer Wald, 5 Tiere, 6 Hütte, 7 Haus, 8 Dorf, 9 Stadt,
-##   10 Kirche★, 11 Großstadt, 12 Industrie★, 13 Metropole★, 14 Paradies★   (★ = fertig)
+##   10 Kirche★, 11 Großstadt, 12 Industrie★, 13 Metropole★, 14 Paradies★ (★ = fertig), 15 Wasser (Hintergrund)
 ## Erwartet von FieldData: id, kind (oder ersatzweise das alte stage), fresh, burning.
 ## Öffentliche Schnittstelle (für World/UI):
 ##   refresh(f) · set_kind(kind, fresh, burning) · set_polluted(on) · set_wish(icon, left)
@@ -19,16 +19,16 @@ const TOP := 0.09
 const CONTENT_SCALE := 1.4
 
 enum { K_EMPTY, K_MEADOW, K_FOREST, K_FIELD, K_BIGFOREST, K_ANIMALS, K_HUT, K_HOUSE, K_VILLAGE, K_TOWN,
-	K_CHURCH, K_BIGCITY, K_INDUSTRY, K_METROPOLIS, K_PARADISE }
-const KIND_COUNT := 15
+	K_CHURCH, K_BIGCITY, K_INDUSTRY, K_METROPOLIS, K_PARADISE, K_WATER }
+const KIND_COUNT := 16
 
 ## Tabelle je Art (Index = kind id). Schlüssel und Symbole wie in der Spec.
 const KIND_KEY := ["empty", "meadow", "forest", "field", "bigforest", "animals", "hut", "house", "village", "town",
-	"church", "bigcity", "industry", "metropolis", "paradise"]
+	"church", "bigcity", "industry", "metropolis", "paradise", "water"]
 const KIND_ICON := ["empty", "meadow", "smallforest", "field", "nature", "animals", "hut", "house", "village", "town",
-	"church", "bigcity", "industry", "metropolis", "paradise"]
+	"church", "bigcity", "industry", "metropolis", "paradise", "water"]
 const KIND_TILE := ["#a5805c", "#c3e07a", "#4f9a46", "#e4b850", "#24552d", "#7cc56e", "#d9c08a", "#ebc97f", "#e6b468",
-	"#d4cdc2", "#c9b5f0", "#bdb6ad", "#7f7c7a", "#9aa0ab", "#48c49a"]
+	"#d4cdc2", "#c9b5f0", "#bdb6ad", "#7f7c7a", "#9aa0ab", "#48c49a", "#5b9fcf"]
 const FINISHED_KINDS := [K_CHURCH, K_INDUSTRY, K_METROPOLIS, K_PARADISE]
 const NATURE_KINDS := [K_MEADOW, K_FOREST, K_BIGFOREST, K_ANIMALS, K_PARADISE]
 ## Ersatz, solange FieldData noch das alte stage (0..9) hat: Stufe -> Art.
@@ -670,7 +670,10 @@ func _process(delta: float) -> void:
 	for i in _bobbers.size():
 		var b: Node3D = _bobbers[i]
 		if is_instance_valid(b):
-			b.position.y = absf(sin(_time * 2.6 + i * 1.7)) * 0.01
+			if b.has_meta("wave"):
+				b.position.x = float(b.get_meta("base_x")) + sin(_time * 0.9 + i * 2.0 + float(field_id)) * 0.03
+			else:
+				b.position.y = absf(sin(_time * 2.6 + i * 1.7)) * 0.01
 	for i in _smoke.size():
 		var sm: Node3D = _smoke[i]
 		if is_instance_valid(sm):
@@ -903,9 +906,28 @@ func _build_content(kind: int, fresh: int) -> void:
 			_people(2, Vector3(0.0, 0, 0.18), 0.05)
 		K_PARADISE:
 			_build_paradise(rng, wither)
+		K_WATER:
+			_build_water(rng)
 
 
 ## Paradies: Blütenbaum, Teich mit Ente, Regenbogen, leuchtende Blumen, Tiere und Funkeln.
+## Wasser: flache, ruhige Fläche mit ein paar hellen Wellen, die leicht schaukeln (kein Rand, keine Modelle).
+func _build_water(rng: RandomNumberGenerator) -> void:
+	var surf := Models.rbox(_content, Vector3(0.6, 0.006, 0.6), 0.03, Color.WHITE, Vector3(0, 0.002, 0), Vector3.ZERO,
+		Models.mat(Color("#6aaedb"), 0.55))
+	surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for k in 3:
+		var holder := Node3D.new()
+		holder.position = Vector3(rng.randf_range(-0.18, 0.18), 0.008, -0.18 + 0.18 * k + rng.randf_range(-0.04, 0.04))
+		_content.add_child(holder)
+		var wave := Models.rbox(holder, Vector3(0.14 + rng.randf() * 0.06, 0.006, 0.022), 0.011, Color.WHITE, Vector3.ZERO, Vector3.ZERO,
+			Models.unshaded(Color(1, 1, 1, 0.55)))
+		wave.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		holder.set_meta("wave", true)
+		holder.set_meta("base_x", holder.position.x)
+		_bobbers.append(holder)
+
+
 func _build_paradise(rng: RandomNumberGenerator, wither: bool) -> void:
 	Models.grass_patch(_content, 7, 10, Color("#5fcf6a"), 0.27)
 	# Regenbogen hinten

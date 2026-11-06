@@ -53,11 +53,11 @@ static func pairs(g: GameState) -> int:
 		var a: int = g.field_at(ln[0][0], ln[0][1]).kind
 		var b: int = g.field_at(ln[1][0], ln[1][1]).kind
 		var d: int = g.field_at(ln[2][0], ln[2][1]).kind
-		if a == b and FieldData.can_row(a) and d != a:
+		if a == b and g.can_row(a) and d != a:
 			c += 1
-		elif a == d and FieldData.can_row(a) and b != a:
+		elif a == d and g.can_row(a) and b != a:
 			c += 1
-		elif b == d and FieldData.can_row(b) and a != b:
+		elif b == d and g.can_row(b) and a != b:
 			c += 1
 	return c
 

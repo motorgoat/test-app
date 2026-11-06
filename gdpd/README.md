@@ -5,6 +5,26 @@
 
 Godot 4.3, GDScript, Renderer „Compatibility“. Hochformat, Handy zuerst; PC-Versionen für Windows und Linux.
 
+## Die Schöpfung in 7 Tagen
+
+So beginnt das Spiel: Jeder Tag ist ein Level mit **einer** Aufgabe (oben immer zu sehen, z. B. „Tiere 1/3“),
+begrenzten Drehungen und 1–3 Sternen (weniger Drehungen = mehr Sterne). Jeden Tag kommt genau **eine** neue Sache dazu.
+
+| Tag | Titel | Aufgabe | Neu |
+|---|---|---|---|
+| 1 | Land | Lass 8 Wiesen wachsen (15 Drehungen) | Drehen: drei gleiche in einer Reihe wachsen (Tutorial mit Hand) |
+| 2 | Pflanzen | Lass 5 Wälder wachsen | Regen (und Feuer, wenn lange nichts wächst) |
+| 3 | Tiere | Erschaffe 3 Tiere | Leben: Wald → großer Wald → Tiere |
+| 4 | Menschen | Baue 4 Hütten | Drei Tiere in einer Reihe bringen Menschen; sie haben Wünsche |
+| 5 | Nahrung | Erfülle 3 Wünsche | Die erste Wahl: Wiese → Wald oder Acker |
+| 6 | Glaube | Sammle 150 Glauben – kein Krieg! | Kirche und Glaube; zwei Kirchen treffen sich = Krieg |
+| 7 | Ruhe | Sammle 250 Glauben – mit grüner Waage | Industrie und Gewitter; die Weltwaage und Smog |
+
+Schafft man einen Tag nicht (keine Drehungen mehr, Krieg), gibt es „Nochmal“ – ohne Strafe, mit einem neuen
+Brett und +2 Drehungen. Sterne und freie Tage werden gespeichert. Nach Tag 7: „Deine Welt ist vollendet!“ –
+dann ist das **freie Spiel** offen (Einfach, Mittel, Schwer, 40 Drehungen). Weitere Pakete (Insel, Wüste, Winter)
+kommen als Daten dazu. Spec: [`docs/GDPD_7_TAGE.md`](docs/GDPD_7_TAGE.md).
+
 ## Die Idee
 
 Die Welt ist ein Zauberwürfel und du bist ihr Gott. Die eine Regel bleibt:
@@ -13,7 +33,7 @@ Die Welt ist ein Zauberwürfel und du bist ihr Gott. Die eine Regel bleibt:
 Neu: An ein paar Stellen entscheidest du, was aus dem neuen Feld wird („Dein Wille geschehe“):
 
 - Wiesen → **Wald** (Natur) oder **Acker** (Essen für die Menschen)
-- große Wälder → **Tiere** (Natur) oder **Hütte** (Menschen kommen)
+- Tiere → **Hütte** (Menschen kommen) oder **Paradies** (nur im freien Spiel)
 - Dörfer → **Stadt** oder **Kirche** (viel Glaube)
 - Städte → **Großstadt** oder **Industrie** (schnell stark, aber Schmutz)
 

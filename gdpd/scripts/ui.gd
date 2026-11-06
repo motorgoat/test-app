@@ -57,6 +57,7 @@ class WorldScale extends Control:
 
 var world: World
 var root: Control
+var day_ui: DayUI          # Die Schöpfung in 7 Tagen: Übersicht, Ziel-Karte, Ziel-Chip, Sieg/Fehlversuch
 var _insets := Vector2.ZERO
 
 # --- Kopfzeile ---
@@ -199,16 +200,22 @@ var over_age_label: Label
 var _over_rec_sb: StyleBoxFlat
 var over_rec_label: Label
 var _menu_rows: Dictionary = {}
+var _menu_cont: Button
+var _menu_days: Button
+var _menu_free_caps: Label
 var _music_switch: Button
 var _sfx_switch: Button
 var _ask_switch: Button
 var _profile_btn: Button
+var _ask_rows: Array = []
 var buy_card: PanelContainer
 var buy_tile: PanelContainer
 var buy_label: Label
 var buy_btn: Button
 var _buy_kind := ""
 var confirm_card: PanelContainer
+var _help_tree: HFlowContainer
+var _confirm_yes: Button
 var _confirm_key := ""        # was nach „Ja“ startet: Spielart oder "tutorial"
 var _help_rows: Dictionary = {}     # Zeilen der Hilfe, die erst erscheinen, wenn man das Ding kennt
 var _help_goal: Label
@@ -270,6 +277,8 @@ const COACH_ICON = {"miss": "fire", "rain": "rain", "bolt": "lightning", "monsoo
 	"hint": "bulb", "undo": "undo", "coins": "coin", "scale": "balance", "wish": "wish", "church": "church", "war": "swords",
 	"finished": "star", "industry": "industry", "smog": "smog", "nopeople": "hut", "mini": "check"}
 const AGE_PREP = {"Mittelalter": "im", "Industriezeitalter": "im"}
+## Hinweise, die es auch an den 7 Tagen gibt (alles andere stellt der Tag selbst vor).
+const DAY_COACH = ["wish", "fire", "mini", "smog", "war"]
 var _coach_queue: Array = []
 var _coach_until := INF
 var _coach_ready_at := 0.0
@@ -338,9 +347,9 @@ const PUNISH_TINT := Color("#EEE7FA")
 const PUNISH := Color("#7E57C9")
 const PUNISH_DEEP := Color("#5B3AA0")
 const MODES = [
-	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Ganze Gruppen wachsen mit · 5 Herzen", "tint": 1},
-	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Schräg ab dem Wald", "tint": 2},
-	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen", "tint": 4},
+	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Entspannt – mehr wächst mit", "tint": 1},
+	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Auch schräge Reihen zählen", "tint": 2},
+	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen – wie in den 7 Tagen", "tint": 4},
 	{"key": "challenge", "icon": "trophy", "title": "40 Drehungen · Mittel", "sub": "Wie viel Glauben schaffst du?", "tint": 3},
 ]
 
@@ -349,6 +358,9 @@ func setup(w: World) -> void:
 	world = w
 	layer = 2
 	_build()
+	day_ui = DayUI.new()
+	add_child(day_ui)
+	day_ui.build(self)
 	world.field_tapped.connect(_on_field_tapped)
 	world.preview_changed.connect(_on_preview)
 	world.deltas_shown.connect(_on_deltas)
@@ -378,6 +390,7 @@ func setup(w: World) -> void:
 	refresh()
 	_tutorial_show()
 	_hud_entrance.call_deferred()
+	day_ui.startup()
 
 
 # =============================================================================
@@ -949,11 +962,25 @@ func _modal_scroll(card: PanelContainer, reserve: float) -> VBoxContainer:
 func _build_help() -> void:
 	help_card = _modal_card("So geht's", true)
 	var inner := _modal_scroll(help_card, 150.0)
+	# An den Tagen zuerst: die Aufgabe, die Drehungen und die Sterne
+	_help_rows["task"] = _help_row("goal", Style.SUN_TINT, "Deine Aufgabe", "Oben steht dein Ziel und wie viele Drehungen du noch hast. Weniger Drehungen = mehr Sterne.")
+	inner.add_child(_help_rows["task"])
 	inner.add_child(_help_row("round", Style.SURFACE_2, "Drehen", "Wisch über eine Reihe, um sie zu drehen. Nach ganz oben ziehen bricht ab."))
 	inner.add_child(_help_row("up", Style.LEAF_TINT, "Wachsen", "Drei gleiche in einer neuen Reihe? Sie wachsen."))
+	# Was wächst woraus (an den Tagen: nur, was heute schon wachsen kann), als Bildreihe
+	var tree := _help_row("up", Style.LEAF_TINT, "Was wächst woraus", "Aus drei gleichen in einer Reihe wird das Nächste:")
+	inner.add_child(tree)
+	_help_rows["tree"] = tree
+	_help_tree = HFlowContainer.new()
+	_help_tree.add_theme_constant_override("h_separation", 6)
+	_help_tree.add_theme_constant_override("v_separation", 6)
+	_help_tree.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_help_tree.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 44 - 14 - 8, 0)
+	(tree.get_child(1) as Control).add_child(_help_tree)
 	# Die Wahl als Bild: Wiese → Wald oder Acker
 	var will := _help_row("hand", Style.SUN_TINT, "Dein Wille geschehe", "An manchen Stellen wählst du, was wächst. Tippst du daneben, gilt deine letzte Wahl.")
 	inner.add_child(will)
+	_help_rows["will"] = will
 	var pic := _hbox(6)
 	(will.get_child(1) as Control).add_child(pic)
 	pic.add_child(_icon("meadow", 26))
@@ -963,7 +990,8 @@ func _build_help() -> void:
 	orl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	pic.add_child(orl)
 	pic.add_child(_icon(_kind_icon(FieldData.FIELD), 26))
-	inner.add_child(_help_row("faith", Style.SUN_TINT, "Glaube", "Deine Zahl oben. Du bekommst Glauben, wenn etwas wächst, für erfüllte Wünsche und jede Runde von fertigen Feldern."))
+	_help_rows["faith"] = _help_row("faith", Style.SUN_TINT, "Glaube", "Deine Zahl oben. Du bekommst Glauben, wenn etwas wächst, für erfüllte Wünsche und jede Runde von fertigen Feldern.")
+	inner.add_child(_help_rows["faith"])
 	_help_rows["scale"] = _help_row("balance", Style.LEAF_TINT, "Weltwaage", "Links Natur, rechts Stadt. Grün in der Mitte ist gut. Ganz rechts kommt Smog. Ganz links fehlt den Menschen Essen – sobald es Menschen gibt.")
 	_help_rows["wish"] = _help_row("wish", Style.SUN_TINT, "Wünsche", "Die Menschen wünschen sich etwas. Erfüll es in %d Drehungen – das bringt Glauben." % Balance.WISH_TWISTS)
 	_help_rows["war"] = _help_row("swords", Style.FIRE_TINT, "Krieg", "Bring nie zwei Kirchen durch eine Drehung zusammen. Sonst gibt es Krieg.")
@@ -972,8 +1000,10 @@ func _build_help() -> void:
 	for key in ["scale", "wish", "war", "smog", "goal"]:
 		inner.add_child(_help_rows[key])
 	_help_goal = ((_help_rows["goal"] as Control).get_child(1) as Control).get_child(1) as Label
-	inner.add_child(_help_row("fire", Style.FIRE_TINT, "Flammen & Herzen", "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – das kostet ein Herz. Ohne Herzen ist das Spiel vorbei."))
-	inner.add_child(_help_row("rain", Style.WATER_TINT, "Regen", "Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Regen löscht auch Feuer."))
+	_help_rows["fire"] = _help_row("fire", Style.FIRE_TINT, "Flammen & Herzen", "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – das kostet ein Herz. Ohne Herzen ist das Spiel vorbei.")
+	inner.add_child(_help_rows["fire"])
+	_help_rows["rain"] = _help_row("rain", Style.WATER_TINT, "Regen", "Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Regen löscht auch Feuer.")
+	inner.add_child(_help_rows["rain"])
 	_help_rows["bolt"] = _help_row("lightning", Style.SUN_TINT, "Blitz", "3 gleiche an einer Ecke. Dann wächst die schräge Linie dort.")
 	_help_rows["monsoon"] = _help_row("monsoon", Style.MONSOON_TINT, "Monsun", "Eine ganze Seite wächst.")
 	_help_rows["strike"] = _help_row("strike", PUNISH_TINT, "Gewitter", "Du strafst ein Feld: Industrie wird zu Erde, alles andere schrumpft. Kostet %d Glauben." % Balance.STRIKE_COST)
@@ -985,6 +1015,23 @@ func _build_help() -> void:
 	var go := _button("Alles klar", "primary")
 	go.pressed.connect(_on_help_done)
 	v.add_child(go)
+
+
+## Die Bildreihe „Was wächst woraus“: Erde → Wiese → Wald → … so weit, wie es an diesem Tag geht.
+func _fill_help_tree(gs: GameState) -> void:
+	for c in _help_tree.get_children():
+		c.queue_free()
+	var unlocked: Array = gs.day.get("unlocked", [])
+	var k := FieldData.EMPTY
+	var first := true
+	while k >= 0 and (unlocked.is_empty() or unlocked.has(k)):
+		if not first:
+			_help_tree.add_child(_arrow_right(14))
+		first = false
+		var ic := _icon(_kind_icon(k), 26)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_help_tree.add_child(ic)
+		k = int(FieldData.NEXT[k])
 
 
 func _help_row(icon_name: String, tint: Color, title: String, body: String) -> HBoxContainer:
@@ -1004,15 +1051,23 @@ func _help_row(icon_name: String, tint: Color, title: String, body: String) -> H
 
 
 func _build_menu() -> void:
-	menu_card = _modal_card("gdpd", true)
+	menu_card = _modal_card("Menü", true)
 	var inner := _modal_scroll(menu_card, 130.0)
 	var cont := _button("Weiterspielen", "primary")
 	cont.pressed.connect(_close_modal)
 	inner.add_child(cont)
-	# Spielen: drei Stufen und die Challenge, je mit Rekord
+	_menu_cont = cont
+	# Die 7 Tage: zur Übersicht
+	var days := _vbox(8)
+	inner.add_child(days)
+	days.add_child(_caps(str(Days.TEXT["title"])))
+	_menu_days = _mode_row({"key": "tage", "icon": "days", "title": "Tage", "sub": "Alle Tage und deine Sterne", "tint": 1}, false)
+	days.add_child(_menu_days)
+	# Freies Spiel: drei Stufen und die Challenge, je mit Rekord (offen nach Tag 7)
 	var play := _vbox(8)
 	inner.add_child(play)
-	play.add_child(_caps("Neues Spiel"))
+	_menu_free_caps = _caps(str(Days.TEXT["free"]))
+	play.add_child(_menu_free_caps)
 	for m in MODES:
 		var md: Dictionary = m
 		play.add_child(_mode_row(md))
@@ -1044,16 +1099,18 @@ func _build_menu() -> void:
 	var ask_row := _toggle_row("help", "Wahl-Karte immer zeigen", _ask_switch)
 	_make_holdable(ask_row, "always_ask")
 	gv.add_child(ask_row)
+	_ask_rows = [line2, ask_row]      # erst, wenn man schon eine Wahl-Karte gesehen hat
 	# Kacheln: Profil (bald), Hilfe, Tutorial
 	var tiles := _hbox(8)
 	inner.add_child(tiles)
 	_profile_btn = _menu_tile("Profil", "profile", _on_profile)
 	tiles.add_child(_profile_btn)
+	_profile_btn.visible = false      # Profile gibt es noch nicht
 	tiles.add_child(_menu_tile("Hilfe", "help", _show_help))
 	tiles.add_child(_menu_tile("Tutorial", "round", _restart_tutorial))
 
 
-func _mode_row(md: Dictionary) -> Button:
+func _mode_row(md: Dictionary, register: bool = true) -> Button:
 	var key: String = str(md["key"])
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(0, 72)
@@ -1084,7 +1141,10 @@ func _mode_row(md: Dictionary) -> Button:
 	var num := _label("0", 17, Style.INK, Style.W_BLACK)
 	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	rv.add_child(num)
-	_menu_rows[key] = {"btn": b, "caps": rc, "num": num}
+	if register:
+		_menu_rows[key] = {"btn": b, "caps": rc, "num": num}
+	else:
+		b.set_meta("free_row", {"caps": rc, "num": num})
 	return b
 
 
@@ -1182,7 +1242,7 @@ func _build_buy() -> void:
 func _build_confirm() -> void:
 	confirm_card = _modal_card("Neues Spiel starten?")
 	var v: VBoxContainer = confirm_card.get_meta("body")
-	var l := _label("Dein Spiel endet. Dein Glaube zählt für den Rekord.", 17, Style.INK_2, Style.W_BODY)
+	var l := _label("Dein freies Spiel endet. Dein Glaube zählt für den Rekord.", 17, Style.INK_2, Style.W_BODY)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size = Vector2(Style.CONTENT_W - 56, 0)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1192,6 +1252,7 @@ func _build_confirm() -> void:
 	var yes := _button("Ja, neues Spiel", "primary")
 	yes.pressed.connect(_on_confirm_new)
 	acts.add_child(yes)
+	_confirm_yes = yes
 	var no := _button("Abbrechen", "ghost")
 	no.pressed.connect(_on_confirm_back)
 	acts.add_child(no)
@@ -1246,6 +1307,9 @@ func _build_over() -> void:
 	over_undo_btn = _button("Einen Zug zurück (%d %s)" % [Balance.UNDO_COST, "Münze" if Balance.UNDO_COST == 1 else "Münzen"], "ghost")
 	over_undo_btn.pressed.connect(_on_over_undo)
 	acts.add_child(over_undo_btn)
+	var home := _button("Alle Tage", "ghost")
+	home.pressed.connect(_on_over_home)
+	acts.add_child(home)
 
 
 # --- Bausteine ---------------------------------------------------------------
@@ -1817,9 +1881,14 @@ func _sync_slots(animate: bool) -> void:
 			_reveal("flames")
 		if gs.ever.has(FieldData.FIELD) or gs.ever.has(FieldData.HUT):
 			_reveal("scale")
+	if Game.in_day() and day_ui != null:
+		_sync_day_slots(animate)
+		return
+	score_box.visible = true
+	_chip_show(hearts_chip, true, false)
 	var changed := false
 	changed = _slot_show(undo_btn, not tut and _known("undo"), animate) or changed
-	changed = _slot_show(rain_btn, not tut and gs.gadgets, animate) or changed
+	changed = _slot_show(rain_btn, not tut and gs.gadgets and gs.tool_unlocked("rain"), animate) or changed
 	changed = _slot_show(bolt_btn, not tut and gs.gadgets and (_known("bolt") or gs.bolts > 0), animate) or changed
 	changed = _slot_show(monsoon_btn, not tut and gs.gadgets and (gs.monsoon_unlocked or gs.monsoons > 0), animate) or changed
 	changed = _slot_show(strike_btn, not tut and gs.gadgets and gs.tool_unlocked("strike"), animate) or changed
@@ -1827,6 +1896,8 @@ func _sync_slots(animate: bool) -> void:
 	changed = _slot_show(hint_btn, not tut and _known("hint"), animate) or changed
 	if changed:
 		_home_dock(animate)
+	if not dock.visible and not tut and not _hud_tut and (day_ui == null or not day_ui.is_open()) and not _dock_any_hidden():
+		_dock_in(0.0)
 	if tut:
 		_chip_show(scale_chip, false, false)
 		_chip_show(goal_chip, false, false)
@@ -1836,6 +1907,42 @@ func _sync_slots(animate: bool) -> void:
 	_chip_show(age_chip, true, animate)
 	_chip_show(credits_btn, _known("coins"), animate)
 	_chip_show(flame_chip, _known("flames"), animate)
+
+
+## Ein Tag: nur, was dieser Tag kennt. Kein Glaube (bis Tag 6 zeigt der Ziel-Chip ihn), keine Münzen, keine Herzen,
+## kein Zeitalter. Im Dock: Regen ab Tag 2, Gewitter an Tag 7, Tipp (gratis) – Neues fliegt erst nach „Los!“ herein.
+func _sync_day_slots(animate: bool) -> void:
+	var gs := Game.state
+	var hold_dock := day_ui.held("dock") or day_ui.is_open()
+	score_box.visible = false
+	var changed := false
+	changed = _slot_show(undo_btn, false, animate) or changed
+	changed = _slot_show(rain_btn, gs.tool_unlocked("rain") and not day_ui.held("rain"), animate) or changed
+	changed = _slot_show(bolt_btn, false, animate) or changed
+	changed = _slot_show(monsoon_btn, false, animate) or changed
+	changed = _slot_show(strike_btn, gs.tool_unlocked("strike") and not day_ui.held("strike"), animate) or changed
+	changed = _slot_show(flood_btn, false, animate) or changed
+	changed = _slot_show(hint_btn, true, animate) or changed
+	if changed:
+		_home_dock(animate)
+	if hold_dock:
+		if dock.visible:
+			_hide_now(dock)
+	elif not dock.visible:
+		_dock_in(0.0)
+	# Die Waage steuert schon ab Tag 5 die Wünsche, zu sehen ist sie erst, wenn sie Ziel ist (Tag 7): eine neue Sache je Tag
+	var scale_on := bool(gs.day.get("scale_visible", gs.day.get("scale", false)))
+	_chip_show(scale_chip, scale_on and not day_ui.held("scale"), animate)
+	_chip_show(goal_chip, false, false)
+	_chip_show(age_chip, false, false)
+	_chip_show(credits_btn, false, false)
+	_chip_show(hearts_chip, false, false)
+	_chip_show(flame_chip, not gs.no_fire and gs.misses > 0, animate)
+
+
+## Ist das Dock gerade absichtlich weg (Tag 1 am Anfang, Übersicht)?
+func _dock_any_hidden() -> bool:
+	return day_ui != null and (day_ui.is_open() or day_ui.held("dock"))
 
 
 func _slot_show(b: Button, on: bool, animate: bool) -> bool:
@@ -1950,7 +2057,7 @@ static var _re_finished: RegEx = null
 
 
 func _kind_body(k: int, in_sheet: bool) -> String:
-	var body := str(FieldData.KIND_HELP[clampi(k, 0, FieldData.KIND_COUNT - 1)])
+	var body := Game.state.kind_help(k) if Game.state != null else str(FieldData.KIND_HELP[clampi(k, 0, FieldData.KIND_COUNT - 1)])
 	body = body.trim_prefix(FieldData.kind_name(k) + ". ")
 	if in_sheet:
 		if _re_finished == null:
@@ -1981,6 +2088,8 @@ func _tooltip_for(key: String) -> Dictionary:
 		var left := int(w["left"])
 		return {"icon": str(GameState.WISH_ICON.get(str(w["type"]), "wish")), "title": "Ein Wunsch",
 			"body": "%s Noch %d %s." % [str(GameState.WISH_TEXT.get(str(w["type"]), "")), left, "Drehung" if left == 1 else "Drehungen"]}
+	if key.begins_with("day_") and day_ui != null:
+		return day_ui.tooltip(key)
 	if not TOOLTIPS.has(key):
 		return {}
 	var d: Dictionary = (TOOLTIPS[key] as Dictionary).duplicate()
@@ -2021,7 +2130,16 @@ func _tooltip_for(key: String) -> Dictionary:
 		"undo":
 			body += " Kostet %d %s." % [Balance.UNDO_COST, _coin_word(Balance.UNDO_COST)]
 		"hint":
-			body += " Kostet %d %s." % [Balance.HINT_COST, _coin_word(Balance.HINT_COST)]
+			if Game.hint_free():
+				body += " An den 7 Tagen ist er gratis."
+			else:
+				body += " Kostet %d %s." % [Balance.HINT_COST, _coin_word(Balance.HINT_COST)]
+		"flames":
+			if Game.in_day():
+				body = "Wächst bei einer Drehung nichts, leuchtet eine Flamme. Bei 3 Flammen fängt die gedrehte Reihe Feuer – Regen löscht es."
+		"rain":
+			if Game.in_day() and gs != null:
+				body = "Regen lässt Natur wachsen: Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Er löscht auch Feuer. Du hast %d." % gs.rain
 		"mode_close":
 			var what := str({"rain": "den Regen", "bolt": "den Blitz", "monsoon": "den Monsun", "strike": "das Gewitter", "flood": "die Flut"}.get(bonus_mode, "das Werkzeug"))
 			body = "Doch nicht? Damit legst du %s wieder weg." % what
@@ -2207,7 +2325,7 @@ func refresh() -> void:
 		_goal_sb.bg_color = Style.GLASS
 	# Zeitalter
 	var age := gs.age_name()
-	if _last_age != "" and age != _last_age and not Game.tutorial() and not Game.over:
+	if _last_age != "" and age != _last_age and not Game.tutorial() and not Game.over and not Game.in_day():
 		_show_banner("age", "Deine Welt wächst", age + "!", _age_icon())
 		_pop(age_chip, 1.15)
 		Style.haptic(Style.HAPTIC_COMBO)
@@ -2265,6 +2383,8 @@ func refresh() -> void:
 	_set_cost_badge(strike_btn, Balance.STRIKE_COST, gs.faith >= Balance.STRIKE_COST)
 	_set_cost_badge(flood_btn, Balance.FLOOD_COST, gs.faith >= Balance.FLOOD_COST)
 	_update_buttons()
+	if day_ui != null:
+		day_ui.refresh_hud()
 	if _sheet_field >= 0 and sheet.visible:
 		_fill_sheet(_sheet_field)
 		if absf(sheet.get_combined_minimum_size().y - sheet.size.y) > 0.5:
@@ -2362,7 +2482,7 @@ func _gift_land(box: TextureRect, target: Control, icon_name: String) -> void:
 
 ## Gerade geht nichts (Animation, Spielende, Tutorial)?
 func _blocked() -> bool:
-	return Game.busy or Game.over or world.animating or Game.tutorial()
+	return Game.busy or Game.over or world.animating or Game.tutorial() or (day_ui != null and day_ui.blocking())
 
 
 func _slot_btn(kind: String) -> Button:
@@ -2542,11 +2662,39 @@ func _on_hint_pressed() -> void:
 	if _blocked():
 		_shake(hint_btn)
 		return
+	if Game.in_day():
+		_day_hint()
+		return
 	if Game.state.best_move().is_empty():
 		# Keine Drehung bringt etwas: statt eines Tipps gibt es einen Regen
-		_pay(Balance.HINT_COST, "Ein Tipp", _hint_gives_rain)
+		_pay(0 if Game.hint_free() else Balance.HINT_COST, "Ein Tipp", _hint_gives_rain)
 		return
-	_pay(Balance.HINT_COST, "Ein Tipp", _use_hint)
+	_pay(0 if Game.hint_free() else Balance.HINT_COST, "Ein Tipp", _use_hint)
+
+
+## Tipp an einem Tag (gratis): die beste Aktion für das Ziel. Eine Drehung leuchtet; hilft Regen oder Gewitter
+## mehr, ist das Werkzeug gleich gewählt.
+func _day_hint() -> void:
+	var act := Game.state.best_action()
+	var t := str(act.get("type", ""))
+	if t == "twist":
+		_hint_live = true
+		var best := world.show_hint(act)
+		_on_message("Dreh die leuchtende Reihe. Danach passt es." if int(best.get("steps", 1)) == 2 else "Dreh die leuchtende Reihe!", "info")
+		return
+	if (t == "rain" and Game.state.rain > 0) or t == "strike":
+		_set_bonus_mode(t)
+		if act.has("field"):
+			world.nudge(int(act["field"]))
+		_on_message("Gieß ein leuchtendes Feld!" if t == "rain" else "Strafe eine Fabrik mit Gewitter!", "info")
+		return
+	var mv := Game.state.best_move()
+	if not mv.is_empty():
+		_hint_live = true
+		world.show_hint(mv)
+		_on_message("Dreh die leuchtende Reihe!", "info")
+		return
+	_on_message("Gerade passt keine Drehung. Dreh einfach eine Reihe – dann ergibt sich etwas.", "info")
 
 
 func _hint_gives_rain() -> void:
@@ -2621,6 +2769,11 @@ func _on_credits_pressed() -> void:
 func _on_continue() -> void:
 	_close_modal()
 	_pay(Balance.CONTINUE_COST, "Weiterspielen", Game.continue_game)
+
+
+func _on_over_home() -> void:
+	_close_modal(true)
+	day_ui.show_overview()
 
 
 func _on_over_undo() -> void:
@@ -2774,22 +2927,40 @@ func _tutorial_tick() -> void:
 		Game.tutorial_next()
 
 
-## Tutorial: den Zug vorzeigen (Finger wischt, Scheibe dreht ein Stück an).
-func _play_demo() -> void:
+## Tutorial: den Zug vorzeigen (Finger wischt, Scheibe dreht ein Stück an). mv: {"axis", "layer", "turns"}
+## (leer = der alte Tutorial-Zug). Die Hand wischt auf der ersten sichtbaren Seite, auf der die Scheibe liegt.
+func _play_demo(mv: Dictionary = {}) -> void:
 	var gs := Game.state
-	var a := gs.field_at(Vector3i(1, 1, -1), Vector3i(0, 1, 0))
-	var b := gs.field_at(Vector3i(1, 1, 1), Vector3i(0, 1, 0))
-	var mid := gs.field_at(Vector3i(1, 1, 0), Vector3i(0, 1, 0))
-	if a == null or b == null or mid == null:
-		return
-	var sa := world.field_screen(a.id)
-	var sb := world.field_screen(b.id)
-	if not bool(sa["visible"]) or not bool(sb["visible"]):
+	var axis := int(mv.get("axis", 0))
+	var layer := int(mv.get("layer", 1))
+	var sgn := -1.0 if int(mv.get("turns", 1)) < 0 else 1.0
+	var a: FieldData = null
+	var b: FieldData = null
+	var mid: FieldData = null
+	var sa := {}
+	var sb := {}
+	for nv in [Vector3i(0, 1, 0), Vector3i(0, 0, 1), Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, -1)]:
+		var n: Vector3i = nv
+		var na := GameState.axis_of(n)
+		if na == axis:
+			continue
+		var free_axis := 3 - axis - na
+		a = gs.field_at(_demo_pos(n, axis, layer, free_axis, -1), n)
+		b = gs.field_at(_demo_pos(n, axis, layer, free_axis, 1), n)
+		mid = gs.field_at(_demo_pos(n, axis, layer, free_axis, 0), n)
+		if a == null or b == null or mid == null:
+			continue
+		sa = world.field_screen(a.id)
+		sb = world.field_screen(b.id)
+		if bool(sa["visible"]) and bool(sb["visible"]):
+			break
+		a = null
+	if a == null:
 		return
 	var p0: Vector2 = sa["pos"]
 	var p1: Vector2 = sb["pos"]
 	_demo_until = _time + 1.6           # solange ist es eine Vorführung (kein Abbrechen-Streifen)
-	var dir := world.demo_twist(mid.id, p1 - p0, 0, 1)
+	var dir := world.demo_twist(mid.id, p1 - p0, axis, layer, sgn)
 	if dir == Vector2.ZERO:
 		_demo_until = 0.0
 		return
@@ -2803,6 +2974,14 @@ func _play_demo() -> void:
 	tw.parallel().tween_property(tut_finger, "scale", Vector2.ONE, 0.18)
 	tw.tween_property(tut_finger, "position", to - tut_finger.size * 0.5, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(tut_finger, "modulate:a", 0.0, 0.3)
+
+
+## Ein Würfelplatz auf der Seite n: Koordinate layer auf der Drehachse, off (-1, 0, 1) auf der freien Achse.
+static func _demo_pos(n: Vector3i, axis: int, layer: int, free_axis: int, off: int) -> Vector3i:
+	var c := [n.x, n.y, n.z]
+	c[axis] = layer
+	c[free_axis] = off
+	return Vector3i(int(c[0]), int(c[1]), int(c[2]))
 
 
 func _tut_wait() -> String:
@@ -2875,6 +3054,8 @@ func _hide_finger() -> void:
 func _coach_once(key: String, target: Control, fid: int = -1) -> void:
 	if Game.tutorial() or Game.coach_seen.has(key) or not COACH.has(key):
 		return
+	if Game.in_day() and not DAY_COACH.has(key):
+		return      # an den Tagen erklärt jeder Tag sein Neues selbst (nur diese allgemeinen Hinweise bleiben)
 	for it in _coach_queue:
 		if str((it as Array)[0]) == key:
 			return
@@ -2944,7 +3125,10 @@ func _coach_text(key: String, fid: int = -1) -> String:
 		var w := gs.wish_at(fid)
 		if not w.is_empty():
 			var left := int(w["left"])
-			return "%s Erfüll den Wunsch in %d %s – das bringt Glauben." % [str(GameState.WISH_TEXT.get(str(w["type"]), "")), left, "Drehung" if left == 1 else "Drehungen"]
+			var why := "dann wächst ihr Haus" if Game.in_day() and not _faith_shown() else "das bringt Glauben"
+			return "%s Erfüll den Wunsch in %d %s – %s." % [str(GameState.WISH_TEXT.get(str(w["type"]), "")), left, "Drehung" if left == 1 else "Drehungen", why]
+	if key == "fire" and Game.in_day():
+		return "Feuer! Gieß die brennenden Felder mit Regen – sonst schrumpfen sie."
 	if key == "fire" and gs != null and gs.rain <= 0:
 		return "Feuer! Brennende Felder schrumpfen beim nächsten Zug. Regen löscht sie. Jedes Feuer kostet ein Herz."
 	if key == "age" and gs != null:
@@ -3239,14 +3423,14 @@ func _fill_sheet(fid: int) -> void:
 	else:
 		sheet_caps.text = "Essen"
 	# Die Regel als Bild: 3 × Feld → nächste Art (an einer Wahl: beide Möglichkeiten)
-	var can_grow := FieldData.can_row(k)
+	var can_grow := Game.state.can_row(k)
 	sheet_ladder.visible = can_grow
 	if can_grow:
 		for ic in sheet_from:
 			(ic as TextureRect).texture = Style.icon(_kind_icon(k))
-		var opts := FieldData.options(k)
+		var opts := Game.state.options_of(k)
 		var choice := opts.size() >= 2
-		sheet_next.texture = Style.icon(_kind_icon(int(opts[0]) if choice else FieldData.next_kind(k)))
+		sheet_next.texture = Style.icon(_kind_icon(int(opts[0]) if choice else Game.state.next_of(k)))
 		sheet_or.visible = choice
 		sheet_next2.visible = choice
 		if choice:
@@ -3343,7 +3527,10 @@ func _banner_flush() -> void:
 func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 	_tut_merged = true
 	_miss_streak = 0
-	_bubble(fid, "+%d" % points, "faith", Style.SUN_DEEP)
+	if _faith_shown():
+		_bubble(fid, "+%d" % points, "faith", Style.SUN_DEEP)
+	elif Game.state.goal_kinds().has(stage):
+		_bubble(fid, "+1", _kind_icon(stage), Style.LEAF_DEEP)      # zählt für das Ziel des Tages
 	if combo >= 2:
 		_show_banner("combo", "", "%s! ×%d" % [GameState.stage_name(stage), combo], STAGE_ICON[clampi(stage, 0, Balance.MAX_STAGE)])
 		Style.haptic(Style.HAPTIC_COMBO)
@@ -3355,6 +3542,11 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 ## Fehlversuch: Pille zeigen, dann fliegt eine Flamme oben in ihren Platz.
 func _on_miss(_fid: int, count: int, why: String = "") -> void:
 	if Game.tutorial():
+		return
+	if Game.in_day() and Game.state.no_fire:
+		# Ohne Feuer (Tag 1) zählen Fehlversuche nicht: nur kurz sagen, dass nichts gewachsen ist
+		_miss_streak += 1
+		_show_banner("miss", "", "Nichts gewachsen", "fire_off")
 		return
 	_miss_streak += 1
 	# Die Flammen oben erscheinen mit dem ersten Fehlversuch (die Flamme fliegt hinein)
@@ -3420,10 +3612,11 @@ func _on_disaster(kind: String, fid: int) -> void:
 		_coach_once("fire", rain_btn if Game.state.rain > 0 and rain_btn.is_visible_in_tree() else flame_chip)
 		_reveal("undo")              # wer brennt, lernt Zurück kennen
 		_coach_once("undo", undo_btn)
-	_show_banner("fire", "-1 Herz", str(GameState.DISASTER_NAME.get(kind, "Feuer")) + "!", "fire")
+	var hearts_on := Game.state.hearts
+	_show_banner("fire", "-1 Herz" if hearts_on else "Die Reihe brennt", str(GameState.DISASTER_NAME.get(kind, "Feuer")) + "!", "fire")
 	Style.haptic(Style.HAPTIC_FIRE)
 	if fid >= 0:
-		_bubble(fid, "-1 Herz", "heart", Style.FIRE_DEEP)
+		_bubble(fid, "-1 Herz" if hearts_on else "Feuer!", "heart" if hearts_on else "fire", Style.FIRE_DEEP)
 
 
 func _on_deltas(list: Array, _gain: int) -> void:
@@ -3543,6 +3736,13 @@ func _fill_toast(text: String, kind: String) -> void:
 func _lane_y() -> float:
 	if tut_card != null and tut_card.visible and Game.tutorial():
 		return tut_card.position.y + tut_card.size.y + 12.0
+	if day_ui != null and day_ui.lane_visible():
+		return day_ui.lane_bottom() + 12.0
+	return _lane_base()
+
+
+## Oberkante der Meldungsspur: unter der Kopfzeile (ohne Hinweis-Zeile).
+func _lane_base() -> float:
 	var y := _insets.x + Style.LANE_Y
 	if top != null and top.visible and row3 != null and row3.is_visible_in_tree():
 		y = maxf(y, top.get_global_rect().end.y + 14.0)     # die Weltwaage macht die Kopfzeile höher
@@ -3632,12 +3832,21 @@ func _open_menu() -> void:
 
 func _refresh_menu() -> void:
 	var cur := _current_mode_key()
+	_menu_cont.text = "Zurück" if day_ui.is_open() else "Weiterspielen"
+	var dr: Dictionary = _menu_days.get_meta("free_row")
+	(dr["caps"] as Label).text = "Sterne"
+	(dr["num"] as Label).text = "%d/%d" % [Game.stars_total(), Game.stars_max()]
+	var free_ok := Game.free_play_unlocked()
+	_menu_free_caps.text = str(Days.TEXT["free"]) if free_ok else "%s · %s" % [str(Days.TEXT["free"]), str(Days.TEXT["free_locked"])]
+	for key in _menu_rows:
+		var rb: Button = (_menu_rows[key] as Dictionary)["btn"]
+		rb.modulate.a = 1.0 if free_ok else 0.5
 	for key in _menu_rows:
 		var row: Dictionary = _menu_rows[key]
 		var b: Button = row["btn"]
 		var rc: Label = row["caps"]
 		var num: Label = row["num"]
-		var is_cur := str(key) == cur and not Game.tutorial()
+		var is_cur := str(key) == cur and not Game.tutorial() and not Game.in_day() and not day_ui.is_open()
 		var n: StyleBoxFlat = b.get_meta("sb")
 		n.bg_color = Style.SUN_TINT if is_cur else Style.SURFACE_2
 		rc.text = "Aktuell" if is_cur else "Rekord"
@@ -3647,6 +3856,8 @@ func _refresh_menu() -> void:
 	_sync_switch(_music_switch, Game.music_on)
 	_sync_switch(_sfx_switch, Game.sfx_on)
 	_sync_switch(_ask_switch, Game.always_ask)
+	for r in _ask_rows:
+		(r as Control).visible = not Game.cards_seen.is_empty() or Game.always_ask
 
 
 func _sync_switch(b: Button, on: bool) -> void:
@@ -3682,11 +3893,24 @@ func _mode_best(key: String) -> int:
 
 ## Läuft gerade ein Spiel, das man verlieren würde?
 func _game_running() -> bool:
+	if Game.in_day():
+		return false        # einen Tag verlässt man ohne Nachteil
 	return Game.state != null and (Game.state.faith > 0 or Game.state.twists > 0) and not Game.over and not Game.tutorial()
 
 
 ## Zeile im Menü angetippt: die laufende Spielart = weiterspielen, sonst (nach Rückfrage) neu starten.
 func _on_mode_row(key: String) -> void:
+	if key == "tage":
+		_close_modal(true)
+		day_ui.show_overview()
+		return
+	if not Game.free_play_unlocked():
+		var row: Dictionary = _menu_rows.get(key, {})
+		var b: Control = row.get("btn", _menu_free_caps)
+		_shake(b)
+		_show_tooltip(b, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen. Dann geht das freie Spiel auf.")
+		_tip_hide_at = _time + 2.4
+		return
 	if key == _current_mode_key() and _game_running():
 		_close_modal()
 		return
@@ -3698,7 +3922,15 @@ func _ask_new_game(key: String) -> void:
 		_run_new(key)
 		return
 	_confirm_key = key
+	var day := key.begins_with("day:")
+	(confirm_card.get_meta("title") as Label).text = ("Tag %d starten?" % int(key.substr(4))) if day else "Neues Spiel starten?"
+	_confirm_yes.text = "Ja, Tag %d spielen" % int(key.substr(4)) if day else "Ja, neues Spiel"
 	_open_modal(confirm_card)
+
+
+## Einen Tag starten (Übersicht). Läuft noch ein freies Spiel, erst fragen – es endet sonst ohne Warnung.
+func ask_day(n: int) -> void:
+	_ask_new_game("day:%d" % n)
 
 
 func _on_confirm_new() -> void:
@@ -3708,12 +3940,19 @@ func _on_confirm_new() -> void:
 
 
 func _on_confirm_back() -> void:
+	var was_day := _confirm_key.begins_with("day:")
 	_confirm_key = ""
+	if was_day:
+		_close_modal()          # zurück zur Übersicht der Tage
+		return
 	_open_menu()
 
 
 func _run_new(key: String) -> void:
-	if key == "tutorial":
+	if key.begins_with("day:"):
+		_close_modal(true)
+		Game.start_day(int(key.substr(4)))
+	elif key == "tutorial":
 		_close_modal(true)
 		Game.restart_tutorial()
 	elif key != "":
@@ -3770,6 +4009,29 @@ func _show_help() -> void:
 	(_help_rows["monsoon"] as Control).visible = seen.has("monsoon") or (gs != null and gs.monsoon_unlocked)
 	(_help_rows["strike"] as Control).visible = gs != null and gs.tool_unlocked("strike")
 	(_help_rows["flood"] as Control).visible = gs != null and gs.tool_unlocked("flood")
+	# An den Tagen: nur, was dieser Tag schon kennt (keine Herzen, Wahl ab Tag 5, Glaube ab Tag 6)
+	var day := gs != null and Game.in_day()
+	(_help_rows["task"] as Control).visible = day
+	(_help_rows["tree"] as Control).visible = day
+	if day:
+		_fill_help_tree(gs)
+	var wish_l := ((_help_rows["wish"] as Control).get_child(1) as Control).get_child(1) as Label
+	if day and not _faith_shown():
+		wish_l.text = "Die Menschen wünschen sich etwas. Erfüll es in %d Drehungen – dann wächst ihr Haus." % Balance.WISH_TWISTS
+	else:
+		wish_l.text = "Die Menschen wünschen sich etwas. Erfüll es in %d Drehungen – das bringt Glauben." % Balance.WISH_TWISTS
+	(_help_rows["will"] as Control).visible = not day or not (gs.day.get("choices", []) as Array).is_empty()
+	(_help_rows["faith"] as Control).visible = not day or gs.goal_type() == "faith"
+	(_help_rows["fire"] as Control).visible = not day or not gs.no_fire
+	(_help_rows["rain"] as Control).visible = not day or gs.tool_unlocked("rain")
+	var fire_l := ((_help_rows["fire"] as Control).get_child(1) as Control).get_child(1) as Label
+	var fire_t := ((_help_rows["fire"] as Control).get_child(1) as Control).get_child(0) as Label
+	if day:
+		fire_t.text = "Flammen"
+		fire_l.text = "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – Regen löscht das Feuer."
+	else:
+		fire_t.text = "Flammen & Herzen"
+		fire_l.text = "Wächst nichts, leuchtet eine Flamme. Bei 3 Flammen brennt die Reihe – das kostet ein Herz. Ohne Herzen ist das Spiel vorbei."
 	_open_modal(help_card)
 
 
@@ -4273,11 +4535,15 @@ func _update_choice_bars() -> void:
 # =============================================================================
 
 func _on_war(fids: Array, faith: int) -> void:
-	_show_banner("war", "Zwei Kirchen trafen sich · %d Glauben" % faith, "Krieg!", "swords")
+	var caps := "Zwei Kirchen trafen sich · %d Glauben" % faith
+	if Game.in_day() and Game.state.no_war:
+		caps = "Zwei Kirchen trafen sich"       # an Tag 6 beendet der Krieg den Tag (die Karte sagt es gleich)
+	_show_banner("war", caps, "Krieg!", "swords")
 	Style.haptic(Style.HAPTIC_FIRE)
 	if not fids.is_empty():
-		_bubble(int(fids[0]), "%d" % faith, "faith", Style.FIRE_DEEP)
-		_coach_once("war", _anchor, int(fids[0]))
+		if not (Game.in_day() and Game.state.no_war):
+			_bubble(int(fids[0]), "%d" % faith, "faith", Style.FIRE_DEEP)
+			_coach_once("war", _anchor, int(fids[0]))
 
 
 func _on_smog(_w: int, withered: Array) -> void:
@@ -4295,7 +4561,7 @@ func _on_smog(_w: int, withered: Array) -> void:
 
 
 func _on_wish_done(fid: int, faith: int) -> void:
-	_show_banner("wish", "+%d Glauben" % faith, "Wunsch erfüllt!", "heart")
+	_show_banner("wish", ("+%d Glauben" % faith) if _faith_shown() else "Die Menschen freuen sich", "Wunsch erfüllt!", "heart")
 	Style.haptic(Style.HAPTIC_COMBO)
 	var fs := world.field_screen(fid)
 	var from: Vector2 = fs["pos"] if bool(fs["visible"]) else _vs() * Vector2(0.5, 0.45)
@@ -4328,6 +4594,10 @@ func _on_income(amount: int) -> void:
 	if x > x_max:
 		x = faith_icon.get_global_rect().position.x - 8.0 - p.size.x
 	p.position = Vector2(roundf(x), roundf(r.get_center().y - p.size.y * 0.5))
+	if Game.in_day():
+		# An den Tagen: unter dem Ziel-Chip (dort steht der Glaube)
+		var cr := day_ui.chip.get_global_rect()
+		p.position = Vector2(roundf(cr.get_center().x - p.size.x * 0.5), roundf(cr.end.y + 8.0))
 	p.pivot_offset = p.size * 0.5
 	p.scale = Vector2.ONE * 0.6
 	p.modulate.a = 0.0
@@ -4347,8 +4617,22 @@ func _on_punish(kind: String, fid: int, cost: int) -> void:
 	Style.haptic(Style.HAPTIC_FIRE)
 
 
+## Wird Glaube gerade gezeigt? Im freien Spiel immer, an den Tagen erst, wenn das Ziel Glaube ist (Tag 6 und 7).
+func _faith_shown() -> bool:
+	return not Game.in_day() or Game.state.goal_type() == "faith"
+
+
+## Wohin Glaube fliegt: die Zahl oben (an den Tagen der Ziel-Chip).
+func _faith_target() -> Control:
+	if Game.in_day() and day_ui != null:
+		return day_ui.chip_tile
+	return faith_icon
+
+
 ## Glaube fliegt im Bogen nach oben in die Zahl.
 func _fly_faith(from: Vector2, amount: int) -> void:
+	if not _faith_shown():
+		return
 	for k in 3:
 		var t := TextureRect.new()
 		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -4359,13 +4643,15 @@ func _fly_faith(from: Vector2, amount: int) -> void:
 		gift_layer.add_child(t)
 		var start := from + Vector2(-18.0 + 18.0 * k, 0)
 		t.position = start - t.size * 0.5
-		var tw := _fly(t, start, faith_icon.get_global_rect().get_center(), Style.DUR_FLY + 0.1 * k, 120.0, 0.5)
+		var tw := _fly(t, start, _faith_target().get_global_rect().get_center(), Style.DUR_FLY + 0.1 * k, 120.0, 0.5)
 		tw.tween_callback(_faith_land.bind(t, k == 0, amount))
 
 
 func _faith_land(t: Control, first: bool, _amount: int) -> void:
 	t.queue_free()
-	if first:
+	if first and Game.in_day():
+		_pop(_faith_target(), 1.15)
+	elif first:
 		_pop(faith_icon, 1.3)
 		_number_pop(score_label)
 		_ripple(faith_icon, Style.SUN)

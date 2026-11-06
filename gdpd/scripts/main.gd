@@ -18,10 +18,16 @@ func _ready() -> void:
 	ui = GameUI.new()
 	ui.name = "UI"
 	add_child(ui)
-	ui.setup(world)
+	# Screenshot-Tour: Die Tour führt selbst (auch mit frischem Profil, wie in der CI): keine Ziel-Karte beim Start
+	var shots := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shots="):
-			_shots(a.substr(8))
+			shots = a.substr(8)
+	if shots != "":
+		Game.first_launch = false
+	ui.setup(world)
+	if shots != "":
+		_shots(shots)
 
 
 func _apply_scale() -> void:
@@ -37,11 +43,16 @@ func _apply_scale() -> void:
 # Jede Prüfung druckt eine Zeile „CHECK ok=<true|false> name=<…>“. Der Build scheitert an ok=false.
 # =============================================================================
 
+var _only := ""                 # --only=days|day1|free: nur ein Teil der Tour (zum Ausprobieren)
 var _seen := {}                 # Signale der Welt, die während der Tour kamen (war, smog, wish, punish)
 
 
 func _shots(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
+	# Software-Grafik (llvmpipe) schafft bei voller Auflösung nur 2 Bilder pro Sekunde. Die Bilder werden ohnehin
+	# auf die halbe Größe verkleinert: Die 3D-Welt mit halber Auflösung rechnen (die Oberfläche bleibt scharf).
+	get_viewport().scaling_3d_scale = 0.5
+	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
 	# Software-Grafik ist langsam: Antippen darf nie als Halten zählen (Würfel und Oberfläche)
 	Balance.HOLD_TO_ORBIT_SECONDS = 30.0
 	ui.long_press = 2.5
@@ -50,7 +61,26 @@ func _shots(dir: String) -> void:
 	world.wish_done_shown.connect(_note2.bind("wish"))
 	world.punish_shown.connect(_note3.bind("punish"))
 	world.miss_shown.connect(_on_tour_miss)
-	await _tutorial_tour(dir)
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			only = a.substr(7)
+	_only = only
+	var t0 := Time.get_ticks_msec()
+	if only == "" or only == "days" or only == "day1":
+		await _days_tour(dir)
+		print("Tour: Tage fertig nach %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
+	if only == "" or only == "free":
+		await _free_tour(dir)
+	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
+	print("Tour: %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
+	print("TOUR-DONE checks=%d failed=%d" % [_checks, _failed])
+	get_tree().quit()
+
+
+## Freies Spiel (nach Tag 7): Werkzeuge, Wahl, Krieg, Smog, Wünsche, Strafen, Hilfe, Menü, Ende.
+func _free_tour(dir: String) -> void:
+	Game.world_done = true          # freies Spiel ist offen
 	ui.debug_close_all()
 	ui.debug_reveal_all()          # ab hier wie ein Spieler, der schon alles kennt
 	await _rain_check(dir)
@@ -72,9 +102,6 @@ func _shots(dir: String) -> void:
 	ui.debug_close_all()
 	await _complete_tour(dir)
 	await _burn_tour(dir)
-	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
-	print("TOUR-DONE checks=%d failed=%d" % [_checks, _failed])
-	get_tree().quit()
 
 
 func _note(_a: Variant, _b: Variant, key: String) -> void:
@@ -100,58 +127,483 @@ func _check(ok: bool, check_name: String, extra: String = "") -> void:
 	print("CHECK ok=%s name=%s %s" % [str(ok), check_name, extra])
 
 
-# --- Tutorial: erster Zug von selbst, dann die erste Wahl mit der Hand, dann selbst drehen ---------------
+# --- Die Schöpfung in 7 Tagen: Übersicht, Ziel-Karte, Tag 1 als Tutorial, Sieg, Fehlversuch, Wahl, Krieg, Smog ---
 
-func _tutorial_tour(dir: String) -> void:
-	Game.restart_tutorial()
-	await _wait(1.0)
-	await _shot(dir, "00a_tutorial_start")
-	# Der erste Zug läuft von selbst: die Reihe leuchtet, ein „?“ steht über dem neuen Feld
-	var got := await _until_choice(10.0)
-	await _wait(0.15)
-	await _shot(dir, "00b_auto_zug")
-	var card1 := await _until_card(4.0)
-	await _wait(1.4)              # die Hand zeigt auf beide Möglichkeiten
-	await _shot(dir, "00c_erste_wahl")
-	var fid1 := int(ui._choice.get("field", -1))
-	var hand := ui.tut_finger.modulate.a > 0.5
-	# Tutorial: Tippen daneben lässt die Karte nur wackeln (sie wartet auf eine Wahl)
-	await _touch(_outside_card())
-	await _wait(0.4)
-	var waits := Game.has_choice() and ui.choice_card.visible
-	# Echte Eingabe: „Acker“ antippen
-	await _touch(_btn_center(1))
-	await _wait(0.4)
-	await _settle(8.0)
-	var k1 := (Game.state.fields[fid1] as FieldData).kind if fid1 >= 0 else -1
-	var step1 := Game.tutorial_step
-	_check(got and card1 and hand and waits and k1 == FieldData.FIELD and step1 == 1, "tutorial_choice",
-		"card=%s hand=%s waits=%s kind=%d step=%d" % [str(card1), str(hand), str(waits), k1, step1])
-	# Schritt 2: der eigene Zug (hier vom Skript gespielt), die Karte kommt wieder: freie Wahl (Wald)
-	await _wait(1.0)
-	await _shot(dir, "00d_jetzt_du")
-	for i in 30:
-		if not Game.tutorial() or world.auto_twist(0, 1, 1):
+func _days_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	# Wie ein neuer Spieler: kein Fortschritt, keine gesehenen Hinweise
+	Game.reset_campaign()
+	Game.coach_seen = {}
+	Game.cards_seen = {}
+	Game.tutorial_done = false
+	Game.always_ask = false
+	await get_tree().process_frame       # was beim Start aufgeschoben wurde, ist durch
+	dui.show_overview(false)
+	await _wait(1.4)
+	await _shot(dir, "00a_tage")
+	var locked := true
+	for n in range(2, 8):
+		locked = locked and not Game.day_unlocked(n)
+	_check(dui.is_open() and dui.ov_tiles.size() == 7 and Game.day_unlocked(1) and locked and not Game.free_play_unlocked()
+		and dui.ov_free.text.contains(str(Days.TEXT["free_locked"])), "day_overview", "frei=%d free=%s" % [Game.day_free, dui.ov_free.text])
+	# 1. Tag 1 antippen (echte Eingabe): die Ziel-Karte
+	await _tap((dui.ov_tiles[0] as Dictionary)["btn"])
+	var card1 := await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.5)
+	await _shot(dir, "00b_tag1_ziel")
+	_check(card1 and Game.in_day() and Game.day_no == 1 and dui.gc_goal.text == "Lass 8 Wiesen wachsen" and dui.gc_limit.text == "in 15 Drehungen",
+		"day1_goal_card", "tag=%d ziel=%s grenze=%s" % [Game.day_no, dui.gc_goal.text, dui.gc_limit.text])
+	# 2. „Los!“: Die Hand zeigt die Scheibe, dann wischt der Spieler selbst (echte Wisch-Eingabe)
+	await _tap(dui.gc_go)
+	await _wait(0.8)
+	for i in 80:
+		if ui.tut_finger.modulate.a > 0.8 and world._mode == "twist":
 			break
-		await _wait(0.2)
-	var card2 := await _until_card(8.0)
-	var fid2 := int(ui._choice.get("field", -1))
-	await _touch(_btn_center(0))
-	await _wait(0.3)
+		await _wait(0.05)
+	await _wait(0.25)
+	await _shot(dir, "00c_tag1_hand")
+	var hand := dui.lane.visible and Game.day_tutorial()
+	var left0 := Game.state.twists_left()
+	var mv := Game.tutorial_move()
+	var swiped := await _swipe_move(int(mv.get("axis", 0)), int(mv.get("layer", 1)), int(mv.get("turns", 1)))
 	await _settle(8.0)
-	var k2 := (Game.state.fields[fid2] as FieldData).kind if fid2 >= 0 else -1
-	await _wait(1.6)
-	if Game.tutorial():
-		push_warning("Screenshots: Tutorial lief nicht durch, beende es direkt")
-		Game.finish_tutorial()
-	await _wait(1.0)
-	await _shot(dir, "00e_nach_tutorial")
-	_check(card2 and k2 == FieldData.FOREST and not Game.tutorial() and Game.state.count(FieldData.EMPTY) < 34, "tutorial",
-		"card=%s kind=%d tutorial=%s erde=%d glaube=%d" % [str(card2), k2, str(Game.tutorial()), Game.state.count(FieldData.EMPTY), Game.state.faith])
-	ui.debug_show_tooltip("rain")
+	await _wait(0.5)
+	await _shot(dir, "00d_tag1_erste_wiese")
+	var p1 := Game.state.goal_progress()
+	_check(hand and swiped and p1 >= 1 and Game.state.twists == 1 and dui.chip_num.text == "%d/8" % p1, "day1_tutorial",
+		"hand=%s wisch=%s wiesen=%d chip=%s" % [str(hand), str(swiped), p1, dui.chip_num.text])
+	_check(dui.chip.visible and dui.ring.left == left0 - 1 and dui.ring.left == Game.state.twists_left(), "goal_chip",
+		"left=%d->%d" % [left0, dui.ring.left])
+	# „Jetzt du!“: Die Hand ist weg, das Dock mit dem Tipp kommt, der Spieler sucht selbst
+	var c1: Array = Days.config(1).get("coach", [])
+	var your_turn := false
+	for i in 100:
+		if dui.lane_visible() and dui.lane_label.text == str(c1[2]) and ui.dock.visible:
+			your_turn = true
+			break
+		await _wait(0.05)
+	await _wait(0.4)
+	await _shot(dir, "00d2_tag1_jetzt_du")
+	_check(your_turn and ui.hint_btn.is_visible_in_tree() and ui.tut_finger.modulate.a < 0.1, "day1_your_turn",
+		"lane=%s dock=%s" % [dui.lane_label.text.left(30), str(ui.dock.visible)])
+	# 3. Den Rest selbst: immer die beste Drehung (wie „Tipp“), echte Wisch-Eingabe, bis das Ziel erreicht ist
+	var won := await _play_day(14)
+	var wcard := await _until_shown(dui.win_card, 5.0)
+	await _wait(1.5)
+	await _shot(dir, "00e_tag1_geschafft")
+	var next_txt := str(Days.TEXT["next"]) % [2, str(Days.config(2)["title"])]
+	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text == next_txt, "day_success",
+		"won=%s stars=%d drehungen=%d knopf=%s" % [str(won), Game.stars_of(1), Game.state.day_won_at, dui.wc_next.text])
+	if _only == "day1":
+		return
+	# 4. „Weiter zu Tag 2“ (echte Eingabe): Ziel-Karte mit dem Neuen (Regen)
+	await _tap(dui.wc_next)
+	var card2 := await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.9)
+	await _shot(dir, "00f_tag2_ziel")
+	_check(card2 and Game.day_no == 2 and Game.day_unlocked(2) and dui.gc_new.visible and dui.gc_new_title.text == "Neu: Regen", "day_next",
+		"tag=%d neu=%s" % [Game.day_no, dui.gc_new_title.text])
+	# 5. „Los!“: Der Regen springt auf und fliegt in seinen Platz; ein Hinweis zeigt darauf
+	await _tap(dui.gc_go)
+	await _wait(0.8)
+	await _shot(dir, "00g_tag2_neu")
+	var rain_hidden := not ui.rain_btn.is_visible_in_tree()
+	await _wait(2.4)
+	await _shot(dir, "00h_tag2_regen")
+	ui._coach_dismiss()
+	await _wait(0.3)
+	# Regen auf eine Wiese: Sie wird ein Wald – das zählt für das Ziel
+	var w0 := int(Game.state.made[FieldData.FOREST])
+	await _tap(ui.rain_btn)
+	await _wait(0.5)
+	var rt := _rain_target("target", -1, FieldData.MEADOW)
+	if int(rt["fid"]) >= 0:
+		await _touch(rt["pos"])
+		await _wait(0.4)
+		await _settle(6.0)
+	ui._set_bonus_mode("")
+	_check(rain_hidden and ui.rain_btn.is_visible_in_tree() and int(rt["fid"]) >= 0 and int(Game.state.made[FieldData.FOREST]) == w0 + 1
+		and Game.state.goal_progress() == w0 + 1, "day2_rain_reveal", "fid=%d wald=%d" % [int(rt["fid"]), int(Game.state.made[FieldData.FOREST])])
+	# Hilfe an Tag 2: die Aufgabe und „Was wächst woraus“ (Erde → Wiese → Wald), nichts von später (Glaube, Wahl)
 	await _wait(0.6)
-	await _shot(dir, "00f_erklaerung")
-	ui.debug_close_all()
+	ui.debug_show_help()
+	await _wait(0.8)
+	await _shot(dir, "00h2_tag2_hilfe")
+	var tree_n := ui._help_tree.get_child_count()
+	_check(ui.help_card.visible and (ui._help_rows["task"] as Control).visible and (ui._help_rows["tree"] as Control).visible
+		and tree_n == 5 and not (ui._help_rows["faith"] as Control).visible and not (ui._help_rows["will"] as Control).visible,
+		"day_help", "baum=%d" % tree_n)
+	ui._close_modal(true)
+	await _wait(0.4)
+	# Ab hier sind alle Tage offen (die Tour springt)
+	Game.day_free = 7
+	# 6. Tag 3: Ziel-Karte, dann die letzte Drehung bringt nichts → Fehlversuch, „Nochmal“ mit +2 Drehungen
+	Game.start_day(3)
+	await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.9)
+	await _shot(dir, "00i_tag3_ziel")
+	await _tap(dui.gc_go)
+	await _wait(2.4)
+	Game.state.day_limit = Game.state.twists + 1      # nur noch eine Drehung
+	Game.state_changed.emit()
+	await _wait(0.4)
+	var b0 := int(Game.day_board.get("index", 0))
+	var dud := _twist_without_progress()
+	await _swipe_move(int(dud[0]), int(dud[1]), int(dud[2]))
+	await _settle(8.0)
+	var fcard := await _until_shown(dui.fail_card, 5.0)
+	await _wait(0.4)
+	await _shot(dir, "00j_fehlversuch")
+	var lost := Game.state.day_lost
+	var mercy_line := dui.fc_mercy.visible and dui.fc_mercy.text == str(Days.TEXT["mercy_next"]) % 2
+	await _tap(dui.fc_again)
+	var card3 := await _until_shown(dui.goal_card, 4.0)
+	_check(fcard and lost == "twists" and mercy_line and card3 and Game.day_no == 3 and int(Game.day_board.get("index", -1)) == b0 + 1
+		and Game.state.day_limit == int(Days.config(3)["limit"]) + 2 and dui.gc_mercy.visible, "day_fail",
+		"lost=%s brett=%d->%d grenze=%d" % [lost, b0, int(Game.day_board.get("index", -1)), Game.state.day_limit])
+	ui._close_modal(true)
+	# 6b. Tag 4: Menschen – der erste Wunsch (ohne Glauben: „dann wächst ihr Haus“)
+	Game.start_day(4)
+	await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.6)
+	await _tap(dui.gc_go)
+	await _wait(2.8)
+	var gs4 := Game.state
+	var hut4 := gs4.field_at(Vector3i(0, 1, 1), Vector3i(0, 1, 0))
+	hut4.kind = FieldData.HUT
+	hut4.burning = false
+	gs4.wishes = [{"id": 800, "type": "wald", "field": hut4.id, "left": Balance.WISH_TWISTS}]
+	gs4.wish_seq = 801
+	Game.state_changed.emit()
+	world.focus_place(Vector3i(0, 1, 0))
+	await _wait(1.2)
+	Game.coach_seen.erase("wish")
+	ui._coach_queue.clear()
+	ui._coach_twist = -1
+	ui._coach_ready_at = 0.0
+	ui._on_wish_made(hut4.id)
+	var coach4 := false
+	for i in 100:
+		await _wait(0.05)
+		if ui.coach.visible and ui.coach.modulate.a > 0.95:
+			coach4 = true
+			break
+	var bubble4: Dictionary = world.wish_screen(hut4.id)
+	await _shot(dir, "00j2_tag4_wunsch")
+	_check(Game.in_day() and Game.day_no == 4 and coach4 and bool(bubble4["visible"]) and ui.coach_label.text.contains("Haus")
+		and not ui.coach_label.text.contains("Glauben") and not ui.score_box.visible, "day4_wish",
+		"coach=%s blase=%s" % [ui.coach_label.text.left(60), str(bubble4["visible"])])
+	ui._coach_dismiss()
+	await _wait(0.3)
+	# 7. Tag 5: die erste Wahl (Wiese → Wald oder Acker) – ohne Zeitlimit, die Waage bleibt noch weg
+	Game.start_day(5)
+	await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.9)
+	await _shot(dir, "00k_tag5_ziel")
+	await _tap(dui.gc_go)
+	await _wait(2.6)
+	var cm := _meadow_card_twist()
+	if cm.is_empty():
+		_meadow_board(41)
+		cm = [0, 1, 1]
+		await _wait(0.6)
+	await _swipe_move(int(cm[0]), int(cm[1]), int(cm[2]))
+	var c5 := await _until_card(6.0)
+	await _wait(0.3)
+	await _shot(dir, "00l_tag5_wahl")
+	var opts: Array = ui._choice.get("options", [])
+	var fid5 := int(ui._choice.get("field", -1))
+	var calm5 := float(ui._choice.get("timeout", -1.0)) == 0.0
+	if c5:
+		await _touch(_btn_center(1))
+	await _settle(8.0)
+	var k5 := (Game.state.fields[fid5] as FieldData).kind if fid5 >= 0 else -1
+	_check(c5 and opts.size() == 2 and int(opts[0]) == FieldData.FOREST and int(opts[1]) == FieldData.FIELD and k5 == FieldData.FIELD
+		and calm5 and not ui.scale_chip.is_visible_in_tree(), "day5_choice", "karte=%s opts=%s kind=%d ruhig=%s waage=%s" % [str(c5), str(opts), k5, str(calm5), str(ui.scale_chip.visible)])
+	# 8. Tag 6: Glaube und „Kein Krieg!“ – zwei Kirchen treffen sich: Krieg beendet den Tag
+	Game.start_day(6)
+	await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.9)
+	await _shot(dir, "00m_tag6_ziel")
+	await _tap(dui.gc_go)
+	await _wait(2.6)
+	var fixed := [[Vector3i(0, 1, 1), Vector3i(0, 1, 0), FieldData.CHURCH], [Vector3i(1, 1, -1), Vector3i(0, 0, -1), FieldData.CHURCH]]
+	var ok_board := _prepare(23, fixed, _twist(0, 1, 1), _want_war)
+	world.focus_place(Vector3i(0, 1, 0))
+	await _wait(1.0)
+	var tag_on := dui.rule_tag.is_visible_in_tree() and dui.chip_caps.text == "Glaube"
+	_check(tag_on and dui.chip_num.text == "%d/150" % Game.state.faith and not ui.score_box.visible, "day6_faith",
+		"chip=%s %s tag=%s" % [dui.chip_caps.text, dui.chip_num.text, str(dui.rule_tag.visible)])
+	_seen.erase("war")
+	world.auto_twist(0, 1, 1)
+	for i in 120:
+		await _wait(0.05)
+		if _seen.has("war"):
+			break
+	await _wait(0.4)
+	await _shot(dir, "00n_tag6_krieg")
+	var fcard6 := await _until_shown(dui.fail_card, 6.0)
+	await _wait(0.4)
+	await _shot(dir, "00o_tag6_krieg_karte")
+	_check(ok_board and tag_on and _seen.has("war") and Game.state.day_lost == "war" and fcard6 and dui.fc_title.text == str(Days.TEXT["lost_war"]),
+		"day6_war", "brett=%s tag=%s lost=%s" % [str(ok_board), str(tag_on), Game.state.day_lost])
+	ui._close_modal(true)
+	# 9. Tag 7: genug Glauben, aber die Waage ist nicht grün → „Waage!“; zu viel Industrie → Smog
+	Game.start_day(7)
+	await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.9)
+	await _shot(dir, "00p_tag7_ziel")
+	await _tap(dui.gc_go)
+	await _wait(2.6)
+	var gs := Game.state
+	_paint_smog(gs)
+	gs.faith = 260
+	Game.state_changed.emit()
+	world.focus_place(Vector3i(0, 1, 0))
+	await _wait(1.0)
+	var waage := dui.chip_caps.text == str(Days.TEXT["balance_needed"]) and dui.chip_num.text == "250/250" and ui.scale_chip.is_visible_in_tree()
+	_check(waage and gs.balance() >= Balance.CITY_AT and not gs.day_won, "day7_green", "chip=%s %s w=%d" % [dui.chip_caps.text, dui.chip_num.text, gs.balance()])
+	_seen.erase("smog")
+	world.auto_twist(1, -1, 1)
+	for i in 120:
+		await _wait(0.05)
+		if _seen.has("smog"):
+			break
+	await _wait(0.9)
+	await _shot(dir, "00q_tag7_smog")
+	await _settle(8.0)
+	_check(_seen.has("smog") and gs.balance() >= Balance.SMOG_AT and not gs.day_won, "day7_smog", "w=%d" % gs.balance())
+	# 10. Welt im Gleichgewicht: Der Tag ist geschafft – die Welt ist vollendet, das freie Spiel geht auf
+	_paint_green(gs)
+	gs.faith = 300
+	gs.misses = 0
+	Game.state_changed.emit()
+	await _wait(0.6)
+	var wg := gs.balance()
+	world.auto_twist(1, -1, 1)
+	var wc7 := await _until_shown(dui.win_card, 8.0)
+	await _wait(1.6)
+	await _shot(dir, "00r_vollendet")
+	_check(wc7 and dui.wc_title.text == str(Days.TEXT["complete"]) and Game.world_done and Game.free_play_unlocked(), "world_complete",
+		"w=%d titel=%s" % [wg, dui.wc_title.text])
+	# 11. „Freies Spiel“ (echte Eingabe): die vier Spielarten, Mittel antippen
+	await _tap(dui.wc_next)
+	var fc := await _until_shown(dui.free_card, 4.0)
+	await _wait(0.6)
+	await _shot(dir, "00s_freies_spiel")
+	var row: Button = null
+	for c in (dui.free_card.get_meta("body") as Control).get_children():
+		if c is Button and (c as Button).has_meta("free_row") and str((c as Button).get_meta("explain", "")) == "mode_mittel":
+			row = c
+	if row != null:
+		await _tap(row)
+	await _wait(1.6)
+	await _shot(dir, "00t_frei_mittel")
+	_check(fc and row != null and not Game.in_day() and Game.state.endless and Game.level == 1 and not dui.is_open() and ui.score_box.visible,
+		"free_play", "tag=%s stufe=%d" % [str(Game.in_day()), Game.level])
+
+
+## Bis eine Karte ganz zu sehen ist.
+func _until_shown(c: Control, sec: float) -> bool:
+	var t := 0.0
+	while t < sec:
+		if c.visible and c.modulate.a > 0.98:
+			return true
+		await _wait(0.05)
+		t += 0.05
+	return false
+
+
+## Einen Knopf (oder ein Element) antippen, echte Eingabe.
+func _tap(c: Control) -> void:
+	await _touch(c.get_global_rect().get_center())
+
+
+## Den Tag mit der besten Aktion (wie „Tipp“) zu Ende spielen. Drehungen per echter Wisch-Eingabe.
+func _play_day(max_twists: int) -> bool:
+	for i in max_twists:
+		if not Game.in_day() or Game.state.is_over() or Game.over:
+			break
+		var act := Game.state.best_action()
+		var typ := str(act.get("type", "twist"))
+		if act.is_empty() or typ != "twist":
+			var d := _twist_without_progress()
+			act = {"axis": d[0], "layer": d[1], "turns": d[2], "choice": 0}
+		await _swipe_move(int(act["axis"]), int(act["layer"]), int(act["turns"]))
+		await _settle(8.0, int(act.get("choice", 0)))
+	return Game.state.day_won
+
+
+## Eine Drehung, die dem Ziel nichts bringt (für den Fehlversuch). [Achse, Scheibe, Viertel]
+func _twist_without_progress() -> Array:
+	var gs := Game.state
+	var p0 := gs.goal_progress()
+	for a in 3:
+		for l in [-1, 0, 1]:
+			for t in [1, -1, 2]:
+				var sim := gs.simulate(_twist(a, l, t))
+				var st: GameState = sim["state"]
+				if st.goal_progress() == p0 and st.card < 0 and not _has_event(sim["result"], "war"):
+					return [a, l, t]
+	return [1, -1, 1]
+
+
+## Eine Drehung, nach der die Wiesen-Karte kommt (Tag 5). [] = keine.
+func _meadow_card_twist() -> Array:
+	var gs := Game.state
+	for a in 3:
+		for l in [-1, 0, 1]:
+			for t in [1, -1]:
+				var info := gs.choice_for(_twist(a, l, t))
+				if not info.is_empty() and int(info["kind"]) == FieldData.MEADOW:
+					return [a, l, t]
+	return []
+
+
+## Viel Stadt und Industrie, oben ein paar Wälder (Smog an Tag 7).
+func _paint_smog(gs: GameState) -> void:
+	var pal := [FieldData.INDUSTRY, FieldData.TOWN, FieldData.BIGCITY, FieldData.TOWN, FieldData.HOUSE, FieldData.VILLAGE,
+		FieldData.VILLAGE, FieldData.INDUSTRY, FieldData.TOWN]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for f in gs.fields:
+		(f as FieldData).kind = int(pal[rng.randi() % pal.size()])
+		(f as FieldData).fresh = 0
+		(f as FieldData).burning = false
+	_paint_face(Vector3i(0, 1, 0), [FieldData.INDUSTRY, FieldData.FOREST, FieldData.TOWN, FieldData.ANIMALS, FieldData.INDUSTRY,
+		FieldData.BIGFOREST, FieldData.TOWN, FieldData.FOREST, FieldData.INDUSTRY])
+	gs.wishes = []
+
+
+## Natur und Dörfer gemischt, bis die Waage grün ist (Gleichgewicht).
+func _paint_green(gs: GameState) -> void:
+	var nat := [FieldData.FOREST, FieldData.MEADOW, FieldData.BIGFOREST, FieldData.FIELD]
+	var civ := [FieldData.VILLAGE, FieldData.HOUSE, FieldData.TOWN]
+	for share in [4, 5, 3, 6, 2, 7]:
+		for f in gs.fields:
+			var fd: FieldData = f
+			fd.kind = int(civ[fd.id % civ.size()]) if fd.id % 10 < share else int(nat[fd.id % nat.size()])
+			fd.fresh = 0
+			fd.burning = false
+		if gs.balance() > Balance.WILD_AT + 12 and gs.balance() < Balance.CITY_AT - 12:
+			break
+	gs.wishes = []
+
+
+# --- Wischen wie mit dem Finger ----------------------------------------------------------------------------
+
+## Die Scheibe (axis, layer) um turns Viertel drehen: echter Wisch über ein sichtbares Feld dieser Scheibe.
+## Ist keins zu sehen, dreht sich die Ansicht; klappt es dann noch nicht, dreht die Tour direkt (Warnung).
+func _swipe_move(axis: int, layer: int, turns: int) -> bool:
+	# Erst warten, bis nichts mehr dreht (auch keine Vorführung der Hand)
+	for i in 60:
+		if world._mode == "" and not world.animating and not Game.busy:
+			break
+		await _wait(0.05)
+	var faces: Array = []
+	for vn in [Vector3i(0, 1, 0), Vector3i(0, 0, 1), Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, -1, 0)]:
+		var vv: Vector3i = vn
+		if vv[axis] == 0:
+			faces.append(vv)
+	for attempt in 3:
+		var cand := _swipe_candidate(axis, layer, turns)
+		if not cand.is_empty():
+			await _swipe(cand["from"], cand["to"])
+			return true
+		world.focus_place(faces[attempt % faces.size()])
+		await _wait(1.1)
+	push_warning("Tour: kein sichtbares Feld für Scheibe %d/%d, drehe direkt" % [axis, layer])
+	for i in 20:
+		if world.auto_twist(axis, layer, turns):
+			return false
+		await _wait(0.1)
+	return false
+
+
+func _swipe_candidate(axis: int, layer: int, turns: int) -> Dictionary:
+	var cam := world.rig.cam
+	var vs := get_viewport().get_visible_rect().size
+	var mid := vs * Vector2(0.5, 0.47)
+	var best := {}
+	var best_d := INF
+	var why := {}
+	for f in Game.state.fields:
+		var fd: FieldData = f
+		var na := GameState.axis_of(fd.n)
+		if na == axis or fd.p[axis] != layer:
+			continue
+		var fs := world.field_screen(fd.id)
+		if not bool(fs["visible"]):
+			why["unsichtbar"] = int(why.get("unsichtbar", 0)) + 1
+			continue
+		# Mitte der Kachel (nicht der Punkt über dem Feld, der kann schon auf dem Nachbarn liegen)
+		var v: FieldView = world.views.get(fd.id)
+		var pos: Vector2 = cam.unproject_position(v.global_position + v.world_normal() * 0.1)
+		if _under_ui(pos):
+			why["ui"] = int(why.get("ui", 0)) + 1
+			continue
+		var hit: Dictionary = world._raycast(pos)
+		if int(hit.get("field", -1)) != fd.id:
+			why["verdeckt"] = int(why.get("verdeckt", 0)) + 1
+			continue
+		var hp: Vector3 = hit["point"]
+		var s0 := cam.unproject_position(hp)
+		var a := 3 - na - axis
+		var t := GameState.unit(a, 1)
+		var st := cam.unproject_position(hp + Vector3(t) * 0.5) - s0
+		if st.length() < 10.0:
+			why["schräg"] = int(why.get("schräg", 0)) + 1
+			continue
+		var k := Vector3(fd.n).cross(Vector3(t))
+		var sgn := 1.0 if k[axis] > 0.0 else -1.0
+		var pxq := maxf(40.0, st.length() * 2.0 * Balance.TWIST_FINGER_UNITS)
+		# Ein halbes Viertel vor dem Ziel loslassen reicht (die Scheibe rastet ein). Eine halbe Drehung geht in beide Richtungen.
+		for q in ([turns] if absi(turns) != 2 else [2, -2]):
+			var qq := int(q)
+			var along := (float(absi(qq)) - 0.3) * signf(float(qq)) * pxq * sgn
+			var drag := st.normalized() * along
+			var to := pos + drag
+			if to.x < 12.0 or to.x > vs.x - 12.0 or to.y < ui._insets.x + 100.0 or to.y > vs.y - 12.0 or _under_ui(to):
+				why["rand"] = int(why.get("rand", 0)) + 1
+				continue
+			var d := pos.distance_to(mid) + (pos + drag * 0.5).distance_to(mid) * 0.5
+			if d < best_d:
+				best_d = d
+				best = {"from": pos, "to": to}
+	if best.is_empty():
+		print("Tour: keine Wisch-Stelle für %d/%d/%d: %s" % [axis, layer, turns, str(why)])
+	return best
+
+
+## Ein Finger wischt von a nach b (ScreenTouch + ScreenDrag, daraus macht Godot die Maus).
+func _swipe(a: Vector2, b: Vector2) -> void:
+	var tf: Transform2D = get_tree().root.get_final_transform()
+	var t := InputEventScreenTouch.new()
+	t.index = 0
+	t.position = tf * a
+	t.pressed = true
+	Input.parse_input_event(t)
+	await get_tree().process_frame
+	var last := tf * a
+	var steps := 4
+	for i in range(1, steps + 1):
+		var p: Vector2 = tf * a.lerp(b, float(i) / float(steps))
+		var d := InputEventScreenDrag.new()
+		d.index = 0
+		d.position = p
+		d.relative = p - last
+		d.velocity = (p - last) * 60.0
+		last = p
+		Input.parse_input_event(d)
+		await get_tree().process_frame
+	await _wait(0.06)
+	var r := InputEventScreenTouch.new()
+	r.index = 0
+	r.position = tf * b
+	r.pressed = false
+	Input.parse_input_event(r)
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 # --- Wahl im normalen Spiel: antippen, daneben tippen, warten, kleine Pille ------------------------------
@@ -566,7 +1018,7 @@ func _burn_tour(dir: String) -> void:
 	var kinds := [FieldData.MEADOW, FieldData.FOREST, FieldData.FIELD, FieldData.BIGFOREST, FieldData.HUT, FieldData.HOUSE,
 		FieldData.VILLAGE, FieldData.TOWN, FieldData.BIGCITY]
 	for f in gs.fields:
-		(f as FieldData).kind = FieldData.EMPTY
+		(f as FieldData).kind = FieldData.WATER
 	_paint_face(face, kinds)
 	gs.misses = Balance.FIRE_AFTER - 1
 	gs.lives = 1
@@ -654,7 +1106,7 @@ func _until_card(sec: float) -> bool:
 ## Liegt dieser Punkt unter der Oberfläche (Leiste, Karte, oben)?
 func _under_ui(pos: Vector2) -> bool:
 	var rects: Array = [ui.dock.get_global_rect().grow(12.0), ui.top.get_global_rect().grow(12.0)]
-	for c in [ui.mode_card, ui.toast, ui.tip_card, ui.coach]:
+	for c in [ui.mode_card, ui.toast, ui.tip_card, ui.coach, ui.day_ui.lane]:
 		var cc: Control = c
 		if cc.visible:
 			rects.append(cc.get_global_rect().grow(12.0))
@@ -666,7 +1118,7 @@ func _under_ui(pos: Vector2) -> bool:
 
 
 ## Ein sichtbares Feld, das man antippen kann. want: "target" = ein Regenziel, "other" = keins. {"fid", "pos"}
-func _rain_target(want: String = "target", skip: int = -1) -> Dictionary:
+func _rain_target(want: String = "target", skip: int = -1, kind: int = -1) -> Dictionary:
 	var tg := Game.state.rain_targets()
 	var mid := get_viewport().get_visible_rect().size * 0.5
 	var best := -1
@@ -675,6 +1127,8 @@ func _rain_target(want: String = "target", skip: int = -1) -> Dictionary:
 	for f in Game.state.fields:
 		var fid: int = (f as FieldData).id
 		if fid == skip or tg.has(fid) != (want == "target"):
+			continue
+		if kind >= 0 and (f as FieldData).kind != kind:
 			continue
 		if want == "target" and not Game.state.choice_for({"type": "rain", "field": fid}).is_empty():
 			continue      # dieser Regen brächte eine Wahl (die Prüfung will nur gießen)
@@ -784,7 +1238,7 @@ func _merge_check() -> void:
 	await _wait(1.0)
 	var gs := Game.state
 	for f in gs.fields:
-		(f as FieldData).kind = FieldData.EMPTY
+		(f as FieldData).kind = FieldData.WATER
 		(f as FieldData).burning = false
 	gs.wishes = []
 	gs.field_at(Vector3i(-1, 1, 1), Vector3i(0, 1, 0)).kind = FieldData.FOREST
@@ -880,7 +1334,7 @@ func _shot(dir: String, shot_name: String) -> void:
 	var img := get_viewport().get_texture().get_image()
 	img.resize(img.get_width() / 2, img.get_height() / 2, Image.INTERPOLATE_BILINEAR)
 	img.save_jpg("%s/%s.jpg" % [dir, shot_name], 0.85)
-	print("Screenshot: ", shot_name)
+	print("Screenshot: %s (%.1f s, %d fps)" % [shot_name, Time.get_ticks_msec() / 1000.0, Engine.get_frames_per_second()])
 
 
 ## Ein gut sichtbares Feld (zur Kamera gewandt).

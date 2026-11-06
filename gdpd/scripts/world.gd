@@ -475,7 +475,7 @@ func _process(delta: float) -> void:
 			c.position = b + Vector3(sin(t * 0.07 + i * 2.0) * 0.6, 0.0, 0.0)
 	if _mode == "" and not animating and not Game.busy and not Game.over:
 		_idle += delta
-		if Game.tutorial() and _idle > 1.2 and not _hinted:
+		if (Game.tutorial() or _day_guided()) and _idle > 1.2 and not _hinted:
 			_show_hint()
 		elif Game.onboarding and not Game.tutorial() and _idle > Balance.ONBOARD_HINT_SECONDS and not _hinted:
 			_show_free_hint()      # die ersten Minuten: nach einer Pause leuchtet die passende Reihe (ohne Text)
@@ -649,17 +649,21 @@ func _touch_dist() -> float:
 
 ## Pulsiert die Scheibe, deren Drehung am meisten bringt (zwei Züge voraus).
 ## Gibt den Zug zurück ({} = keine Drehung bringt etwas).
-func show_hint() -> Dictionary:
+## move: diese Drehung zeigen ({"axis", "layer", …}), sonst die beste (an den Tagen nach dem Ziel bewertet).
+func show_hint(move: Dictionary = {}) -> Dictionary:
 	_clear_hint()
-	return _show_hint()
+	return _show_hint(move)
 
 
-func _show_hint() -> Dictionary:
+func _show_hint(move: Dictionary = {}) -> Dictionary:
 	_hinted = true
-	var best := Game.state.best_move()
+	var best := move if not move.is_empty() else Game.state.best_move()
 	# Tutorial: genau der vorgezeigte Zug leuchtet (derselbe in beiden Schritten, wie die Hand ihn zeigt)
 	if Game.tutorial() and Game.tutorial_step <= 1:
 		best = {"axis": 0, "layer": 1, "turns": 1, "points": 0, "steps": 1}
+	elif _day_guided():
+		var mv := Game.tutorial_move()
+		best = {"axis": int(mv["axis"]), "layer": int(mv["layer"]), "turns": int(mv["turns"]), "points": 0, "steps": 1}
 	if best.is_empty():
 		return best
 	for cb in _slice_cubies(int(best["axis"]), int(best["layer"])):
@@ -668,6 +672,11 @@ func _show_hint() -> Dictionary:
 				(child as FieldView).set_hint(true)
 				_hint_views.append(child)
 	return best
+
+
+## Tag 1 auf dem Tutorial-Brett, bevor die erste Wiese gewachsen ist: Die vorgezeigte Scheibe leuchtet.
+func _day_guided() -> bool:
+	return Game.day_tutorial() and Game.state.goal_progress() == 0 and not Game.tutorial_move().is_empty()
 
 
 ## Gratis-Tipp in der Eingewöhnung: nur, wenn eine Drehung sofort etwas wachsen lässt.
@@ -1017,7 +1026,7 @@ func _show_preview(q: int) -> void:
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[GameState.target_index(line, arranged.moved, arranged.tapped)]
-		mids[mid.id] = "?" if FieldData.is_choice(mid.kind) else FieldData.KIND_SHORT[FieldData.next_kind(mid.kind)]
+		mids[mid.id] = "?" if arranged.is_choice(mid.kind) else FieldData.KIND_SHORT[arranged.next_of(mid.kind)]
 	var danger := {}
 	for e in pv["events"]:
 		if str(e["type"]) == "disaster":
@@ -1161,7 +1170,7 @@ func auto_twist(axis: int, layer: int, turns: int) -> bool:
 
 ## Tutorial: eine Scheibe ein Stück andrehen und zurück (zeigt, wie man dreht). Kein Zug.
 ## Gibt die Bildschirm-Richtung zurück, in die der Finger wischen müsste (ZERO = ging nicht).
-func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int) -> Vector2:
+func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int, sgn: float = 1.0) -> Vector2:
 	if _mode != "" or animating or Game.busy:
 		return Vector2.ZERO
 	debug_begin_twist(fid, drag, 0.0)
@@ -1171,14 +1180,14 @@ func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int) -> Vec
 	if _tw_axis != want_axis or _tw_layer != want_layer:
 		_cancel_drag()
 		return Vector2.ZERO
-	var dir := _tw_screen_dir * float(_tw_sign)
+	var dir := _tw_screen_dir * float(_tw_sign) * sgn
 	if _demo_tw != null and _demo_tw.is_valid():
 		_demo_tw.kill()
 	var tw := create_tween()
 	_demo_tw = tw
-	tw.tween_method(_demo_set_angle, 0.0, PI * 0.5 * 0.42, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_method(_demo_set_angle, 0.0, PI * 0.5 * 0.42 * sgn, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(0.25)
-	tw.tween_method(_demo_set_angle, PI * 0.5 * 0.42, 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_method(_demo_set_angle, PI * 0.5 * 0.42 * sgn, 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(_demo_end)
 	return dir
 

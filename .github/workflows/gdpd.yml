@@ -71,7 +71,7 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          # Die Tour braucht mit Software-Grafik gut 8 Minuten: genug Luft, damit sie nicht mittendrin abbricht
+          # Die Tour braucht mit Software-Grafik knapp 10 Minuten: genug Luft, damit sie nicht mittendrin abbricht
           timeout 900 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
@@ -82,7 +82,10 @@ jobs:
           if grep -nE "CHECK ok=false" ../shots.log; then echo "Eine Prüfung der Screenshot-Tour ist fehlgeschlagen"; exit 1; fi
           # Die Tour muss ganz durchgelaufen sein, und jede Prüfung muss da sein (ein Abbruch druckt sie nicht)
           grep -qE "^TOUR-DONE checks=[0-9]+ failed=0" ../shots.log || { echo "Die Screenshot-Tour lief nicht bis zum Ende"; exit 1; }
-          for c in tutorial_choice tutorial rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
+          for c in day_overview day1_goal_card day1_tutorial goal_chip day1_your_turn day_success day_next day2_rain_reveal day_help \
+                   day_fail day4_wish day5_choice \
+                   day6_faith day6_war day7_green day7_smog world_complete free_play \
+                   rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }
           done
@@ -144,8 +147,10 @@ jobs:
 
             **gdpd** ist das Gottspiel auf dem Würfel – der Ableger von „God does play dice!“
             (das Original gibt es weiter unter `dice-testversion`).
-            Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. An manchen Stellen entscheidest du,
-            was daraus wird: Natur oder Menschen. Halte ein Symbol gedrückt, um es zu erklären.
+            **Die Schöpfung in 7 Tagen:** Jeder Tag hat eine Aufgabe (oben im Ziel-Chip), wenige Drehungen und bis zu
+            3 Sterne. Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. Erst Land, dann Pflanzen, Tiere, Menschen;
+            ab Tag 5 entscheidest du, was wächst. Nach Tag 7 ist deine Welt vollendet und das freie Spiel geht auf.
+            Halte ein Symbol gedrückt, um es zu erklären.
 
             **Am Handy installieren (Android):** `gdpd.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.

@@ -1,5 +1,5 @@
 extends SceneTree
-## Modell-Test: baut jede Art (kind 0..14) und jeden Zustand einmal als FieldView und lässt ein paar Frames laufen.
+## Modell-Test: baut jede Art (kind 0..15, 15 = Wasser) und jeden Zustand einmal als FieldView und lässt ein paar Frames laufen.
 ##   godot --headless --script res://tests/test_models.gd
 ## Mit Bild (echtes GL, z. B. unter xvfb-run):
 ##   godot --rendering-driver opengl3 --resolution 1500x1100 --script res://tests/test_models.gd -- --sheet=/pfad/models.png
@@ -84,7 +84,11 @@ func _initialize() -> void:
 	for k in FieldView.KIND_COUNT:
 		if not ResourceLoader.exists("res://icons/%s.svg" % FieldView.KIND_ICON[k]):
 			_fail("Symbol fehlt: " + FieldView.KIND_ICON[k])
-	for n in ["wish", "wish_bubble", "wish_count", "strike", "field", "animals", "paradise", "swords", "heart"]:
+	if FieldView.KIND_COUNT != FieldData.KIND_COUNT or FieldView.KIND_ICON[FieldData.WATER] != "water":
+		_fail("Wasser fehlt in FieldView")
+	# Die 7 Tage: Wasser, Schloss, leerer Stern, Tage, Ziel
+	for n in ["wish", "wish_bubble", "wish_count", "strike", "field", "animals", "paradise", "swords", "heart",
+			"water", "lock", "star_empty", "days", "goal"]:
 		if Style.icon(n) == null:
 			_fail("Symbol lädt nicht: " + n)
 	print("Modelle gebaut: %d Ansichten" % _views.size())

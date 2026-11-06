@@ -1,11 +1,14 @@
 class_name GameState
 extends RefCounted
 ## Reine Spiellogik von gdpd, getrennt von der Darstellung. Kopierbar (clone) für Vorschau, Tipp, Bot und Rückgängig.
-## Regeln: gdpd_spec/GDPD_REGELN.md. Kurz:
-##   1. Start: leere Erde und Wiesen, nie drei Wiesen beisammen und keine fertige Reihe (auch nicht schräg).
+## Regeln: docs/GDPD_REGELN.md, dazu docs/GDPD_7_TAGE.md (neuer Baum, die 7 Tage). Kurz:
+##   1. Start: freies Spiel – Wiesen, Erde und etwas Wasser, nach Sticker-Art verteilt, keine fertige Reihe.
+##      Ein Tag (setup_day) – ein fester Start aus dem Pool des Tages.
 ##   2. Drei gleiche Felder in einer NEUEN Reihe wachsen (ab Stufe 2 auch diagonal, Einfach ab 1, Schwer nie):
 ##      Das Feld, das zuletzt dazugekommen ist, wird die nächste Art (FieldData.NEXT), die anderen bleiben.
-##      An vier Stellen wählt der Spieler („Dein Wille geschehe“): Wiese, Großer Wald, Dorf, Stadt.
+##      Erde → Wiese → Wald → Großer Wald → Tiere → Hütte → Haus → Dorf → … Wasser bildet nie eine Reihe.
+##      An vier Stellen wählt der Spieler („Dein Wille geschehe“): Wiese, Dorf, Stadt, Tiere (an einem Tag nur die,
+##      die der Tag freischaltet; is_choice). Eine Art, deren nächste Art heute noch nicht freigeschaltet ist, ruht.
 ##      Pro Zug gibt es höchstens eine Karte (card); jede andere Wahl im selben Zug nimmt die Gewohnheit (will).
 ##   3. Fertige Felder (Kirche, Industrie, Metropole, Paradies) wachsen nicht und bilden keine Reihe,
 ##      bringen aber jede Drehung Glauben (nicht bei Smog).
@@ -13,7 +16,9 @@ extends RefCounted
 ##   5. Krieg: Zwei Kirchen verschiedener Gemeinden, die eine Drehung zusammenbringt, werden Haus.
 ##   6. Weltwaage W (−100 Natur … +100 Stadt). Ab W ≥ 50 Smog: kein Glaube, Industrie lässt Natur welken, kein Nachwachsen.
 ##   7. Wünsche der Menschen (Sprechblase an einem Feld), Fehlversuche, Feuer und Herzen wie im Würfelspiel.
-##   8. Vollendet: genug fertige Felder und die Waage nicht im Roten.
+##   8. Vollendet: genug fertige Felder und die Waage nicht im Roten (freies Spiel).
+##   9. Ein Tag: ein Ziel (goal_progress/goal_target), begrenzte Drehungen (day_limit), 1–3 Sterne. Gewonnen, sobald das
+##      Ziel erreicht ist; verloren, wenn die Drehungen aus sind (Tag 6 auch bei Krieg). Keine Herzen an den Tagen.
 
 const STAGE_NAME = FieldData.KIND_NAME      # alte Namen (Oberfläche aus dem Würfelspiel)
 const STAGE_SHORT = FieldData.KIND_SHORT
@@ -91,6 +96,37 @@ var _grew: int = 0
 var _pre_ev: Array = []       # Ereignisse eines Werkzeugs (vor dem Auswerten)
 var _pre_gain: int = 0        # Glaube eines Werkzeugs (erfüllter Regen-Wunsch)
 
+# --- Regeln, die ein Tag ein- und ausschaltet (freies Spiel: alles an) -------------------------
+var day: Dictionary = {}      # Konfiguration des Tages (Days.config); {} = freies Spiel
+var day_no: int = 0           # 1 … 7 (0 = freies Spiel)
+var made: Array = []          # Art → so oft ist ein Feld durch Wachsen zu dieser Art geworden (wird nie weniger)
+var day_limit: int = 0        # Drehungen für diesen Versuch (Grenze + Gnade)
+var day_won := false
+var day_lost := ""            # "" | "twists" | "war" | "fire"
+var day_won_at: int = 0       # bei so vielen Drehungen gewonnen
+var unlocked: Dictionary = {} # Art → true: darf heute entstehen
+var choices_on: Dictionary = {}   # Art → true: ihre Wahl-Karte ist aktiv (wenn Option 2 freigeschaltet ist)
+var sys_wishes := true
+var sys_scale := true         # Weltwaage sichtbar und für die Wunsch-Arten benutzt
+var sys_income := true
+var sys_war := true
+var no_war := false           # Krieg lässt den Tag scheitern
+var sys_smog := true
+var sys_regrow := true
+var sys_strike := true        # Gewitter
+var sys_flood := true         # Flut
+var sys_bolts := true         # Blitz
+var sys_monsoon := true       # Monsun
+var sys_gift := false         # an einem Tag: nichts passt mehr zusammen → ein Regen (freies Spiel: Game macht das)
+var rain_every: int = 5       # alle so viele Drehungen ein Regen (0 = nie)
+var wish_from: int = 3
+var wish_every: int = 4
+var wish_types: Array = ["wald", "tiere", "acker", "regen"]
+var use_lcg := false          # Tage: Wünsche mit dem einfachen Zufall des Python-Modells (genaue Wiederholung)
+var lcg: int = 0
+var _row_ok: Array = []       # Art → bildet heute eine Reihe
+var _goal0: int = 0           # Ziel-Fortschritt zu Beginn des Zugs
+
 ## Alter Name für faith.
 var score: int:
 	get:
@@ -109,8 +145,27 @@ var best_stage: int:
 # Aufbau
 # =============================================================================
 
-## lvl: 0 Einfach, 1 Mittel, 2 Schwer. with_hearts: Herzen (Standard in allen Modi).
+## lvl: 0 Einfach, 1 Mittel, 2 Schwer. with_hearts: Herzen (Standard in allen Modi). Freies Spiel (alle Regeln an).
 func setup(seed_value: int = 0, endless_mode: bool = true, lvl: int = 1, with_hearts: bool = true) -> void:
+	_reset(seed_value, endless_mode, lvl, with_hearts)
+	_apply_free_rules()
+	_deal_start_board()
+
+
+## Ein Tag der Schöpfung: cfg = Days.config(n), kinds = 54 Arten (Brett aus dem Pool, Reihenfolge wie fields),
+## seed_value = Seed des Bretts (Zufall der Wünsche), extra_twists = Gnade (+2 je Fehlversuch).
+func setup_day(cfg: Dictionary, kinds: Array, seed_value: int = 1, extra_twists: int = 0) -> void:
+	_reset(seed_value if seed_value != 0 else 1, true, 2, false)
+	_apply_day_rules(cfg, seed_value, extra_twists)
+	for i in mini(kinds.size(), fields.size()):
+		(fields[i] as FieldData).kind = int(kinds[i])
+	ever = {}
+	for f in fields:
+		ever[f.kind] = true
+
+
+## Alles auf Anfang (ohne Regeln und ohne Brett).
+func _reset(seed_value: int, endless_mode: bool, lvl: int, with_hearts: bool) -> void:
 	level = clampi(lvl, 0, 2)
 	endless = endless_mode
 	hearts = with_hearts
@@ -129,7 +184,8 @@ func setup(seed_value: int = 0, endless_mode: bool = true, lvl: int = 1, with_he
 	faith_earned = 0
 	rain = Balance.RAIN_START if gadgets else 0
 	bolts = Balance.BOLT_START if gadgets else 0
-	next_rain = Balance.RAIN_EVERY_TWISTS
+	rain_every = Balance.RAIN_EVERY_TWISTS
+	next_rain = rain_every
 	misses = 0
 	twists = 0
 	monsoons = 0
@@ -163,6 +219,18 @@ func setup(seed_value: int = 0, endless_mode: bool = true, lvl: int = 1, with_he
 	_church0 = {}
 	_pre_ev = []
 	_pre_gain = 0
+	day = {}
+	day_no = 0
+	made = []
+	for k in FieldData.KIND_COUNT:
+		made.append(0)
+	day_limit = 0
+	day_won = false
+	day_lost = ""
+	day_won_at = 0
+	use_lcg = false
+	lcg = 0
+	_goal0 = 0
 	fields.clear()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
@@ -175,70 +243,160 @@ func setup(seed_value: int = 0, endless_mode: bool = true, lvl: int = 1, with_he
 					f.id = fields.size()
 					f.p = p
 					f.n = unit(a, p[a])
-					f.kind = FieldData.MEADOW if rng.randf() < Balance.START_MEADOW else FieldData.EMPTY
+					f.kind = FieldData.WATER
 					fields.append(f)
 	rebuild_index()
-	# Am Start liegen nie drei Wiesen beisammen: Keine Wiese hat mehr als eine Wiese daneben.
-	for guard in 200:
-		var worst: FieldData = null
-		var worst_n := 1
-		for f in fields:
-			if f.kind != FieldData.MEADOW:
-				continue
-			var nn := _count_neighbors(f, "nature")
-			if nn > worst_n:
-				worst_n = nn
-				worst = f
-		if worst == null:
-			break
-		worst.kind = FieldData.EMPTY
-	# Danach wieder auffüllen, wo das erlaubt ist, damit genug Natur da ist
-	var order: Array = fields.duplicate()
-	for i in range(order.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var tmp = order[i]
-		order[i] = order[j]
-		order[j] = tmp
-	for g in order:
-		var f: FieldData = g
-		if nature_share() >= Balance.START_NATURE:
-			break
-		if f.kind == FieldData.EMPTY and _meadow_allowed(f):
-			f.kind = FieldData.MEADOW
-			if not lines({f.id: true}).is_empty():
-				f.kind = FieldData.EMPTY
-	_break_ready_lines()
 
 
-## Steht irgendwo schon eine fertige Reihe? Dann ein Feld davon zu Erde.
-## Mit only: nur Reihen mit einem dieser Felder (was schon gewachsen ist, bleibt stehen).
-func _break_ready_lines(only: Dictionary = {}) -> void:
-	for guard in 60:
-		var hit: Array = []
-		for ln in lines(only):
-			hit = ln
-			break
-		if hit.is_empty():
+## Freies Spiel: alle Arten, alle Wahl-Karten (Wiese, Dorf, Stadt, Tiere), alle Systeme.
+func _apply_free_rules() -> void:
+	unlocked = {}
+	for k in FieldData.KIND_COUNT:
+		unlocked[k] = true
+	choices_on = {}
+	for k in FieldData.CHOICE:
+		choices_on[int(k)] = true
+	sys_wishes = true
+	sys_scale = true
+	sys_income = true
+	sys_war = true
+	no_war = false
+	sys_smog = true
+	sys_regrow = true
+	sys_strike = true
+	sys_flood = true
+	sys_bolts = true
+	sys_monsoon = true
+	sys_gift = false
+	rain_every = Balance.RAIN_EVERY_TWISTS
+	next_rain = rain_every
+	wish_from = Balance.WISH_FROM_TWIST
+	wish_every = Balance.WISH_EVERY
+	wish_types = ["wald", "tiere", "acker", "regen"]
+	_rebuild_rules()
+
+
+## Regeln eines Tages (Days.config): nur gerade Reihen, keine Herzen, keine Diagonalen/Gruppen, kein Nachwachsen,
+## kein Blitz/Monsun/Flut, kein „Vollendet“. Alles andere schaltet der Tag.
+func _apply_day_rules(cfg: Dictionary, seed_value: int, extra_twists: int) -> void:
+	day = cfg.duplicate(true)
+	day_no = int(cfg.get("day", 0))
+	unlocked = {}
+	for k in cfg.get("unlocked", []):
+		unlocked[int(k)] = true
+	choices_on = {}
+	for k in cfg.get("choices", []):
+		choices_on[int(k)] = true
+	no_fire = not bool(cfg.get("fire", true))
+	sys_wishes = bool(cfg.get("wishes", false))
+	sys_scale = bool(cfg.get("scale", false))
+	sys_income = bool(cfg.get("income", false))
+	sys_war = bool(cfg.get("war", false))
+	no_war = bool(cfg.get("no_war", false))
+	sys_smog = bool(cfg.get("smog", false))
+	sys_regrow = false
+	sys_strike = bool(cfg.get("strike", false))
+	sys_flood = false
+	sys_bolts = false
+	sys_monsoon = false
+	sys_gift = bool(cfg.get("gift", false))
+	rain = int(cfg.get("rain_start", 0))
+	bolts = 0
+	rain_every = int(cfg.get("rain_every", 0))
+	next_rain = rain_every
+	wish_from = int(cfg.get("wish_from", 2))
+	wish_every = maxi(1, int(cfg.get("wish_every", 3)))
+	wish_types = (cfg.get("wish_types", []) as Array).duplicate()
+	day_limit = int(cfg.get("limit", 15)) + maxi(0, extra_twists)
+	use_lcg = true
+	lcg = (seed_value * 7919 + 17) & 0x7fffffff
+	_rebuild_rules()
+
+
+## Welche Art bildet heute eine Reihe? (Nicht Wasser, nicht fertig, und ihre nächste Art ist freigeschaltet.)
+func _rebuild_rules() -> void:
+	_row_ok = []
+	for k in FieldData.KIND_COUNT:
+		var ok := FieldData.can_row(k)
+		if ok:
+			var nx: int = int(FieldData.NEXT[k])
+			ok = nx >= 0 and unlocked.has(nx)
+		_row_ok.append(ok)
+
+
+## Freies Spiel: der Start (GDPD_7_TAGE.md 3.2). Jede Art etwa zur Hälfte auf Ecken, 40 % auf Kanten, 10 % auf
+## Mitten (eine gerade Reihe braucht Ecke–Kante–Ecke oder Kante–Mitte–Kante), dann fertige Reihen auflösen.
+func _deal_start_board() -> void:
+	for attempt in 50:
+		_typed_board(Balance.START_KINDS)
+		_break_ready_lines()
+		if lines().is_empty():
 			return
-		var k := 1
-		if not only.is_empty() and not only.has((hit[1] as FieldData).id):
-			for i in hit.size():
-				if only.has((hit[i] as FieldData).id):
-					k = i
-		(hit[k] as FieldData).kind = FieldData.EMPTY
 
 
-## Darf hier am Start eine Wiese hin, ohne dass drei Wiesen beisammen liegen?
-func _meadow_allowed(f: FieldData) -> bool:
-	var m: Array = []
-	for g in neighbors(f):
-		if (g as FieldData).kind == FieldData.MEADOW:
-			m.append(g)
-	if m.is_empty():
-		return true
-	if m.size() > 1:
-		return false
-	return _count_neighbors(m[0], "nature") == 0
+func _typed_board(comp: Dictionary) -> void:
+	var free := {3: [], 2: [], 1: []}
+	for f in fields:
+		(free[FieldData.sticker_type(f.p)] as Array).append(f)
+	for t in [3, 2, 1]:
+		_shuffle(free[t])
+	var order: Array = []
+	for k in comp:
+		order.append([int(comp[k]), int(k)])
+	order.sort_custom(func(x, y): return int(x[0]) > int(y[0]) or (int(x[0]) == int(y[0]) and int(x[1]) < int(y[1])))
+	for f in fields:
+		f.kind = FieldData.WATER
+	for item in order:
+		var n: int = int(item[0])
+		var k: int = int(item[1])
+		var want := {3: int(n * Balance.START_CORNER_SHARE + 0.5), 1: int(n * Balance.START_CENTER_SHARE + rng.randf())}
+		want[2] = n - int(want[3]) - int(want[1])
+		for t in [3, 2, 1]:
+			for i in int(want[t]):
+				var tt: int = t
+				if (free[tt] as Array).is_empty():
+					for t2 in [3, 2, 1]:
+						if not (free[t2] as Array).is_empty():
+							tt = t2
+							break
+				if (free[tt] as Array).is_empty():
+					break
+				((free[tt] as Array).pop_back() as FieldData).kind = k
+
+
+func _shuffle(arr: Array) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = arr[i]
+		arr[i] = arr[j]
+		arr[j] = tmp
+
+
+## Fertige Reihen auflösen: ein Feld der Reihe tauscht mit einem Feld einer anderen Art und derselben Sticker-Art
+## (das hält die Verteilung auf Ecken/Kanten), wenn das die Zahl der Reihen senkt.
+func _break_ready_lines() -> void:
+	for guard in 400:
+		var ls := lines()
+		if ls.is_empty():
+			return
+		var hit: Array = ls[0]
+		var f: FieldData = hit[rng.randi_range(0, 2)]
+		var t := FieldData.sticker_type(f.p)
+		var cands: Array = []
+		for g in fields:
+			if g.kind != f.kind and FieldData.sticker_type(g.p) == t:
+				cands.append(g)
+		_shuffle(cands)
+		var n0 := ls.size()
+		for i in mini(12, cands.size()):
+			var g: FieldData = cands[i]
+			var k := f.kind
+			f.kind = g.kind
+			g.kind = k
+			if lines().size() < n0:
+				break
+			g.kind = f.kind
+			f.kind = k
 
 
 func clone() -> GameState:
@@ -295,6 +453,35 @@ func clone() -> GameState:
 	gs._pre_gain = _pre_gain
 	gs.rng.seed = rng.seed
 	gs.rng.state = rng.state
+	gs.day = day                  # nur gelesen: gemeinsam benutzen
+	gs.day_no = day_no
+	gs.made = made.duplicate()
+	gs.day_limit = day_limit
+	gs.day_won = day_won
+	gs.day_lost = day_lost
+	gs.day_won_at = day_won_at
+	gs.unlocked = unlocked        # nur gelesen
+	gs.choices_on = choices_on    # nur gelesen
+	gs._row_ok = _row_ok          # nur gelesen
+	gs.sys_wishes = sys_wishes
+	gs.sys_scale = sys_scale
+	gs.sys_income = sys_income
+	gs.sys_war = sys_war
+	gs.no_war = no_war
+	gs.sys_smog = sys_smog
+	gs.sys_regrow = sys_regrow
+	gs.sys_strike = sys_strike
+	gs.sys_flood = sys_flood
+	gs.sys_bolts = sys_bolts
+	gs.sys_monsoon = sys_monsoon
+	gs.sys_gift = sys_gift
+	gs.rain_every = rain_every
+	gs.wish_from = wish_from
+	gs.wish_every = wish_every
+	gs.wish_types = wish_types    # nur gelesen
+	gs.use_lcg = use_lcg
+	gs.lcg = lcg
+	gs._goal0 = _goal0
 	for f in fields:
 		gs.fields.append(f.copy())
 	gs.rebuild_index()
@@ -430,93 +617,6 @@ func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 			_broke_now[k] = true
 
 
-## Tutorial: ein ruhiger Würfel. Oben liegen zwei Wiesen in einer Reihe, die dritte kommt mit einer
-## Drehung der Scheibe x = 1 von hinten dazu (wird im Tutorial vorgezeigt).
-func setup_tutorial_board() -> void:
-	for f in fields:
-		f.kind = FieldData.EMPTY
-		f.fresh = 0
-		f.burning = false
-	field_at(Vector3i(-1, 1, 1), Vector3i(0, 1, 0)).kind = FieldData.MEADOW
-	field_at(Vector3i(0, 1, 1), Vector3i(0, 1, 0)).kind = FieldData.MEADOW
-	field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).kind = FieldData.MEADOW
-	# ein paar einzelne Wiesen, damit die Welt nicht leer aussieht (keine Reihe, nichts beisammen)
-	field_at(Vector3i(-1, -1, 1), Vector3i(0, 0, 1)).kind = FieldData.MEADOW
-	field_at(Vector3i(1, -1, 1), Vector3i(0, 0, 1)).kind = FieldData.MEADOW
-	field_at(Vector3i(1, 0, -1), Vector3i(1, 0, 0)).kind = FieldData.MEADOW
-	field_at(Vector3i(-1, -1, -1), Vector3i(-1, 0, 0)).kind = FieldData.MEADOW
-	field_at(Vector3i(0, -1, -1), Vector3i(0, -1, 0)).kind = FieldData.MEADOW
-	# Zweites Paar: Dieselbe Drehung noch einmal (x = 1, eine Vierteldrehung) macht oben eine neue Wiesen-Reihe
-	field_at(Vector3i(-1, 1, -1), Vector3i(0, 1, 0)).kind = FieldData.MEADOW
-	field_at(Vector3i(0, 1, -1), Vector3i(0, 1, 0)).kind = FieldData.MEADOW
-	field_at(Vector3i(1, -1, 1), Vector3i(0, -1, 0)).kind = FieldData.MEADOW    # kommt bei der 2. Drehung nach oben (1, 1, -1)
-	moved = {}
-	standing = {}
-	broken = {}
-	_broke_now = {}
-	spent = {}
-	wishes = []
-
-
-## Nach dem Tutorial: Die leere Erde erblüht zu einem normalen Start (wie in setup()).
-## Behält alles, was schon gewachsen ist (und den Glauben). Gibt die IDs der neuen Wiesen zurück.
-func fill_after_tutorial() -> Array:
-	standing = {}
-	broken = {}
-	_broke_now = {}
-	spent = {}
-	var picked: Array = []
-	for attempt in 12:
-		picked = _bloom_once()
-		moved = {}
-		if has_quick_move():
-			break
-		if attempt < 11:
-			for i in picked:
-				(fields[int(i)] as FieldData).kind = FieldData.EMPTY
-	var fresh_ids := {}
-	for i in picked:
-		fresh_ids[int(i)] = true
-	_break_ready_lines(fresh_ids)
-	var out: Array = []
-	for i in picked:
-		if (fields[int(i)] as FieldData).kind > 0:
-			out.append(i)
-	misses = 0
-	last_row = []
-	moved = {}
-	tapped = -1
-	_rotated = false
-	_turn_open = false
-	calm = false
-	return out
-
-
-func _bloom_once() -> Array:
-	var out: Array = []
-	var order: Array = []
-	for g in fields:
-		if (g as FieldData).kind == FieldData.EMPTY:
-			order.append(g)
-	for i in range(order.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var tmp = order[i]
-		order[i] = order[j]
-		order[j] = tmp
-	for g in order:
-		var f: FieldData = g
-		if nature_share() >= Balance.START_NATURE:
-			break
-		if not _meadow_allowed(f):
-			continue
-		f.kind = FieldData.MEADOW
-		if not lines({f.id: true}).is_empty():
-			f.kind = FieldData.EMPTY
-			continue
-		out.append(f.id)
-	return out
-
-
 ## Die drei Felder der Scheibe auf der ersten Seite, die sie schneidet.
 func slice_row(axis: int, layer: int) -> Array:
 	for nv in FACE_NORMALS:
@@ -614,8 +714,10 @@ func next_age_goal() -> String:
 	return "Als Nächstes: " + str(Balance.AGE_GOAL[clampi(age() - 1, 0, Balance.AGE_GOAL.size() - 1)])
 
 
-## Vorbei: Welt verbrannt, 40 Drehungen um (Challenge) oder vollendet.
+## Vorbei: Welt verbrannt, 40 Drehungen um (Challenge) oder vollendet. An einem Tag: gewonnen oder gescheitert.
 func is_over() -> bool:
+	if not day.is_empty():
+		return day_won or day_lost != ""
 	return finished() or died() or completed
 
 
@@ -625,7 +727,7 @@ func stuck() -> bool:
 		return false
 	var cnt := {}
 	for f in fields:
-		if FieldData.can_row(f.kind):
+		if can_row(f.kind):
 			cnt[f.kind] = int(cnt.get(f.kind, 0)) + 1
 			if int(cnt[f.kind]) >= 3:
 				return false
@@ -637,7 +739,7 @@ func died() -> bool:
 
 
 func finished() -> bool:
-	return not endless and twists >= Balance.MAX_TWISTS
+	return day.is_empty() and not endless and twists >= Balance.MAX_TWISTS
 
 
 ## Weltwaage: −100 (nur Natur) … +100 (nur Stadt). Ohne Gedächtnis, aus dem Brett berechnet.
@@ -695,13 +797,20 @@ func finished_count() -> int:
 
 ## So viele fertige Felder braucht die Welt zum Vollenden (0: kein Ziel, Challenge).
 func complete_goal() -> int:
-	if not endless:
+	if not endless or not day.is_empty():
 		return 0
 	return int(Balance.COMPLETE_AT[clampi(level, 0, 2)])
 
 
 ## Werkzeug schon aufgedeckt? Gewitter mit dem ersten fertigen Feld, Flut mit dem ersten Smog.
+## An einem Tag: Regen ab Tag 2, Gewitter an Tag 7, Blitz, Monsun und Flut nie.
 func tool_unlocked(kind: String) -> bool:
+	if not day.is_empty():
+		if kind == "rain":
+			return int(day.get("rain_start", 0)) > 0 or rain_every > 0
+		if kind == "strike":
+			return sys_strike
+		return false
 	if kind == "strike":
 		for k in ever:
 			if FieldData.finished(int(k)):
@@ -724,7 +833,7 @@ func lines(only: Dictionary = {}) -> Array:
 	while i < n:
 		var f0: FieldData = _index[_LINES[i]]
 		var k := f0.kind
-		if FieldData.can_row(k):
+		if _row_ok[k]:
 			var f1: FieldData = _index[_LINES[i + 1]]
 			if f1.kind == k:
 				var f2: FieldData = _index[_LINES[i + 2]]
@@ -777,6 +886,7 @@ func _open_turn() -> void:
 	_pre_gain = 0
 	_church0 = church_groups()
 	_w0 = balance()
+	_goal0 = goal_progress()
 
 
 func _line_keys() -> Dictionary:
@@ -792,9 +902,9 @@ func counts(line: Array) -> bool:
 	return not standing.has(k) and not broken.has(k) and not spent.has(k)
 
 
-static func _still_line(line: Array) -> bool:
+func _still_line(line: Array) -> bool:
 	var k := (line[0] as FieldData).kind
-	if not FieldData.can_row(k):
+	if not can_row(k):
 		return false
 	for g in line:
 		if (g as FieldData).kind != k:
@@ -880,15 +990,77 @@ func merge_value() -> int:
 	return pts
 
 
+## Wie merge_value, aber nach Gewichten je Art (Tipp an den Tagen): Summe w[Art] + 0,05 je neuer Reihe.
+func weighted_merge_value(w: Array) -> float:
+	var pts := 0.0
+	for line in lines(moved):
+		if counts(line):
+			pts += float(w[(line[1] as FieldData).kind]) + 0.05
+	return pts
+
+
 # =============================================================================
 # Wachsen mit Wahl
 # =============================================================================
 
+## Bildet die Art k heute eine Reihe? Nicht Wasser, nicht fertig, und ihre nächste Art ist freigeschaltet
+## (sonst ruht sie: „Morgen wächst hier mehr.“). Freies Spiel: alles außer Wasser und fertigen Arten.
+func can_row(k: int) -> bool:
+	return k >= 0 and k < _row_ok.size() and bool(_row_ok[k])
+
+
+## Ruht diese Art heute? (Sie könnte wachsen, aber ihre nächste Art ist an diesem Tag noch nicht freigeschaltet.)
+func resting(k: int) -> bool:
+	return FieldData.can_row(k) and not can_row(k)
+
+
+## Hat die Art k gerade eine aktive Wahl-Karte? (Im freien Spiel immer bei Wiese, Dorf, Stadt, Tiere;
+## an einem Tag erst, wenn der Tag die Wahl einschaltet und Option 2 freigeschaltet ist.)
+func is_choice(k: int) -> bool:
+	if not FieldData.CHOICE.has(k) or not choices_on.has(k):
+		return false
+	var opts: Array = FieldData.CHOICE[k]
+	return unlocked.has(int(opts[0])) and unlocked.has(int(opts[1]))
+
+
+## Die Optionen der Wahl dieser Art ([] wenn sie gerade keine Wahl hat).
+func options_of(k: int) -> Array:
+	return FieldData.options(k) if is_choice(k) else []
+
+
+## Nächste Art unter den heutigen Regeln (option: 0/1 bei einer Wahl). Ruht die Art, bleibt sie, wie sie ist.
+func next_of(k: int, option: int = 0) -> int:
+	if is_choice(k):
+		return FieldData.next_kind(k, option)
+	if not FieldData.valid(k):
+		return k
+	var nx: int = int(FieldData.NEXT[k])
+	return nx if nx >= 0 and unlocked.has(nx) else k
+
+
+## Erklärung für das lange Drücken auf ein Feld dieser Art (heutige Regeln).
+func kind_help(k: int) -> String:
+	var c := clampi(k, 0, FieldData.KIND_COUNT - 1)
+	var txt := str(FieldData.KIND_HELP[c])
+	if FieldData.KIND_HELP_NO_CHOICE.has(c) and not is_choice(c):
+		txt = str(FieldData.KIND_HELP_NO_CHOICE[c])
+	if resting(c):
+		txt += " " + FieldData.REST_HELP
+	return txt
+
+
+## Ein Feld wächst zu nk (zählt für made, wenn sich die Art ändert).
+func _grow_to(f: FieldData, nk: int) -> void:
+	if f.kind != nk:
+		f.kind = nk
+		made[nk] = int(made[nk]) + 1
+
+
 ## Die nächste Art für ein Feld der Art k, das gerade wächst. Bei einer Wahl: Die erste Wahl des Zugs wird
 ## die Karte (card); für sie gilt answers, sonst (und für jede andere Wahl) die Gewohnheit will.
 func grown(k: int, fid: int = -1) -> int:
-	if not FieldData.is_choice(k):
-		return FieldData.next_kind(k)
+	if not is_choice(k):
+		return next_of(k)
 	if card < 0:
 		card = k
 		card_field = fid
@@ -898,7 +1070,7 @@ func grown(k: int, fid: int = -1) -> int:
 			card_fields.append(fid)
 		if answers.has(k):
 			opt = int(answers[k])
-	return FieldData.next_kind(k, opt)
+	return next_of(k, opt)
 
 
 ## Gewohnheit für eine Art mit Wahl (0/1).
@@ -917,7 +1089,7 @@ func resolve_faces(ev: Array, locked: Dictionary) -> int:
 		var nn: Vector3i = nv
 		var face := face_fields(nn)
 		var k: int = (face[0] as FieldData).kind
-		if not FieldData.can_row(k):
+		if not can_row(k):
 			continue
 		var same := true
 		var touched := false
@@ -940,7 +1112,7 @@ func resolve_faces(ev: Array, locked: Dictionary) -> int:
 			var h: FieldData = g
 			if k == card and h.id != center:
 				card_fields.append(h.id)
-			h.kind = nk
+			_grow_to(h, nk)
 			h.burning = false
 			locked[h.id] = true
 			ids.append(h.id)
@@ -1021,7 +1193,7 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 					var h: FieldData = g
 					h.burning = false
 					done[h.id] = true
-					h.kind = nk
+					_grow_to(h, nk)
 					focus[h.id] = true
 					if h != mid:
 						gids.append(h.id)
@@ -1037,7 +1209,7 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 			var pts: int = int(Balance.GROW_FAITH[FieldData.tier(k0)]) * combo
 			total += pts
 			_grew += 1
-			mid.kind = grown(k0, mid.id)
+			_grow_to(mid, grown(k0, mid.id))
 			mid.burning = false
 			focus[mid.id] = true
 			var other_ids: Array = []
@@ -1067,7 +1239,7 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 	var ev: Array = _pre_ev.duplicate(true)
 	_pre_ev = []
 	var age_before := age()
-	var corners := touched_corners()
+	var corners := touched_corners() if sys_bolts else 0
 	# 1. Seiten, dann Reihen (mit Kettenreaktion und Karte)
 	var gain := resolve_merges(ev)
 	moved = {}
@@ -1075,9 +1247,11 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 	var dirty := {}             # was sich danach verändert: bildet es eine Reihe, wächst sie noch in dieser Runde
 	var loss := 0
 	var smog_now := false
+	var war_now := false
 	if twist:
 		# 2. Krieg: zwei Kirchen verschiedener Gemeinden, die diese Drehung zusammengebracht hat
-		var war := war_fields(_church0)
+		var war: Array = war_fields(_church0) if sys_war else []
+		war_now = not war.is_empty()
 		if not war.is_empty():
 			loss = maxi(Balance.WAR_FAITH_MIN, (faith + gain) * Balance.WAR_FAITH_PCT / 100)
 			for i in war:
@@ -1090,7 +1264,7 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 			ev.append({"type": "war", "fields": war, "faith": -loss, "kind": Balance.WAR_DROP})
 		# 3. Smog: Industrie lässt Natur daneben welken (die höchste Stufe zuerst)
 		var w := balance()
-		smog_now = w >= Balance.SMOG_AT and not calm
+		smog_now = sys_smog and w >= Balance.SMOG_AT and not calm
 		if smog_now:
 			stats["smog"] = int(stats["smog"]) + 1
 			ev.append({"type": "smog", "w": w})
@@ -1113,7 +1287,7 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 					stats["withered"] = int(stats["withered"]) + 1
 					ev.append({"type": "polluted", "field": best.id, "by": f.id, "from": was, "kind": best.kind})
 		# 4. Nachwachsen: Erde mit viel Natur daneben wird Wiese (nicht bei Smog)
-		if not smog_now and not calm and Balance.REGROW_PER_TWIST > 0:
+		if sys_regrow and not smog_now and not calm and Balance.REGROW_PER_TWIST > 0:
 			var grow: Array = []
 			for f in fields:
 				if f.kind != FieldData.EMPTY or f.fresh > 0:
@@ -1143,7 +1317,7 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 		ev.append({"type": "burn", "field": f.id, "from": was_k, "kind": f.kind})
 	# 7. Wünsche: erfüllt, abgelaufen oder weg
 	var wish_gain := 0
-	if twist:
+	if twist and sys_wishes:
 		wish_gain = _check_wishes(dirty, ev)
 	# 8. Hat das alles eine neue Reihe ergeben? Dann wächst sie gleich (wird danach gezeigt).
 	var late_gain := 0
@@ -1153,7 +1327,7 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 		moved = {}
 	# 9. Glaube pro Drehung von fertigen Feldern
 	var income := 0
-	if twist and not smog_now and not calm:
+	if twist and sys_income and not smog_now and not calm:
 		income = income_potential()
 		if income > 0:
 			stats["income"] = int(stats["income"]) + income
@@ -1164,15 +1338,15 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 	var faith_before := faith
 	var got := _progress(earned, corners)
 	faith = maxi(0, faith - loss)
-	# 11. Drehungen zählen, alle 5 Drehungen ein Regen
+	# 11. Drehungen zählen, alle 5 Drehungen ein Regen (an den Tagen: alle rain_every)
 	if twist:
 		twists += 1
-		if Balance.RAIN_EVERY_TWISTS > 0 and twists % Balance.RAIN_EVERY_TWISTS == 0:
+		if rain_every > 0 and twists % rain_every == 0:
 			if rain < Balance.RAIN_MAX:
 				rain += 1
 				got["rain"] = int(got["rain"]) + 1
-		if Balance.RAIN_EVERY_TWISTS > 0:
-			next_rain = (twists / Balance.RAIN_EVERY_TWISTS + 1) * Balance.RAIN_EVERY_TWISTS
+		if rain_every > 0:
+			next_rain = (twists / rain_every + 1) * rain_every
 	# 12. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe (ein erfüllter Wunsch zählt als Wachsen)
 	if twist and _grew == 0 and wish_gain == 0 and not no_fire:
 		misses += 1
@@ -1192,7 +1366,8 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 			disaster("fire", ev)
 	# 13. Ein neuer Wunsch
 	if twist and not calm:
-		_make_wish(ev)
+		if sys_wishes:
+			_make_wish(ev)
 		var w2 := balance()
 		if w2 <= -80 and people_count() == 0:
 			wild_twists += 1
@@ -1203,8 +1378,14 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 	_broke_now = {}
 	_rotated = false
 	_drop_dead_wishes(ev)
-	# 15. Vollendet?
+	# 15. Vollendet? Tag geschafft oder gescheitert?
 	_check_complete(ev)
+	_check_day(ev, war_now)
+	# 16. Tag: nichts passt mehr zusammen → ein Regen geschenkt
+	if sys_gift and not is_over() and stuck():
+		rain += 1
+		got["rain"] = int(got["rain"]) + 1
+		ev.append({"type": "gift", "tool": "rain"})
 	return _close_turn(ev, growth, faith - faith_before, income, loss, wish_gain + _pre_gain, got, age_before)
 
 
@@ -1232,7 +1413,7 @@ func _close_turn(ev: Array, growth: int, delta: int, income: int, loss: int, wis
 	turn += 1
 	return {"events": ev, "gain": growth, "faith": delta, "income": income, "loss": loss, "grew": _grew,
 		"card": card, "card_field": card_field, "bonus_gained": got, "new_age": age() > age_before,
-		"w": w, "zone": z, "completed": completed}
+		"w": w, "zone": z, "completed": completed, "day": day_status()}
 
 
 ## Glauben gutschreiben, Fortschritt merken, Werkzeuge verteilen. corners = neu geschaffte Ecken (Blitz).
@@ -1244,7 +1425,7 @@ func _progress(earned: int, corners: int) -> Dictionary:
 	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
 	if not gadgets:
 		return got
-	if not monsoon_unlocked and ever.has(FieldData.HOUSE):
+	if sys_monsoon and not monsoon_unlocked and ever.has(FieldData.HOUSE):
 		monsoon_unlocked = true
 		next_monsoon = faith_earned + Balance.MONSOON_EVERY_FAITH
 		if monsoons < Balance.MONSOON_MAX:
@@ -1264,7 +1445,7 @@ func _progress(earned: int, corners: int) -> Dictionary:
 
 ## Vollendet: genug fertige Felder und die Waage nicht im Roten (nur offene Modi).
 func _check_complete(ev: Array) -> void:
-	if completed or not endless or died():
+	if completed or not endless or died() or not day.is_empty():
 		return
 	var goal := complete_goal()
 	if goal <= 0 or finished_count() < goal:
@@ -1288,7 +1469,7 @@ func touched_corners() -> int:
 				var p := Vector3i(x, y, z)
 				var trio: Array = [field_at(p, Vector3i(x, 0, 0)), field_at(p, Vector3i(0, y, 0)), field_at(p, Vector3i(0, 0, z))]
 				var k: int = (trio[0] as FieldData).kind
-				if not FieldData.can_row(k):
+				if not can_row(k):
 					continue
 				var same := true
 				var touched := false
@@ -1310,7 +1491,7 @@ func resolve_now(ans: Dictionary = {}) -> Dictionary:
 	var ev: Array = _pre_ev.duplicate(true)
 	_pre_ev = []
 	var age_before := age()
-	var corners := touched_corners()
+	var corners := touched_corners() if sys_bolts else 0
 	var gain := resolve_merges(ev)
 	moved = {}
 	tapped = -1
@@ -1319,6 +1500,7 @@ func resolve_now(ans: Dictionary = {}) -> Dictionary:
 	var got := _progress(gain + wish_gain, corners)
 	_drop_dead_wishes(ev)
 	_check_complete(ev)
+	_check_day(ev, false)
 	var res := _close_turn(ev, gain, faith - faith_before, 0, 0, wish_gain, got, age_before)
 	turn -= 1          # Regen ist kein Zug
 	return res
@@ -1346,7 +1528,7 @@ func disaster(kind: String, ev: Array) -> void:
 	if kind == "fire":
 		for i in last_row:
 			var f: FieldData = fields[int(i)]
-			if f.kind != FieldData.EMPTY:
+			if f.kind != FieldData.EMPTY and f.kind != FieldData.WATER:
 				f.burning = true
 				hit.append(f.id)
 	if hearts and Balance.FIRE_COSTS_LIFE:
@@ -1439,7 +1621,7 @@ func _fulfil(w: Dictionary, f: FieldData, ev: Array) -> int:
 	var was: int = f.kind
 	var nk := grown(was, f.id)
 	if nk != was:
-		f.kind = nk
+		_grow_to(f, nk)
 		f.burning = false
 	ev.append({"type": "wish_done", "wish": w.duplicate(), "field": f.id, "faith": Balance.WISH_FAITH, "from": was, "kind": f.kind})
 	return Balance.WISH_FAITH
@@ -1458,10 +1640,31 @@ func _drop_dead_wishes(ev: Array) -> void:
 	wishes = keep
 
 
+## Kommt bei dieser Drehung ein Wunsch? Freies Spiel: ab WISH_FROM_TWIST alle WISH_EVERY Drehungen (4, 8, 12 …).
+## An einem Tag: zuerst bei wish_from, dann alle wish_every Drehungen.
+func wish_due() -> bool:
+	if day.is_empty():
+		return twists >= Balance.WISH_FROM_TWIST and twists % Balance.WISH_EVERY == 0
+	return twists >= wish_from and (twists - wish_from) % wish_every == 0
+
+
+## Kann gerade ein Acker entstehen (die Wiese-Karte ist aktiv)? Dann sind Hunger-Wünsche möglich, auch ohne Acker.
+func can_make_field() -> bool:
+	return is_choice(FieldData.MEADOW) and unlocked.has(FieldData.FIELD)
+
+
+## Zufall der Regeln: an den Tagen das einfache LCG des Python-Modells (GDPD_7_TAGE.md 6.3), sonst rng. 0 … n−1.
+func _rand(n: int) -> int:
+	if use_lcg:
+		lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+		return (lcg >> 8) % maxi(1, n)
+	return rng.randi_range(0, maxi(0, n - 1))
+
+
 func _make_wish(ev: Array) -> void:
 	if wishes.size() >= Balance.WISH_MAX:
 		return
-	if twists < Balance.WISH_FROM_TWIST or twists % Balance.WISH_EVERY != 0:
+	if not wish_due():
 		return
 	var people: Array = []
 	for f in fields:
@@ -1471,7 +1674,9 @@ func _make_wish(ev: Array) -> void:
 		return
 	var w := balance()
 	var opts: Array = []
-	if w >= Balance.CITY_AT:
+	if not sys_scale:
+		opts = [["wald", 2], ["acker", 2], ["tiere", 1], ["regen", 1]]
+	elif w >= Balance.CITY_AT:
 		opts = [["wald", 3], ["tiere", 2], ["regen", 1]]
 	elif w <= Balance.WILD_AT:
 		opts = [["acker", 1]]
@@ -1481,9 +1686,13 @@ func _make_wish(ev: Array) -> void:
 	var tot := 0
 	for o in opts:
 		var t := str(o[0])
+		if not wish_types.has(t):
+			continue
 		var possible := false
 		if t == "regen":
 			possible = rain > 0
+		elif t == "acker":
+			possible = can_make_field() or count(FieldData.FIELD) > 0
 		else:
 			for k in WISH_WANT[t]:
 				if count(int(k)) > 0:
@@ -1493,7 +1702,7 @@ func _make_wish(ev: Array) -> void:
 			tot += int(o[1])
 	if ok.is_empty():
 		return
-	var r := rng.randi_range(0, tot - 1)
+	var r := _rand(tot)
 	var wtype := ""
 	for o in ok:
 		wtype = str(o[0])
@@ -1506,7 +1715,7 @@ func _make_wish(ev: Array) -> void:
 			cand.append(fid)
 	if cand.is_empty():
 		return
-	var pick := int(cand[rng.randi_range(0, cand.size() - 1)])
+	var pick := int(cand[_rand(cand.size())])
 	wish_seq += 1
 	var wish := {"id": wish_seq, "type": wtype, "field": pick, "left": Balance.WISH_TWISTS}
 	wishes.append(wish)
@@ -1524,6 +1733,8 @@ func _make_wish(ev: Array) -> void:
 ## sucht er die Drehung, nach der eine zweite wachsen kann (steps = 2).
 ## {"axis", "layer", "turns", "points", "steps", "choice" (0/1 oder -1), "card" (Art oder -1), "value"} oder {}.
 func best_move() -> Dictionary:
+	if is_day():
+		return best_day_action(true)
 	var best := {}
 	var best_v := -INF
 	for m in MOVES:
@@ -1571,7 +1782,8 @@ func next_gain() -> int:
 
 ## Sofortiger Wachstums-Glaube (merge_value) jeder der 27 Drehungen, ohne die Runde auszuwerten.
 ## Eine Kopie wird nach jeder Drehung zurückgestellt (schnell). skip: diese Scheibe (Achse, Scheibe) auslassen.
-func quick_gains(skip_axis: int = -1, skip_layer: int = 99) -> Array:
+## w: Gewichte je Art (Tage, siehe goal_weights) – dann ist das Ergebnis weighted_merge_value statt Glaube.
+func quick_gains(skip_axis: int = -1, skip_layer: int = 99, w: Array = []) -> Array:
 	var sim := clone()
 	var save_p: Array = []
 	var save_n: Array = []
@@ -1587,7 +1799,10 @@ func quick_gains(skip_axis: int = -1, skip_layer: int = 99) -> Array:
 		sim._turn_open = true          # keine Gemeinden/Waage nötig
 		sim._broke_now = {}
 		sim.apply_rotation(int(m[0]), int(m[1]), int(m[2]))
-		out.append(sim.merge_value())
+		if w.is_empty():
+			out.append(sim.merge_value())
+		else:
+			out.append(sim.weighted_merge_value(w))
 		for i in sim.fields.size():
 			var f: FieldData = sim.fields[i]
 			f.p = save_p[i]
@@ -1598,19 +1813,24 @@ func quick_gains(skip_axis: int = -1, skip_layer: int = 99) -> Array:
 
 ## Zwei-Zug-Suche: die erste Drehung, nach der eine zweite (andere Scheibe) am meisten wachsen lässt.
 ## [Drehung, Glaube] oder [[], 0].
-func two_step_move() -> Array:
+## w: Gewichte je Art (Tage) – dann zählt weighted_merge_value statt Glaube.
+func two_step_move(w: Array = []) -> Array:
 	var best: Array = []
-	var best_pts := 0
+	var best_pts = 0
 	for m in MOVES:
 		var sim := clone()
 		sim.moved = {}
 		sim._turn_open = true
 		sim.apply_rotation(int(m[0]), int(m[1]), int(m[2]))
 		sim.broken = sim._broke_now.duplicate()     # gleich zurückdrehen zählt nicht
-		var gains := sim.quick_gains(int(m[0]), int(m[1]))
+		var gains := sim.quick_gains(int(m[0]), int(m[1]), w)
 		for g in gains:
-			if int(g) > best_pts:
-				best_pts = int(g)
+			if w.is_empty():
+				if int(g) > int(best_pts):
+					best_pts = int(g)
+					best = m
+			elif float(g) > float(best_pts):
+				best_pts = float(g)
 				best = m
 	return [best, best_pts]
 
@@ -1620,6 +1840,13 @@ func simulate(action: Dictionary, ans: Dictionary = {}) -> Dictionary:
 	var sim := clone()
 	var res := sim.play(action, ans)
 	return {"state": sim, "result": res}
+
+
+## Empfohlene Antwort auf die Karte dieser Aktion (0/1, -1 ohne Karte). Tage: nach dem Ziel, sonst nach Glauben.
+func recommend_choice(action: Dictionary) -> int:
+	if is_day():
+		return int(_day_option(action, goal_weights())["choice"])
+	return int(evaluate(action, true)["choice"])
 
 
 ## Welche Karte bringt diese Aktion? {} oder {"kind", "field", "fields", "options", "default"}.
@@ -1703,9 +1930,19 @@ func rain_targets() -> Dictionary:
 			out[f.id] = "fire"
 		elif useful.has(f.id):
 			out[f.id] = "useful"
-		elif RAIN_NEXT.has(f.kind):
+		elif rain_grows(f.kind):
 			out[f.id] = "grow"
 	return out
+
+
+## Lässt Regen diese Art heute wachsen? (Erde → Wiese → Wald → Großer Wald, nur wenn das Ergebnis freigeschaltet ist.)
+func rain_grows(k: int) -> bool:
+	return RAIN_NEXT.has(k) and unlocked.has(int(RAIN_NEXT[k]))
+
+
+## Geht Regen auf dieses Feld? (Brennt es, löscht er; sonst muss es wachsen können.)
+func rain_ok(f: FieldData) -> bool:
+	return f.burning or rain_grows(f.kind)
 
 
 ## Gibt es eine Drehung, die sofort etwas wachsen lässt? (Schneller als best_move, nur ein Zug.)
@@ -1722,7 +1959,7 @@ func rain_spots() -> Dictionary:
 		if f.burning:
 			out[f.id] = "fire"
 			continue
-		if not RAIN_NEXT.has(f.kind):
+		if not rain_grows(f.kind):
 			continue
 		var was: int = f.kind
 		f.kind = int(RAIN_NEXT[was])
@@ -1742,8 +1979,14 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	if kind == "rain":
 		if rain <= 0:
 			return "Nächster Regen in %d Drehungen." % maxi(1, next_rain - twists)
-		if not f.burning and not RAIN_NEXT.has(f.kind):
-			return "Regen geht auf Erde, Wiese und Wald – oder auf Feuer."
+		if not rain_ok(f):
+			var names: Array = []
+			for k in [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST]:
+				if rain_grows(k):
+					names.append(FieldData.kind_name(k))
+			if names.size() == 3:
+				return "Regen geht auf Erde, Wiese und Wald – oder auf Feuer."
+			return "Regen geht auf %s – oder auf Feuer." % " und ".join(PackedStringArray(names))
 	elif kind == "bolt":
 		if bolts <= 0:
 			return "Einen Blitz gibt es, wenn sich an einer Ecke 3 gleiche treffen."
@@ -1755,7 +1998,7 @@ func can_bonus(kind: String, f: FieldData) -> String:
 	elif kind == "strike":
 		if faith < Balance.STRIKE_COST:
 			return "Dafür brauchst du %d Glauben." % Balance.STRIKE_COST
-		if f.kind == FieldData.EMPTY:
+		if f.kind == FieldData.EMPTY or f.kind == FieldData.WATER:
 			return "Hier ist nichts. Tippe auf ein Feld, das schrumpfen soll."
 	elif kind == "flood":
 		if faith < Balance.FLOOD_COST:
@@ -1801,8 +2044,10 @@ func apply_bonus(kind: String, f: FieldData, row: Array = [], ans: Dictionary = 
 			var w: Dictionary = item
 			var wf: FieldData = fields[int(w["field"])]
 			if str(w["type"]) == "regen" and wf.n == f.n and wf.is_people():
+				var wk: int = wf.kind
 				_pre_gain += _fulfil(w, wf, _pre_ev)
-				moved[wf.id] = true
+				if wf.kind != wk:
+					moved[wf.id] = true
 			else:
 				keep.append(w)
 		wishes = keep
@@ -1810,8 +2055,8 @@ func apply_bonus(kind: String, f: FieldData, row: Array = [], ans: Dictionary = 
 			f.burning = false
 			tapped = -1
 			return
-		if RAIN_NEXT.has(f.kind):
-			f.kind = int(RAIN_NEXT[f.kind])
+		if rain_grows(f.kind):
+			_grow_to(f, int(RAIN_NEXT[f.kind]))
 		f.fresh = 0
 		moved[f.id] = true
 		return
@@ -1828,7 +2073,7 @@ func apply_bonus(kind: String, f: FieldData, row: Array = [], ans: Dictionary = 
 				g.burning = false
 				if not g.is_civilisation():
 					continue
-			if was == FieldData.EMPTY:
+			if was == FieldData.EMPTY or was == FieldData.WATER:
 				continue
 			if was == FieldData.INDUSTRY:
 				g.kind = FieldData.EMPTY
@@ -1849,6 +2094,341 @@ func apply_bonus(kind: String, f: FieldData, row: Array = [], ans: Dictionary = 
 	for i in bonus_fields(kind, f, row):
 		var h: FieldData = fields[int(i)]
 		h.burning = false
-		h.kind = grown(h.kind, h.id)
+		if h.kind == FieldData.WATER or h.is_finished():
+			continue
+		_grow_to(h, grown(h.kind, h.id))
 		h.fresh = 0
 		moved[h.id] = true
+
+
+# =============================================================================
+# Die Schöpfung in 7 Tagen: Ziel, Fortschritt, Sterne (GDPD_7_TAGE.md, Abschnitt 2)
+# =============================================================================
+
+## Läuft gerade ein Tag (statt freiem Spiel)?
+func is_day() -> bool:
+	return not day.is_empty()
+
+
+## Art des Ziels: "make" (so viele Felder wachsen zu einer Art), "wishes" (Wünsche erfüllen), "faith" (Glauben
+## sammeln; mit goal_green() auch die Waage im Grünen). "" im freien Spiel.
+func goal_type() -> String:
+	return str(day.get("goal_type", ""))
+
+
+func goal_target() -> int:
+	return int(day.get("goal_target", 0))
+
+
+func goal_kinds() -> Array:
+	return day.get("goal_kinds", [])
+
+
+func goal_green() -> bool:
+	return bool(day.get("goal_green", false))
+
+
+## Fortschritt zum Ziel: make = so oft ist ein Feld zu der Art gewachsen (Reihe, Seite, Kette, Regen, Wunsch;
+## Fallen zählt nicht ab, der Fortschritt geht nie zurück), wishes = erfüllte Wünsche, faith = Glaube.
+func goal_progress() -> int:
+	var t := goal_type()
+	if t == "make":
+		var c := 0
+		for k in goal_kinds():
+			c += int(made[int(k)])
+		return c
+	if t == "wishes":
+		return int(stats.get("wish_ok", 0))
+	if t == "faith":
+		return faith
+	return 0
+
+
+## Steht die Waage im Grünen (Gleichgewicht: WILD_AT < W < CITY_AT)?
+func balance_green() -> bool:
+	var w := balance()
+	return w > Balance.WILD_AT and w < Balance.CITY_AT
+
+
+## Ist das Ziel des Tages gerade erreicht?
+func goal_met() -> bool:
+	if not is_day() or goal_target() <= 0:
+		return false
+	if goal_progress() < goal_target():
+		return false
+	if goal_green():
+		return balance_green()
+	return true
+
+
+## Drehungen, die an diesem Tag noch bleiben.
+func twists_left() -> int:
+	return maxi(0, day_limit - twists)
+
+
+## Sterne für einen gewonnenen Tag: ★★★ bis stars[0] Drehungen, ★★ bis stars[1], sonst ★ (0 = nicht gewonnen).
+## Die Gnade (mehr Drehungen) ändert die Grenzen nicht.
+func stars() -> int:
+	if not day_won:
+		return 0
+	return Days.stars_for(day, day_won_at)
+
+
+## Zusammenfassung für die Oberfläche (Ziel-Chip, Karten). {} im freien Spiel.
+## {"day", "type", "kinds", "target", "progress", "met", "green" (Waage grün), "need_green", "twists", "limit",
+##  "left", "won", "lost" ("", "twists", "war", "fire"), "won_at", "stars", "no_war"}
+func day_status() -> Dictionary:
+	if not is_day():
+		return {}
+	return {"day": day_no, "type": goal_type(), "kinds": goal_kinds(), "target": goal_target(),
+		"progress": goal_progress(), "met": goal_met(), "green": balance_green(), "need_green": goal_green(),
+		"twists": twists, "limit": day_limit, "left": twists_left(), "won": day_won, "lost": day_lost,
+		"won_at": day_won_at, "stars": stars(), "no_war": no_war}
+
+
+## Nach jedem Zug (end_round) und jedem Regen (resolve_now): Fortschritt melden, gewonnen oder gescheitert?
+## Gewonnen, sobald das Ziel erreicht ist (auch bei der letzten Drehung). Gescheitert: Krieg (no_war),
+## Welt verbrannt (nur mit Herzen) oder alle Drehungen verbraucht.
+func _check_day(ev: Array, war_now: bool) -> void:
+	if not is_day():
+		return
+	var p := goal_progress()
+	if p != _goal0:
+		ev.append({"type": "goal", "progress": p, "was": _goal0, "target": goal_target(), "met": goal_met()})
+		_goal0 = p
+	if day_won or day_lost != "":
+		return
+	if no_war and war_now:
+		day_lost = "war"
+	elif goal_met():
+		day_won = true
+		day_won_at = twists
+	elif died():
+		day_lost = "fire"
+	elif twists >= day_limit:
+		day_lost = "twists"
+	if day_won:
+		ev.append({"type": "day_won", "day": day_no, "twists": twists, "stars": stars()})
+	elif day_lost != "":
+		ev.append({"type": "day_lost", "day": day_no, "why": day_lost, "progress": p, "target": goal_target()})
+
+
+# =============================================================================
+# Tipp an den Tagen: nach dem Ziel bewertet (GDPD_7_TAGE.md 7.1/7.2, wie der Bot „good“ des Modells)
+# =============================================================================
+
+const _LADDER_W = {1: 6.0, 2: 2.5, 3: 1.0, 4: 0.4, 5: 0.15, 6: 0.05}
+
+
+## Wachstumsschritte von jeder Art bis zur nächsten Ziel-Art (unter den heutigen Regeln, jede Option). Art → Schritte.
+func goal_distance() -> Dictionary:
+	var dist := {}
+	for k in goal_kinds():
+		dist[int(k)] = 0
+	var changed := true
+	while changed:
+		changed = false
+		for k in FieldData.KIND_COUNT:
+			if dist.has(k) and int(dist[k]) == 0:
+				continue
+			for o in _grow_options(k):
+				if dist.has(int(o)) and (not dist.has(k) or int(dist[k]) > int(dist[int(o)]) + 1):
+					dist[k] = int(dist[int(o)]) + 1
+					changed = true
+	return dist
+
+
+func _grow_options(k: int) -> Array:
+	if is_choice(k):
+		return FieldData.options(k)
+	var nx := next_of(k)
+	return [nx] if nx != k else []
+
+
+## Gewicht je Art: wie viel eine Reihe dieser Art dem Ziel hilft (für Paare und die Zwei-Zug-Suche).
+func goal_weights() -> Array:
+	var w: Array = []
+	for k in FieldData.KIND_COUNT:
+		w.append(0.0)
+	var t := goal_type()
+	if t == "make":
+		var d := goal_distance()
+		for k in d:
+			var v := int(d[k])
+			if v > 0:
+				w[int(k)] = float(_LADDER_W.get(v, 0.02))
+	elif t == "wishes":
+		for k in FieldData.KIND_COUNT:
+			if can_row(k):
+				w[k] = 0.5
+		w[FieldData.MEADOW] = 2.0
+		for k in FieldData.KIND_COUNT:
+			if FieldData.people(k) and can_row(k):
+				w[k] = 1.0
+	else:
+		for k in FieldData.KIND_COUNT:
+			if can_row(k):
+				w[k] = float(Balance.GROW_FAITH[FieldData.tier(k)]) / 10.0 + 0.2
+	return w
+
+
+## Wert dieses Stands für das Ziel des Tages (before: der Stand vor dem Zug).
+func goal_value(before: GameState, w: Array) -> float:
+	if day_won:
+		return 1e6 - 1000.0 * float(twists)
+	if day_lost != "" and day_lost != "twists":
+		return -1e5
+	var v := 0.0
+	var p := goal_progress()
+	var t := goal_type()
+	if t == "make":
+		v += 100.0 * float(p)
+		var d := goal_distance()
+		for f in fields:
+			var dk := int(d.get(f.kind, -1))
+			if dk > 0:
+				v += 3.0 * float(_LADDER_W.get(dk, 0.02))
+	elif t == "wishes":
+		v += 100.0 * float(p)
+		var acker := count(FieldData.FIELD)
+		for item in wishes:
+			v += 6.0
+			if str((item as Dictionary)["type"]) == "acker" and acker > 0:
+				v += 4.0
+		v += 2.0 * float(acker) if acker <= 4 else 8.0
+		v += 0.5 * float(people_count())
+	else:
+		v += float(mini(p, goal_target()))
+		var inc := 0 if (sys_smog and smog()) else income_potential()
+		var left := maxi(0, day_limit - twists)
+		v += float(inc) * float(mini(left, 6)) * 0.8
+		if goal_green():
+			var bw := balance()
+			if bw >= Balance.CITY_AT:
+				v -= float(bw - Balance.CITY_AT + 3) * 2.0
+			if bw <= Balance.WILD_AT:
+				v -= float(Balance.WILD_AT - bw + 3) * 2.0
+		if sys_war:
+			v -= 4.0 * float(maxi(0, count(FieldData.CHURCH) - 2))
+	v -= 60.0 * float(maxi(0, disasters - before.disasters))
+	if not no_fire:
+		v -= 12.0 * float(misses) * (1.0 if lives > 1 else 3.0)
+	for f in fields:
+		if f.burning:
+			v -= 3.0
+	return v + pair_value(w)
+
+
+## Reihen mit zwei gleichen Feldern und einem anderen: Summe der Gewichte (Reihen-Potenzial).
+func pair_value(w: Array) -> float:
+	if not _cache_ready:
+		_build_cache()
+	var v := 0.0
+	var i := 0
+	var n := _LINES.size()
+	while i < n:
+		if _LINES[i + 3] == 0 or diagonals:
+			var a: int = (_index[_LINES[i]] as FieldData).kind
+			var b: int = (_index[_LINES[i + 1]] as FieldData).kind
+			var c: int = (_index[_LINES[i + 2]] as FieldData).kind
+			if a == b and c != a:
+				v += float(w[a])
+			elif a == c and b != a:
+				v += float(w[a])
+			elif b == c and a != b:
+				v += float(w[b])
+		i += 4
+	return v
+
+
+## Eine Aktion mit beiden Antworten ihrer Karte, bewertet nach dem Ziel des Tages.
+## {"value", "choice" (0/1 oder -1), "card", "state", "result"}
+func _day_option(action: Dictionary, w: Array) -> Dictionary:
+	var a := simulate(action)
+	var sa: GameState = a["state"]
+	var va := sa.goal_value(self, w)
+	if sa.card < 0:
+		return {"value": va, "choice": -1, "card": -1, "state": sa, "result": a["result"]}
+	var h := habit(sa.card)
+	var b := simulate(action, {sa.card: 1 - h})
+	var sb: GameState = b["state"]
+	var vb := sb.goal_value(self, w)
+	if vb > va:
+		return {"value": vb, "choice": 1 - h, "card": sa.card, "state": sb, "result": b["result"]}
+	return {"value": va, "choice": h, "card": sa.card, "state": sa, "result": a["result"]}
+
+
+## Der beste nächste Schritt an einem Tag (der Tipp): Regen, wenn er klar hilft, sonst die beste Drehung (alle 27,
+## jede mit beiden Antworten), an Tag 7 auch Gewitter auf eine Industrie. Bringt keine Drehung Fortschritt, zählt
+## die Zwei-Zug-Suche mit (Reihen, die eine zweite Drehung bilden kann, nach dem Ziel gewichtet).
+## {"type": "twist"|"rain"|"strike", "axis", "layer", "turns" (Drehung), "field" (Werkzeug), "choice", "card",
+##  "value", "steps" (1, 2 = erst die zweite Drehung bringt etwas), "points", "progress" (Fortschritt danach)} oder {}.
+func best_day_action(twist_only: bool = false) -> Dictionary:
+	if not is_day() or is_over():
+		return {}
+	var w := goal_weights()
+	var now_v := goal_value(self, w)
+	var p0 := goal_progress()
+	if not twist_only and rain > 0:
+		var best_r := {}
+		var best_rv := -INF
+		for f in fields:
+			if not rain_ok(f):
+				continue
+			var o := _day_option({"type": "rain", "field": f.id}, w)
+			if float(o["value"]) > best_rv:
+				best_rv = float(o["value"])
+				best_r = {"type": "rain", "field": f.id, "choice": int(o["choice"]), "card": int(o["card"]),
+					"value": best_rv, "steps": 1, "points": int((o["result"] as Dictionary).get("gain", 0)),
+					"progress": (o["state"] as GameState).goal_progress()}
+		var need := 8.0 if rain == 1 and not no_fire else 4.0
+		if not best_r.is_empty() and best_rv > now_v + need:
+			return best_r
+	var best := {}
+	var best_v := -INF
+	var progressed := false
+	for m in MOVES:
+		var o := _day_option({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])}, w)
+		var st: GameState = o["state"]
+		if st.goal_progress() > p0 or st.day_won:
+			progressed = true
+		if float(o["value"]) > best_v:
+			best_v = float(o["value"])
+			best = {"type": "twist", "axis": m[0], "layer": m[1], "turns": m[2], "choice": int(o["choice"]),
+				"card": int(o["card"]), "value": best_v, "steps": 1, "points": int((o["result"] as Dictionary)["gain"]),
+				"progress": st.goal_progress()}
+	if not twist_only and sys_strike and faith >= Balance.STRIKE_COST and balance() >= Balance.CITY_AT - 5:
+		for f in fields:
+			if f.kind != FieldData.INDUSTRY:
+				continue
+			var o := _day_option({"type": "strike", "field": f.id}, w)
+			var st: GameState = o["state"]
+			if st.goal_progress() > p0 or st.day_won:
+				progressed = true
+			if float(o["value"]) > best_v:
+				best_v = float(o["value"])
+				best = {"type": "strike", "field": f.id, "choice": int(o["choice"]), "card": int(o["card"]),
+					"value": best_v, "steps": 1, "points": 0, "progress": st.goal_progress()}
+	if not progressed:
+		var ts := two_step_move(w)
+		var tm: Array = ts[0]
+		if not tm.is_empty():
+			var o := _day_option({"type": "twist", "axis": int(tm[0]), "layer": int(tm[1]), "turns": int(tm[2])}, w)
+			var st: GameState = o["state"]
+			if st.day_lost == "" or st.day_lost == "twists":
+				var v2 := float(o["value"]) + 10.0 * float(ts[1])
+				if v2 > best_v:
+					best_v = v2
+					best = {"type": "twist", "axis": tm[0], "layer": tm[1], "turns": tm[2], "choice": int(o["choice"]),
+						"card": int(o["card"]), "value": v2, "steps": 2, "points": 0, "progress": st.goal_progress()}
+	return best
+
+
+## Der Tipp als Aktion für play() (Drehung, Regen oder Gewitter). Freies Spiel: wie best_move().
+func best_action() -> Dictionary:
+	if is_day():
+		return best_day_action()
+	var b := best_move()
+	if not b.is_empty():
+		b["type"] = "twist"
+	return b

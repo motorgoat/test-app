@@ -139,7 +139,8 @@ The Wiese card (day 5 on): title „Was soll hier wachsen?“, **Wald** – „F
 | `rain_start`, `rain_every` | Regen at start, +1 every so many twists (max 3); gift when stuck: on from day 2 |
 | `fire` | misses burn the last swiped row (`FIRE_AFTER = 3`), **no heart is lost** |
 | `wishes`, `wish_types`, `wish_from`, `wish_every` | wishes on/off, allowed types, first at twist `wish_from`, then every `wish_every` twists (max 2 open, 8 twists to fulfil, as v1.1) |
-| `scale` | Weltwaage visible and used for wish types |
+| `scale` | Weltwaage used for wish types (and visible) |
+| `scale_visible` | Weltwaage chip shown in the HUD (default = `scale`); off on days 5–6, so the Waage is new only on day 7 |
 | `income`, `war`, `no_war`, `smog`, `strike` | systems on/off; `no_war`: a war fails the day |
 | — always off in days | hearts, diagonals, Einfach groups, regrowth, Blitz, Monsun, Flut, ages, „Vollendet“ |
 
@@ -168,9 +169,9 @@ kinds. `made` is part of `clone()`, undo and the save. It never goes down, so th
 | 2 | Pflanzen | Lass 5 Wälder wachsen | `made[Wald] ≥ 5` | 15 | 5 | 9 | Regen (+ Feuer) | Wald | – |
 | 3 | Tiere | Erschaffe 3 Tiere | `made[Tiere] ≥ 3` | 12 | 7 | 10 | Leben: Großer Wald, Tiere | Großer Wald, Tiere | – |
 | 4 | Menschen | Baue 4 Hütten | `made[Hütte] ≥ 4` | 14 | 8 | 11 | Menschen (+ ihre Wünsche) | Hütte, Haus, Dorf | – |
-| 5 | Nahrung | Erfülle 3 Wünsche | wishes fulfilled ≥ 3 | 18 | 10 | 14 | Wahl-Karte, Acker, Weltwaage | Acker | Wiese |
+| 5 | Nahrung | Erfülle 3 Wünsche | wishes fulfilled ≥ 3 | 18 | 10 | 14 | Wahl-Karte, Acker | Acker | Wiese |
 | 6 | Glaube | Sammle 150 Glauben · Kein Krieg! | faith ≥ 150; war = fail | 13 | 8 | 11 | Glaube, Kirche, Krieg | Stadt, Kirche | Wiese, Dorf |
-| 7 | Ruhe | Sammle 250 Glauben – mit grüner Waage | faith ≥ 250 **and** −50 < W < 20 at that moment | 13 | 9 | 11 | Industrie, Smog, Gewitter | Großstadt, Industrie | Wiese, Dorf, Stadt |
+| 7 | Ruhe | Sammle 250 Glauben – mit grüner Waage | faith ≥ 250 **and** −50 < W < 20 at that moment | 13 | 9 | 11 | Industrie & Gewitter (Weltwaage, Smog) | Großstadt, Industrie | Wiese, Dorf, Stadt |
 
 Systems per day (✓ = on):
 
@@ -180,8 +181,8 @@ Systems per day (✓ = on):
 | 2 | 1 / 6 | ✓ | – | – | – | – | – | – |
 | 3 | 1 / 6 | ✓ | – | – | – | – | – | – |
 | 4 | 1 / 6 | ✓ | Wald, Tiere, Regen · 2 · 3 | – | – | – | – | – |
-| 5 | 1 / 6 | ✓ | all four · 1 · 3 | ✓ | – | – | – | – |
-| 6 | 1 / 6 | ✓ | all four · 2 · 3 | ✓ | ✓ | ✓ (fail) | – | – |
+| 5 | 1 / 6 | ✓ | all four · 1 · 3 | ✓ (hidden) | – | – | – | – |
+| 6 | 1 / 6 | ✓ | all four · 2 · 3 | ✓ (hidden) | ✓ | ✓ (fail) | – | – |
 | 7 | 1 / 6 | ✓ | all four · 2 · 3 | ✓ | ✓ | ✓ (−faith) | ✓ | ✓ (15 Glaube) |
 
 Wish details for the days:
@@ -218,13 +219,20 @@ All boards: no ready row of a kind that can row today; kinds placed by sticker t
      The player swipes; the new Erde row grows a Wiese. Coach: „Aus drei Erden wird eine Wiese. Super!“
   2. „Jetzt du! Finde selbst drei Erden für eine Reihe.“ The onboarding auto-hint (`ONBOARD_HINT_SECONDS`) glows.
   3. After the 2nd growth: „Gut so! Du bist der Gott dieser Welt.“ – then quiet play until the goal.
+  - The camera turns to the first Wiese (it may grow on a side face), so the „it grew!“ moment is not missed.
+  - The hand and the slice glow only ever show a twist that grows: if the first twist was a different one and the
+    guided slice no longer makes a Wiese, `Game.tutorial_move()` returns a twist that does (top-face slices first),
+    or `{}` if none does. After the first twist that grows nothing the dock (with the free „Tipp“) comes in.
 - The guided twist counts as twist 1. No fire, so nothing can go wrong.
 - Fail: twists used up → fail card (practically never: hint bot 100 %, weak bot 90 %).
 
 **Day 2 – Pflanzen**
 - Intro: „Am zweiten Tag wachsen die ersten Pflanzen.“
 - Goal: „Lass 5 Wälder wachsen“ (`smallforest`). Erde rows still make Wiesen (material).
-- New thing: Regen. Reveal: „Neu: Regen“. Coach: „Tipp auf Regen und dann auf eine Wiese – sie wird sofort ein Wald.“
+- New thing: Regen. Reveal: „Neu: Regen“. Goal card „Neu“: „Drei Wiesen in einer Reihe werden ein Wald. Schneller:
+  Tipp auf Regen und dann auf eine Wiese.“ In the game the lane says the row rule („Drei Wiesen in einer Reihe werden
+  ein Wald.“) and a coach at the rain button says „Tipp auf Regen und dann auf eine Wiese – sie wird sofort ein Wald.“
+  (`coach_tool`).
 - Fire is introduced with Regen (the cure comes with the danger). Coach at the 2nd miss in a row: „Achtung: Wächst bei
   der nächsten Drehung wieder nichts, brennt es. Regen löscht Feuer.“
 - Regen counts for the goal (a Wiese that becomes a Wald by rain is a Wald that grew).
@@ -244,14 +252,15 @@ All boards: no ready row of a kind that can row today; kinds placed by sticker t
   Hütten that **grew**, not Hütten that are still there.
 
 **Day 5 – Nahrung**
-- Intro: „Am fünften Tag haben die Menschen Hunger.“
+- Intro: „Am fünften Tag haben die Menschen Hunger. Oft wünschen sie sich einen Acker.“
 - Goal: „Erfülle 3 Wünsche“ (`wish`).
 - New thing: the choice. Reveal: „Neu: Du entscheidest!“ Coach at the first card: „Aus drei Wiesen wird Wald oder
   Acker. Ein Acker macht die Menschen satt.“ The full card is shown for the first 3 Wiese cards (v1.1 rule), then the
-  mini pill.
-- The Weltwaage appears under the HUD at day start (it is already in the wild zone, so wishes are hunger wishes).
-  Coach after the first card: „Das ist deine Weltwaage: links Natur, rechts Stadt. Ganz links haben die Menschen
-  Hunger.“
+  mini pill. **In the days the full card has no time limit** (only the mini pill keeps its 2 s), so a beginner can
+  read the first choice in peace.
+- The Weltwaage already steers the wish types (the board starts in the wild zone, so wishes are hunger wishes), but it
+  is **not shown** on days 5 and 6 (`scale_visible: false`): one new thing per day. It appears on day 7, where it is
+  part of the goal.
 - Rain wishes are fulfilled by rain on the same face (v1.1), so Regen is a second way.
 
 **Day 6 – Glaube**
@@ -260,12 +269,18 @@ All boards: no ready row of a kind that can row today; kinds placed by sticker t
 - New thing: Glaube (the faith box appears top-left), Kirche, Krieg. Coach at the first Dorf card: „Eine Kirche bringt
   jede Runde Glauben. Aber bring nie zwei Kirchen zusammen – das gibt Krieg!“
 - Faith comes from growth (`GROW_FAITH` by tier × combo), wishes (+15) and church income (+3 per twist).
-- A war ends the day: fail card „Krieg! Zwei Kirchen haben sich getroffen.“ (the drag preview already shows the swords).
+- A war ends the day: fail card with caps „Krieg!“, title „Zwei Kirchen haben sich getroffen.“ and the line „Halte die
+  Kirchen auseinander – versuch es nochmal.“ (the drag preview already shows the swords).
+- The „Kein Krieg!“ tag sits centred under the goal chip (the row of the Weltwaage, which is hidden on day 6).
 
 **Day 7 – Ruhe**
-- Intro: „Am siebten Tag soll die Welt zur Ruhe kommen. Halte sie im Gleichgewicht.“
-- Goal: „Sammle 250 Glauben – mit grüner Waage“. The chip shows faith; if the faith is reached but the Waage is not
-  green it shows „Waage!“ (v1.1 behaviour of the Vollendet chip). Green = Gleichgewicht, −50 < W < 20.
+- Intro: „Am siebten Tag ruht die Welt – aber nur, wenn sie im Gleichgewicht ist.“ Tile icon: `balance`.
+- Goal: „Sammle 250 Glauben – mit grüner Waage“. The chip always shows both halves: „x/250“ and the caps
+  „Glaube + grüne Waage“ (green: „Glaube · Waage grün“). If the faith is reached but the Waage is not green, the caps
+  say „Waage ins Grüne bringen“ with the balance icon on red. Green = Gleichgewicht, −50 < W < 20.
+- Goal card „Neu: Industrie & Gewitter“: „Industrie bringt viel Glauben, macht aber Smog. Mit Gewitter (kostet 15
+  Glauben) strafst du eine Fabrik.“ The reveal flies „Neu: Gewitter“ to its dock button; the Weltwaage is shown from
+  the start (it is the goal).
 - The start board is already yellow (W ≈ +31) and has one Industrie, so the player sees the problem at once.
 - New things: Industrie (Stadt card), smog (W ≥ 50), Gewitter (dock, 15 Glaube).
   Coach at day start: „Industrie bringt viel Glauben – aber zu viel Stadt macht die Luft schmutzig. Bring die Waage
@@ -358,9 +373,11 @@ penalty).
 ### 4.1 Start: the day overview
 
 - Title „Die Schöpfung in 7 Tagen“. Seven tiles in a grid of 4 + 3 (portrait). Each tile: day number („Tag 3“),
-  the icon of its new thing (`empty`/`meadow` → day 1, `rain`, `animals`, `hut`, `field`, `church`, `industry`),
+  the icon of its new thing (`empty`/`meadow` → day 1, `rain`, `animals`, `hut`, `field`, `church`, `balance`),
   three small stars (filled = earned), a lock on days after `frei`.
 - Tap a tile → goal card. Tap a locked tile → the lock shakes, toast „Erst Tag %d schaffen.“
+- If a free-play game is running (twists or faith), tapping a day (or „Tag n spielen“) first asks „Tag n starten?“
+  („Dein freies Spiel endet …“), like a new free-play game does.
 - Below the tiles: button „Freies Spiel“; locked until `fertig` with „Nach Tag 7“.
 - First start ever: skip the overview and go straight into day 1.
 
@@ -378,16 +395,18 @@ A modal card over the cube (the cube already shows the start board):
 - Replaces the „Vollendet“ chip in the HUD during days: goal icon + progress („2/4“), and next to it the twists left
   as a ring around a small number („11“). The last 3 twists tint the ring orange.
 - Progress pops (+1 bounce) when it moves. Long-press: the goal text + „Noch 11 Drehungen.“
-- Day 7: shows „Waage!“ with the balance icon on red when the faith is reached but W is not green (v1.1 style).
-- Day 6: a small „Kein Krieg!“ tag under the chip.
+- Day 7: both halves of the goal at all times (see 2.3); „Waage ins Grüne bringen“ on red when the faith is reached but
+  W is not green.
+- Day 6: a small „Kein Krieg!“ tag centred under the chip.
 
 ### 4.4 Success and fail
 
-- **Success card**: confetti/heart burst, „Tag 4 geschafft!“, stars fly in one by one, „in 9 Drehungen“, buttons
-  „Weiter zu Tag 5“ (primary) and „Nochmal“ (small, „für mehr Sterne“). On day 7: section 2.3 „After day 7“.
-- **Fail card**: no shame, no cost. „Keine Drehungen mehr.“ + „Fast geschafft – versuch es nochmal!“ (or the war text
-  on day 6), the progress reached („3/4 Hütten“), button „Nochmal“ and a small line „Nächster Versuch: +2 Drehungen“
-  when mercy applies.
+- **Success card**: confetti/heart burst, „Tag 4 geschafft!“, stars fly in one by one, „in 9 Drehungen“ (with fewer
+  than 3 stars: „in 9 Drehungen · 3 Sterne mit höchstens 8“), buttons „Weiter zu Tag 5 · Nahrung“ (primary) and
+  „Nochmal · mehr Sterne“. On day 7: section 2.3 „After day 7“.
+- **Fail card**: no shame, no cost. Caps „Keine Drehungen mehr.“ (or „Feuer“), title „Fast geschafft!“ only when at
+  least half of the goal was reached, else „Versuch es nochmal!“ (war on day 6: see 2.3), the progress reached
+  („3/4 Hütten“), button „Nochmal“ and a small line „Nächster Versuch: +2 Drehungen“ when mercy applies.
 - „Nochmal“ loads the **next** board of the pool (index `brett`), so a retry is fresh and never a memory test.
 
 ### 4.5 Mercy (Gnade)
@@ -400,6 +419,12 @@ Model effect of +6 (4th attempt): the no-foresight bot goes from 36–70 % to 65
 
 - Reveal: at the goal card of a day with a new thing, the new icon zooms in with „Neu: Regen“ (etc.). In the game it
   arrives in its place (dock button, Waage under the HUD, faith box) with a short glow. One coach line (2.3), once.
+- Help card („So geht's“) in a day: first „Deine Aufgabe“ (goal, twists left, fewer twists = more stars) and „Was
+  wächst woraus“ as a picture row of what can grow today (Erde → Wiese → Wald → …); only rows the day knows. On days
+  4–5 (no faith shown) the wish row says „… dann wächst ihr Haus.“
+- Menu: title „Menü“; the „Profil“ tile is hidden until profiles exist; „Wahl-Karte immer zeigen“ only after the first
+  choice card. Free-play modes: Einfach „Entspannt – mehr wächst mit“, Mittel „Auch schräge Reihen zählen“, Schwer
+  „Nur gerade Reihen – wie in den 7 Tagen“; free-play card „Bau deine Welt weiter, bis sie vollendet ist.“
 - The hint („Tipp“) is **free during the 7 days** (recommended; product decision): the days are the learning path,
   and the target success rates assume a player who uses tips when stuck. In the days it uses the goal value (7.2),
   not faith. The onboarding auto-hint (glow after `ONBOARD_HINT_SECONDS`) is on for days 1–2.
@@ -453,7 +478,8 @@ Model effect of +6 (4th attempt): the no-foresight bot goes from 36–70 % to 65
 
 ### 6.2 Board order
 
-Attempt `i` of a day uses `pool[(brett) % 20]`; `brett` advances after every attempt (win or fail). The first visit to
+Attempt `i` of a day uses `pool[(brett) % 20]`; `brett` advances after every attempt (win or fail). An attempt on an
+explicitly chosen board („Tutorial nochmal“ = day 1 board 0) never rewinds it: `brett = max(brett, index + 1)`. The first visit to
 day 1 always uses board 0 (tutorial).
 
 ### 6.3 Day RNG (exact replays)
@@ -594,12 +620,18 @@ Add to the tour and to the expected list in `.github/workflows/gdpd.yml`:
 | `day1_goal_card` | goal card text „Lass 8 Wiesen wachsen“, „in 15 Drehungen“ |
 | `day1_tutorial` | guided swipe of slice x = 1 grows a Wiese; chip shows „1/8“ |
 | `goal_chip` | chip progress and twists left update after a twist |
-| `day_success` | success card with stars and „Weiter zu Tag 2“ after replaying the pool solution |
-| `day_fail` | fail card after the limit, „Nochmal“ loads the next board, +2 twists |
+| `day1_your_turn` | „Jetzt du!“ lane, hand gone, dock with „Tipp“ visible |
+| `day_success` | success card with stars and „Weiter zu Tag 2 · Pflanzen“ (tour plays with the hint) |
+| `day_next` | day 2 goal card with „Neu: Regen“ |
 | `day2_rain_reveal` | „Neu: Regen“ reveal, rain on a Wiese counts for the goal |
-| `day5_choice` | Wiese card appears, Acker option, Waage visible |
-| `day6_faith` | faith box visible, „Kein Krieg!“ tag |
-| `day7_green` | „Waage!“ state when faith is reached but W ≥ 20 |
+| `day_help` | help in day 2: „Deine Aufgabe“ + „Was wächst woraus“ (Erde → Wiese → Wald), no faith/choice rows |
+| `day_fail` | fail card after the limit, „Nochmal“ loads the next board, +2 twists |
+| `day4_wish` | day 4: first wish bubble, coach „… dann wächst ihr Haus“ (no faith shown) |
+| `day5_choice` | Wiese card appears, Acker option, no time limit, Waage **not** visible |
+| `day6_faith` | faith in the goal chip, „Kein Krieg!“ tag |
+| `day6_war` | two churches meet: the day is lost, fail card with the war text |
+| `day7_green` | „Waage ins Grüne bringen“ with „250/250“ when faith is reached but W ≥ 20; Waage visible |
+| `day7_smog` | too much industry: smog |
 | `world_complete` | after day 7: „Deine Welt ist vollendet!“, free play unlocked |
 
 The v1.1 checks that depend on free play (`tutorial_choice`, `tutorial`, `choice*`, `war`, `smog`, `strike`,
