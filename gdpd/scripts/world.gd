@@ -15,6 +15,13 @@ signal cancel_hover(on: bool)              # Finger ist über dem Abbrechen-Stre
 signal bolt_drawn(fid: int, row: Array)    # Blitz über eine Reihe gezogen
 signal tutorial_tap                        # im vorgeführten ersten Zug auf den Würfel getippt
 signal deltas_shown(list: Array, gain: int)   # [{"field": id, "change": "up"|"down"|"lost"|"new"}]
+# gdpd: was die Welt gerade zeigt (die Oberfläche antwortet mit Pillen, Bannern und Hinweisen)
+signal war_shown(fids: Array, faith: int)      # Kirchen im Krieg, Glaube (negativ)
+signal smog_shown(w: int, withered: Array)     # Smog in dieser Drehung, verwelkte Felder
+signal wish_done_shown(fid: int, faith: int)   # Wunsch erfüllt (Herzen, Glaube fliegt nach oben)
+signal wish_made_shown(fid: int)               # neuer Wunsch an diesem Feld
+signal income_shown(amount: int)               # Glaube pro Drehung von fertigen Feldern
+signal punish_shown(kind: String, fid: int, cost: int)   # Gewitter oder Flut
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
 
@@ -49,6 +56,7 @@ var _tw_auto := false           # Finger neben dem Würfel gehalten: die Scheibe
 var _tw_out_t := 0.0            # so lange liegt der Finger schon neben dem Würfel / am Rand
 var _demo_tw: Tween = null      # Tutorial: die Hand-Vorführung (beim Antippen sofort abbrechen)
 var bolt_mode := false          # Blitz gewählt: Wischen zeichnet die Reihe statt zu drehen
+var tool_mode := false          # ein Werkzeug ist gewählt: Tippen zielt auf Felder (nicht auf Wunsch-Blasen)
 var _bolt_row: Array = []
 var _pivot: Node3D
 var _touches: Dictionary = {}
@@ -183,12 +191,143 @@ func _on_state_changed() -> void:
 func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 	if gs == null:
 		gs = Game.state
+	var smog_ids := smog_fields(gs)
 	for f in gs.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null or skip.has(f.id):
 			continue
 		v.refresh(f)
+		v.set_polluted(smog_ids.has(f.id))
 		v.set_selected(f.id == selected)
+		var w := gs.wish_at(f.id)
+		if w.is_empty():
+			v.set_wish("")
+		else:
+			v.set_wish(str(GameState.WISH_ICON.get(str(w["type"]), "wish")), int(w["left"]))
+
+
+## Smog: Industrie und ihre Nachbarn liegen im grauen Dunst (solange die Waage im Smog steht).
+func smog_fields(gs: GameState) -> Dictionary:
+	var out := {}
+	if gs == null or not gs.smog():
+		return out
+	for f in gs.fields:
+		if (f as FieldData).kind != FieldData.INDUSTRY:
+			continue
+		out[(f as FieldData).id] = true
+		for g in gs.neighbors(f):
+			out[(g as FieldData).id] = true
+	return out
+
+
+## Wunsch-Blase unter dem Finger? (Bildschirmposition) → Feld-ID oder -1.
+func wish_hit(pos: Vector2) -> int:
+	var best := -1
+	var best_d := 40.0
+	for fid in views:
+		var v: FieldView = views[fid]
+		if not v.wish_visible():
+			continue
+		var wp := v.wish_anchor_world_pos()
+		if rig.cam.is_position_behind(wp):
+			continue
+		var d := rig.cam.unproject_position(wp).distance_to(pos)
+		if d < best_d:
+			best_d = d
+			best = int(fid)
+	return best
+
+
+## Bildschirmposition der Wunsch-Blase eines Felds. {"pos", "visible"}
+func wish_screen(fid: int) -> Dictionary:
+	var v: FieldView = views.get(fid)
+	if v == null:
+		return {"pos": Vector2.ZERO, "visible": false}
+	var wp := v.wish_anchor_world_pos()
+	return {"pos": rig.cam.unproject_position(wp), "visible": v.wish_visible() and not rig.cam.is_position_behind(wp)}
+
+
+# =============================================================================
+# Wahl („Dein Wille geschehe“): die Reihe leuchtet, über dem neuen Feld steht ein „?“
+# =============================================================================
+
+var _choice_views: Array = []
+var _choice_badges: Array = []
+
+
+func show_choice(info: Dictionary) -> void:
+	clear_choice()
+	var gs := Game.state
+	if gs == null or not info.has("action"):
+		return
+	var k := int(info["kind"])
+	var targets := {}
+	for i in info.get("fields", []):
+		targets[int(i)] = true
+	var main := int(info.get("field", -1))
+	if main >= 0:
+		targets[main] = true
+	var lit := targets.duplicate()
+	var sim: Dictionary = gs.simulate(info["action"])
+	var res: Dictionary = sim["result"]
+	for e in res["events"]:
+		var t := str(e["type"])
+		if int(e.get("from", -1)) != k:
+			continue
+		if t == "face":
+			for i in e["fields"]:
+				lit[int(i)] = true
+		elif t == "merge":
+			lit[int(e["field"])] = true
+			for o in e["others"]:
+				lit[int(o)] = true
+	for fid in lit:
+		var v: FieldView = views.get(int(fid))
+		if v == null:
+			continue
+		v.set_highlight(true)
+		_choice_views.append(v)
+		if not targets.has(fid) and main >= 0 and views.has(main):
+			var mv: FieldView = views[main]
+			_sparks(v.global_position + v.world_normal() * 0.3, mv.global_position + mv.world_normal() * 0.35, Color("#ffd23f"), 4)
+	for fid in targets:
+		var v: FieldView = views.get(int(fid))
+		if v == null:
+			continue
+		v.set_badge("help")
+		_choice_badges.append(v)
+	if main >= 0 and views.has(main):
+		(views[main] as FieldView).burst(Color("#ffd23f"))
+		if not bool(field_screen(main)["visible"]):
+			focus_field(main)
+	_buzz(16)
+
+
+func clear_choice() -> void:
+	for v in _choice_views:
+		if is_instance_valid(v):
+			(v as FieldView).set_highlight(false)
+	for v in _choice_badges:
+		if is_instance_valid(v):
+			(v as FieldView).set_badge("")
+	_choice_views.clear()
+	_choice_badges.clear()
+
+
+## Strafe gewählt und ein Ziel angetippt: diese Felder leuchten, bis man noch einmal tippt.
+var _pick_ids: Array = []
+
+
+func set_pick(ids: Array) -> void:
+	for i in _pick_ids:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_highlight(false)
+	_pick_ids = ids.duplicate()
+	for i in _pick_ids:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_highlight(true)
 
 
 
@@ -230,11 +369,37 @@ func show_targets(kind: String) -> void:
 		for f in gs.fields:
 			if not gs.corner_diagonal(f).is_empty():
 				tg[f.id] = "corner"
+	elif gs != null and kind == "monsoon":
+		col = Style.MONSOON
+		for f in gs.fields:
+			tg[f.id] = "face"
+	elif gs != null and kind == "strike":
+		# Gewitter: jedes Feld mit etwas darauf; Industrie bekommt das Blitz-Abzeichen (dort hilft es am meisten)
+		col = Color("#8a63d2")
+		for f in gs.fields:
+			if (f as FieldData).kind != FieldData.EMPTY:
+				tg[f.id] = "strike_best" if (f as FieldData).kind == FieldData.INDUSTRY else "any"
+	elif gs != null and kind == "flood":
+		# Flut: alle Felder der Seiten, auf denen es Stadt gibt
+		col = Style.WATER_DEEP
+		for f in gs.fields:
+			if gs.can_bonus("flood", f) == "" or gs.faith < Balance.FLOOD_COST:
+				var any := false
+				for g in gs.face_fields((f as FieldData).n):
+					if (g as FieldData).is_civilisation():
+						any = true
+				if any:
+					tg[f.id] = "face"
 	for fid in views:
 		var v: FieldView = views[fid]
 		var t: String = str(tg.get(int(fid), ""))
 		v.set_target(t != "", col)
-		v.set_badge("rain" if t == "useful" or t == "fire" else "")
+		if t == "useful" or t == "fire":
+			v.set_badge("rain")
+		elif t == "strike_best":
+			v.set_badge("strike")
+		else:
+			v.set_badge("")
 
 
 ## Kurz wackeln: Hier geht der gewählte Bonus nicht.
@@ -572,6 +737,13 @@ func _motion(pos: Vector2, rel: Vector2) -> void:
 
 
 func _release(pos: Vector2) -> void:
+	# Auf eine Wunsch-Blase getippt: zeigt das Feld mit dem Wunsch (die Blase schwebt über dem Feld)
+	if not tool_mode and _mode in ["pending", "pending_tap", "orbit"] and pos.distance_to(_press_pos) <= Balance.DRAG_START_PX:
+		var wf := wish_hit(pos)
+		if wf >= 0:
+			_mode = ""
+			field_tapped.emit(wf)
+			return
 	match _mode:
 		"pending", "pending_tap":
 			if pos.distance_to(_press_pos) <= Balance.DRAG_START_PX:
@@ -835,12 +1007,17 @@ func _show_preview(q: int) -> void:
 		for g in line:
 			lit[(g as FieldData).id] = true
 		var mid: FieldData = line[GameState.target_index(line, arranged.moved, arranged.tapped)]
-		mids[mid.id] = GameState.STAGE_SHORT[mini(mid.stage + 1, Balance.MAX_STAGE)]
+		mids[mid.id] = "?" if FieldData.is_choice(mid.kind) else FieldData.KIND_SHORT[FieldData.next_kind(mid.kind)]
 	var danger := {}
 	for e in pv["events"]:
 		if str(e["type"]) == "disaster":
 			for i in e["hit"]:
 				danger[int(i)] = true
+	# Kommt eine Wahl, steht ein „?“ über dem Feld; Kirchen, die sich treffen würden, zeigen gekreuzte Schwerter
+	var war := {}
+	for i in pv.get("war", []):
+		war[int(i)] = true
+	var card_field := int(pv.get("card_field", -1)) if int(pv.get("card", -1)) >= 0 else -1
 	for f in Game.state.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
@@ -852,7 +1029,13 @@ func _show_preview(q: int) -> void:
 		else:
 			v.set_preview("", Color.WHITE)
 		v.set_highlight(lit.has(f.id))
-		v.set_danger(danger.has(f.id) and not lit.has(f.id))
+		v.set_danger((danger.has(f.id) or war.has(f.id)) and not lit.has(f.id))
+		if war.has(f.id):
+			v.set_badge("swords")
+		elif f.id == card_field and not mids.has(f.id):
+			v.set_badge("help")
+		else:
+			v.set_badge("")
 	preview_changed.emit(pv)
 
 
@@ -861,6 +1044,7 @@ func _clear_preview() -> void:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
 		(views[fid] as FieldView).set_highlight(false)
 		(views[fid] as FieldView).set_danger(false)
+		(views[fid] as FieldView).set_badge("")
 	refresh_all()
 	preview_changed.emit({})
 
@@ -901,6 +1085,7 @@ func _finish_twist() -> void:
 		(views[fid] as FieldView).set_preview("", Color.WHITE)
 		(views[fid] as FieldView).set_highlight(false)
 		(views[fid] as FieldView).set_danger(false)
+		(views[fid] as FieldView).set_badge("")
 	preview_changed.emit({})
 	if turns != 0:
 		Game.play_turn(_tw_axis, _tw_layer, turns, _tw_row)
@@ -1042,10 +1227,13 @@ func debug_end_twist() -> void:
 func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	animating = true
 	_clear_hint()
+	clear_choice()
+	set_pick([])
 	select(-1)
 	var gs := Game.state
 	var events: Array = result["events"]
-	# Bonus zuerst: Regen fällt oder der Blitz schlägt ein
+	var handled := {}           # Felder mit eigenem Effekt (keine Pille „Wiese“/„weg“ am Ende)
+	# Werkzeug zuerst: Regen fällt, der Blitz schlägt ein, ein Gewitter straft oder die Flut kommt
 	var bonus_ids := {}
 	if result.has("bonus"):
 		var bd: Dictionary = result["bonus"]
@@ -1057,6 +1245,8 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 		elif kind == "monsoon":
 			rig.shake(0.5)
 			await _rain_fx(bd["fields"])
+		elif kind == "strike" or kind == "flood":
+			await _punish_fx(kind, bd, events)
 		else:
 			await _rain_fx(bd["fields"])
 		var stages: Dictionary = bd["stages"]
@@ -1064,11 +1254,10 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			var v: FieldView = views.get(int(i))
 			if v != null:
 				var shown: FieldData = (gs.fields[int(i)] as FieldData).copy()
-				shown.stage = int(stages.get(int(i), shown.stage))
+				shown.kind = int(stages.get(int(i), shown.kind))
 				shown.burning = false
 				v.refresh(shown)
 		await get_tree().create_timer(0.35).timeout
-	# Verschmelzen, Kombo für Kombo
 	# Ganze Seite geschafft: großes Fest
 	var merged_ids := {}
 	for e in events:
@@ -1085,17 +1274,13 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				disaster_ids[int(i)] = true
 		elif str(e["type"]) == "burn":
 			disaster_ids[int(e["field"])] = true
+	# Verschmelzen, Kombo für Kombo
 	for e in events:
 		if str(e["type"]) != "merge" or bool(e.get("late", false)):
 			continue
 		var combo := int(e["combo"])
 		if combo != last_combo and last_combo > 0:
-			# Nur zeigen, was schon verschmolzen ist; der Rest kommt der Reihe nach
-			for fid in merged_ids:
-				if not disaster_ids.has(fid):
-					var mv: FieldView = views.get(int(fid))
-					if mv != null:
-						mv.refresh(gs.fields[int(fid)])
+			_show_ids(merged_ids, disaster_ids)
 			await get_tree().create_timer(0.55).timeout
 		last_combo = combo
 		merged_ids[int(e["field"])] = true
@@ -1103,13 +1288,33 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			merged_ids[int(o)] = true
 		await _merge_fx(e)
 	if last_combo > 0:
-		await get_tree().create_timer(0.25).timeout
-	# Verschmutzung und Nachwachsen
+		_show_ids(merged_ids, disaster_ids)
+		await get_tree().create_timer(0.3).timeout
+	# Krieg: zwei Gemeinden haben sich getroffen
 	for e in events:
-		if str(e["type"]) == "polluted":
+		if str(e["type"]) == "war":
+			await _war_fx(e)
+			for i in e["fields"]:
+				handled[int(i)] = true
+	# Smog: Industrie lässt Natur welken
+	var withered: Array = []
+	var smog_w := -999
+	for e in events:
+		if str(e["type"]) == "smog":
+			smog_w = int(e["w"])
+		elif str(e["type"]) == "polluted":
+			withered.append(int(e["field"]))
+	if smog_w > -999:
+		await _smog_fx(smog_w, withered)
+		for i in withered:
+			handled[int(i)] = true
+	# Nachwachsen: Erde mit viel Natur daneben wird wieder Wiese
+	for e in events:
+		if str(e["type"]) == "regrow":
 			var v: FieldView = views.get(int(e["field"]))
 			if v != null:
-				_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#6b6e78"), 4)
+				v.refresh(gs.fields[int(e["field"])])
+				v.burst(Color("#8fd162"))
 	# Was brennt, brennt weiter ab
 	var burning: Array = []
 	for e in events:
@@ -1122,7 +1327,25 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				v.burn(0.8)
 				_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 1.0, Color("#6b6e78"), 3)
 		await get_tree().create_timer(0.9).timeout
-	# Hat das Abbrennen eine neue Reihe ergeben, wächst sie jetzt (erst nach dem Brand zu sehen)
+	# Wünsche: erfüllt (Herzen, Glaube), abgelaufen oder weg (leise)
+	for e in events:
+		var t := str(e["type"])
+		if t == "wish_done":
+			var fid := int(e["field"])
+			var v: FieldView = views.get(fid)
+			if v != null:
+				v.set_wish("")
+				v.wish_fx()
+				v.refresh(gs.fields[fid])
+			handled[fid] = true
+			_buzz(26)
+			wish_done_shown.emit(fid, int(e.get("faith", Balance.WISH_FAITH)))
+			await get_tree().create_timer(0.55).timeout
+		elif t == "wish_expired" or t == "wish_gone":
+			var v: FieldView = views.get(int(e["field"]))
+			if v != null:
+				v.set_wish("")
+	# Hat das alles eine neue Reihe ergeben, wächst sie jetzt (erst danach zu sehen)
 	var late_any := false
 	for e in events:
 		if str(e["type"]) != "merge" or not bool(e.get("late", false)):
@@ -1134,6 +1357,10 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 		await _merge_fx(e)
 	if late_any:
 		await get_tree().create_timer(0.25).timeout
+	# Glaube pro Drehung von fertigen Feldern
+	for e in events:
+		if str(e["type"]) == "income":
+			income_shown.emit(int(e["faith"]))
 	# Fehlversuch zählen
 	for e in events:
 		if str(e["type"]) == "miss":
@@ -1144,19 +1371,122 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			refresh_all(null, disaster_ids)
 			await _disaster_fx(e)
 	refresh_all()
+	for e in events:
+		if str(e["type"]) == "wish":
+			wish_made_shown.emit(int(e["field"]))
 	var changes: Array = []
 	for f in gs.fields:
-		if merged_ids.has(f.id) or disaster_ids.has(f.id) or bonus_ids.has(f.id):
+		if merged_ids.has(f.id) or disaster_ids.has(f.id) or bonus_ids.has(f.id) or handled.has(f.id):
 			continue
-		var b := int(before.get(f.id, f.stage))
-		if f.stage == 0 and b > 0:
+		var b := int(before.get(f.id, f.kind))
+		if f.kind == 0 and b > 0:
 			changes.append({"field": f.id, "change": "lost"})
-		elif f.stage > 0 and b == 0:
+		elif f.kind > 0 and b == 0:
 			changes.append({"field": f.id, "change": "new"})
 	deltas_shown.emit(changes, int(result["gain"]))
 	await get_tree().create_timer(0.35).timeout
 	animating = false
 	Game.finish_round(result)
+
+
+## Was schon gewachsen ist, zeigen (außer was gleich brennt).
+func _show_ids(ids: Dictionary, skip: Dictionary) -> void:
+	for fid in ids:
+		if skip.has(fid):
+			continue
+		var mv: FieldView = views.get(int(fid))
+		if mv != null:
+			mv.refresh(Game.state.fields[int(fid)])
+
+
+## Krieg: Schwerter über den Kirchen, rotes Blinken, Beben; die Kirchen stürzen zu Häusern ein.
+func _war_fx(e: Dictionary) -> void:
+	var ids: Array = e["fields"]
+	if ids.is_empty():
+		return
+	if not bool(field_screen(int(ids[0]))["visible"]):
+		focus_field(int(ids[0]))
+		await get_tree().create_timer(0.45).timeout
+	for i in ids:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.war_fx(1.4)
+			_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#e5483c"), 8)
+	rig.shake(1.1)
+	_buzz(45)
+	war_shown.emit(ids, int(e.get("faith", 0)))
+	await get_tree().create_timer(0.6).timeout
+	for i in ids:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.refresh(Game.state.fields[int(i)])
+	await get_tree().create_timer(0.9).timeout
+
+
+## Smog: graue Wolken über der Industrie, Wälder welken, Tiere fliehen.
+func _smog_fx(w: int, withered: Array) -> void:
+	var smog_ids := smog_fields(Game.state)
+	for fid in smog_ids:
+		var v: FieldView = views.get(int(fid))
+		if v != null:
+			v.set_polluted(true)
+	smog_shown.emit(w, withered)
+	if withered.is_empty():
+		await get_tree().create_timer(0.3).timeout
+		return
+	for i in withered:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.wither_fx(1.2)
+			_sparks(v.global_position + v.world_normal() * 0.3, v.global_position + v.world_normal() * 0.9, Color("#6b6e78"), 4)
+	await get_tree().create_timer(0.7).timeout
+	for i in withered:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.refresh(Game.state.fields[int(i)])
+	await get_tree().create_timer(0.5).timeout
+
+
+## Strafen: Gewitter (ein Blitz ins Feld) oder Flut (Wasser über die ganze Seite).
+func _punish_fx(kind: String, bd: Dictionary, events: Array) -> void:
+	var fid := int(bd["field"])
+	var cost := 0
+	var hit: Array = []
+	for e in events:
+		if str(e["type"]) == kind:
+			cost = int(e.get("cost", 0))
+			for h in e["hit"]:
+				hit.append(int((h as Dictionary)["field"]))
+	if not bool(field_screen(fid)["visible"]):
+		focus_field(fid)
+		await get_tree().create_timer(0.45).timeout
+	punish_shown.emit(kind, fid, cost)
+	if kind == "strike":
+		var v: FieldView = views.get(fid)
+		if v != null:
+			v.strike_fx(0.8)
+			_sparks(v.global_position + v.world_normal() * 0.2, Vector3.ZERO, Color("#ffe066"), 10)
+		var flash := OmniLight3D.new()
+		flash.light_color = Color("#d9ccff")
+		flash.omni_range = 5.0
+		flash.light_energy = 9.0
+		cube_root.add_child(flash)
+		if v != null:
+			flash.global_position = v.global_position + v.world_normal() * 1.4
+		var ft := create_tween()
+		ft.tween_property(flash, "light_energy", 0.0, 0.5)
+		ft.tween_callback(flash.queue_free)
+		rig.shake(0.9)
+		_buzz(40)
+		await get_tree().create_timer(0.7).timeout
+		return
+	rig.shake(0.6)
+	for i in hit:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.flood(1.3)
+	await _rain_fx(bd["fields"])
+	await get_tree().create_timer(0.5).timeout
 
 
 func _merge_fx(e: Dictionary) -> void:

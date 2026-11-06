@@ -10,6 +10,13 @@ signal game_over
 signal move_done(kind: String)                                   # "twist", "rain", "bolt", "monsoon" (fürs Tutorial)
 signal tutorial_changed
 signal tutorial_bloom(ids: Array)                                # nach dem Tutorial: diese Felder erblühen (World animiert)
+## gdpd: Ein Zug braucht eine Wahl („Dein Wille geschehe“). Die Oberfläche zeigt die Karte (oder die kleine Pille,
+## wenn info["mini"]) und ruft danach Game.choose(0/1) auf (oder Game.choose_default() bei Zeitablauf/Tipp daneben).
+## Hört niemand auf das Signal, nimmt Game sofort den Standard. Während die Wahl offen ist, ist busy = true.
+## info: {"kind", "field", "fields", "options": [Art 1, Art 2], "default": 0/1, "best": 0/1 (Empfehlung),
+##        "mini": bool, "timeout": Sekunden (0 = kein Zeitlimit, Tutorial), "action": {...}}
+signal choice_needed(info: Dictionary)
+signal choice_made(info: Dictionary)                             # info wie oben plus "picked"
 
 const SAVE_PATH := "user://rekord.cfg"
 const SETTINGS_PATH := "user://einstellungen.cfg"
@@ -20,10 +27,10 @@ const LEVELS = ["Einfach", "Mittel", "Schwer"]
 const MODE_KEYS = ["einfach", "mittel", "schwer"]
 const CHALLENGE_LEVEL := 1
 const MODE_INTRO = {
-	"einfach": "Einfach: Ganze Gruppen wachsen mit.",
-	"mittel": "Mittel: Schräge Reihen zählen ab dem kleinen Wald.",
+	"einfach": "Einfach: Ganze Gruppen wachsen mit. Du hast 5 Herzen.",
+	"mittel": "Mittel: Schräge Reihen zählen ab dem Wald.",
 	"schwer": "Schwer: Nur gerade Reihen zählen.",
-	"challenge": "40 Drehungen: Wie viele Punkte schaffst du?",
+	"challenge": "40 Drehungen: Wie viel Glauben schaffst du?",
 }
 ## Was neue Spieler nach und nach kennenlernen (in coach_seen gemerkt, „Tutorial nochmal“ setzt es zurück).
 const REVEAL_FLAGS = ["show_undo", "show_hint", "show_bolt", "show_coins", "show_flames"]
@@ -33,7 +40,10 @@ var busy := false          # Runde wird ausgewertet/animiert
 var over := false
 var continued := false     # einmal pro Spiel weiterspielen
 var undo_state: GameState = null   # Stand vor dem letzten Zug (ein Schritt zurück)
-var best := 0              # Rekord in Punkten (dieser Modus, Stand bei Spielbeginn)
+var best := 0              # Rekord in Glauben (dieser Modus, Stand bei Spielbeginn)
+var pending_choice: Dictionary = {}   # offene Wahl (siehe choice_needed), sonst leer
+var cards_seen := {}       # Art → so oft wurde die große Wahl-Karte schon gezeigt (danach die kleine Pille)
+var always_ask := false    # Einstellung „Immer fragen“: immer die große Karte
 var tutorial_done := false
 var tutorial_step := -1    # Schritt im Tutorial, -1 = kein Tutorial
 var coach_seen := {}       # Hinweise, die schon einmal gezeigt wurden (und was schon aufgedeckt ist)
@@ -89,6 +99,8 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 		state.setup_tutorial_board()
 		_tut_board = true
 	state.no_fire = tutorial()
+	state.calm = tutorial()
+	pending_choice = {}
 	busy = false
 	over = false
 	continued = false
@@ -132,7 +144,7 @@ func _mode_key() -> String:
 	return mode_key()
 
 
-## Rekord einer Spielart (Punkte).
+## Rekord einer Spielart (Glaube).
 func best_for(key: String) -> int:
 	return int(_best.get(key, 0))
 
@@ -151,6 +163,7 @@ func restart_tutorial() -> void:
 	tutorial_done = false
 	tutorial_step = 0
 	coach_seen = {}
+	cards_seen = {}
 	onboarding = false
 	new_game(0, 1, 0)
 
@@ -177,6 +190,7 @@ func finish_tutorial() -> void:
 	_onb_twists = 0
 	if state != null:
 		state.no_fire = false
+		state.calm = false
 		state.misses = 0
 	if was_board and state != null:
 		var ids: Array = state.fill_after_tutorial()
@@ -192,9 +206,13 @@ func end_tutorial() -> void:
 	finish_tutorial()
 
 
-## Was zählt: die Punkte.
+## Was zählt: der Glaube (alter Name score).
 func score() -> int:
-	return state.score
+	return state.faith
+
+
+func faith() -> int:
+	return state.faith
 
 
 ## Was würde diese Drehung bewirken? row: die Felder, über die gewischt wird.
@@ -204,18 +222,26 @@ func preview(axis: int, layer: int, turns: int, row: Array = []) -> Dictionary:
 		sim.apply_rotation(axis, layer, turns, row)
 	var arranged := sim.clone()
 	var result := sim.end_round()
+	var war: Array = []
+	for e in result["events"]:
+		if str(e["type"]) == "war":
+			war = e["fields"]
 	return {
 		"arranged": arranged,     # Welt direkt nach der Drehung
-		"state": sim,             # Welt nach der Auswertung
+		"state": sim,             # Welt nach der Auswertung (mit der Gewohnheit als Antwort)
 		"gain": int(result["gain"]),
+		"faith": int(result["faith"]),
 		"events": result["events"],
+		"card": sim.card,         # Art der Wahl, die kommen würde (-1: keine) → „?“ über card_field
+		"card_field": sim.card_field,
+		"war": war,               # Kirchen, die Krieg führen würden (gekreuzte Schwerter)
 	}
 
 
 static func snapshot(gs: GameState) -> Dictionary:
 	var s := {}
 	for f in gs.fields:
-		s[f.id] = f.stage
+		s[f.id] = f.kind
 	return s
 
 
@@ -225,12 +251,57 @@ func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 		return
 	busy = true
 	state.no_fire = tutorial()      # im Tutorial zählen Fehlversuche nicht
+	state.calm = tutorial()
+	_last_kind = "twist" if turns != 0 else "wait"
+	_start({"type": "twist", "axis": axis, "layer": layer, "turns": turns, "row": row.duplicate()})
+
+
+## Einen Zug beginnen: Kommt eine Wahl, erst fragen (choice_needed), sonst gleich auswerten.
+## Das ist deterministisch: Bis zur ersten Wahl hängt der Zug nicht von der Antwort ab.
+func _start(action: Dictionary) -> void:
+	var info := state.choice_for(action)
+	if info.is_empty():
+		_resolve(action, {})
+		return
+	var k := int(info["kind"])
+	info["action"] = action
+	info["mini"] = not tutorial() and not always_ask and int(cards_seen.get(k, 0)) >= Balance.CHOICE_FULL_CARDS
+	info["timeout"] = 0.0 if tutorial() else (Balance.MINI_CARD_SECONDS if bool(info["mini"]) else Balance.CHOICE_TIMEOUT)
+	info["best"] = int(state.evaluate(action, true)["choice"])
+	if not bool(info["mini"]) and not tutorial():
+		cards_seen[k] = int(cards_seen.get(k, 0)) + 1
+	pending_choice = info
+	choice_needed.emit(info)
+	if choice_needed.get_connections().is_empty() and not pending_choice.is_empty():
+		choose_default()
+
+
+## Antwort auf die offene Wahl: 0 = erste Option, 1 = zweite. Wertet den Zug aus.
+func choose(option: int) -> void:
+	if pending_choice.is_empty():
+		return
+	var info := pending_choice
+	pending_choice = {}
+	info["picked"] = clampi(option, 0, 1)
+	choice_made.emit(info)
+	_resolve(info["action"], {int(info["kind"]): int(info["picked"])})
+
+
+## Zeit abgelaufen oder daneben getippt: die Gewohnheit (deine letzte Wahl) gilt.
+func choose_default() -> void:
+	if pending_choice.is_empty():
+		return
+	choose(int(pending_choice["default"]))
+
+
+func has_choice() -> bool:
+	return not pending_choice.is_empty()
+
+
+func _resolve(action: Dictionary, answers: Dictionary) -> void:
 	undo_state = state.clone()
 	var before := snapshot(state)
-	if turns != 0:
-		state.apply_rotation(axis, layer, turns, row)
-	_last_kind = "twist" if turns != 0 else "wait"
-	var result := state.end_round()
+	var result := state.play(action, answers)
 	round_resolved.emit(result, before)
 
 
@@ -244,6 +315,8 @@ func finish_round(result: Dictionary) -> void:
 		if _onb_merges >= Balance.ONBOARD_MERGES or _onb_twists >= Balance.ONBOARD_TWISTS:
 			onboarding = false
 	for e in result["events"]:
+		if str(e["type"]) == "complete":
+			message.emit("Deine Welt ist vollendet!", "good")
 		if str(e["type"]) == "disaster" and not state.is_over() and coach_seen.has("fire"):
 			# Beim ersten Feuer erklärt ein Hinweis alles; danach eine kurze Meldung
 			if state.hearts:
@@ -262,7 +335,9 @@ func finish_round(result: Dictionary) -> void:
 	move_done.emit(_last_kind)
 
 
-## Bonus: "rain" auf ein Feld oder "bolt" auf eine Reihe (row, 3 IDs). Zählt als Zug; die World spielt ihn ab.
+## Werkzeug: "rain" | "bolt" | "monsoon" (Segen) | "strike" (Gewitter) | "flood" (Flut) auf ein Feld.
+## Blitz: row = 3 IDs (sonst die Eck-Diagonale). Zählt als Zug (Regen nicht); die World spielt ihn ab.
+## Kommt dabei eine Wahl, gibt es erst choice_needed (wie bei play_turn).
 ## quiet: keine Meldung, wenn es nicht geht (die Oberfläche zeigt es selbst).
 func use_bonus(kind: String, fid: int, row: Array = [], quiet: bool = false) -> bool:
 	if busy or over:
@@ -274,25 +349,10 @@ func use_bonus(kind: String, fid: int, row: Array = [], quiet: bool = false) -> 
 			message.emit(err, "info")
 		return false
 	busy = true
-	undo_state = state.clone()
-	var before := snapshot(state)
-	var hit: Array = [fid]
-	if kind == "bolt":
-		hit = row.duplicate() if not row.is_empty() else state.corner_diagonal(f)
-	if kind == "monsoon":
-		hit = [fid]
-		for g in state.fields:
-			if (g as FieldData).n == f.n and (g as FieldData).id != fid:
-				hit.append((g as FieldData).id)
-	state.apply_bonus(kind, f, row)
-	var stages := {}
-	for i in hit:
-		stages[int(i)] = (state.fields[int(i)] as FieldData).stage
-	# Regen ist kein ganzer Zug: Man kann mehrmals hintereinander gießen
-	var result := state.resolve_now() if kind == "rain" else state.end_round()
-	result["bonus"] = {"kind": kind, "field": fid, "fields": hit, "stages": stages}
+	state.calm = tutorial()
 	_last_kind = kind
-	round_resolved.emit(result, before)
+	# Regen ist kein ganzer Zug (resolve_now): Man kann mehrmals hintereinander gießen
+	_start({"type": kind, "field": fid, "row": row.duplicate()})
 	return true
 
 
@@ -302,6 +362,17 @@ static func praise() -> String:
 
 static func gasp() -> String:
 	return str(GASP[randi() % GASP.size()])
+
+
+## Einstellung „Immer fragen“: immer die große Wahl-Karte statt der kleinen Pille.
+func set_always_ask(on: bool) -> void:
+	always_ask = on
+	_save_best()
+
+
+## Art-Tabelle für die Oberfläche (Name, Icon, Stufe, Optionen, Glaube pro Drehung, Erklärung).
+static func kind_info(k: int) -> Dictionary:
+	return FieldData.info(k)
 
 
 ## Einmal pro Spiel nach dem Ende weiterspielen (kostet Münzen).
@@ -319,6 +390,7 @@ func undo() -> void:
 		return
 	state = undo_state
 	undo_state = null
+	pending_choice = {}
 	over = false
 	new_game_started.emit()
 	state_changed.emit()
@@ -419,6 +491,10 @@ func _load_best() -> void:
 		for k in cfg.get_value("tutorial", "hinweise", []):
 			coach_seen[str(k)] = true
 		credits = int(cfg.get_value("konto", "credits", Balance.CREDITS_START))
+		var cs: Dictionary = cfg.get_value("wahl", "karten", {})
+		for k in cs:
+			cards_seen[int(k)] = int(cs[k])
+		always_ask = bool(cfg.get_value("wahl", "immer_fragen", false))
 	else:
 		credits = Balance.CREDITS_START
 	# Wer das Tutorial schon aus einer älteren Version kennt, sieht gleich alles
@@ -458,4 +534,6 @@ func _save_best() -> void:
 	cfg.set_value("tutorial", "hinweise", coach_seen.keys())
 	cfg.set_value("konto", "credits", credits)
 	cfg.set_value("spiel", "modus", mode_key())
+	cfg.set_value("wahl", "karten", cards_seen)
+	cfg.set_value("wahl", "immer_fragen", always_ask)
 	cfg.save(SAVE_PATH)

@@ -1,12 +1,57 @@
 class_name GameUI
 extends CanvasLayer
-## Oberfläche, Handy zuerst. Feste Zonen, damit sich nichts überlappt:
-##   oben Kopfzeile (Menü · Punkte · Credits, darunter Zeitalter · Flammen · Herzen),
+## Oberfläche von gdpd, Handy zuerst. Feste Zonen, damit sich nichts überlappt:
+##   oben Kopfzeile (Menü · Glaube · Münzen, darunter Zeitalter · Flammen · Herzen, darunter Weltwaage · Ziel),
 ##   darunter die Meldungsspur (Tutorial, Vorschau, Meldungen), Mitte der Würfel,
 ##   unten die Kontextzone (Feld-Karte oder Bonus-Hinweis) über dem schwebenden Dock.
 ## Beim Drehen erscheint ganz oben ein roter Streifen: dorthin ziehen = abbrechen.
 
 const STAGE_ICON = GameState.STAGE_ICON
+
+
+## Die Weltwaage als kleiner Balken: links Natur (rot = Wildnis), Mitte grün, rechts gelb (viel Stadt), dann rot (Smog).
+## Der Knopf gleitet weich zum Wert W (−100 … 100).
+class WorldScale extends Control:
+	var value := 0.0
+	var target := 0.0
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(150, 22)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	func set_w(w: int, instant: bool = false) -> void:
+		target = clampf(float(w), -100.0, 100.0)
+		if instant:
+			value = target
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if absf(value - target) > 0.05:
+			value = lerpf(value, target, 1.0 - exp(-5.0 * delta))
+			if absf(value - target) <= 0.05:
+				value = target
+			queue_redraw()
+
+	func _x(w: float) -> float:
+		var r := 8.0
+		return r + (w + 100.0) / 200.0 * (size.x - 2.0 * r)
+
+	func _draw() -> void:
+		var h := 8.0
+		var cy := size.y * 0.5
+		var segs := [[-100.0, float(Balance.WILD_AT), Color("#F0907F")], [float(Balance.WILD_AT), float(Balance.CITY_AT), Color("#7CC98F")],
+			[float(Balance.CITY_AT), float(Balance.SMOG_AT), Color("#F5C76A")], [float(Balance.SMOG_AT), 100.0, Color("#F0907F")]]
+		for sg in segs:
+			var x0 := _x(float(sg[0]))
+			var x1 := _x(float(sg[1]))
+			draw_rect(Rect2(x0, cy - h * 0.5, x1 - x0, h), sg[2])
+		draw_circle(Vector2(_x(-100.0), cy), h * 0.5, segs[0][2])
+		draw_circle(Vector2(_x(100.0), cy), h * 0.5, segs[3][2])
+		var kx := _x(value)
+		draw_circle(Vector2(kx, cy + 1.5), 8.5, Color(0.12, 0.14, 0.19, 0.16))
+		draw_circle(Vector2(kx, cy), 8.0, Color.WHITE)
+		draw_arc(Vector2(kx, cy), 7.0, 0.0, TAU, 24, Style.INK, 2.5, true)
 
 var world: World
 var root: Control
@@ -29,6 +74,13 @@ var miss_flames: Array = []
 var hearts_chip: PanelContainer
 var hearts_row: HBoxContainer
 var hearts: Array = []
+var row3: HBoxContainer
+var scale_chip: PanelContainer
+var _scale_sb: StyleBoxFlat
+var scale_bar: WorldScale
+var goal_chip: PanelContainer
+var goal_label: Label
+var faith_icon: TextureRect
 
 # --- Meldungsspur ---
 var tut_card: PanelContainer
@@ -71,6 +123,35 @@ var rain_btn: Button
 var bolt_btn: Button
 var monsoon_btn: Button
 var hint_btn: Button
+var strike_btn: Button
+var flood_btn: Button
+
+# --- Wahl-Karte „Dein Wille geschehe“ ---
+var choice_scrim: ColorRect
+var choice_catcher: Control
+var choice_card: PanelContainer
+var choice_caps: Label
+var choice_title: Label
+var choice_btns: Array = []        # zwei große Knöpfe
+var choice_tiles: Array = []
+var choice_names: Array = []
+var choice_lines: Array = []
+var choice_bars: Array = []        # dünner Zeitbalken im Standard-Knopf
+var choice_tags: Array = []        # „Empfohlen“ (nach einem Tipp)
+var mini_pill: PanelContainer
+var mini_btns: Array = []
+var _choice: Dictionary = {}       # offene Wahl (Kopie von Game.pending_choice)
+var _choice_left := 0.0
+var _choice_total := 0.0
+var _choice_full := false          # große Karte (sonst die kleine Pille)
+var _choice_outside := 0           # Tutorial: daneben getippt (beim zweiten Mal gilt der Standard)
+var _choice_gen := 0
+var _hint_live := false            # gerade wurde ein Tipp gekauft: die empfohlene Wahl leuchtet
+var long_press := Style.LONG_PRESS # Screenshots auf langsamer Grafik: länger, damit Tippen kein Halten wird
+var _pick := -1                    # Strafe: angetipptes Ziel (zweites Tippen bestätigt)
+var _anchor: Control               # unsichtbarer Anker für Hinweise an einem Feld
+var _last_faith := -1
+var _last_scale_zone := ""
 
 # --- Überlagerungen ---
 var bubble_layer: Control
@@ -122,7 +203,7 @@ var _help_monsoon_row: Control
 const SLOT_W := 92.0          # Breite eines Platzes im Dock (das Dock wächst mit den sichtbaren Plätzen)
 
 # --- Zustand ---
-var bonus_mode := ""          # "", "rain", "bolt" oder "monsoon": nächstes angetipptes Feld bekommt den Bonus
+var bonus_mode := ""          # "", "rain", "bolt", "monsoon", "strike" oder "flood": nächstes angetipptes Feld bekommt das Werkzeug
 var _shown_score := -1
 var _score_display := 0.0
 var _sheet_field := -1
@@ -147,7 +228,7 @@ var _auto_fired := false      # der vorgeführte erste Zug lief schon
 var _tut_step_at := 0.0       # wann der aktuelle Tutorial-Schritt begann
 var _tut_merged := false
 const TUT_STEPS = [
-	{"wait": "auto", "text": "Drei gleiche in einer Reihe – sie wachsen!"},
+	{"wait": "auto", "text": "Drei gleiche in einer Reihe wachsen. Du bestimmst, was daraus wird!"},
 	{"wait": "twist", "text": "Jetzt du! Wisch über die leuchtende Reihe."},
 ]
 
@@ -163,11 +244,19 @@ const COACH = {
 	"coins": "Das sind deine Münzen. Neue gibt es für ein kurzes Video.",
 	"age": "",      # Text kommt aus _coach_text (Zeitalter und was als Nächstes kommt)
 	"hold": "Tipp: Halte ein Symbol gedrückt – dann erklärt es sich.",
+	"scale": "Das ist deine Weltwaage: links Natur, rechts Stadt. Halte sie im Grünen.",
+	"wish": "Die Menschen haben einen Wunsch! Erfüll ihn in 8 Drehungen – das bringt Glauben.",
+	"church": "Eine Kirche bringt jede Runde Glauben. Aber bring nie zwei Kirchen zusammen!",
+	"war": "Krieg! Zwei Kirchen haben sich getroffen. Halte sie auseinander.",
+	"finished": "Fertig! Dieses Feld wächst nicht mehr, bringt aber Glauben. Mit Gewitter machst du wieder Platz.",
+	"industry": "Industrie bringt viel Glauben – aber zu viel macht Smog.",
+	"smog": "Smog! Wälder welken, Tiere fliehen. Pflanz Wald oder strafe die Industrie.",
+	"nopeople": "Ohne Menschen glaubt niemand an dich. Wähl auch mal Acker oder Hütte.",
+	"mini": "Du hast dich entschieden. Das gilt jetzt, bis du es änderst – tipp zum Wechseln.",
 }
 const COACH_ICON = {"miss": "fire", "rain": "rain", "bolt": "lightning", "monsoon": "monsoon", "fire": "fire", "hold": "hand",
-	"hint": "bulb", "undo": "undo", "coins": "coin"}
-## Mit Artikel, für „Als Nächstes: Antike – bau ein Haus.“
-const STAGE_WITH_ARTICLE = ["Erde", "eine Wiese", "einen kleinen Wald", "einen großen Wald", "eine Hütte", "ein Haus", "ein Dorf", "eine Stadt", "eine Großstadt", "eine Metropole"]
+	"hint": "bulb", "undo": "undo", "coins": "coin", "scale": "balance", "wish": "wish", "church": "church", "war": "swords",
+	"finished": "star", "industry": "industry", "smog": "smog", "nopeople": "hut", "mini": "check"}
 const AGE_PREP = {"Mittelalter": "im", "Industriezeitalter": "im"}
 var _coach_queue: Array = []
 var _coach_until := INF
@@ -182,22 +271,32 @@ var _coach_in_hud := false    # der Hinweis hängt oben (dann wartet die Meldung
 # Erklärung bei langem Drücken: TOOLTIPS[key] = {icon, title, body}; dynamische Teile in _tooltip_for.
 const TOOLTIPS = {
 	"menu": {"icon": "menu", "title": "Menü", "body": "Pause, neues Spiel, Ton und Hilfe."},
-	"score": {"icon": "trophy", "title": "Punkte", "body": "Jedes Wachsen bringt Punkte. Wächst mehr auf einmal, gibt es extra."},
+	"score": {"icon": "faith", "title": "Glaube", "body": "Glaube. Du bekommst ihn, wenn etwas wächst, für erfüllte Wünsche und jede Runde von fertigen Feldern. Wunder und Strafen kosten Glauben."},
+	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Die Weltwaage. Links Natur, rechts Stadt. Grün ist gut. Ganz rechts kommt Smog, ganz links fehlt den Menschen Essen."},
+	"goal": {"icon": "star", "title": "Vollenden", "body": "Vollende deine Welt: %d fertige Felder – und die Waage nicht im Roten."},
+	"choice": {"icon": "wish", "title": "Dein Wille geschehe", "body": "Dein Wille geschehe: Du entscheidest, was hier wächst. Tippst du daneben, gilt deine letzte Wahl."},
+	"mini": {"icon": "check", "title": "Deine Wahl", "body": "Deine letzte Wahl gilt. Tipp auf das andere Bild, um zu wechseln."},
+	"star": {"icon": "star", "title": "Fertig", "body": "Fertig: Dieses Feld wächst nicht mehr und bildet keine Reihe."},
+	"war": {"icon": "swords", "title": "Krieg", "body": "Krieg: Zwei Kirchen haben sich getroffen. Viele Menschen sterben, du verlierst Glauben."},
+	"smog": {"icon": "smog", "title": "Smog", "body": "Smog: Zu viel Stadt. Industrie lässt Wälder welken und Tiere fliehen. Es gibt keinen Glauben pro Runde."},
+	"strike": {"icon": "strike", "title": "Gewitter", "body": "Gewitter: Du strafst ein Feld. Industrie wird zu Erde, alles andere schrumpft. Kostet 15 Glauben."},
+	"flood": {"icon": "flood", "title": "Flut", "body": "Flut: Eine Seite wird reingewaschen. Städte und Industrie schrumpfen, die Natur bleibt. Kostet 40 Glauben."},
+	"always_ask": {"icon": "help", "title": "Immer fragen", "body": "An: Bei jeder Wahl kommt die große Karte. Aus: Nach ein paar Mal reicht eine kleine Pille."},
 	"credits": {"icon": "coin", "title": "Münzen", "body": "Damit bezahlst du Tipp und Zurück. Neue gibt es für ein kurzes Video."},
 	"age": {"icon": "hut", "title": "Zeitalter", "body": "Zeigt, wie weit deine Welt ist."},
 	"flames": {"icon": "fire", "title": "Flammen", "body": "Wächst bei einer Drehung nichts, leuchtet eine Flamme. Bei 3 Flammen fängt die gedrehte Reihe Feuer."},
 	"hearts": {"icon": "heart", "title": "Herzen", "body": "Jedes Feuer kostet ein Herz. Sind alle weg, ist das Spiel vorbei."},
 	"undo": {"icon": "undo", "title": "Zurück", "body": "Nimmt deinen letzten Zug zurück."},
-	"rain": {"icon": "rain", "title": "Regen", "body": "Lässt ein Feld wachsen oder löscht Feuer. Tippe drauf, dann auf ein leuchtendes Feld."},
-	"bolt": {"icon": "lightning", "title": "Blitz", "body": "Gibt es, wenn sich an einer Ecke 3 gleiche treffen. Tippe drauf, dann auf ein leuchtendes Eckfeld: Die schräge Linie wächst."},
-	"monsoon": {"icon": "monsoon", "title": "Monsun", "body": "Lässt eine ganze Seite wachsen – alle 9 Felder. Tippe drauf, dann auf den Würfel."},
+	"rain": {"icon": "rain", "title": "Regen", "body": "Regen lässt Natur wachsen: Erde wird Wiese, Wiese wird Wald, Wald wird großer Wald. Er löscht auch Feuer."},
+	"bolt": {"icon": "lightning", "title": "Blitz", "body": "Blitz: Die Schräge an einer Ecke wächst. Du bekommst ihn, wenn sich an einer Ecke 3 gleiche treffen."},
+	"monsoon": {"icon": "monsoon", "title": "Monsun", "body": "Monsun: Eine ganze Seite wächst."},
 	"hint": {"icon": "bulb", "title": "Tipp", "body": "Zeigt dir die beste Drehung."},
 	"profile": {"icon": "profile", "title": "Profil", "body": "Kommt bald: dein Profil mit Rekorden und Erfolgen."},
-	"mode_close": {"icon": "close", "title": "Abbrechen", "body": "Doch nicht? Damit legst du den Bonus wieder weg."},
-	"mode_einfach": {"icon": "meadow", "title": "Einfach", "body": "Ganze Gruppen wachsen mit. 3 Herzen."},
-	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Schräge Reihen zählen ab dem kleinen Wald. 3 Herzen."},
+	"mode_close": {"icon": "close", "title": "Abbrechen", "body": "Doch nicht? Damit legst du das Werkzeug wieder weg."},
+	"mode_einfach": {"icon": "meadow", "title": "Einfach", "body": "Ganze Gruppen wachsen mit. Fertige Felder entstehen aber nur in der Reihe. 5 Herzen."},
+	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Schräge Reihen zählen ab dem Wald. 3 Herzen."},
 	"mode_schwer": {"icon": "nature", "title": "Schwer", "body": "Nur gerade Reihen zählen. 3 Herzen."},
-	"mode_challenge": {"icon": "trophy", "title": "40 Drehungen", "body": "Wie viele Punkte schaffst du in 40 Drehungen? Regeln wie Mittel, 3 Herzen."},
+	"mode_challenge": {"icon": "trophy", "title": "40 Drehungen", "body": "Wie viel Glauben schaffst du in 40 Drehungen? Regeln wie Mittel, 3 Herzen."},
 }
 var _lp_node: Control = null
 var _lp_t := 0.0
@@ -222,13 +321,18 @@ var _modal_closable := true
 var _pending: Callable = Callable()
 var _pending_cost := 0
 
-const SLOT_TINT = {"undo": Color("#F2EDE5"), "rain": Color("#E3EFFC"), "bolt": Color("#FDF0DA"), "monsoon": Color("#E7EBFA"), "hint": Color("#FDF0DA")}
-const SLOT_COLOR = {"undo": Color("#4B5163"), "rain": Color("#3B8EEA"), "bolt": Color("#F2A93B"), "monsoon": Color("#5B74D6"), "hint": Color("#F2A93B")}
+const SLOT_TINT = {"undo": Color("#F2EDE5"), "rain": Color("#E3EFFC"), "bolt": Color("#FDF0DA"), "monsoon": Color("#E7EBFA"), "hint": Color("#FDF0DA"),
+	"strike": Color("#EEE7FA"), "flood": Color("#DDEBFA")}
+const SLOT_COLOR = {"undo": Color("#4B5163"), "rain": Color("#3B8EEA"), "bolt": Color("#F2A93B"), "monsoon": Color("#5B74D6"), "hint": Color("#F2A93B"),
+	"strike": Color("#7E57C9"), "flood": Color("#2366B8")}
+const PUNISH_TINT := Color("#EEE7FA")
+const PUNISH := Color("#7E57C9")
+const PUNISH_DEEP := Color("#5B3AA0")
 const MODES = [
-	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Ganze Gruppen wachsen mit", "tint": 1},
-	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Schräg ab dem kleinen Wald", "tint": 2},
-	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen", "tint": 3},
-	{"key": "challenge", "icon": "trophy", "title": "40 Drehungen · Mittel", "sub": "Wie viele Punkte schaffst du?", "tint": 4},
+	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Ganze Gruppen wachsen mit · 5 Herzen", "tint": 1},
+	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Schräg ab dem Wald", "tint": 2},
+	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen", "tint": 4},
+	{"key": "challenge", "icon": "trophy", "title": "40 Drehungen · Mittel", "sub": "Wie viel Glauben schaffst du?", "tint": 3},
 ]
 
 
@@ -247,7 +351,15 @@ func setup(w: World) -> void:
 	world.cancel_hover.connect(_on_cancel_hover)
 	world.bolt_drawn.connect(_on_bolt_drawn)
 	world.tutorial_tap.connect(_on_tutorial_tap)
+	world.war_shown.connect(_on_war)
+	world.smog_shown.connect(_on_smog)
+	world.wish_done_shown.connect(_on_wish_done)
+	world.wish_made_shown.connect(_on_wish_made)
+	world.income_shown.connect(_on_income)
+	world.punish_shown.connect(_on_punish)
 	world.cancel_zone = cancel_strip
+	Game.choice_needed.connect(_on_choice_needed)
+	Game.choice_made.connect(_on_choice_made)
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -278,6 +390,11 @@ func _build() -> void:
 	_build_context()
 	_build_dock()
 	gift_layer = _layer()
+	_anchor = Control.new()
+	_anchor.size = Vector2(44, 44)
+	_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gift_layer.add_child(_anchor)
+	_build_choice()
 	tut_finger = TextureRect.new()
 	tut_finger.texture = Style.icon("touch")
 	tut_finger.size = Vector2(72, 72)
@@ -347,10 +464,19 @@ func _build_top() -> void:
 	score_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	score_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	row1.add_child(score_box)
+	var sh := _hbox(6)
+	sh.alignment = BoxContainer.ALIGNMENT_CENTER
+	score_box.add_child(sh)
+	faith_icon = _icon("faith", 40)
+	sh.add_child(faith_icon)
 	score_label = _label("0", Style.F_SCORE, Style.INK, Style.W_BLACK)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_box.add_child(score_label)
-	round_label = _caps("Punkte")
+	sh.add_child(score_label)
+	var pad := Control.new()          # gleicht das Symbol aus, damit die Zahl mittig bleibt
+	pad.custom_minimum_size = Vector2(20, 0)
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sh.add_child(pad)
+	round_label = _caps("Glaube")
 	round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_box.add_child(round_label)
 	_explain_only(score_box, "score")
@@ -407,12 +533,45 @@ func _build_top() -> void:
 	right.add_child(hearts_chip)
 	hearts_row = _hbox(2)
 	hearts_chip.add_child(hearts_row)
-	for i in maxi(Balance.LIVES, 1):
+	for i in maxi(Balance.LIVES_EASY, Balance.LIVES):
 		var h := _icon("heart", 24)
 		h.set_meta("idx", i)
 		hearts_row.add_child(h)
 		hearts.append(h)
 	_explain_only(hearts_chip, "hearts")
+
+	# Zeile 3: Weltwaage (ab dem ersten Acker oder der ersten Hütte) · Ziel (ab dem ersten fertigen Feld)
+	row3 = _hbox(8)
+	row3.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_child(row3)
+	scale_chip = PanelContainer.new()
+	_scale_sb = _chip_style()
+	_scale_sb.content_margin_top = 5
+	_scale_sb.content_margin_bottom = 5
+	scale_chip.add_theme_stylebox_override("panel", _scale_sb)
+	row3.add_child(scale_chip)
+	var sch := _hbox(8)
+	scale_chip.add_child(sch)
+	sch.add_child(_icon("smallforest", 22))
+	scale_bar = WorldScale.new()
+	sch.add_child(scale_bar)
+	sch.add_child(_icon("town", 22))
+	_explain_only(scale_chip, "scale")
+	scale_chip.visible = false
+	goal_chip = PanelContainer.new()
+	var gsb := _chip_style()
+	gsb.content_margin_top = 5
+	gsb.content_margin_bottom = 5
+	goal_chip.add_theme_stylebox_override("panel", gsb)
+	row3.add_child(goal_chip)
+	var gh := _hbox(6)
+	goal_chip.add_child(gh)
+	gh.add_child(_icon("star", 22))
+	goal_label = _label("0/22", 15, Style.INK, Style.W_BOLD)
+	goal_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	gh.add_child(goal_label)
+	_explain_only(goal_chip, "goal")
+	goal_chip.visible = false
 
 
 func _home_top() -> void:
@@ -603,17 +762,31 @@ func _build_dock() -> void:
 	rain_btn = _slot(bh, "rain", "rain", "Regen", _on_bonus_pressed.bind("rain"))
 	bolt_btn = _slot(bh, "bolt", "lightning", "Blitz", _on_bonus_pressed.bind("bolt"))
 	monsoon_btn = _slot(bh, "monsoon", "monsoon", "Monsun", _on_bonus_pressed.bind("monsoon"))
+	strike_btn = _slot(bh, "strike", "strike", "Gewitter", _on_bonus_pressed.bind("strike"))
+	flood_btn = _slot(bh, "flood", "flood", "Flut", _on_bonus_pressed.bind("flood"))
 	hint_btn = _slot(bh, "hint", "bulb", "Tipp", _on_hint_pressed)
+
+
+func _dock_btns() -> Array:
+	return [undo_btn, rain_btn, bolt_btn, monsoon_btn, strike_btn, flood_btn, hint_btn]
 
 
 ## Das Dock ist eine Pille, so breit wie seine sichtbaren Plätze, immer mittig über dem unteren Rand.
 func _home_dock(animate: bool = false) -> void:
 	var n := 0
-	for b in [undo_btn, rain_btn, bolt_btn, monsoon_btn, hint_btn]:
+	for b in _dock_btns():
 		var bb: Button = b
 		if bb != null and (bb.get_meta("slot") as Control).visible:
 			n += 1
-	var w := minf(float(maxi(n, 1)) * SLOT_W + 16.0, float(Style.CONTENT_W))
+	# Viele Plätze (bis zu 7): etwas kleinere Knöpfe, damit alles in eine Zeile passt
+	var slot_w := SLOT_W if n <= 5 else (84.0 if n == 6 else 76.0)
+	var bsz := 64.0 if n <= 5 else (60.0 if n == 6 else 56.0)
+	for b in _dock_btns():
+		var bb: Button = b
+		if bb != null:
+			bb.custom_minimum_size = Vector2(bsz, bsz)
+			bb.add_theme_constant_override("icon_max_width", int(bsz * 0.53))
+	var w := minf(float(maxi(n, 1)) * slot_w + 16.0, float(Style.CONTENT_W))
 	dock.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	dock.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	dock.offset_bottom = -(_insets.y + Style.BOTTOM_GAP)
@@ -1529,7 +1702,7 @@ func _dock_in(delay: float) -> void:
 	_home_dock()
 	_appear(dock, Vector2(0, 28), Style.DUR_IN, 1.0, delay)
 	var slots: Array = []
-	for b in [undo_btn, rain_btn, bolt_btn, monsoon_btn, hint_btn]:
+	for b in _dock_btns():
 		var bb: Button = b
 		if (bb.get_meta("slot") as Control).visible:
 			slots.append(bb)
@@ -1585,16 +1758,24 @@ func _sync_slots(animate: bool) -> void:
 			_reveal("undo")
 		if gs.misses > 0:
 			_reveal("flames")
+		if gs.ever.has(FieldData.FIELD) or gs.ever.has(FieldData.HUT):
+			_reveal("scale")
 	var changed := false
 	changed = _slot_show(undo_btn, not tut and _known("undo"), animate) or changed
 	changed = _slot_show(rain_btn, not tut and gs.gadgets, animate) or changed
 	changed = _slot_show(bolt_btn, not tut and gs.gadgets and (_known("bolt") or gs.bolts > 0), animate) or changed
 	changed = _slot_show(monsoon_btn, not tut and gs.gadgets and (gs.monsoon_unlocked or gs.monsoons > 0), animate) or changed
+	changed = _slot_show(strike_btn, not tut and gs.gadgets and gs.tool_unlocked("strike"), animate) or changed
+	changed = _slot_show(flood_btn, not tut and gs.gadgets and gs.tool_unlocked("flood"), animate) or changed
 	changed = _slot_show(hint_btn, not tut and _known("hint"), animate) or changed
 	if changed:
 		_home_dock(animate)
 	if tut:
+		_chip_show(scale_chip, false, false)
+		_chip_show(goal_chip, false, false)
 		return
+	_chip_show(scale_chip, _known("scale"), animate)
+	_chip_show(goal_chip, gs.endless and gs.tool_unlocked("strike"), animate)
 	_chip_show(age_chip, true, animate)
 	_chip_show(credits_btn, _known("coins"), animate)
 	_chip_show(flame_chip, _known("flames"), animate)
@@ -1693,11 +1874,13 @@ func _hold_tick(delta: float) -> void:
 			_lp_node = null
 		else:
 			_lp_t += delta
-			if _lp_t >= Style.LONG_PRESS:
+			if _lp_t >= long_press:
 				_lp_fired = true
 				Style.haptic(Style.HAPTIC_HOVER)
 				_on_fx_up(_lp_node)
-				if not (tip_card.visible and _tip_owner == _lp_node):
+				if str(_lp_node.get_meta("explain", "")) == "mini":
+					_open_full_choice()          # lange auf die kleine Pille: die große Karte
+				elif not (tip_card.visible and _tip_owner == _lp_node):
 					_show_tip(_lp_node)
 				_tip_hide_at = INF
 	if tip_card.visible and _time > _tip_hide_at:
@@ -1706,6 +1889,24 @@ func _hold_tick(delta: float) -> void:
 
 ## Text für eine Erklärung. Hier können dynamische Teile (Anzahl, Rekord …) ergänzt werden.
 func _tooltip_for(key: String) -> Dictionary:
+	# Arten (Feld-Karte, Wahl-Karte): Name und Erklärung aus der Art-Tabelle
+	if key.begins_with("kind_") or key.begins_with("choice_opt_"):
+		var k := -1
+		if key.begins_with("kind_"):
+			k = int(key.substr(5))
+		elif not _choice.is_empty():
+			var opts: Array = _choice["options"]
+			k = int(opts[clampi(int(key.substr(11)), 0, 1)])
+		if k < 0:
+			return {}
+		return {"icon": _kind_icon(k), "title": FieldData.kind_name(k), "body": str(FieldData.KIND_HELP[clampi(k, 0, FieldData.KIND_COUNT - 1)])}
+	if key.begins_with("wish_"):
+		var w := Game.state.wish_at(int(key.substr(5))) if Game.state != null else {}
+		if w.is_empty():
+			return {}
+		var left := int(w["left"])
+		return {"icon": str(GameState.WISH_ICON.get(str(w["type"]), "wish")), "title": "Ein Wunsch",
+			"body": "%s Noch %d %s." % [str(GameState.WISH_TEXT.get(str(w["type"]), "")), left, "Drehung" if left == 1 else "Drehungen"]}
 	if not TOOLTIPS.has(key):
 		return {}
 	var d: Dictionary = (TOOLTIPS[key] as Dictionary).duplicate()
@@ -1728,13 +1929,24 @@ func _tooltip_for(key: String) -> Dictionary:
 				body += " Noch %d %s." % [gs.lives, "Herz" if gs.lives == 1 else "Herzen"]
 		"rain":
 			if gs != null and gs.rain <= 0:
-				body += " Nächster Regen bei %d Punkten." % gs.next_rain
+				body += " Der nächste Regen kommt in %d Drehungen." % maxi(1, gs.next_rain - gs.twists)
+		"goal":
+			body = body % (gs.complete_goal() if gs != null else 22)
+			if gs != null:
+				body += " Du hast %d." % gs.finished_count()
+		"scale":
+			if gs != null:
+				body += " Gerade: %s." % str(GameState.ZONE_NAME.get(gs.zone(), ""))
+		"strike", "flood":
+			var cost := Balance.STRIKE_COST if key == "strike" else Balance.FLOOD_COST
+			if gs != null and gs.faith < cost:
+				body += " Du hast %d." % gs.faith
 		"undo":
 			body += " Kostet %d %s." % [Balance.UNDO_COST, _coin_word(Balance.UNDO_COST)]
 		"hint":
 			body += " Kostet %d %s." % [Balance.HINT_COST, _coin_word(Balance.HINT_COST)]
 		"mode_close":
-			var what := "den Regen" if bonus_mode == "rain" else ("den Blitz" if bonus_mode == "bolt" else ("den Monsun" if bonus_mode == "monsoon" else "den Bonus"))
+			var what := str({"rain": "den Regen", "bolt": "den Blitz", "monsoon": "den Monsun", "strike": "das Gewitter", "flood": "die Flut"}.get(bonus_mode, "das Werkzeug"))
 			body = "Doch nicht? Damit legst du %s wieder weg." % what
 	d["body"] = body
 	return d
@@ -1784,10 +1996,18 @@ func _tint_for_icon(icon_name: String) -> Color:
 			return Style.WATER_TINT
 		"fire", "heart", "cancel":
 			return Style.FIRE_TINT
-		"coin", "bulb", "lightning", "trophy", "gift", "star":
+		"coin", "bulb", "lightning", "trophy", "gift", "star", "faith", "wish":
 			return Style.SUN_TINT
-		"check", "up":
+		"check", "up", "balance":
 			return Style.LEAF_TINT
+		"swords", "smog":
+			return Style.FIRE_TINT
+		"strike":
+			return PUNISH_TINT
+		"flood":
+			return Style.WATER_TINT
+		"paw":
+			return Style.STAGE_TINT[FieldData.ANIMALS]
 	var si := STAGE_ICON.find(icon_name)
 	if si >= 0:
 		return Style.STAGE_TINT[si]
@@ -1823,6 +2043,7 @@ func _process(delta: float) -> void:
 	if Game.state == null or score_label == null:
 		return
 	_hold_tick(delta)
+	_choice_tick(delta)
 	_queued_tick()
 	_toast_tick()
 	_coach_tick()
@@ -1860,14 +2081,33 @@ func refresh() -> void:
 	_apply_tutorial_hud()
 	var settled := _last_rain >= 0     # nicht der erste Aufbau nach einem neuen Spiel
 	if gs.endless or Game.tutorial():
-		round_label.text = "Punkte"
+		round_label.text = "Glaube"
 	else:
-		round_label.text = "Drehung %d von %d" % [mini(gs.twists + 1, Balance.MAX_TWISTS), Balance.MAX_TWISTS]
+		round_label.text = "Glaube · Drehung %d von %d" % [mini(gs.twists + 1, Balance.MAX_TWISTS), Balance.MAX_TWISTS]
 	if _shown_score < 0:
-		_score_display = gs.score
-	elif gs.score > _shown_score:
+		_score_display = gs.faith
+	elif gs.faith > _shown_score:
 		_number_pop(score_label)
-	_shown_score = gs.score
+	elif gs.faith < _shown_score:
+		_number_pop(score_label, Style.FIRE_DEEP)     # Krieg oder eine Strafe hat Glauben gekostet
+		_shake(faith_icon)
+	_shown_score = gs.faith
+	# Weltwaage und Ziel
+	var w := gs.balance()
+	var zone := gs.zone()
+	scale_bar.set_w(w, _last_scale_zone == "")
+	_scale_sb.bg_color = Style.GLASS if zone == "ok" else (Style.SUN_TINT if zone == "city" else Style.FIRE_TINT)
+	if _last_scale_zone != "" and zone != _last_scale_zone and scale_chip.visible:
+		_pop(scale_chip, 1.1)
+		if zone == "city":
+			_on_message("Viel Stadt! Die Menschen wünschen sich Natur.", "info")
+		elif zone == "wild":
+			_on_message("Viel Wildnis! Die Menschen brauchen Äcker.", "info")
+		elif zone == "ok" and (_last_scale_zone == "smog" or _last_scale_zone == "city"):
+			_on_message("Die Waage ist wieder im Grünen.", "good")
+	_last_scale_zone = zone
+	_pulse(scale_chip, zone == "smog" and not Game.over)
+	goal_label.text = "%d/%d" % [gs.finished_count(), gs.complete_goal()]
 	# Zeitalter
 	var best_stage := clampi(gs.best_stage, 1, Balance.MAX_STAGE)
 	var age := gs.age_name()
@@ -1924,6 +2164,10 @@ func refresh() -> void:
 			continue
 		h.texture = Style.icon("heart" if i < lives else "heart_empty")
 	_pulse(hearts_row, lives == 1 and not Game.over)
+	for i in hearts.size():
+		(hearts[i] as Control).visible = i < maxi(gs.max_lives, 1)
+	_set_cost_badge(strike_btn, Balance.STRIKE_COST, gs.faith >= Balance.STRIKE_COST)
+	_set_cost_badge(flood_btn, Balance.FLOOD_COST, gs.faith >= Balance.FLOOD_COST)
 	_update_buttons()
 	if _sheet_field >= 0 and sheet.visible:
 		_fill_sheet(_sheet_field)
@@ -2033,6 +2277,10 @@ func _slot_btn(kind: String) -> Button:
 			return bolt_btn
 		"monsoon":
 			return monsoon_btn
+		"strike":
+			return strike_btn
+		"flood":
+			return flood_btn
 		"hint":
 			return hint_btn
 	return undo_btn
@@ -2043,6 +2291,15 @@ func _on_bonus_pressed(kind: String) -> void:
 		_shake(_slot_btn(kind))
 		return
 	var gs := Game.state
+	if kind == "strike" or kind == "flood":
+		# Strafen kosten Glauben (keine Münzen): Reicht er nicht, sagt eine Meldung, wie viel man braucht
+		var cost := Balance.STRIKE_COST if kind == "strike" else Balance.FLOOD_COST
+		if gs.faith < cost and bonus_mode != kind:
+			_shake(_slot_btn(kind))
+			_on_message("Dafür brauchst du %d Glauben." % cost, "info")
+			return
+		_set_bonus_mode("" if bonus_mode == kind else kind)
+		return
 	var have := gs.rain if kind == "rain" else (gs.bolts if kind == "bolt" else gs.monsoons)
 	if have <= 0:
 		_offer_buy(kind)
@@ -2061,11 +2318,12 @@ func _offer_buy(kind: String) -> void:
 	_set_tile(buy_tile, icon_name, _tint_for_icon(icon_name))
 	var when := ""
 	if kind == "rain":
-		when = "Noch %d Punkte bis zum nächsten Regen. " % maxi(1, gs.next_rain - gs.score)
+		var left := maxi(1, gs.next_rain - gs.twists)
+		when = "Der nächste Regen kommt in %d %s. " % [left, "Drehung" if left == 1 else "Drehungen"]
 	elif kind == "bolt":
 		when = "Einen Blitz gibt es, wenn sich an einer Ecke 3 gleiche treffen. "
 	else:
-		when = "Der nächste Monsun kommt mit mehr Punkten. "
+		when = "Der nächste Monsun kommt mit mehr Glauben. "
 	buy_label.text = when + "Oder jetzt für %d %s." % [cost, _coin_word(cost)]
 	buy_btn.text = "Kaufen (%d)" % cost
 	_open_modal(buy_card)
@@ -2100,9 +2358,12 @@ func _on_mode_close() -> void:
 func _set_bonus_mode(kind: String) -> void:
 	var was := bonus_mode
 	bonus_mode = kind
+	_pick = -1
+	world.set_pick([])
+	world.tool_mode = kind != ""
 	if kind == "":
 		_queued_tap = -1
-	for pair in [[rain_btn, "rain"], [bolt_btn, "bolt"], [monsoon_btn, "monsoon"]]:
+	for pair in [[rain_btn, "rain"], [bolt_btn, "bolt"], [monsoon_btn, "monsoon"], [strike_btn, "strike"], [flood_btn, "flood"]]:
 		var bb: Button = pair[0]
 		var sel := kind == str(pair[1])
 		if sel != (was == str(pair[1])):
@@ -2127,22 +2388,25 @@ func _set_bonus_mode(kind: String) -> void:
 		_set_tile(mode_tile, "monsoon", Style.MONSOON_TINT)
 		mode_label.text = "Tippe auf eine Seite des Würfels."
 		mode_hint.text = "Alle 9 Felder dort wachsen."
+	elif kind == "strike":
+		_set_tile(mode_tile, "strike", PUNISH_TINT)
+		mode_label.text = "Tippe auf ein Feld, das du strafen willst."
+		mode_hint.text = "Industrie wird zu Erde. Kostet %d Glauben." % Balance.STRIKE_COST
+	elif kind == "flood":
+		_set_tile(mode_tile, "flood", Style.WATER_TINT)
+		mode_label.text = "Tippe auf eine Seite mit Stadt."
+		mode_hint.text = "Städte und Industrie schrumpfen. Kostet %d Glauben." % Balance.FLOOD_COST
 	if was == "" or not mode_card.visible:
 		_place_context(mode_card)
 		_appear(mode_card, Vector2(0, 20), Style.DUR_IN, 0.98)
+	else:
+		_place_context(mode_card)
 
 
 ## Regen: sagen, welche Felder gerade gehen (nur die niedrigste Stufe wächst, Feuer wird gelöscht).
 func _rain_mode_text() -> void:
-	var gs := Game.state
 	mode_label.text = "Tippe auf ein blau leuchtendes Feld."
-	if gs == null:
-		return
-	var low := gs.lowest_stage()
-	if low == 0:
-		mode_hint.text = "Leere Erde wird zur Wiese. Feuer löschst du so auch."
-	else:
-		mode_hint.text = "%s wächst eine Stufe. Feuer löschst du so auch." % GameState.stage_name(low)
+	mode_hint.text = "Erde wird Wiese, Wiese wird Wald. Feuer löschst du so auch."
 
 
 ## Leuchtet auf der sichtbaren Seite kein Ziel, dreht sich die Ansicht zur Seite mit den meisten.
@@ -2501,13 +2765,14 @@ func _hide_finger() -> void:
 # =============================================================================
 
 ## Hinweis einmalig zeigen (key aus COACH), als Sprechblase an target.
-func _coach_once(key: String, target: Control) -> void:
+## fid >= 0: Der Hinweis zeigt auf dieses Feld (target ist dann der unsichtbare Anker).
+func _coach_once(key: String, target: Control, fid: int = -1) -> void:
 	if Game.tutorial() or Game.coach_seen.has(key) or not COACH.has(key):
 		return
 	for it in _coach_queue:
 		if str((it as Array)[0]) == key:
 			return
-	_coach_queue.append([key, target])
+	_coach_queue.append([key, target, fid, _time])
 
 
 ## Hinweise, die sich aus dem Spielstand ergeben.
@@ -2579,15 +2844,25 @@ func _coach_tick() -> void:
 		var item: Array = _coach_queue[i]
 		var key: String = str(item[0])
 		var target: Control = item[1]
+		var fid := int(item[2])
 		if not is_instance_valid(target) or Game.coach_seen.has(key):
 			_coach_queue.remove_at(i)
 			return
 		if key == "rain" and _own_twists < 2 and not _fire_seen:
 			continue      # nicht direkt nach dem Tutorial
+		if fid >= 0:
+			# Hinweis an einem Feld: nur, wenn man es gerade sieht; sonst nach einer Weile an der Glaubenszahl
+			if not _aim_anchor(fid, key == "wish"):
+				if _time - float(item[3]) < 10.0:
+					continue
+				target = score_box
+				fid = -1
+			if sheet.visible or mode_card.visible:
+				continue
 		var in_dock := target.is_inside_tree() and dock.is_ancestor_of(target)
 		if in_dock and (sheet.visible or mode_card.visible):
 			continue
-		if not in_dock and (_toast_busy or banner.visible or preview_card.visible):
+		if fid < 0 and not in_dock and (_toast_busy or banner.visible or preview_card.visible):
 			continue      # oben ist gerade die Meldungsspur belegt
 		if not target.is_visible_in_tree():
 			continue
@@ -2595,7 +2870,7 @@ func _coach_tick() -> void:
 		Game.coach_seen[key] = true
 		Game.save_settings()
 		_coach_twist = _own_twists
-		_coach_in_hud = not in_dock
+		_coach_in_hud = not in_dock and fid < 0
 		_place_coach(target, _coach_icon(key), _coach_text(key))
 		return
 
@@ -2703,8 +2978,12 @@ func _on_field_tapped(fid: int) -> void:
 			_pop(mode_card, 1.05)
 			_on_message(_bonus_refusal(kind, err), "info")
 			return
+		if (kind == "strike" or kind == "flood") and not _same_pick(kind, fid):
+			_punish_pick(kind, fid)       # erst zeigen, was getroffen wird; noch einmal tippen bestätigt
+			return
 		if Game.use_bonus(kind, fid, [], true):
-			_bubble(fid, Game.praise(), "up", Style.WATER_DEEP if kind != "bolt" else Style.SUN_DEEP)
+			if kind != "strike" and kind != "flood":
+				_bubble(fid, Game.praise(), "up", Style.WATER_DEEP if kind != "bolt" else Style.SUN_DEEP)
 			# Regen bleibt ausgewählt, solange noch Regen da ist (mehrmals hintereinander gießen)
 			if kind != "rain":
 				_set_bonus_mode("")
@@ -2728,10 +3007,36 @@ func _on_field_tapped(fid: int) -> void:
 func _bonus_refusal(kind: String, err: String) -> String:
 	var gs := Game.state
 	if kind == "rain" and gs != null and gs.rain > 0:
-		var low := gs.lowest_stage()
-		var what := "leere Erde" if low == 0 else "Felder der Stufe %s" % GameState.stage_name(low)
-		return "Regen geht gerade nur auf %s (leuchtet blau) und auf Feuer." % what
+		return "Regen geht auf Erde, Wiese und Wald (leuchtet blau) – oder auf Feuer."
 	return err
+
+
+## Strafe: Ist das dasselbe Ziel wie beim ersten Tippen? (Flut: dieselbe Seite.)
+func _same_pick(kind: String, fid: int) -> bool:
+	if _pick < 0:
+		return false
+	if kind == "flood":
+		return (Game.state.fields[_pick] as FieldData).n == (Game.state.fields[fid] as FieldData).n
+	return _pick == fid
+
+
+## Strafe: Ziel zeigen (es leuchtet) und um Bestätigung bitten.
+func _punish_pick(kind: String, fid: int) -> void:
+	var gs := Game.state
+	_pick = fid
+	var f: FieldData = gs.fields[fid]
+	world.set_pick(gs.bonus_fields(kind, f))
+	world.nudge(fid)
+	if kind == "strike":
+		var to := "Erde" if f.kind == FieldData.INDUSTRY else FieldData.kind_name(FieldData.down(f.kind))
+		mode_label.text = "Noch einmal tippen: Gewitter!"
+		mode_hint.text = "%s wird %s. Kostet %d Glauben." % [FieldData.kind_name(f.kind), to, Balance.STRIKE_COST]
+	else:
+		mode_label.text = "Noch einmal tippen: Flut!"
+		mode_hint.text = "Diese Seite wird reingewaschen. Kostet %d Glauben." % Balance.FLOOD_COST
+	_place_context(mode_card)
+	_pop(mode_card, 1.04)
+	Style.haptic(Style.HAPTIC_TAP)
 
 
 ## Feld, das während einer Animation für den Bonus angetippt wurde: jetzt einsetzen.
@@ -3342,6 +3647,510 @@ func _mark_help_seen() -> void:
 	cfg.load(SETTINGS_PATH)            # laden, sonst gehen die Ton-Einstellungen verloren
 	cfg.set_value("hilfe", "gesehen_v4", true)
 	cfg.save(SETTINGS_PATH)
+
+
+# =============================================================================
+# gdpd: Wahl-Karte „Dein Wille geschehe“ (zwei große Knöpfe) und die kleine Pille
+# =============================================================================
+
+func _build_choice() -> void:
+	# Leichter Schleier (lässt alles durch) und ein Fänger: Tippen daneben schließt die Karte mit dem Standard
+	choice_scrim = ColorRect.new()
+	choice_scrim.color = Color(Style.INK, 0.10)
+	choice_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	choice_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	choice_scrim.visible = false
+	root.add_child(choice_scrim)
+	choice_catcher = Control.new()
+	choice_catcher.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	choice_catcher.mouse_filter = Control.MOUSE_FILTER_STOP
+	choice_catcher.gui_input.connect(_on_choice_outside)
+	choice_catcher.visible = false
+	root.add_child(choice_catcher)
+	choice_card = PanelContainer.new()
+	choice_card.add_theme_stylebox_override("panel", Style.card(Style.R_MODAL, 3, 20, 20))
+	choice_card.mouse_filter = Control.MOUSE_FILTER_STOP
+	choice_card.visible = false
+	root.add_child(choice_card)
+	var v := _vbox(14)
+	v.custom_minimum_size = Vector2(Style.CONTENT_W - 40, 0)
+	choice_card.add_child(v)
+	var head := _vbox(2)
+	v.add_child(head)
+	choice_caps = _caps(FieldData.CHOICE_HEADER, Style.SUN_DEEP)
+	choice_caps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_child(choice_caps)
+	choice_title = _label("", Style.F_TITLE, Style.INK, Style.W_BLACK)
+	choice_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_child(choice_title)
+	_explain_only(head, "choice")
+	var opts := _hbox(12)
+	v.add_child(opts)
+	var inner_w := (Style.CONTENT_W - 40 - 12) / 2 - 28
+	for i in 2:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(0, 212)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.focus_mode = Control.FOCUS_NONE
+		var n := Style.box(Style.SURFACE_2, 22, 12, 12)
+		var pr := Style.box(Style.SURFACE_3, 22, 12, 12)
+		Style.skin(b, n, pr, Style.INK)
+		b.set_meta("sb", n)
+		_tap_or_explain(b, _on_choice_pick.bind(i), "choice_opt_%d" % i)
+		opts.add_child(b)
+		var bv := _vbox(6)
+		bv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		bv.offset_left = 12
+		bv.offset_right = -12
+		bv.offset_top = 14
+		bv.offset_bottom = -20
+		bv.alignment = BoxContainer.ALIGNMENT_CENTER
+		b.add_child(bv)
+		var tl := _tile("smallforest", 80, Style.STAGE_TINT[2], 0.32)
+		tl.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		bv.add_child(tl)
+		var nm := _label("", 21, Style.INK, Style.W_BLACK)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		bv.add_child(nm)
+		var ln := _label("", 15, Style.INK_2, Style.W_BODY)
+		ln.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ln.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ln.custom_minimum_size = Vector2(inner_w, 0)
+		bv.add_child(ln)
+		# „Tipp“: nach einem gekauften Tipp leuchtet die empfohlene Wahl
+		var tag := PanelContainer.new()
+		tag.add_theme_stylebox_override("panel", Style.box(Style.SUN, 11, 10, 2))
+		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tag.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		tag.offset_left = -64
+		tag.offset_right = -10
+		tag.offset_top = 10
+		tag.offset_bottom = 32
+		tag.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		var tg := _caps("Tipp", Style.INK)
+		tg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tag.add_child(tg)
+		tag.visible = false
+		b.add_child(tag)
+		# Zeitbalken: so lange, bis der Standard gilt (nur im Standard-Knopf)
+		var bar := Panel.new()
+		bar.add_theme_stylebox_override("panel", Style.box(Color(Style.SUN_DEEP, 0.55), 2, 0, 0))
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.visible = false
+		b.add_child(bar)
+		choice_btns.append(b)
+		choice_tiles.append(tl)
+		choice_names.append(nm)
+		choice_lines.append(ln)
+		choice_tags.append(tag)
+		choice_bars.append(bar)
+	# Kleine Pille über dem neuen Feld (ab der vierten Wahl derselben Art): beide Bilder, die Gewohnheit leuchtet
+	mini_pill = PanelContainer.new()
+	mini_pill.add_theme_stylebox_override("panel", Style.card(30, 2, 8, 6))
+	mini_pill.mouse_filter = Control.MOUSE_FILTER_STOP
+	mini_pill.visible = false
+	root.add_child(mini_pill)
+	var mh := _hbox(6)
+	mini_pill.add_child(mh)
+	for i in 2:
+		var mb := Button.new()
+		mb.custom_minimum_size = Vector2(52, 52)
+		mb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mb.add_theme_constant_override("icon_max_width", 34)
+		mb.focus_mode = Control.FOCUS_NONE
+		_tap_or_explain(mb, _on_mini_pick.bind(i), "mini")
+		mh.add_child(mb)
+		mini_btns.append(mb)
+	var mbar := Panel.new()
+	mbar.add_theme_stylebox_override("panel", Style.box(Color(Style.SUN_DEEP, 0.55), 2, 0, 0))
+	mbar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mini_pill.set_meta("bar", mbar)
+
+
+func _kind_icon(k: int) -> String:
+	var n := FieldData.kind_icon(k)
+	if Style.icon(n) == null:
+		return str(FieldData.KIND_ICON_FALLBACK.get(n, "meadow"))
+	return n
+
+
+func _kind_tint(k: int) -> Color:
+	return Style.STAGE_TINT[clampi(k, 0, Style.STAGE_TINT.size() - 1)]
+
+
+func _on_choice_needed(info: Dictionary) -> void:
+	_choice = info.duplicate()
+	_choice_gen += 1
+	_choice_outside = 0
+	_choice_total = float(info.get("timeout", Balance.CHOICE_TIMEOUT))
+	_choice_left = _choice_total
+	_choice_full = not bool(info.get("mini", false))
+	_close_sheet()
+	_hide_tip()
+	_coach_dismiss()
+	if bonus_mode != "":
+		_set_bonus_mode("")
+	world.show_choice(info)
+	Style.haptic(Style.HAPTIC_MERGE)
+	# Erst sieht man die Reihe leuchten, dann kommt ruhig die Karte
+	get_tree().create_timer(0.45 if _choice_full else 0.2).timeout.connect(_choice_open.bind(_choice_gen))
+
+
+func _choice_open(gen: int) -> void:
+	if gen != _choice_gen or _choice.is_empty() or not Game.has_choice():
+		return
+	if not _choice_full:
+		_fill_mini()
+		_place_mini()
+		_appear(mini_pill, Vector2(0, 10), Style.DUR_IN, 0.7)
+		return
+	_fill_choice_card()
+	_place_choice()
+	choice_catcher.visible = true
+	choice_scrim.visible = true
+	var ts := _fx(choice_scrim, "v")
+	choice_scrim.modulate.a = 0.0
+	ts.tween_property(choice_scrim, "modulate:a", 1.0, 0.25)
+	_appear(choice_card, Vector2(0, 26), Style.DUR_MODAL, 0.95)
+	for i in 2:
+		var b: Button = choice_btns[i]
+		_appear(b, Vector2.ZERO, Style.DUR_IN, 0.88, 0.08 + 0.06 * i)
+	if Game.tutorial():
+		get_tree().create_timer(0.5).timeout.connect(_choice_hand.bind(gen))
+
+
+func _fill_choice_card() -> void:
+	var k := int(_choice["kind"])
+	var opts: Array = _choice["options"]
+	choice_title.text = str(FieldData.CHOICE_TITLE.get(k, "Was soll hier wachsen?"))
+	var def := int(_choice.get("default", 0))
+	var best := int(_choice.get("best", -1))
+	for i in 2:
+		var ok := int(opts[i])
+		_set_tile(choice_tiles[i], _kind_icon(ok), _kind_tint(ok))
+		(choice_names[i] as Label).text = FieldData.kind_name(ok)
+		(choice_lines[i] as Label).text = str(FieldData.CHOICE_LINE.get(ok, ""))
+		var rec := _hint_live and i == best
+		(choice_tags[i] as Control).visible = rec
+		var b: Button = choice_btns[i]
+		var n: StyleBox = Style.ring(Style.SUN_TINT, Style.SUN, 22) if rec else (b.get_meta("sb") as StyleBox)
+		b.add_theme_stylebox_override("normal", n)
+		b.add_theme_stylebox_override("hover", n)
+		(choice_bars[i] as Control).visible = i == def and _choice_total > 0.0
+	_update_choice_bars()
+
+
+func _place_choice() -> void:
+	choice_card.size = Vector2.ZERO
+	choice_card.reset_size()
+	var vs := _vs()
+	var bottom := vs.y - _insets.y - Style.BOTTOM_GAP - (Style.DOCK_H + 12.0 if dock.visible else 24.0)
+	var y := bottom - choice_card.size.y
+	# Liegt das neue Feld hinter der Karte, kommt die Karte nach oben (unter die Kopfzeile)
+	var fid := int(_choice.get("field", -1))
+	if fid >= 0:
+		var fs := world.field_screen(fid)
+		if bool(fs["visible"]) and (fs["pos"] as Vector2).y > y - 40.0:
+			y = _lane_y()
+	choice_card.position = Vector2(roundf((vs.x - choice_card.size.x) * 0.5), roundf(y))
+
+
+func _fill_mini() -> void:
+	var opts: Array = _choice["options"]
+	var def := int(_choice.get("default", 0))
+	for i in 2:
+		var mb: Button = mini_btns[i]
+		mb.icon = Style.icon(_kind_icon(int(opts[i])))
+		var on := i == def
+		var n: StyleBoxFlat = Style.ring(Style.SUN_TINT, Style.SUN, 26) if on else Style.box(Style.SURFACE_2, 26, 0, 0)
+		Style.skin(mb, n, Style.box(Style.SURFACE_3, 26, 0, 0), Style.INK)
+		mb.modulate.a = 1.0 if on else 0.75
+
+
+func _place_mini() -> void:
+	mini_pill.size = Vector2.ZERO
+	mini_pill.reset_size()
+	var vs := _vs()
+	var fid := int(_choice.get("field", -1))
+	var p := Vector2(vs.x * 0.5, vs.y * 0.42)
+	if fid >= 0:
+		var fs := world.field_screen(fid)
+		if bool(fs["visible"]):
+			p = fs["pos"]
+	var x := clampf(p.x - mini_pill.size.x * 0.5, Style.MARGIN, vs.x - Style.MARGIN - mini_pill.size.x)
+	var y := clampf(p.y - mini_pill.size.y - 46.0, _lane_y(), vs.y - 300.0)
+	mini_pill.position = Vector2(roundf(x), roundf(y))
+	mini_pill.set_meta("rest", mini_pill.position)
+
+
+## Tutorial: Die Hand zeigt abwechselnd auf beide Möglichkeiten (tippen).
+func _choice_hand(gen: int) -> void:
+	if gen != _choice_gen or not choice_card.visible:
+		return
+	var a: Vector2 = (choice_btns[0] as Control).get_global_rect().get_center() + Vector2(10, 36)
+	var b: Vector2 = (choice_btns[1] as Control).get_global_rect().get_center() + Vector2(10, 36)
+	var half := tut_finger.size * 0.5
+	tut_finger.pivot_offset = half
+	tut_finger.position = a - half + Vector2(0, 40)
+	tut_finger.scale = Vector2.ONE
+	var tw := _fx(tut_finger, "v")
+	tw.tween_property(tut_finger, "modulate:a", 1.0, 0.25)
+	tw.tween_property(tut_finger, "position", a - half, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(_hand_loop.bind(a - half, b - half, gen))
+
+
+func _hand_loop(pa: Vector2, pb: Vector2, gen: int) -> void:
+	if gen != _choice_gen or not choice_card.visible:
+		return
+	var tw := _fx(tut_finger, "v")
+	tw.set_loops()
+	tw.tween_property(tut_finger, "scale", Vector2.ONE * 0.86, 0.14)
+	tw.tween_property(tut_finger, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.5)
+	tw.tween_property(tut_finger, "position", pb, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(tut_finger, "scale", Vector2.ONE * 0.86, 0.14)
+	tw.tween_property(tut_finger, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.5)
+	tw.tween_property(tut_finger, "position", pa, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## Daneben getippt: deine letzte Wahl gilt. Im Tutorial wackelt die Karte erst einmal (man lernt das Tippen).
+func _on_choice_outside(ev: InputEvent) -> void:
+	var down := ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
+	if not down or _choice.is_empty():
+		return
+	if Game.tutorial() and _choice_outside == 0:
+		_choice_outside += 1
+		_pop(choice_card, 1.03)
+		Style.haptic(Style.HAPTIC_TAP)
+		return
+	_choice_pick_default()
+
+
+func _choice_pick_default() -> void:
+	if _choice.is_empty():
+		return
+	_choose(int(_choice.get("default", 0)))
+
+
+func _on_choice_pick(i: int) -> void:
+	if _choice.is_empty():
+		return
+	var b: Button = choice_btns[i]
+	_pop(b, 1.06)
+	_choose(i)
+
+
+func _on_mini_pick(i: int) -> void:
+	if _choice.is_empty():
+		return
+	_pop(mini_btns[i], 1.15)
+	_choose(i)
+
+
+func _choose(i: int) -> void:
+	_close_choice(i)
+	if Game.has_choice():
+		Game.choose(i)
+
+
+func _close_choice(picked: int = -1) -> void:
+	_choice = {}
+	_choice_gen += 1
+	world.clear_choice()
+	choice_catcher.visible = false
+	_hide_finger()
+	if choice_card.visible:
+		for i in 2:
+			if i != picked:
+				var ob: Control = choice_btns[i]
+				var tw := _fx(ob, "c")
+				tw.tween_property(ob, "modulate:a", 0.35, 0.12)
+		_disappear(choice_card, Vector2(0, 18), Style.DUR_OUT + 0.04)
+	if choice_scrim.visible:
+		var ts := _fx(choice_scrim, "v")
+		ts.tween_property(choice_scrim, "modulate:a", 0.0, 0.2)
+		ts.tween_callback(choice_scrim.hide)
+	if mini_pill.visible:
+		_disappear(mini_pill, Vector2(0, -10), Style.DUR_FAST)
+
+
+## Lange auf die kleine Pille gedrückt: die große Karte (mit voller Zeit).
+func _open_full_choice() -> void:
+	if _choice.is_empty() or _choice_full:
+		return
+	_choice_full = true
+	_choice_total = Balance.CHOICE_TIMEOUT
+	_choice_left = _choice_total
+	_hide_now(mini_pill)
+	_choice_open(_choice_gen)
+
+
+func _on_choice_made(info: Dictionary) -> void:
+	if not _choice.is_empty():
+		_close_choice(int(info.get("picked", -1)))
+	if Game.tutorial() and Game.tutorial_step >= 1:
+		_tut_set("Gut so! Du bist der Gott dieser Welt.", false, Game.tutorial_step)
+	if bool(info.get("mini", false)):
+		_coach_once("mini", _anchor, int(info.get("field", -1)))
+
+
+func _choice_tick(delta: float) -> void:
+	if _choice.is_empty():
+		return
+	if not Game.has_choice():
+		_close_choice()
+		return
+	if mini_pill.visible and not _choice_full:
+		_place_mini()
+	if _choice_total <= 0.0:
+		return
+	var shown := (choice_card.visible and _choice_full) or (mini_pill.visible and not _choice_full)
+	if not shown or _lp_node != null or tip_card.visible:
+		return
+	_choice_left -= delta
+	_update_choice_bars()
+	if _choice_left <= 0.0:
+		_choice_pick_default()
+
+
+func _update_choice_bars() -> void:
+	var k := clampf(_choice_left / _choice_total, 0.0, 1.0) if _choice_total > 0.0 else 0.0
+	for i in 2:
+		var bar: Panel = choice_bars[i]
+		if not bar.visible:
+			continue
+		var b: Control = choice_btns[i]
+		var full := maxf(0.0, b.size.x - 48.0)
+		bar.position = Vector2(24.0, b.size.y - 14.0)
+		bar.size = Vector2(full * k, 4.0)
+
+
+# =============================================================================
+# gdpd: Ereignisse der Welt (Krieg, Smog, Wünsche, Glaube pro Runde, Strafen)
+# =============================================================================
+
+func _on_war(fids: Array, faith: int) -> void:
+	_show_banner("war", "%d Glauben · Viele Menschen sterben" % faith, "Krieg!", "swords")
+	Style.haptic(Style.HAPTIC_FIRE)
+	if not fids.is_empty():
+		_bubble(int(fids[0]), "%d" % faith, "faith", Style.FIRE_DEEP)
+		_coach_once("war", _anchor, int(fids[0]))
+
+
+func _on_smog(_w: int, withered: Array) -> void:
+	if _last_scale_zone != "smog":
+		_show_banner("smog", "Zu viel Stadt", "Smog!", "smog")
+		_pop(scale_chip, 1.12)
+	var n := 0
+	for i in withered:
+		if n >= 2:
+			break
+		var f: FieldData = Game.state.fields[int(i)]
+		_bubble(int(i), "Die Tiere fliehen" if f.kind == FieldData.BIGFOREST else "welkt", "smog", Style.INK_2)
+		n += 1
+
+
+func _on_wish_done(fid: int, faith: int) -> void:
+	_show_banner("wish", "+%d Glauben" % faith, "Wunsch erfüllt!", "heart")
+	Style.haptic(Style.HAPTIC_COMBO)
+	var fs := world.field_screen(fid)
+	var from: Vector2 = fs["pos"] if bool(fs["visible"]) else _vs() * Vector2(0.5, 0.45)
+	_fly_faith(from, faith)
+
+
+func _on_wish_made(fid: int) -> void:
+	_bubble(fid, "Ein Wunsch!", "wish", Style.SUN_DEEP)
+	_coach_once("wish", _anchor, fid)
+
+
+func _on_income(amount: int) -> void:
+	if amount <= 0:
+		return
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", Style.lift(Style.box(Style.SUN_TINT, 14, 10, 3), 1))
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var h := _hbox(4)
+	p.add_child(h)
+	h.add_child(_icon("faith", 16))
+	var l := _label("+%d pro Runde" % amount, 14, Style.SUN_DEEP, Style.W_BLACK)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
+	gift_layer.add_child(p)
+	p.reset_size()
+	var r := round_label.get_global_rect()
+	p.position = Vector2(roundf(r.get_center().x - p.size.x * 0.5), roundf(r.end.y + 4.0))
+	p.pivot_offset = p.size * 0.5
+	p.scale = Vector2.ONE * 0.6
+	p.modulate.a = 0.0
+	var tw := p.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(p, "modulate:a", 1.0, 0.2)
+	tw.tween_property(p, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_interval(1.2)
+	tw.chain().tween_property(p, "position:y", p.position.y - 10.0, 0.4)
+	tw.parallel().tween_property(p, "modulate:a", 0.0, 0.4)
+	tw.chain().tween_callback(p.queue_free)
+
+
+func _on_punish(kind: String, fid: int, cost: int) -> void:
+	_bubble(fid, "-%d" % cost, "faith", PUNISH_DEEP)
+	_show_banner("punish", "-%d Glauben" % cost, "Gewitter!" if kind == "strike" else "Flut!", "strike" if kind == "strike" else "flood")
+	Style.haptic(Style.HAPTIC_FIRE)
+
+
+## Glaube fliegt im Bogen nach oben in die Zahl.
+func _fly_faith(from: Vector2, amount: int) -> void:
+	for k in 3:
+		var t := TextureRect.new()
+		t.texture = Style.icon("faith")
+		t.size = Vector2(40, 40)
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		gift_layer.add_child(t)
+		var start := from + Vector2(-18.0 + 18.0 * k, 0)
+		t.position = start - t.size * 0.5
+		var tw := _fly(t, start, faith_icon.get_global_rect().get_center(), Style.DUR_FLY + 0.1 * k, 120.0, 0.5)
+		tw.tween_callback(_faith_land.bind(t, k == 0, amount))
+
+
+func _faith_land(t: Control, first: bool, _amount: int) -> void:
+	t.queue_free()
+	if first:
+		_pop(faith_icon, 1.3)
+		_number_pop(score_label)
+		_ripple(faith_icon, Style.SUN)
+
+
+## Kostet-Abzeichen der Strafen (Glaube); zu wenig Glaube: gedimmt.
+func _set_cost_badge(b: Button, cost: int, ok: bool) -> void:
+	var badge: PanelContainer = b.get_meta("badge")
+	var bl: Label = badge.get_child(0)
+	bl.text = str(cost)
+	var bs: StyleBoxFlat = badge.get_meta("sb")
+	bs.bg_color = SLOT_COLOR.get(str(b.get_meta("kind")), PUNISH) if ok else Style.INK_3
+	bl.add_theme_color_override("font_color", Color.WHITE)
+	badge.custom_minimum_size = Vector2(32, 26)
+	badge.visible = true
+	var slot: Control = b.get_meta("slot")
+	if bool(slot.get_meta("dim", false)) == ok:
+		slot.set_meta("dim", not ok)
+		var tw := _fx(slot, "c")
+		tw.tween_property(slot, "modulate:a", 1.0 if ok else 0.5, Style.DUR_FAST)
+
+
+## Anker für einen Hinweis an einem Feld (oder an seiner Wunsch-Blase). false = gerade nicht zu sehen.
+func _aim_anchor(fid: int, wish: bool) -> bool:
+	var fs := world.wish_screen(fid) if wish else world.field_screen(fid)
+	if not bool(fs["visible"]):
+		if wish:
+			fs = world.field_screen(fid)
+		if not bool(fs["visible"]):
+			return false
+	var p: Vector2 = fs["pos"]
+	_anchor.position = p - _anchor.size * 0.5
+	return true
 
 
 # =============================================================================

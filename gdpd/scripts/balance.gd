@@ -2,58 +2,91 @@ class_name Balance
 extends RefCounted
 ## Zentrale Balancing-Datei: ALLE Spielzahlen stehen hier.
 
-# --- Die Leiter -------------------------------------------------------------------
-# Drei gleiche in einer Reihe verschmelzen, wenn DEINE Drehung die Reihe vervollständigt:
-#   das zuletzt dazugekommene Feld steigt eine Stufe auf, die beiden anderen bleiben, wie sie sind.
-#   Erde (0) · Wiese (1) → kleiner Wald (2) → großer Wald (3) → Hütte (4) → Haus (5)
-#   → Dorf (6) → Stadt (7) → Großstadt (8) → Metropole (9)
-#   Natur = Stufe 1–3, Zivilisation = ab Stufe 4.
-static var MAX_STAGE := 9
-static var NATURE_STAGES := [1, 3]
-static var CIVILISATION_FROM := 4
-# Punkte fürs Verschmelzen nach Stufe (Index = Stufe), × Kombo.
-static var MERGE_POINTS := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
+# --- gdpd: Arten, Wahl und Glaube (gdpd_spec/GDPD_REGELN.md, Abschnitt 13) ---------------
+# Die Arten stehen in FieldData (Art-Tabelle). Drei gleiche in einer NEUEN Reihe wachsen:
+#   Wiese → Wald | Acker, Wald → Großer Wald → Tiere | Hütte, Acker → Hütte, Tiere → Paradies ★,
+#   Hütte → Haus → Dorf → Stadt | Kirche ★, Stadt → Großstadt | Industrie ★, Großstadt → Metropole ★.
+#   ★ = fertig: wächst nicht mehr, bildet keine Reihe, bringt jede Drehung Glauben.
+static var MAX_STAGE := 14                # höchste Art-Nummer (alter Name, Oberfläche)
+static var KIND_COUNT := 15
+# Glaube fürs Wachsen nach Stufe (tier) der Art vor dem Wachsen, × Kombo.
+static var GROW_FAITH := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
+static var MERGE_POINTS := GROW_FAITH     # alter Name
 static var MAX_CASCADES := 6
-static var OTHERS_DROP := 0               # um so viele Stufen fallen die beiden anderen Felder der Reihe zurück (0 = bleiben)
-static var DIAGONAL_FROM := 2             # ab dieser Stufe (kleiner Wald) zählen auch Diagonalen als Reihe
-static var FACE_BONUS := 9               # ganze Seite geschafft: Punkte der Stufe × so viel
+static var OTHERS_DROP := 0               # die beiden anderen Felder der Reihe bleiben
+static var DIAGONAL_FROM := 2             # Mittel: Diagonalen ab Stufe 2 (Einfach ab 1, Schwer nie)
+static var DIAGONAL_FROM_EASY := 1
+static var FACE_BONUS := 9                # ganze Seite: Glaube der Stufe × so viel
 
 # --- Start ----------------------------------------------------------------------
 static var START_MEADOW := 0.5            # Anteil Wiesen beim Würfeln, der Rest ist leere Erde …
 static var START_NATURE := 0.40           # … nie drei Wiesen beisammen, dann bis zu diesem Anteil auffüllen
 
-# --- Jede Runde -------------------------------------------------------------------
-static var REGROW_NEIGHBORS := 2          # leere Erde wird Wiese bei so vielen Natur-Nachbarn
-static var REGROW_PER_ROUND := 0          # höchstens so viele Felder wachsen pro Runde nach (die mit der meisten Natur). 0 = Wiese wächst nie von allein
-static var POLLUTION_FROM := 99           # ab dieser Stufe wird Natur daneben zerstört (99 = aus: nach unten geht es nur durch Katastrophen)
-static var POLLUTION_PER_FIELD := 1       # so viele Natur-Nachbarn pro Runde
+# --- Jede Drehung ------------------------------------------------------------------
+# Glaube pro Drehung von fertigen Feldern (nicht bei Smog, nie bei Regen/Werkzeugen).
+static var INCOME := {FieldData.CHURCH: 3, FieldData.INDUSTRY: 5, FieldData.METROPOLIS: 2, FieldData.PARADISE: 1}
+# Weltwaage W = 100·(C − N)/(C + N): −100 nur Natur … +100 nur Stadt.
+static var NATURE_WEIGHT := {FieldData.MEADOW: 1, FieldData.FOREST: 2, FieldData.BIGFOREST: 3, FieldData.ANIMALS: 3, FieldData.PARADISE: 4}
+static var CIV_WEIGHT := {FieldData.FIELD: 1, FieldData.HUT: 1, FieldData.HOUSE: 2, FieldData.VILLAGE: 2, FieldData.TOWN: 3,
+	FieldData.CHURCH: 2, FieldData.BIGCITY: 4, FieldData.METROPOLIS: 5, FieldData.INDUSTRY: 6}
+static var WILD_AT := -50                 # W ≤ das: Wildnis (Menschen wünschen sich einen Acker)
+static var CITY_AT := 20                  # W ≥ das: viel Stadt (Wünsche: Wald, Tiere, Regen)
+static var SMOG_AT := 50                  # W ≥ das: Smog (kein Glaube pro Drehung, Industrie lässt Natur welken, kein Nachwachsen)
+static var REGROW_PER_TWIST := 1          # so viele Erde-Felder werden pro Drehung wieder Wiese …
+static var REGROW_NEIGHBORS := 2          # … wenn sie so viele Natur-Nachbarn haben
+static var REGROW_PER_ROUND := 1          # alter Name
+
+# --- Krieg ------------------------------------------------------------------------
+static var WAR_FAITH_MIN := 20            # Krieg kostet max(20, 20 % des Glaubens)
+static var WAR_FAITH_PCT := 20
+static var WAR_DROP := FieldData.HOUSE    # Kirchen im Krieg werden Haus
+
+# --- Wünsche ------------------------------------------------------------------------
+static var WISH_EVERY := 4                # bei Drehung 4, 8, 12 …
+static var WISH_FROM_TWIST := 3
+static var WISH_MAX := 2
+static var WISH_TWISTS := 8               # so viele Drehungen Zeit
+static var WISH_FAITH := 15
 
 # --- Katastrophen ------------------------------------------------------------------------
-static var LIVES := 3                     # Herzen in jedem Modus: jeder Brand kostet eines, beim letzten ist die Welt tot
-static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Verschmelzen) setzt die Reihe in Brand
-static var FIRE_COSTS_LIFE := true        # kostet ein Brand ein Herz? (ja, in allen Modi)
+static var LIVES := 3                     # Herzen (Mittel, Schwer, Challenge)
+static var LIVES_EASY := 5                # Herzen in Einfach
+static var FIRE_AFTER := 3                # jeder so vielte Fehlversuch (Drehung ohne Wachsen) setzt die Reihe in Brand
+static var FIRE_COSTS_LIFE := true
 
-# --- Boni ------------------------------------------------------------------------------
-static var RAIN_START := 1                # Regen: hebt ein Feld eine Stufe oder löscht es
-static var RAIN_EVERY := 12               # alle so viele Punkte ein Regen …
+# --- Werkzeuge (Dock) ---------------------------------------------------------------------
+static var RAIN_START := 1                # Regen: Erde → Wiese → Wald → Großer Wald, oder löscht Feuer
+static var RAIN_EVERY_TWISTS := 5         # alle so viele Drehungen ein Regen …
 static var RAIN_MAX := 3                  # … bis höchstens so viele
-static var BOLT_START := 0                # Blitz: gibt es für drei gleiche Felder an einer Würfelecke;
-static var BOLT_EVERY := 999999           #   (nicht mehr für Punkte)
-static var BOLT_MAX := 2                  #   eingesetzt auf ein Eckfeld hebt er die Diagonale dieser Seite
-static var MONSOON_FROM_STAGE := 5        # Monsun (hebt eine ganze Seite): freigeschaltet ab dem ersten Haus (Antike) …
-static var MONSOON_EVERY := 120           # … danach alle so viele Punkte einer
+static var RAIN_EVERY := RAIN_EVERY_TWISTS   # alter Name
+static var BOLT_START := 0                # Blitz: für drei gleiche Felder an einer Würfelecke
+static var BOLT_MAX := 2
+static var MONSOON_EVERY_FAITH := 150     # Monsun: ab dem ersten Haus, dann alle so viel verdienter Glaube
+static var MONSOON_EVERY := MONSOON_EVERY_FAITH   # alter Name
 static var MONSOON_MAX := 1
-# Kaufen mit Credits, wenn keiner da ist
+static var STRIKE_COST := 15              # Gewitter (Strafe): kostet Glauben
+static var FLOOD_COST := 40               # Flut (Strafe): kostet Glauben
+# Kaufen mit Münzen, wenn keiner da ist
 static var RAIN_COST := 2
 static var BOLT_COST := 3
 static var MONSOON_COST := 5
 
-# --- Modi ------------------------------------------------------------------------------
-# Zeitalter: bestimmt die höchste erreichte Stufe.
+# --- Wahl-Karte -----------------------------------------------------------------------------
+static var CHOICE_TIMEOUT := 6.0          # so lange wartet die Karte, dann gilt der Standard (deine letzte Wahl)
+static var CHOICE_FULL_CARDS := 3         # so oft pro Art die große Karte, danach die kleine Pille
+static var MINI_CARD_SECONDS := 2.0
+static var OTHER_CHOICE_HABIT := true      # weitere Wahl im selben Zug (ohne Karte): true = Gewohnheit (Spec), false = immer Option 1 (Python-Modell)
+
+# --- Ziel und Modi ------------------------------------------------------------------------------
+static var COMPLETE_AT := [36, 22, 22]    # Vollendet: so viele fertige Felder (Einfach, Mittel, Schwer) …
+static var COMPLETE_BONUS_PCT_PER_HEART := 10   # … und WILD_AT < W < SMOG_AT. Bonus: so viel % Glaube pro Herz
 static var AGES := ["Urzeit", "Steinzeit", "Antike", "Mittelalter", "Neuzeit", "Industriezeitalter", "Moderne"]
-static var AGE_FROM_STAGE := [1, 4, 5, 6, 7, 8, 9]   # Hütte = Steinzeit, Haus = Antike, Dorf = Mittelalter, Stadt = Neuzeit …
-# Stufen: Einfach, Mittel, Schwer (offen, bis die Welt verbrennt). Challenge: 40 Drehungen nach Mittel-Regeln.
-# 40 Drehungen: so viele Punkte wie möglich (gezählt werden nur Drehungen).
+## Eine typische Art je Zeitalter (für Icons; alter Name).
+static var AGE_FROM_STAGE := [FieldData.MEADOW, FieldData.HUT, FieldData.HOUSE, FieldData.VILLAGE, FieldData.TOWN, FieldData.BIGCITY, FieldData.METROPOLIS]
+static var AGE_GOAL := ["Steinzeit – leg einen Acker an oder bau eine Hütte.", "Antike – bau ein Haus.", "Mittelalter – bau ein Dorf.",
+	"Neuzeit – bau eine Stadt oder eine Kirche.", "Industriezeitalter – bau eine Großstadt oder Industrie.", "Moderne – bau eine Metropole.",
+	"Vollende deine Welt!"]
+# Challenge: 40 Drehungen nach Mittel-Regeln, so viel Glauben wie möglich.
 static var MAX_TWISTS := 40
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------

@@ -1,0 +1,144 @@
+name: gdpd – Testversion
+
+# Baut bei jedem Push auf den Spiel-Branch (nur wenn sich gdpd/ ändert):
+# 1. Regeltests (headless), 2. Probelauf des Spiels (~50 s Spielzeit, ohne Grafik),
+# 3. Handy-Screenshots, 4. Android-APK und PC-Versionen. Alles landet unter Releases → „gdpd-testversion“.
+# Das Original „God does play dice!“ hat seinen eigenen Workflow (god-does-play-dice.yml).
+
+on:
+  push:
+    branches: [claude/new-session-znknd9]
+    paths:
+      - "gdpd/**"
+      - ".github/workflows/gdpd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gdpd
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    env:
+      PROJECT: gdpd
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot einrichten (Vorlagen, Android-SDK, Debug-Keystore)
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/ ~/.config/
+          cp -r /root/.config/godot ~/.config/godot
+          cp -r /root/.local/share/godot/export_templates/. ~/.local/share/godot/export_templates/
+          ls ~/.config/godot ~/.local/share/godot/export_templates/
+          godot --version
+
+      - name: Projekt importieren
+        run: |
+          cd $PROJECT
+          timeout 300 godot --headless --editor --quit 2>&1 | tail -20 || true
+
+      - name: Regeltests
+        run: |
+          cd $PROJECT
+          godot --headless --script res://tests/test_rules.gd 2>&1 | tee ../tests.log
+          if grep -q "SCRIPT ERROR" ../tests.log; then echo "Skriptfehler in den Tests"; exit 1; fi
+          grep -q " 0 Fehler" ../tests.log
+
+      - name: Probelauf des Spiels (3000 Bilder bei 60 fps, ohne Grafik)
+        run: |
+          cd $PROJECT
+          timeout 300 godot --headless --fixed-fps 60 --quit-after 3000 2>&1 | tee ../smoke.log || true
+          if grep -n "SCRIPT ERROR" -A3 ../smoke.log; then echo "Skriptfehler im Probelauf"; exit 1; fi
+
+      - name: Handy-Screenshots (1080×2340, Software-OpenGL)
+        run: |
+          apt-get update -qq >/dev/null
+          apt-get install -y -qq xvfb xauth libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 libgles2 \
+            libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
+          cd $PROJECT
+          mkdir -p ../shots
+          timeout 540 xvfb-run -a -s "-screen 0 1100x2400x24" \
+            godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || true
+          tail -40 ../shots.log
+          ls -la ../shots
+          # Prüfungen der Tour mit echter Eingabe: jede Zeile „…CHECK ok=false“ lässt den Build scheitern
+          grep -E "CHECK ok=" ../shots.log || true
+          if grep -n "SCRIPT ERROR" -A3 ../shots.log; then echo "Skriptfehler in der Screenshot-Tour"; exit 1; fi
+          if grep -nE "CHECK ok=false" ../shots.log; then echo "Eine Prüfung der Screenshot-Tour ist fehlgeschlagen"; exit 1; fi
+
+      - name: Screenshots ins Repo legen (docs/screenshots)
+        if: github.event_name == 'push'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p $PROJECT/docs/screenshots
+          rm -f $PROJECT/docs/screenshots/*.jpg
+          cp shots/*.jpg $PROJECT/docs/screenshots/ || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $PROJECT/docs/screenshots
+          git diff --cached --quiet || (git commit -q -m "gdpd: Screenshots aus Build ${GITHUB_RUN_NUMBER} [skip ci]" && git push -q origin HEAD:${GITHUB_REF_NAME}) || echo "Push der Screenshots fehlgeschlagen"
+
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdpd-screenshots
+          path: |
+            shots/
+            shots.log
+          if-no-files-found: warn
+
+      - name: Android-APK exportieren
+        run: |
+          cd $PROJECT
+          sed -i "s/^version\/code=.*/version\/code=${GITHUB_RUN_NUMBER}/; s/^version\/name=.*/version\/name=\"0.1.${GITHUB_RUN_NUMBER}\"/" export_presets.cfg
+          mkdir -p build
+          godot --headless --verbose --export-debug "Android" build/gdpd.apk 2>&1 | tail -40
+          ls -la build
+          test -s build/gdpd.apk
+
+      - name: PC-Versionen exportieren (Windows, Linux)
+        run: |
+          cd $PROJECT
+          mkdir -p build/windows build/linux
+          godot --headless --export-release "Windows" build/windows/gdpd.exe 2>&1 | tail -15
+          godot --headless --export-release "Linux" build/linux/gdpd.x86_64 2>&1 | tail -15
+          ls -la build/windows build/linux
+          test -s build/windows/gdpd.exe
+          test -s build/linux/gdpd.x86_64
+          cd build/linux && chmod +x gdpd.x86_64 && zip -q ../gdpd_linux.zip gdpd.x86_64
+
+      - name: Testversion veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gdpd-testversion
+          name: "gdpd – Testversion"
+          prerelease: true
+          make_latest: false
+          body: |
+            Automatisch gebaut aus `${{ github.sha }}` (Build ${{ github.run_number }}).
+
+            **gdpd** ist das Gottspiel auf dem Würfel – der Ableger von „God does play dice!“
+            (das Original gibt es weiter unter `dice-testversion`).
+            Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. An manchen Stellen entscheidest du,
+            was daraus wird: Natur oder Menschen. Halte ein Symbol gedrückt, um es zu erklären.
+
+            **Am Handy installieren (Android):** `gdpd.apk` antippen, herunterladen, öffnen.
+            Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.
+            gdpd lässt sich neben dem Original installieren; neue Testversionen gehen über die alte drüber.
+
+            **Am PC (Windows):** `gdpd.exe` herunterladen und starten. Windows warnt eventuell
+            („Der Computer wurde durch Windows geschützt“), weil die Datei nicht signiert ist: „Weitere Informationen“ → „Trotzdem ausführen“.
+            Bedienung: Ziehen mit der linken Maustaste dreht eine Reihe bzw. die Ansicht, Mausrad zoomt.
+
+            **Am PC (Linux):** `gdpd_linux.zip` entpacken, `gdpd.x86_64` starten.
+          files: |
+            ${{ env.PROJECT }}/build/gdpd.apk
+            ${{ env.PROJECT }}/build/windows/gdpd.exe
+            ${{ env.PROJECT }}/build/gdpd_linux.zip

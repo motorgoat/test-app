@@ -34,10 +34,11 @@ const MONSOON := Color("#5B74D6")
 const MONSOON_TINT := Color("#E7EBFA")
 const MONSOON_DEEP := Color("#3B51A8")
 
-# Kachel-Tönung hinter jedem Stufen-Symbol (Index = Stufe 0..9)
+# Kachel-Tönung hinter jedem Art-Symbol (Index = Art 0..14, siehe FieldData)
 const STAGE_TINT := [
-	Color("#F1E6D8"), Color("#EAF4DC"), Color("#E1F1E3"), Color("#D9EDDD"), Color("#F6EBDD"),
-	Color("#F7E7DA"), Color("#F3E9DF"), Color("#E9ECF3"), Color("#E4E8F1"), Color("#E6E4F3"),
+	Color("#F1E6D8"), Color("#EAF4DC"), Color("#E1F1E3"), Color("#F4EED3"), Color("#D9EDDD"),
+	Color("#E4EFD6"), Color("#F6EBDD"), Color("#F7E7DA"), Color("#F3E9DF"), Color("#E9ECF3"),
+	Color("#F1E9F5"), Color("#E4E8F1"), Color("#E8E6E2"), Color("#E6E4F3"), Color("#DDF2E8"),
 ]
 
 # --- Alte Namen (anderer Code nutzt sie noch) ----------------------------------------
