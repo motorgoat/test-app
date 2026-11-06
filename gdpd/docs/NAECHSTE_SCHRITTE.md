@@ -45,3 +45,10 @@
 ## Realistischere Grafik (Wunsch von Philipp)
 - Die Welt soll realistischer aussehen: echtere Wiesen, Wälder, Wasser, Felder, Häuser, Licht und Schatten.
 - Kommt nach dem Duolingo-Umbau; Leistung am Handy muss gut bleiben.
+
+## 100-Sekunden-Challenge (Wunsch von Philipp)
+- Ersetzt im freien Spiel den Modus „40 Drehungen“.
+- 100 Sekunden, so viel Glauben wie möglich; die Uhr startet mit der ersten Drehung; kein Drehungs-Limit.
+- Vorschlag: Mittel-Regeln, Feuer kostet 5 Sekunden, Wahl-Karte pausiert die Uhr (oder schnelle Pille),
+  kein Tipp/Zurück; Rekord pro Modus, später Rangliste.
+- Kommt nach dem laufenden Grafik- und Balance-Umbau.
