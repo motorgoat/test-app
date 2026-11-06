@@ -56,3 +56,5 @@
 ## Oberfläche (Wunsch von Philipp)
 - HUD mehr ins Zentrum rücken und etwas größer machen (Ziel-Chip, Menü, Münzen, Serie, Dock).
 - Den eigenen Gott leichter finden: Antippen des Gottes in der Übersicht öffnet ihn (ansehen, ändern, Art zu reden).
+- Den Abbrechen-Bereich beim Drehen („zum Abbrechen hierher ziehen und loslassen“) mehr ins Zentrum rücken:
+  nicht ganz oben am Rand, sondern gut erreichbar näher an der Mitte, etwas kompakter.
