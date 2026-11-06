@@ -4,6 +4,10 @@ extends EditorPlugin
 ## (docs/GDPD_TAEGLICH_CHARAKTER.md 6.2–6.4). Die AARs baut android_plugin/build_aar.sh nach bin/debug und bin/release
 ## (in CI; git-ignoriert). Fehlen sie, wird ohne Plugin exportiert – das Spiel plant dann nur Protokoll-Zeilen.
 ## PC-Exporte sind nicht betroffen.
+##
+## Absichtlich NICHT in project.godot eingeschaltet: Godot 4.3 stürzt bei `--headless --editor --quit` ab, wenn noch
+## Dateien zu importieren sind und irgendein Editor-Plugin an ist. CI (android_plugin/ci_android_export.sh) schaltet es
+## nur für den Android-Export ein. Lokal: Projekt → Projekteinstellungen → Plugins → GdpdReminder.
 
 var _export: GdpdReminderExport
 

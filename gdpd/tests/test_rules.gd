@@ -2448,6 +2448,7 @@ func _daily_tests() -> void:
 	test_reminder_plan()
 	test_reminder_templates()
 	test_daily_debug()
+	test_voice_and_ask()
 
 
 ## Ortszeit (lokale Unix-Sekunden).
@@ -3064,4 +3065,28 @@ func test_daily_debug() -> void:
 	check(g.streak() == 0 and g.shields() == 0 and (g.remind["history"] as Array).is_empty(), "Test: Serie zurücksetzen")
 	g.free()
 	g2.free()
+	DirAccess.remove_absolute(path)
+
+
+## Der Charakter spricht (Voice: im Ton des Charakters, ohne Charakter lieb) und fragt höchstens zweimal nach der
+## Erinnerung (nach dem ersten Sieg, dann ab einer Serie von 3 Tagen).
+func test_voice_and_ask() -> void:
+	var lieb := CharacterTexts.line("d1_c0", Voice.tone())
+	check(Voice.day_coach(1, 0, "x") == lieb, "Voice: Tages-Hinweis im Ton des Charakters")
+	check(Voice.day_coach(3, 5, "Rückfall") == "Rückfall", "Voice: ohne Fassung bleibt der Satz der Tagestabelle")
+	check(Voice.day_face(2, 1) == "worried" and Voice.face("miss") == "worried", "Voice: Gesicht zur Feuer-Warnung")
+	var a := Voice.praise()
+	var b := Voice.praise()
+	check(a != "" and a != b, "Voice: Lob nie zweimal hintereinander gleich")
+	for ton in Character.TONES:
+		var ask := CharacterTexts.line("ask_reminder", str(ton), {"tag": "Tag 2 · Pflanzen"})
+		check(ask.contains("Tag 2 · Pflanzen") and ask.length() <= 110 and not ask.begins_with("Tag"), "Frage nach der Erinnerung (%s)" % ton)
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, lt(2026, 11, 9, 18, 10))
+	check(g.reminder_ask_due(0), "Fragen: beim ersten Mal ja")
+	g.note_reminder_asked()
+	check(not g.reminder_ask_due(1) and g.reminder_ask_due(3), "Fragen: danach erst ab 3 Tagen Serie")
+	g.note_reminder_asked()
+	check(not g.reminder_ask_due(9) and int(g.remind["asked"]) == 2, "Fragen: höchstens zweimal")
+	g.free()
 	DirAccess.remove_absolute(path)

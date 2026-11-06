@@ -119,11 +119,14 @@ var wdt_key := -1                # dieser Versuch ist die Welt des Tages dieses 
 var build_state: GameState = null   # Weiterbauen: die gewonnene Welt (nur im Speicher, 2.4)
 var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner)}
 var _last_today := -2147483648
+## Der eigene Charakter (Character, [charakter] in user://charakter.cfg). {} = noch keiner: der Ersteller kommt zuerst.
+var character: Dictionary = {}
 
 
 func _ready() -> void:
 	_load_settings()
 	_load_best()
+	character = Character.load_look()
 	note_session()
 	call_deferred("replan_reminders")      # nach den anderen Autoloads (Plugin-Hülle)
 	if world_done:
@@ -1258,6 +1261,41 @@ func _character_value(key: String, fallback: String) -> String:
 	if cf.load("user://charakter.cfg") == OK and cf.has_section_key("charakter", key):
 		return str(cf.get_value("charakter", key, fallback))
 	return fallback
+
+
+## Gibt es noch keinen eigenen Charakter? Dann kommt der Ersteller vor allem anderen (erster Start, alte Spielstände).
+func needs_creator() -> bool:
+	return character.is_empty()
+
+
+## Den Charakter übernehmen und speichern (Ersteller „Fertig“, Menü „Dein Charakter“, Ton im Menü). Plant die
+## Erinnerungen neu (Name und Ton stehen in den Texten).
+func set_character(look: Dictionary) -> void:
+	character = Character.sanitize(look) if not look.is_empty() else {}
+	if character.is_empty():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Character.SAVE_PATH))
+		return
+	Character.save_look(character)
+	replan_reminders()
+
+
+## Soll der Charakter jetzt fragen, ob er erinnern darf (5.7)? Nach dem ersten Sieg (gefragt 0) und noch einmal ab
+## einer Serie von 3 Tagen (gefragt 1). Nie, wenn Erinnerungen aus sind oder die Erlaubnis schon da ist.
+func reminder_ask_due(streak_now: int) -> bool:
+	if remind.is_empty():
+		remind = REMIND_DEFAULTS.duplicate(true)
+	if str(remind["mode"]) == "aus" or remind_permission:
+		return false
+	var asked := int(remind["asked"])
+	return asked == 0 or (asked == 1 and streak_now >= 3)
+
+
+## Die Frage wurde gezeigt (Antwort egal: „Ja, gern“ fragt danach Android).
+func note_reminder_asked() -> void:
+	if remind.is_empty():
+		remind = REMIND_DEFAULTS.duplicate(true)
+	remind["asked"] = mini(2, int(remind["asked"]) + 1)
+	_save_profile()
 
 
 ## {tag} der Erinnerung: der Tag, der als Nächstes wartet („Tag 3 · Tiere“), nach Tag 7 „die Welt des Tages“.

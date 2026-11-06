@@ -1028,6 +1028,28 @@ REMINDER cancel_all
 
 and the settings show „Erinnerungen gibt es nur auf dem Handy.“ Nothing else changes.
 
+### 6.8 As built (differences from the sketch above)
+
+- **Java, no Gradle for the plugin.** The plugin is plain Java (`android_plugin/src/at/identit/gdpd/reminder/*.java`,
+  framework APIs only, no androidx) and `android_plugin/build_aar.sh` builds the AAR with `javac --release 8` + `jar`
+  against `android.jar` and the template's `godot-lib`. No AGP/Kotlin download, and it can be compiled where Google's
+  Maven is not reachable. The app's Gradle build (Godot's template) dexes it and merges manifest and resources. The
+  small icon is looked up by name (`getIdentifier("ic_gdpd_notify")`), so no `R` class is needed.
+- **Extra methods:** `has_permission()`, `request_permission()` (POST_NOTIFICATIONS on API 33+, true below –
+  Godot's own `OS.request_permission` returns false for it below 33) and `planned_count()`.
+- **GDScript wrapper `scripts/notifier.gd`** (`class_name Notifier`, instead of `reminders.gd`):
+  `Notifier.attach(Game)` connects `Game.reminders_planned` → `schedule_plan`, `streak_changed` → `mark_done`, keeps
+  `Game.remind_permission` up to date; plus `schedule(at_unix, title, body, id, icon_path, day_key)`, `cancel_all()`,
+  `request_permission()`, `notifications_enabled()`, `open_settings()`, `launch_notification_id()`,
+  `Notifier.is_supported()`. Without the singleton every call only logs `REMINDER …`.
+- **The editor plugin is not enabled in `project.godot`.** Godot 4.3 crashes on `--headless --editor --quit` when files
+  still need importing and any editor plugin is enabled (reproduced with an empty plugin). CI enables it only for the
+  Android export (`android_plugin/ci_android_export.sh`, restores `project.godot` afterwards); `--import` is safe.
+- **CI:** `ci_android_export.sh` installs SDK 34 / build-tools 34.0.0, the build template
+  (`prepare_gradle_export.sh`), builds the AAR, exports with Gradle and checks the APK (class in the dex, plugin
+  meta-data in the manifest). If anything fails, the workflow exports the plain APK without Gradle and says so in the
+  release text.
+
 ---
 
 ## 7. Test button „Nächster Tag“ and test hooks
@@ -1119,6 +1141,28 @@ Add to the tour and to the expected list in `.github/workflows/gdpd.yml`:
 Screenshots to add: `00_charakter_1.jpg` … `00_charakter_4.jpg`, `00u_morgen.jpg`, `00v_weiterbauen.jpg`,
 `00w_serie.jpg`, `00x_welt_des_tages.jpg`, `00y_erinnerung.jpg`.
 
+**As built (UI integration).** The tour runs with a fixed clock (Monday 2026-11-09, 17:40) from a clean profile and
+prints these checks (all in the expected list of `.github/workflows/gdpd.yml`):
+
+| name | what it checks (real input) |
+|---|---|
+| `creator_finish` | the creator opens before day 1; „Würfeln“ changes the look; Katzengott, a colour, the crown, tone „Frech“ (the preview says the sample); „Fertig – los geht's!“ saves `[charakter]` and opens the day 1 goal card with „Hi, ich bin Miez …“ |
+| `character_coach` | the day 1 „Schau zu!“ line comes from the character: its portrait (the cat) and the frech text of `d1_demo` |
+| `day_success` | win card: primary „Weiterbauen“, the line „Morgen geht's weiter: Tag 2 · Pflanzen“, the streak counted up to 1 |
+| `permission_ask` | leaving the first win card, the character asks once (frech text with „Tag 2 · Pflanzen“); „Lieber nicht“ closes it (`gefragt` = 1). On PC only because the tour sets `debug_ask_on_pc` |
+| `continue_mode_no_limit` | „Weiterbauen“: chip shows the check and „gewachsen“ instead of the ring, `twists_left() == -1`, 3 real twists later still won, no fail card, the growth counter moved |
+| `day_locked_until_tomorrow` | overview: tile 2 shows the moon and „Morgen“, Heute card „Heute geschafft!“ with „Neuer Tag in 9 Std. 20 Min.“ and „Weiterbauen“; tapping tile 2: toast „Morgen geht's weiter: Tag 2 · Pflanzen“ and the character's frech `day_done` line |
+| `next_day_debug_unlocks` | the pill „Nächster Tag (Test)“: day 2 open, Heute card „Heute neu · Tag 2 · Pflanzen“, Tuesday is today in the week row |
+| `streak_increments` | day 2 won on the next Spieltag: the streak counts 1 → 2, two flames in the week row, the frech `streak_n` line |
+| `reminder_scheduled` | the plan after that win: ids 101/102/104/107, categories A/B/C/F, A at 17:10 (session 17:40 − 30 min), all within 08:00–21:30, four different texts, the last one the frech final message, every entry logged by `Notifier` (`REMINDER plan …`); menu „Erinnerung“: on PC „Erinnerungen gibt es nur auf dem Handy.“, „Feste Uhrzeit“ plans at 18:00 |
+
+Implementation: `scripts/voice.gd` (`class_name Voice`, the character's voice on top of `CharacterTexts`: tone, name,
+never the same line twice per key, `day_coach(n, i, fallback)`); the creator is `scripts/character_creator.gd`
+(hosted by `DayUI.open_creator`); coach bubbles, the lane, the goal card, win/fail cards, the overview and the
+permission card use `GameUI._speaker()` (round portrait + topic badge); `GameUI.char_react()` changes the face of
+every visible character (merge → happy, 2nd miss / fire / war → worried, wish → proud). In the test build the menu
+also shows the time stepper on PC (it only plans log lines there).
+
 ### 8.4 On a phone (manual, with the CI APK)
 
 1. Fresh install, Android 13+: create a character, win day 1, „Ja, gern“ → system dialog → allow.
@@ -1141,7 +1185,7 @@ Screenshots to add: `00_charakter_1.jpg` … `00_charakter_4.jpg`, `00u_morgen.j
 | `scripts/day_ui.gd` | overview header (character, chips), Heute card, week row, „Morgen“ tile, countdown, win card buttons, streak celebration, shield card, debug pill |
 | `scripts/ui.gd` | coach bubble with portrait, menu sections „Dein Charakter“, „Erinnerung“, „Test“, `Voice` for coach text, permission card |
 | `scripts/character.gd`, `character_view.gd`, `creator_ui.gd` (new) | section 3 |
-| `scripts/voice.gd` (new) | section 4 |
+| `scripts/voice.gd` (new, done) | section 4: `Voice.line/face/day_coach` on top of `CharacterTexts` |
 | `scripts/reminder_plan.gd` (new, done) | `class_name ReminderPlan`: the pure plan (5.3), template selection with recency (5.4), the texts of 4.7, history, log line |
 | `scripts/reminders.gd` (new) | plugin wrapper (6.3, 6.7): listens to `Game.reminders_planned(plan)`, sets `Game.remind_permission` |
 | `scripts/balance.gd` | `SHIELD_MAX`, `SHIELD_PRICE`, `STREAK_MILESTONE`, `SHIELD_FULL_COINS`, `BUILD_COIN_EVERY = 10`, `BUILD_COIN_MAX = 3`, `REMIND_EARLIEST = 480`, `REMIND_LATEST = 1290`, `REMIND_LEAD = 30`, `REMIND_LADDER = [1, 2, 4, 7]` |

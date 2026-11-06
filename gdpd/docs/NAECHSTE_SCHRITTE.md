@@ -32,3 +32,11 @@
 - Der Charakter ist der Begleiter im Spiel: Er erklärt, lobt, feiert die Serie und erinnert in den Benachrichtigungen.
 - Er reagiert: freut sich, wenn man spielt; ist traurig oder frech, wenn die Serie in Gefahr ist.
 - Später mehr Teile und Skins (Shop, Premium), z. B. das Spaghettimonster.
+
+## Texte (Regel von Philipp, gilt immer)
+- Regel allgemein erklären: „Bring 3 gleiche in eine Reihe.“ Nicht: „Bring 3 Erden zusammen.“
+- Alle Texte so kurz wie möglich: ein kurzer Satz, am besten 2–6 Wörter. Lieber Bilder als Worte.
+
+## Realistischere Grafik (Wunsch von Philipp)
+- Die Welt soll realistischer aussehen: echtere Wiesen, Wälder, Wasser, Felder, Häuser, Licht und Schatten.
+- Kommt nach dem Duolingo-Umbau; Leistung am Handy muss gut bleiben.

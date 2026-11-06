@@ -250,9 +250,19 @@ const LINES := {
 	},
 	# Ersteller und Erinnerung (3.7, 5.7)
 	"ask_reminder": {
-		"lieb": "Soll ich dich morgen erinnern?",
-		"frech": "Soll ich dich morgen erinnern?",
-		"streng": "Soll ich dich morgen erinnern?",
+		"lieb": "Soll ich dich morgen erinnern, wenn {tag} bereit ist? Höchstens einmal am Tag – versprochen.",
+		"frech": "Soll ich dir morgen Bescheid sagen, wenn {tag} da ist? Nur einmal am Tag, Ehrenwort.",
+		"streng": "Ich erinnere dich morgen an {tag}. Einmal am Tag, nicht öfter. Einverstanden?",
+	},
+	"ask_yes": {
+		"lieb": "Schön! Dann sag ich dir morgen Bescheid.",
+		"frech": "Abgemacht! Ich melde mich.",
+		"streng": "Gut. Ich erinnere dich.",
+	},
+	"ask_no": {
+		"lieb": "Alles klar! Du findest mich ja auch so.",
+		"frech": "Okay, okay. Ich warte dann einfach hier.",
+		"streng": "Wie du willst. Die Welt wartet.",
 	},
 }
 
@@ -268,7 +278,7 @@ const FACE := {
 	"shield_bought": "happy",
 	"comeback_saved": "happy", "comeback_lost": "sad", "open": "happy", "open_night": "sleepy",
 	"day_open": "happy", "day_done": "cheeky", "wdt_open": "happy", "wdt_done": "proud", "weiterbauen": "happy",
-	"wdt_intro": "neutral", "ask_reminder": "happy",
+	"wdt_intro": "neutral", "ask_reminder": "happy", "ask_yes": "happy", "ask_no": "neutral",
 }
 
 ## 4.7 Benachrichtigungen. Titel = {name}. cat: A (1. Tag nach dem Spielen), B (2.), C (4.), F (Abschied, 7.).

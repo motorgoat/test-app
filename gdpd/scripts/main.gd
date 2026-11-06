@@ -133,14 +133,22 @@ func _check(ok: bool, check_name: String, extra: String = "") -> void:
 
 func _days_tour(dir: String) -> void:
 	var dui := ui.day_ui
-	# Wie ein neuer Spieler: kein Fortschritt, keine gesehenen Hinweise
+	# Wie ein neuer Spieler: kein Fortschritt, keine gesehenen Hinweise, noch kein eigener Charakter. Die Uhr steht
+	# fest auf Montag, 9. November 2026, 17:40 (gleiche Bilder, gleiche Erinnerungs-Zeiten in jedem Lauf)
 	Game.debug_open_all = false
+	Game.debug_day_offset = 0
+	Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
 	Game.reset_campaign()
+	Game.reset_daily()
+	Game.note_session()
 	Game.coach_seen = {}
 	Game.cards_seen = {}
 	Game.tutorial_done = false
 	Game.always_ask = false
+	Game.reminder_echo = true
+	dui.debug_ask_on_pc = true          # die Frage „Soll ich dich erinnern?“ auch am PC zeigen
 	await get_tree().process_frame       # was beim Start aufgeschoben wurde, ist durch
+	await _creator_tour(dir)
 	dui.show_overview(false)
 	await _wait(1.4)
 	await _shot(dir, "00a_tage")
@@ -166,8 +174,14 @@ func _days_tour(dir: String) -> void:
 	world.tour_auto = false
 	await _tap(dui.gc_go)
 	await _wait(0.2)
+	var demo_frech := CharacterTexts.line("d1_demo", "frech")
 	var locked0 := ui.input_locked() and dui.lane_caps.text == str(Days.TEXT["demo_caps"]) and Game.state.twists == 0 \
-		and dui.lane_label.text == str(Days.config(1)["coach_demo"])
+		and dui.lane_label.text == demo_frech
+	# Der Hinweis kommt vom eigenen Charakter: sein Kopfbild (die Katze aus dem Ersteller) und sein Ton (frech)
+	var lane_cv := ui.speaker_view(dui.lane_speaker)
+	_check(dui.lane.visible and dui.lane_speaker.is_visible_in_tree() and str(lane_cv.look.get("basis", "")) == "katze"
+		and dui.lane_label.text == demo_frech and lane_cv.portrait, "character_coach",
+		"basis=%s text=%s" % [str(lane_cv.look.get("basis", "")), dui.lane_label.text.left(40)])
 	var vs0 := get_viewport().get_visible_rect().size
 	await _swipe(vs0 * Vector2(0.3, 0.47), vs0 * Vector2(0.7, 0.47))      # während der Sperre: wird ignoriert
 	var swipe_ignored := Game.state.twists == 0 and world._touched_state != Game.state
@@ -200,7 +214,7 @@ func _days_tour(dir: String) -> void:
 	var c1: Array = Days.config(1).get("coach", [])
 	var your_turn := false
 	for i in 100:
-		if dui.lane_visible() and dui.lane_label.text == str(c1[2]) and ui.dock.visible:
+		if dui.lane_visible() and dui.lane_label.text == CharacterTexts.line("d1_c2", "frech") and ui.dock.visible:
 			your_turn = true
 			break
 		await _wait(0.05)
@@ -215,17 +229,83 @@ func _days_tour(dir: String) -> void:
 	# 3. Den Rest selbst: immer die beste Drehung (wie „Tipp“), echte Wisch-Eingabe, bis das Ziel erreicht ist
 	var won := await _play_day(14)
 	var wcard := await _until_shown(dui.win_card, 5.0)
-	await _wait(1.5)
+	await _wait(2.8)                      # Sterne, dann die Serien-Feier (die Zahl zählt hoch)
 	await _shot(dir, "00e_tag1_geschafft")
-	var next_txt := str(Days.TEXT["next"]) % [2, str(Days.config(2)["title"])]
-	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text == next_txt, "day_success",
-		"won=%s stars=%d drehungen=%d knopf=%s" % [str(won), Game.stars_of(1), Game.state.day_won_at, dui.wc_next.text])
+	var line2 := str(Days.TEXT["tomorrow_next"]) % [2, str(Days.config(2)["title"])]
+	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text == str(Days.TEXT["build"])
+		and dui.wc_next_line.visible and dui.wc_next_line.text == line2 and dui.wc_streak_num.text == "1" and Game.streak() == 1,
+		"day_success", "won=%s stars=%d drehungen=%d knopf=%s zeile=%s serie=%s" % [str(won), Game.stars_of(1), Game.state.day_won_at,
+		dui.wc_next.text, dui.wc_next_line.text, dui.wc_streak_num.text])
 	if _only == "day1":
 		return
-	# 4. Tag 2 kommt erst morgen (ein neuer Tag je echtem Tag): „Nächster Tag (Test)“, dann „Weiter zu Tag 2“
-	# (echte Eingabe): Ziel-Karte mit dem Neuen (Regen)
-	print("Tour: ", Game.debug_next_day())
+	# 4. „Weiterbauen“ (echte Eingabe). Vorher fragt der Charakter einmal, ob er morgen erinnern darf (am Handy
+	# kommt danach der Android-Dialog): „Lieber nicht“
 	await _tap(dui.wc_next)
+	var ask := await _until_shown(dui.ask_card, 4.0)
+	await _wait(0.6)
+	await _shot(dir, "00e2_erinnern_frage")
+	var ask_ok := ask and dui.ask_text.text == CharacterTexts.fill(str((CharacterTexts.LINES["ask_reminder"] as Dictionary)["frech"]), {"tag": "Tag 2 · Pflanzen"})
+	await _tap(dui.ask_no)
+	await _wait(1.2)
+	_check(ask_ok and int(Game.remind["asked"]) == 1 and not dui.ask_card.visible, "permission_ask",
+		"frage=%s gefragt=%d" % [dui.ask_text.text.left(40), int(Game.remind["asked"])])
+	# Weiterbauen: kein Drehungs-Limit, kein Scheitern – die Welt wächst weiter (3 echte Drehungen)
+	var gs1 := Game.state
+	var g0 := gs1.build_growth()
+	var chip_build := dui.chip.visible and dui.grow_box.visible and not dui.ring.visible and dui.chip_caps.text == str(Days.TEXT["build"])
+	for i in 3:
+		var act := Game.state.best_action()
+		if act.is_empty() or str(act.get("type", "twist")) != "twist":
+			var d := _twist_without_progress()
+			act = {"axis": d[0], "layer": d[1], "turns": d[2], "choice": 0}
+		await _swipe_move(int(act["axis"]), int(act["layer"]), int(act["turns"]))
+		await _settle(8.0, int(act.get("choice", 0)))
+	await _wait(0.8)
+	await _shot(dir, "00v_weiterbauen")
+	var g1 := Game.state.build_growth()
+	_check(chip_build and Game.state == gs1 and gs1.day_free_build and gs1.twists_left() == -1 and gs1.day_won and gs1.day_lost == ""
+		and not Game.over and not dui.fail_card.visible and not dui.win_card.visible and g1 > g0 and dui.grow_num.text == str(g1)
+		and gs1.used_twists() >= gs1.day_won_at + 3, "continue_mode_no_limit",
+		"chip=%s links=%d gewachsen=%d->%d drehungen=%d" % [str(chip_build), gs1.twists_left(), g0, g1, gs1.used_twists()])
+	# 5. Zur Übersicht (Menü, echte Eingabe): Tag 2 ist erst morgen dran (Mond, „Morgen“), die Heute-Karte sagt
+	# „Heute geschafft!“ mit der Uhr bis zum neuen Tag, die Woche zeigt die erste Flamme
+	await _tap(ui.menu_b)
+	await _until_shown(ui.menu_card, 3.0)
+	await _wait(0.3)
+	await _tap(ui._menu_days)
+	await _wait(1.2)
+	var t2: Dictionary = dui.ov_tiles[1]
+	var morgen := dui.is_open() and bool((t2["btn"] as Button).get_meta("morgen", false)) and (t2["morgen"] as Control).visible \
+		and not Game.day_unlocked(2) and dui.tc_title.text == str(Days.TEXT["today_done"]) and dui.tc_count.text != "" \
+		and dui.tc_count_row.visible and dui.tc_build.visible and (dui.week_cells[0] as DayUI.WeekDot).state == "streak"
+	await _shot(dir, "00u_morgen")
+	await _tap(t2["btn"])
+	var toast_ok := false
+	for i in 80:
+		if ui.toast.visible and ui.toast_label.text == line2:
+			toast_ok = true
+			break
+		await _wait(0.05)
+	await _wait(0.4)
+	await _shot(dir, "00u2_morgen_tippen")
+	var said := CharacterTexts.line("day_done", "frech", {"tag": "Tag 2 · Pflanzen", "name": Voice.char_name()})
+	_check(morgen and toast_ok and dui.ov_say.text == said, "day_locked_until_tomorrow",
+		"morgen=%s toast=%s sagt=%s uhr=%s" % [str(morgen), str(toast_ok), dui.ov_say.text.left(40), dui.tc_count.text])
+	# 6. „Nächster Tag (Test)“ (nur in der Test-Version, echte Eingabe): Tag 2 ist offen, die Heute-Karte zeigt ihn
+	dui.ov_scroll.ensure_control_visible(dui.ov_debug)
+	await _wait(0.4)
+	var pill := dui.ov_debug.is_visible_in_tree() and OS.is_debug_build()
+	await _tap(dui.ov_debug)
+	await _wait(0.9)
+	dui.ov_scroll.scroll_vertical = 0
+	await _wait(0.5)
+	await _shot(dir, "00u3_naechster_tag")
+	_check(pill and Game.day_unlocked(2) and dui.tc_caps.text == str(Days.TEXT["today_new"]) and dui.tc_title.text == "Tag 2 · Pflanzen"
+		and dui.tc_go.visible and not bool((t2["btn"] as Button).get_meta("morgen", false)) and Game.debug_day_offset == 1
+		and (dui.week_cells[1] as DayUI.WeekDot).state == "today", "next_day_debug_unlocks",
+		"knopf=%s heute=%s %s versatz=%d" % [str(pill), dui.tc_caps.text, dui.tc_title.text, Game.debug_day_offset])
+	# „Los!“ auf der Heute-Karte (echte Eingabe): Ziel-Karte mit dem Neuen (Regen)
+	await _tap(dui.tc_go)
 	var card2 := await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.9)
 	await _shot(dir, "00f_tag2_ziel")
@@ -266,6 +346,8 @@ func _days_tour(dir: String) -> void:
 	# Tag 2: Eine neue Reihe aus drei Wäldern ruht (Großer Wald erst ab Tag 3): leuchtet mit Schloss, sagt warum,
 	# und ist kein Fehlversuch
 	await _resting_row_check(dir)
+	# 5b. Tag 2 schaffen (ein neues Brett, genug Drehungen): Die Serie wächst auf 2, zwei Flammen in der Woche
+	await _streak_day2(dir)
 	# Ab hier sind alle Tage offen (die Tour springt)
 	Game.debug_open_all = true
 	# 6. Tag 3: Ziel-Karte, dann die letzte Drehung bringt nichts → Fehlversuch, „Nochmal“ mit +2 Drehungen
@@ -415,10 +497,11 @@ func _days_tour(dir: String) -> void:
 	var wc7 := await _until_shown(dui.win_card, 8.0)
 	await _wait(1.6)
 	await _shot(dir, "00r_vollendet")
-	_check(wc7 and dui.wc_title.text == str(Days.TEXT["complete"]) and Game.world_done and Game.free_play_unlocked(), "world_complete",
+	_check(wc7 and dui.wc_title.text == str(Days.TEXT["complete"]) and Game.world_done and Game.free_play_unlocked()
+		and dui.wc_next.text == str(Days.TEXT["build"]) and dui.wc_alt.text == str(Days.TEXT["free"]), "world_complete",
 		"w=%d titel=%s" % [wg, dui.wc_title.text])
 	# 11. „Freies Spiel“ (echte Eingabe): die vier Spielarten, Mittel antippen
-	await _tap(dui.wc_next)
+	await _tap(dui.wc_alt)
 	var fc := await _until_shown(dui.free_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00s_freies_spiel")
@@ -432,6 +515,154 @@ func _days_tour(dir: String) -> void:
 	await _shot(dir, "00t_frei_mittel")
 	_check(fc and row != null and not Game.in_day() and Game.state.endless and Game.level == 1 and not dui.is_open() and ui.score_box.visible,
 		"free_play", "tag=%s stufe=%d" % [str(Game.in_day()), Game.level])
+	# 12. Am Spieltag nach Tag 7: die Welt des Tages (Heute-Karte, echte Eingabe „Los!“ → ihre Ziel-Karte)
+	Game.debug_open_all = false
+	Game.debug_next_day()
+	dui.show_overview(false)
+	await _wait(1.2)
+	var wdt_card := dui.tc_caps.text.begins_with(str(Days.TEXT["wdt"]) + " · ") and dui.tc_go.visible
+	await _shot(dir, "00x_welt_des_tages")
+	await _tap(dui.tc_go)
+	var gcw := await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.6)
+	await _shot(dir, "00x2_welt_des_tages_ziel")
+	_check(wdt_card and gcw and Game.in_daily_world() and dui.gc_caps.text == dui.tc_caps.text and dui.gc_goal.text != "",
+		"daily_world", "heute=%s karte=%s ziel=%s" % [dui.tc_caps.text, dui.gc_caps.text, dui.gc_goal.text])
+	ui._close_modal(true)
+
+
+## Erster Start: Der Ersteller kommt vor Tag 1. Vier Schritte mit echter Eingabe (Würfeln, Katzengott, Farbe,
+## Krone, Ton „Frech“), „Fertig – los geht's!“ speichert [charakter] und öffnet die Ziel-Karte von Tag 1.
+func _creator_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	var cc := dui.creator
+	Game.set_character({})
+	ui.refresh_speakers()
+	Game.start_day(1)                    # wie beim ersten Start: Tag 1 läuft schon, die Ziel-Karte wartet
+	dui.open_creator(false, true)
+	await _wait(1.4)
+	var opened := cc.visible and cc.step == 0 and Game.needs_creator() and not dui.goal_card.visible
+	await _shot(dir, "00_charakter_1")
+	var t_start := Time.get_ticks_msec()
+	var before := cc.current_look()
+	await _tap(cc.dice_button())
+	await _wait(0.6)
+	var rolled := cc.current_look() != before
+	var cat_b := cc.pick_button("basis:katze")
+	if cat_b != null:
+		await _tap(cat_b)
+	await _wait(0.6)
+	var cat := str(cc.current_look()["basis"]) == "katze"
+	await _tap(cc.next_button())
+	await _wait(0.8)
+	var s2 := cc.step == 1
+	var sw: Array = cc.pick_buttons("farbe:haupt:")
+	if sw.size() > 2:
+		await _tap(sw[2])
+	await _wait(0.6)
+	await _shot(dir, "00_charakter_2")
+	await _tap(cc.next_button())
+	await _wait(0.8)
+	var crown := cc.pick_button("kopf:krone")
+	if crown != null:
+		cc._scroll.ensure_control_visible(crown)
+		await _wait(0.3)
+		await _tap(crown)
+	await _wait(0.6)
+	var has_crown := str(cc.current_look()["kopf"]) == "krone"
+	await _shot(dir, "00_charakter_3")
+	await _tap(cc.next_button())
+	await _wait(0.8)
+	var frech := cc.pick_button("ton:frech")
+	if frech != null:
+		await _tap(frech)
+	await _wait(1.0)
+	var sample := cc.bubble_text() == str(Character.TONE_SAMPLE["frech"])
+	await _shot(dir, "00_charakter_4")
+	await _tap(cc.next_button())
+	var card := await _until_shown(dui.goal_card, 6.0)
+	var secs := (Time.get_ticks_msec() - t_start) / 1000.0
+	await _wait(0.5)
+	await _shot(dir, "00_charakter_5_tag1")
+	var saved := Character.load_look()
+	_check(opened and rolled and cat and s2 and has_crown and sample and card and not cc.visible and not Game.needs_creator()
+		and str(saved.get("basis", "")) == "katze" and str(saved.get("ton", "")) == "frech" and str(saved.get("kopf", "")) == "krone"
+		and Game.in_day() and Game.day_no == 1 and dui.gc_intro.text.contains(Voice.char_name()), "creator_finish",
+		"offen=%s gewuerfelt=%s katze=%s krone=%s probe=%s karte=%s name=%s sek=%.0f intro=%s" % [str(opened), str(rolled), str(cat),
+		str(has_crown), str(sample), str(card), Voice.char_name(), secs, dui.gc_intro.text.left(40)])
+	ui._close_modal(true)
+
+
+## Tag 2 auf einem neuen Brett schaffen (am zweiten Spieltag): Die Serie zählt von 1 auf 2, die Woche zeigt zwei
+## Flammen. Danach: der Erinnerungs-Plan (4 Stufen, Zeiten, Texte) und die Einstellung „Erinnerung“ im Menü.
+func _streak_day2(dir: String) -> void:
+	var dui := ui.day_ui
+	Game.retry_day()
+	await _until_shown(dui.goal_card, 4.0)
+	await _tap(dui.gc_go)
+	await _wait(1.0)
+	Game.state.day_limit = Game.state.used_twists() + 30        # genug Drehungen: hier geht es um die Serie
+	Game.state_changed.emit()
+	var s0 := Game.streak()
+	var won := await _play_day(40)
+	var wcard := await _until_shown(dui.win_card, 6.0)
+	await _wait(3.0)
+	await _shot(dir, "00w_serie")
+	var flames := 0
+	for c in dui.wc_week:
+		if (c as DayUI.WeekDot).state == "streak":
+			flames += 1
+	_check(won and wcard and s0 == 1 and Game.streak() == 2 and dui.wc_streak_num.text == "2" and flames == 2
+		and dui.wc_say.text == CharacterTexts.line("streak_n", "frech", {"streak": 2}), "streak_increments",
+		"gewonnen=%s karte=%s serie=%d->%d zahl=%s flammen=%d sagt=%s" % [str(won), str(wcard), s0, Game.streak(), dui.wc_streak_num.text,
+		flames, dui.wc_say.text.left(40)])
+	# Der Plan nach dem Sieg: 4 Stufen (morgen, übermorgen, +4, +7 = Abschied), 30 min vor der Uhrzeit, zu der diese
+	# Sitzung begann (17:40), nie zwischen 21:30 und 8:00; die Hülle (Notifier) hat jede Zeile eingeplant
+	var plan: Array = Game.reminder_log
+	var ids: Array = []
+	var cats: Array = []
+	var tpls := {}
+	var in_window := true
+	for e in plan:
+		var d: Dictionary = e
+		ids.append(int(d["id"]))
+		cats.append(str(d["cat"]))
+		tpls[str(d["tpl"])] = true
+		var m := int(d["hour"]) * 60 + int(d["minute"])
+		in_window = in_window and m >= Balance.REMIND_EARLIEST and m <= Balance.REMIND_LATEST
+	var first: Dictionary = plan[0] if not plan.is_empty() else {}
+	var logged := true
+	for e in plan:
+		logged = logged and ui.notifier.log_lines.has(ReminderPlan.log_line(e as Dictionary))
+	var final_ok := not plan.is_empty() and str((plan[plan.size() - 1] as Dictionary)["tpl"]) == ReminderPlan.final_id("frech")
+	var a_time := "%02d:%02d" % [int(first.get("hour", -1)), int(first.get("minute", -1))]
+	var ok_plan := ids == [101, 102, 104, 107] and cats == ["A", "B", "C", "F"] and tpls.size() == 4 and in_window and final_ok \
+		and a_time == "17:10" and str(first.get("title", "")) == Voice.char_name() and int(first.get("key", -1)) == Game.today_key() + 1 and logged
+	# Menü → Erinnerung: am PC der Hinweis „nur auf dem Handy“; „Feste Uhrzeit“ (echte Eingabe) plant um 18:00
+	await _tap(dui.wc_home)
+	await _wait(1.0)
+	await _shot(dir, "00w2_uebersicht_serie")
+	ui._open_menu()
+	await _until_shown(ui.menu_card, 3.0)
+	var sc: ScrollContainer = ui.menu_card.get_meta("scroll")
+	sc.ensure_control_visible(ui._remind_box)
+	await _wait(0.5)
+	var fest := ui.segment_button(ui._remind_seg, "fest")
+	await _tap(fest)
+	await _wait(0.6)
+	sc.ensure_control_visible(ui._remind_box)
+	await _wait(0.3)
+	await _shot(dir, "00y_erinnerung")
+	var fixed_plan: Array = Game.reminder_log
+	var fixed_ok := str(Game.remind["mode"]) == "fest" and not fixed_plan.is_empty() and int((fixed_plan[0] as Dictionary)["hour"]) == 18 \
+		and int((fixed_plan[0] as Dictionary)["minute"]) == 0 and ui._remind_time_row.visible
+	var note_ok := ui._remind_note.visible and ui._remind_note.text == "Erinnerungen gibt es nur auf dem Handy."
+	await _tap(ui.segment_button(ui._remind_seg, "auto"))
+	await _wait(0.4)
+	_check(ok_plan and fixed_ok and note_ok and str(Game.remind["mode"]) == "auto", "reminder_scheduled",
+		"ids=%s cats=%s A=%s texte=%d fenster=%s abschied=%s protokoll=%s fest=%s hinweis=%s" % [str(ids), str(cats), a_time,
+		tpls.size(), str(in_window), str(final_ok), str(logged), str(fixed_ok), str(note_ok)])
+	ui._close_modal(true)
 
 
 ## Bis eine Karte ganz zu sehen ist.
@@ -457,6 +688,9 @@ func _play_day(max_twists: int) -> bool:
 			break
 		var act := Game.state.best_action()
 		var typ := str(act.get("type", "twist"))
+		if typ == "rain" and Game.use_bonus("rain", int(act["field"]), [], true):
+			await _settle(8.0, int(act.get("choice", 0)))       # Regen wie der Tipp (kein Zug)
+			continue
 		if act.is_empty() or typ != "twist":
 			var d := _twist_without_progress()
 			act = {"axis": d[0], "layer": d[1], "turns": d[2], "choice": 0}

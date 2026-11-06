@@ -84,6 +84,54 @@ func current_look() -> Dictionary:
 	return Character.sanitize(look)
 
 
+# --- Für Tests und die Screenshot-Tour (echte Eingabe auf echte Knöpfe) ---------------------------------
+
+func next_button() -> Button:
+	return _next
+
+
+func dice_button() -> Button:
+	return _dice
+
+
+func name_edit() -> LineEdit:
+	return _name_edit
+
+
+func bubble_text() -> String:
+	return _bubble_label.text if _bubble.visible else ""
+
+
+## Der Knopf des aktuellen Schritts mit dieser Wahl („basis:katze“, „farbe:haupt:f2“, „augen:gross“, „kopf:krone“,
+## „ton:frech“) oder null.
+func pick_button(pick: String) -> Button:
+	return _find_pick(_content, pick)
+
+
+func _find_pick(n: Node, pick: String) -> Button:
+	for c in n.get_children():
+		if c is Button and String((c as Button).get_meta("pick", "")) == pick:
+			return c as Button
+		var r := _find_pick(c, pick)
+		if r != null:
+			return r
+	return null
+
+
+## Alle Wahl-Knöpfe des aktuellen Schritts, die so anfangen („farbe:haupt:“).
+func pick_buttons(prefix: String) -> Array:
+	var out: Array = []
+	_collect_picks(_content, prefix, out)
+	return out
+
+
+func _collect_picks(n: Node, prefix: String, out: Array) -> void:
+	for c in n.get_children():
+		if c is Button and String((c as Button).get_meta("pick", "")).begins_with(prefix):
+			out.append(c)
+		_collect_picks(c, prefix, out)
+
+
 # --- Aufbau ---------------------------------------------------------------------------------------------
 
 func _build() -> void:
@@ -229,11 +277,14 @@ func _layout() -> void:
 func _layout_bubble() -> void:
 	if not _bubble.visible:
 		return
-	var w := minf(size.x - 2 * Style.MARGIN, 360.0)
+	var w := minf(size.x - 2 * Style.MARGIN, 380.0)
+	# Erst die Breite des Satzes festlegen, dann seine Höhe messen (sonst bricht er jedes Wort um und die Blase
+	# wird riesig und leer)
 	_bubble_label.custom_minimum_size = Vector2(w - 32, 0)
-	_bubble.size = Vector2(w, 0)
-	_bubble.reset_size()
-	_bubble.position = Vector2((size.x - w) * 0.5, preview.position.y - 6.0)
+	_bubble_label.size = Vector2(w - 32, 0)
+	var h := _bubble_label.get_minimum_size().y + 24.0
+	_bubble.size = Vector2(w, h)
+	_bubble.position = Vector2((size.x - w) * 0.5, maxf(Style.TOP_GAP + 52.0, preview.position.y - h + 18.0))
 
 
 # --- Schritte -------------------------------------------------------------------------------------------
@@ -248,7 +299,9 @@ func _refresh_all() -> void:
 
 func _fill_step() -> void:
 	for c in _content.get_children():
-		_content.remove_child(c)
+		# nicht aus dem Baum nehmen: ein Knopf, der gerade gedrückt wird, hat noch einen Tween (der darf nicht
+		# außerhalb des Baums laufen); versteckt nimmt er keinen Platz mehr ein und ist am Ende des Bilds weg
+		(c as CanvasItem).visible = false
 		c.queue_free()
 	_name_edit = null
 	_tone_label = null
@@ -319,6 +372,7 @@ func _step_form() -> void:
 		l.autowrap_mode = TextServer.AUTOWRAP_OFF
 		v.add_child(l)
 		b.pressed.connect(_on_base.bind(basis))
+		b.set_meta("pick", "basis:" + basis)
 		_press_fx(b)
 		grid.add_child(b)
 	if not edit_mode:
@@ -346,6 +400,7 @@ func _step_face() -> void:
 		var es: Dictionary = Character.EYE_STYLES[stil]
 		var chip := _chip(String(es["title"]), String(look["augen"]) == stil, _eye_icon(stil))
 		chip.pressed.connect(_on_eyes.bind(stil))
+		chip.set_meta("pick", "augen:" + stil)
 		eyes.add_child(chip)
 	_content.add_child(eyes)
 	_content.add_child(_row_title("Augenfarbe"))
@@ -364,6 +419,7 @@ func _step_face() -> void:
 			var chip := _chip(String(ad["title"]), String(look[slot]) == id, _acc_icon(slot, id) if id != "" else null)
 			chip.disabled = no_neck and id != ""
 			chip.pressed.connect(_on_acc.bind(slot, id))
+			chip.set_meta("pick", "%s:%s" % [slot, id])
 			fl.add_child(chip)
 		_content.add_child(fl)
 	_content.add_child(_row_title("Schmuckfarbe"))
@@ -416,6 +472,7 @@ func _step_name() -> void:
 		v.add_child(sample)
 		b.add_child(m)
 		b.pressed.connect(_on_tone.bind(ton))
+		b.set_meta("pick", "ton:" + ton)
 		_press_fx(b)
 		_content.add_child(b)
 
@@ -672,6 +729,7 @@ func _swatches(slot: String, palette: String) -> HFlowContainer:
 		else:
 			Style.skin(b, n, Style.box(col.darkened(0.08), 23, 0, 0), Style.INK)
 		b.pressed.connect(_on_color.bind(slot, key))
+		b.set_meta("pick", "farbe:%s:%s" % [slot, key])
 		_press_fx(b)
 		f.add_child(b)
 	return f

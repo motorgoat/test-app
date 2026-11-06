@@ -2,7 +2,8 @@ name: gdpd – Testversion
 
 # Baut bei jedem Push auf den Spiel-Branch (nur wenn sich gdpd/ ändert):
 # 1. Regeltests und Modelltests (headless), 2. Probelauf des Spiels (~50 s Spielzeit, ohne Grafik),
-# 3. Handy-Screenshots (die Tour muss ganz durchlaufen), 4. Android-APK und PC-Versionen. Alles landet unter Releases → „gdpd-testversion“.
+# 3. Handy-Screenshots (die Tour muss ganz durchlaufen), 4. Android-APK (Gradle-Build mit dem Erinnerungs-Plugin
+# „GdpdReminder“, Rückfall: einfaches APK ohne Plugin) und PC-Versionen. Alles landet unter Releases → „gdpd-testversion“.
 # Das Original „God does play dice!“ hat seinen eigenen Workflow (god-does-play-dice.yml).
 
 on:
@@ -71,8 +72,8 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          # Die Tour braucht mit Software-Grafik knapp 10 Minuten: genug Luft, damit sie nicht mittendrin abbricht
-          timeout 900 xvfb-run -a -s "-screen 0 1100x2400x24" \
+          # Die Tour braucht mit Software-Grafik gut 12 Minuten (mit Ersteller, Serie, Weiterbauen): genug Luft, damit sie nicht mittendrin abbricht
+          timeout 1500 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
           ls -la ../shots
@@ -82,7 +83,9 @@ jobs:
           if grep -nE "CHECK ok=false" ../shots.log; then echo "Eine Prüfung der Screenshot-Tour ist fehlgeschlagen"; exit 1; fi
           # Die Tour muss ganz durchgelaufen sein, und jede Prüfung muss da sein (ein Abbruch druckt sie nicht)
           grep -qE "^TOUR-DONE checks=[0-9]+ failed=0" ../shots.log || { echo "Die Screenshot-Tour lief nicht bis zum Ende"; exit 1; }
-          for c in day_overview day1_goal_card day1_tutorial goal_chip day1_your_turn no_auto_twist_after_input day_success day_next \
+          for c in creator_finish day_overview day1_goal_card character_coach day1_tutorial goal_chip day1_your_turn no_auto_twist_after_input \
+                   day_success permission_ask continue_mode_no_limit day_locked_until_tomorrow next_day_debug_unlocks day_next \
+                   streak_increments reminder_scheduled daily_world \
                    day2_rain_reveal day_help resting_row_feedback resting_row_rain day_fail day4_wish day5_choice \
                    day6_faith day6_war day7_green day7_smog world_complete free_play \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
@@ -115,14 +118,43 @@ jobs:
             shots.log
           if-no-files-found: warn
 
-      - name: Android-APK exportieren
+      - name: Gradle-Cache (Android-Build)
+        uses: actions/cache@v4
+        with:
+          path: |
+            /github/home/.gradle/caches
+            /github/home/.gradle/wrapper
+          key: gradle-gdpd-4.3-${{ hashFiles('gdpd/android_plugin/**', 'gdpd/addons/gdpd_reminder/**') }}
+          restore-keys: |
+            gradle-gdpd-4.3-
+
+      - name: Android-APK exportieren (Gradle mit Erinnerungs-Plugin, sonst ohne)
         run: |
           cd $PROJECT
           sed -i "s/^version\/code=.*/version\/code=${GITHUB_RUN_NUMBER}/; s/^version\/name=.*/version\/name=\"0.1.${GITHUB_RUN_NUMBER}\"/" export_presets.cfg
           mkdir -p build
-          godot --headless --verbose --export-debug "Android" build/gdpd.apk 2>&1 | tail -40
+          # 1. Gradle-Build: Android-SDK 34, Bauvorlage nach android/, Plugin-AAR (javac), Export, Prüfung des APK
+          #    (docs/GDPD_TAEGLICH_CHARAKTER.md 6.6; das Skript gibt alles ausführlich aus)
+          if ANDROID_HOME=/usr/lib/android-sdk bash android_plugin/ci_android_export.sh build/gdpd.apk; then
+            echo "ANDROID_NOTE=**Erinnerungen:** Dieses APK enthält das Erinnerungs-Plugin (Gradle-Build) – dein Charakter erinnert dich höchstens einmal am Tag." >> "$GITHUB_ENV"
+          else
+            # 2. Rückfall: das bisherige APK ohne Gradle und ohne Plugin (das Spiel plant dann nur Protokoll-Zeilen)
+            echo "::warning title=Android::Gradle-Export fehlgeschlagen – das APK wird ohne Erinnerungs-Plugin gebaut (Log: android_export.log)"
+            sed -i "s/^gradle_build\/use_gradle_build=.*/gradle_build\/use_gradle_build=false/" export_presets.cfg
+            rm -f build/gdpd.apk
+            godot --headless --verbose --export-debug "Android" build/gdpd.apk 2>&1 | tail -40
+            echo "ANDROID_NOTE=**Hinweis:** Dieser Build hat **keine** Handy-Erinnerungen – der Gradle-Build mit dem Erinnerungs-Plugin ist fehlgeschlagen (Rückfall auf das einfache APK)." >> "$GITHUB_ENV"
+          fi
           ls -la build
           test -s build/gdpd.apk
+
+      - name: Android-Export-Log hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdpd-android-export-log
+          path: ${{ env.PROJECT }}/build/android_export.log
+          if-no-files-found: ignore
 
       - name: PC-Versionen exportieren (Windows, Linux)
         run: |
@@ -151,6 +183,8 @@ jobs:
             3 Sterne. Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. Erst Land, dann Pflanzen, Tiere, Menschen;
             ab Tag 5 entscheidest du, was wächst. Nach Tag 7 ist deine Welt vollendet und das freie Spiel geht auf.
             Halte ein Symbol gedrückt, um es zu erklären.
+
+            ${{ env.ANDROID_NOTE }}
 
             **Am Handy installieren (Android):** `gdpd.apk` antippen, herunterladen, öffnen.
             Beim ersten Mal fragt Android, ob der Browser Apps installieren darf: erlauben.
