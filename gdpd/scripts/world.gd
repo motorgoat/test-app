@@ -374,11 +374,19 @@ func show_targets(kind: String) -> void:
 		for f in gs.fields:
 			tg[f.id] = "face"
 	elif gs != null and kind == "strike":
-		# Gewitter: jedes Feld mit etwas darauf; Industrie bekommt das Blitz-Abzeichen (dort hilft es am meisten)
+		# Gewitter: Vorschläge statt alles einzufärben. Industrie (dort hilft es am meisten) kräftig mit Abzeichen,
+		# andere fertige Felder (Platz machen) zart. Antippen geht trotzdem auf jedem Feld mit etwas darauf.
 		col = Color("#8a63d2")
 		for f in gs.fields:
-			if (f as FieldData).kind != FieldData.EMPTY:
-				tg[f.id] = "strike_best" if (f as FieldData).kind == FieldData.INDUSTRY else "any"
+			var sk: int = (f as FieldData).kind
+			if sk == FieldData.INDUSTRY:
+				tg[f.id] = "strike_best"
+			elif (f as FieldData).is_finished():
+				tg[f.id] = "strike_soft"
+		if tg.is_empty():
+			for f in gs.fields:
+				if (f as FieldData).kind != FieldData.EMPTY:
+					tg[f.id] = "any"
 	elif gs != null and kind == "flood":
 		# Flut: alle Felder der Seiten, auf denen es Stadt gibt
 		col = Style.WATER_DEEP
@@ -393,7 +401,7 @@ func show_targets(kind: String) -> void:
 	for fid in views:
 		var v: FieldView = views[fid]
 		var t: String = str(tg.get(int(fid), ""))
-		v.set_target(t != "", col)
+		v.set_target(t != "", col.lerp(Color.WHITE, 0.55) if t == "strike_soft" else col)
 		if t == "useful" or t == "fire":
 			v.set_badge("rain")
 		elif t == "strike_best":
@@ -691,6 +699,8 @@ func _press(pos: Vector2) -> void:
 		return
 	if _mode == "twist" and not _tw_live:
 		_abort_demo()        # die Hand führt gerade vor: sofort weg, derselbe Finger dreht gleich selbst
+	if Game.has_choice() and bool(Game.pending_choice.get("mini", false)):
+		Game.choose_default()
 	_clear_hint()
 	_press_pos = pos
 	_press_ms = Time.get_ticks_msec()

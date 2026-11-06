@@ -197,7 +197,7 @@ func finish_tutorial() -> void:
 		undo_state = null          # nicht zurück auf den Tutorial-Würfel
 		tutorial_bloom.emit(ids)
 		state_changed.emit()
-	_save_best()
+	_save_profile()
 	tutorial_changed.emit()
 
 
@@ -367,7 +367,7 @@ static func gasp() -> String:
 ## Einstellung „Immer fragen“: immer die große Wahl-Karte statt der kleinen Pille.
 func set_always_ask(on: bool) -> void:
 	always_ask = on
-	_save_best()
+	_save_profile()
 
 
 ## Art-Tabelle für die Oberfläche (Name, Icon, Stufe, Optionen, Glaube pro Drehung, Erklärung).
@@ -421,18 +421,18 @@ func spend(cost: int) -> bool:
 	if credits < cost:
 		return false
 	credits -= cost
-	_save_best()
+	_save_profile()
 	return true
 
 
 ## Platzhalter für „Video ansehen“: gibt Münzen. Später kommt hier die echte Werbung hin.
 func reward_ad() -> void:
 	credits += Balance.CREDITS_PER_AD
-	_save_best()
+	_save_profile()
 
 
 func save_settings() -> void:
-	_save_best()
+	_save_profile()
 
 
 # =============================================================================
@@ -519,6 +519,8 @@ static func _old_best(cfg: ConfigFile, key: String) -> int:
 	return out
 
 
+## Spielende (oder ein laufendes Spiel wird verlassen): der Glaube JETZT zählt für den Rekord.
+## Mitten im Spiel nie aufrufen – Glaube kann wieder sinken (Krieg, Strafen), der Rekord zählt das Ende.
 func _save_best() -> void:
 	if state != null and not tutorial():
 		var mk := mode_key()
@@ -527,6 +529,11 @@ func _save_best() -> void:
 		_best[mk] = maxi(int(_best.get(mk, 0)), score())
 		if over:
 			best = maxi(best, score())
+	_save_profile()
+
+
+## Einstellungen, Münzen, Hinweise und Wahl-Karten speichern, ohne den Rekord anzufassen.
+func _save_profile() -> void:
 	var cfg := ConfigFile.new()
 	for k in _best.keys():
 		cfg.set_value("rekorde", str(k), int(_best[k]))

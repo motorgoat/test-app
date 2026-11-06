@@ -52,7 +52,7 @@ const CHOICE_HEADER := "Dein Wille geschehe"
 const CHOICE_TITLE = {MEADOW: "Was soll hier wachsen?", BIGFOREST: "Wer soll hier leben?", VILLAGE: "Was baut das Dorf?",
 	TOWN: "Wie wächst die Stadt?"}
 ## Kurzer Satz unter jeder Option (Schlüssel: die Art, die daraus wird).
-const CHOICE_LINE = {FOREST: "Wald für Tiere und frische Luft.", FIELD: "Essen – dann kommen Menschen.",
+const CHOICE_LINE = {FOREST: "Für Tiere und frische Luft.", FIELD: "Essen – dann kommen Menschen.",
 	ANIMALS: "Tiere machen den Wald lebendig.", HUT: "Die ersten Menschen ziehen ein.",
 	TOWN: "Die Menschen bauen eine Stadt.", CHURCH: "Viel Glaube. Aber Kirchen streiten gern.",
 	BIGCITY: "Mehr Menschen, mehr Leben.", INDUSTRY: "Schnell viel Glaube – aber Smog."}

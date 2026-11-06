@@ -790,6 +790,7 @@ func test_wishes() -> void:
 	check(near and not de.is_empty() and hut.kind == HOUSE and gf.wishes.is_empty(), "Wunsch erfüllt: Hütte wird Haus (%s)" % str(de))
 	check(int(rf["faith"]) >= Balance.WISH_FAITH and int(_event(rf, "faith").get("wish", 0)) == Balance.WISH_FAITH, "Wunsch erfüllt: +15 Glauben")
 	check(int(gf.stats["wish_ok"]) == 1, "erfüllter Wunsch gezählt")
+	check(gf.misses == 0 and not _has_event(rf, "miss"), "erfüllter Wunsch zählt als Wachsen: kein Fehlversuch")
 	# Die Hütte, die der Wunsch zum Haus macht, ist eine Wiese? Nein – wächst mit Wahl: Dorf → Karte
 	var gc := empty_state()
 	var vil := top(gc, 0, 0)
@@ -882,6 +883,21 @@ func test_tools() -> void:
 	var rt := gt.play({"type": "strike", "field": ind.id})
 	check(ind.kind == E and ind.fresh > 0 and gt.faith == 100 - Balance.STRIKE_COST, "Gewitter: Industrie → Erde (raucht), −15 Glauben")
 	check(_has_event(rt, "strike") and int(_event(rt, "strike")["cost"]) == Balance.STRIKE_COST, "Gewitter: Ereignis strike")
+	# Die getroffene Industrie raucht noch 2 Drehungen (wächst so lange nicht nach), erst danach wird sie Wiese
+	var gsm := empty_state()
+	gsm.faith = 100
+	var ind2 := top(gsm, 0, 0)
+	ind2.kind = INDUSTRY
+	for xz in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+		top(gsm, xz.x, xz.y).kind = FOREST
+	gsm.play({"type": "strike", "field": ind2.id})
+	var smoke0 := ind2.fresh
+	twist(gsm, 1, -1, 1)
+	var after1 := ind2.kind
+	twist(gsm, 1, -1, 1)
+	var after2 := ind2.kind
+	twist(gsm, 1, -1, 1)
+	check(smoke0 == 2 and after1 == E and after2 == E and ind2.kind == MEADOW, "Gewitter auf Industrie: 2 Drehungen kein Nachwachsen, dann Wiese (%d %d %d %d)" % [smoke0, after1, after2, ind2.kind])
 	var tw := top(gt, 1, 1)
 	tw.kind = TOWN
 	gt.play({"type": "strike", "field": tw.id})

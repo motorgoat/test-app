@@ -454,6 +454,9 @@ func is_polluted() -> bool:
 
 ## icon_name: Symbol des Wunschs ("smallforest", "paw", "field", "rain"); "" blendet aus.
 ## left: verbleibende Drehungen (kleiner Ring rechts oben), < 0 ohne Zahl.
+const WISH_SCALE := 1.45      # Wunsch-Blase: gut lesbar auf dem Handy
+
+
 func set_wish(icon_name: String, left: int = -1) -> void:
 	if icon_name == "":
 		_wish_shown = false
@@ -486,7 +489,7 @@ func set_wish(icon_name: String, left: int = -1) -> void:
 		_wish.add_child(_wish_left)
 		var pop := _wish.create_tween()
 		_wish.scale = Vector3.ONE * 0.1
-		pop.tween_property(_wish, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		pop.tween_property(_wish, "scale", Vector3.ONE * WISH_SCALE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_wish_icon.texture = Style.icon(icon_name)
 	_wish_left.text = str(left) if left >= 0 else ""
 	(_wish.get_node("Ring") as Sprite3D).visible = left >= 0

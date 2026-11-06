@@ -1173,8 +1173,8 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 				got["rain"] = int(got["rain"]) + 1
 		if Balance.RAIN_EVERY_TWISTS > 0:
 			next_rain = (twists / Balance.RAIN_EVERY_TWISTS + 1) * Balance.RAIN_EVERY_TWISTS
-	# 12. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe
-	if twist and _grew == 0 and not no_fire:
+	# 12. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe (ein erfüllter Wunsch zählt als Wachsen)
+	if twist and _grew == 0 and wish_gain == 0 and not no_fire:
 		misses += 1
 		var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
 		var why := ""
@@ -1832,7 +1832,7 @@ func apply_bonus(kind: String, f: FieldData, row: Array = [], ans: Dictionary = 
 				continue
 			if was == FieldData.INDUSTRY:
 				g.kind = FieldData.EMPTY
-				g.fresh = 2
+				g.fresh = 3        # end_round dieses Werkzeug-Zugs zieht 1 ab: raucht danach noch 2 Drehungen
 			else:
 				g.kind = FieldData.down(was)
 			g.burning = false

@@ -1,8 +1,8 @@
 name: gdpd – Testversion
 
 # Baut bei jedem Push auf den Spiel-Branch (nur wenn sich gdpd/ ändert):
-# 1. Regeltests (headless), 2. Probelauf des Spiels (~50 s Spielzeit, ohne Grafik),
-# 3. Handy-Screenshots, 4. Android-APK und PC-Versionen. Alles landet unter Releases → „gdpd-testversion“.
+# 1. Regeltests und Modelltests (headless), 2. Probelauf des Spiels (~50 s Spielzeit, ohne Grafik),
+# 3. Handy-Screenshots (die Tour muss ganz durchlaufen), 4. Android-APK und PC-Versionen. Alles landet unter Releases → „gdpd-testversion“.
 # Das Original „God does play dice!“ hat seinen eigenen Workflow (god-does-play-dice.yml).
 
 on:
@@ -50,6 +50,14 @@ jobs:
           if grep -q "SCRIPT ERROR" ../tests.log; then echo "Skriptfehler in den Tests"; exit 1; fi
           grep -q " 0 Fehler" ../tests.log
 
+      - name: Modelltests (alle Arten und Symbole bauen)
+        run: |
+          cd $PROJECT
+          godot --headless --script res://tests/test_models.gd 2>&1 | tee ../models.log || true
+          # „Parameter "m" is null“ kommt vom Dummy-Renderer ohne Grafik (auch im Original) und ist harmlos
+          if grep -n "SCRIPT ERROR" -A3 ../models.log; then echo "Skriptfehler in den Modelltests"; exit 1; fi
+          grep -q "OK test_models" ../models.log || { echo "Modelltests nicht bestanden"; exit 1; }
+
       - name: Probelauf des Spiels (3000 Bilder bei 60 fps, ohne Grafik)
         run: |
           cd $PROJECT
@@ -63,19 +71,29 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          timeout 540 xvfb-run -a -s "-screen 0 1100x2400x24" \
-            godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || true
+          # Die Tour braucht mit Software-Grafik gut 8 Minuten: genug Luft, damit sie nicht mittendrin abbricht
+          timeout 900 xvfb-run -a -s "-screen 0 1100x2400x24" \
+            godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
           ls -la ../shots
           # Prüfungen der Tour mit echter Eingabe: jede Zeile „…CHECK ok=false“ lässt den Build scheitern
           grep -E "CHECK ok=" ../shots.log || true
           if grep -n "SCRIPT ERROR" -A3 ../shots.log; then echo "Skriptfehler in der Screenshot-Tour"; exit 1; fi
           if grep -nE "CHECK ok=false" ../shots.log; then echo "Eine Prüfung der Screenshot-Tour ist fehlgeschlagen"; exit 1; fi
+          # Die Tour muss ganz durchgelaufen sein, und jede Prüfung muss da sein (ein Abbruch druckt sie nicht)
+          grep -qE "^TOUR-DONE checks=[0-9]+ failed=0" ../shots.log || { echo "Die Screenshot-Tour lief nicht bis zum Ende"; exit 1; }
+          for c in tutorial_choice tutorial rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
+                   choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
+            grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }
+          done
+          touch ../shots/.tour_done
 
       - name: Screenshots ins Repo legen (docs/screenshots)
         if: github.event_name == 'push'
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # Nur einen vollständigen Satz Bilder übernehmen
+          test -f shots/.tour_done || { echo "Tour unvollständig: Screenshots bleiben, wie sie sind"; exit 0; }
           mkdir -p $PROJECT/docs/screenshots
           rm -f $PROJECT/docs/screenshots/*.jpg
           cp shots/*.jpg $PROJECT/docs/screenshots/ || true
