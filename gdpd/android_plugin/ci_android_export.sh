@@ -76,14 +76,19 @@ fi
 echo "== APK prüfen: $APK"
 ls -la "$APK"
 unzip -l "$APK" | grep -E "classes[0-9]*\.dex|AndroidManifest.xml|res/drawable.*/ic_gdpd_notify" || true
-if ! unzip -p "$APK" 'classes*.dex' | grep -a -q "Lat/identit/gdpd/reminder/GdpdReminder;"; then
+# Erst in Dateien entpacken: „grep -q“ beendet sich beim ersten Treffer, unzip bekäme dann SIGPIPE,
+# und mit pipefail sähe ein Treffer wie ein Fehlschlag aus.
+DEX_TMP="$(mktemp)"; MAN_TMP="$(mktemp)"
+unzip -p "$APK" 'classes*.dex' > "$DEX_TMP"
+unzip -p "$APK" AndroidManifest.xml | tr -d '\000' > "$MAN_TMP"
+if ! grep -a -q "Lat/identit/gdpd/reminder/GdpdReminder;" "$DEX_TMP"; then
 	echo "Die Klasse GdpdReminder fehlt im APK"
 	exit 1
 fi
 # The binary manifest stores strings as UTF-16: drop the zero bytes, then search
-if ! unzip -p "$APK" AndroidManifest.xml | tr -d '\000' | grep -a -q "org.godotengine.plugin.v2.GdpdReminder"; then
+if ! grep -a -q "org.godotengine.plugin.v2.GdpdReminder" "$MAN_TMP"; then
 	echo "Der Plugin-Eintrag fehlt im Manifest"
 	exit 1
 fi
-unzip -p "$APK" AndroidManifest.xml | tr -d '\000' | grep -a -o "android.permission.[A-Z_]*" | sort -u || true
+grep -a -o "android.permission.[A-Z_]*" "$MAN_TMP" | sort -u || true
 echo "OK: APK mit Erinnerungs-Plugin GdpdReminder"
