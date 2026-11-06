@@ -41,7 +41,8 @@ const BASE = {
 	"choices": [], "fire": true, "rain_start": 0, "rain_every": 0, "gift": false,
 	"wishes": false, "wish_types": [], "wish_from": 2, "wish_every": 3,
 	"scale": false, "income": false, "war": false, "no_war": false, "smog": false, "strike": false,
-	"goal_kinds": [], "goal_green": false, "rule_line": "", "coach": [], "onboard_hint": false,
+	"goal_kinds": [], "goal_green": false, "rule_line": "", "rule_icon": "swords", "coach": [], "coach_demo": "",
+	"onboard_hint": false,
 }
 
 ## Die 7 Tage (Abschnitt 2.2 und 2.3). goal_type: "make" (goal_kinds wachsen goal_target-mal), "wishes",
@@ -49,14 +50,17 @@ const BASE = {
 ## new: die neue Sache des Tages (Aufdecken auf der Ziel-Karte). icon: Symbol der Kachel in der Übersicht.
 const DAYS = [
 	{"title": "Land", "icon": "meadow",
-		"intro": "Am ersten Tag ist alles Wasser und nackte Erde. Mach die Welt grün!",
+		"intro": "Am ersten Tag ist alles Wasser und nackte Erde. Wasser wächst nie – mach aus Erde Wiesen!",
 		"goal_type": "make", "goal_kinds": [FieldData.MEADOW], "goal_target": 8, "goal_icon": "meadow",
 		"goal_text": "Lass 8 Wiesen wachsen", "limit": 15, "stars": [5, 8],
+		"rule_line": "Nur gerade Reihen zählen · Wasser wächst nie", "rule_icon": "info",
 		"unlocked": _L1, "fire": false, "onboard_hint": true,
-		"new": {"key": "drehen", "icon": "meadow", "title": "Neu: Drehen", "text": "Dreh die Scheibe. Drei gleiche in einer Reihe wachsen!"},
+		"new": {"key": "drehen", "icon": "meadow", "title": "Neu: Drehen", "text": "Dreh die Scheibe. Drei Erden in einer geraden Reihe werden eine Wiese!"},
 		"tutorial": {"axis": 0, "layer": 1, "turns": 1},
-		"coach": ["Dreh die Scheibe. Drei gleiche in einer Reihe wachsen!", "Aus drei Erden wird eine Wiese. Super!",
-			"Jetzt du! Finde selbst drei Erden für eine Reihe.", "Gut so! Du bist der Gott dieser Welt."]},
+		"coach": ["Dreh die Scheibe. Drei Erden in einer geraden Reihe werden eine Wiese!", "Aus drei Erden wird eine Wiese. Super!",
+			"Jetzt du! Wisch über die leuchtende Scheibe – oder finde selbst drei Erden.", "Gut so! Du bist der Gott dieser Welt."],
+		# „Schau zu!“ (Eingabe gesperrt): kein Befehl, sondern was die Hand gleich zeigt
+		"coach_demo": "Schau zu: Die Hand dreht eine Scheibe – drei Erden in einer geraden Reihe werden eine Wiese."},
 	{"title": "Pflanzen", "icon": "rain",
 		"intro": "Am zweiten Tag wachsen die ersten Pflanzen.",
 		"goal_type": "make", "goal_kinds": [FieldData.FOREST], "goal_target": 5, "goal_icon": "smallforest",
@@ -117,6 +121,10 @@ const TEXT = {
 	"limit": "in %d Drehungen",
 	"stars3": "★★★ in %d Drehungen",
 	"go": "Los!",
+	"go_demo": "Zeig mir, wie es geht",
+	"demo_caps": "Schau zu! · Gleich bist du dran",
+	"demo_title": "Erst schaust du zu",
+	"demo_text": "Die Hand zeigt dir einen Zug. Danach bist du dran.",
 	"left": "Noch %d Drehungen.",
 	"balance_needed": "Waage ins Grüne bringen",
 	"balance_ok": "Glaube · Waage grün",

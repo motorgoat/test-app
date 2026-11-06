@@ -91,6 +91,37 @@ Wiesen in a row do nothing, on day 3 three Tiere do nothing, and so on. The goal
 needed, and it keeps each day to exactly one new thing. Long-press on such a field adds „Morgen wächst hier mehr.“
 The same check is used by `lines()`, `resolve_faces()`, `touched_corners()`, `stuck()` and the hint.
 
+**A resting row is never silent and never a miss.** A twist that makes a new row of a resting kind does not count as
+a miss and never burns anything (the player turned correctly; the kind may just not grow yet today). The row gets the
+`still` feedback below with `why = "rest"` and the pill „Wiesen wachsen erst ab Tag 2 weiter“ (Wald → Tag 3, Tiere →
+Tag 4, Dorf → Tag 6, Stadt → Tag 7, Großstadt → „im freien Spiel“) in the caps line, and below it what grows today
+instead: „Mach lieber neue Wälder aus Wiesen“ (the kind whose next kind is the resting one and that can row today;
+fallback „Morgen wächst hier mehr.“). One pill only, no second toast card.
+
+### 1.2a Still rows: every visible row of 3 equal fields answers
+
+After every move `GameState._still_rows()` looks at every line of a face (straight and diagonal) whose three fields
+show the same kind, touch a moved or grown field and are new (not exactly there before the move). If such a line
+did not grow, it gets an event `{"type": "still", "why", "kind", "fields", "diag", "late"}` (`"next"` for rest):
+
+| why | when | feedback (3 fields glow, badge, pill) | miss? |
+|---|---|---|---|
+| `rest` | kind rests today (1.2) | lock · „Ruht heute · Wälder wachsen erst ab Tag 3 weiter“ / „Mach lieber neue Wälder aus Wiesen“ | **no** |
+| `diag` | diagonal, and diagonals do not count here (days: never; Mittel: from Wald; Einfach: from Wiese; Schwer: never) | X · „Schräg zählt nicht“ / „Leg die drei gerade nebeneinander“ (free play with diagonals: „Schräg“ / „Schräg zählt erst ab Wald“) | yes (keeps the pool solutions valid), the miss pill says why |
+| `water` | three Wasser | water badge, only when nothing else grew; miss pill „Wasser wächst nie“ / „Bring drei Erden zusammen“ | yes |
+| `finished` | finished kind (free play) | check · „Fertig – Wächst nicht mehr“ | yes |
+| `repeat` / `spent` / `standing` | twisted back / grew together (Einfach) / stood there before and was only moved | undo / check · „Zurückgedreht“ / „Dreh eine andere Scheibe“, „Schon gewachsen“ / „Bau eine neue Reihe mit einem anderen Feld“, „Stand schon da“ / „Bring ein neues Feld in die Reihe“ | yes |
+
+Every pill names the reason in the caps line and **what to do instead** in the big line (long lines use a smaller
+font; miss and still pills stay about 1.7–2 s). On day 1 (no fire) the miss pill uses the row's badge icon (water, X,
+check …), not the fire symbol.
+
+The badge and glow stay about 2.6 s (or until the next drag) and never block input. If the same twist grew something
+else, the pill waits until the merge pill was seen. At most one still pill per **round** (`World.round_no`, counted
+in `_on_round_resolved`): rain is its own round, although it is not a twist and keeps `GameState.turn`, so a resting
+row finished by rain right after a twist that already showed a pill still gets its own pill. On day 1 (no fire) a twist that grows nothing still sends a
+`miss` event with `counted = false`, so the UI says why („Nichts gewachsen“, „Wasser wächst nie“ …).
+
 ### 1.3 Sticker types (cube physics, important for boards)
 
 A straight row on a face is always **corner–edge–corner** or **edge–centre–edge** (a diagonal is
@@ -212,18 +243,36 @@ Start boards come from the pools (section 6). Composition, the rest is Wasser:
 All boards: no ready row of a kind that can row today; kinds placed by sticker type (1.3).
 
 **Day 1 – Land (the tutorial)**
-- Intro card: „Am ersten Tag ist alles Wasser und nackte Erde. Mach die Welt grün!“
-- Goal: „Lass 8 Wiesen wachsen“ (chip: `meadow` icon, „3/8“).
+- Intro card: „Am ersten Tag ist alles Wasser und nackte Erde. Wasser wächst nie – mach aus Erde Wiesen!“
+- Goal: „Lass 8 Wiesen wachsen“ (chip: `meadow` icon, „3/8“). Rule line on the goal card (green, `info` icon):
+  „Nur gerade Reihen zählen · Wasser wächst nie“ – the two rules behind almost every „3 in a row, nothing happens“
+  (random play on the day 1 boards: about 40 % of twists line up 3 Wasser, about 24 % 3 Erden diagonally).
 - Tutorial flow (replaces the v1.1 tutorial; no card, no income):
-  1. A hand shows the swipe of slice x = 1. Coach: „Dreh die Scheibe. Drei gleiche in einer Reihe wachsen!“
-     The player swipes; the new Erde row grows a Wiese. Coach: „Aus drei Erden wird eine Wiese. Super!“
-  2. „Jetzt du! Finde selbst drei Erden für eine Reihe.“ The onboarding auto-hint (`ONBOARD_HINT_SECONDS`) glows.
+  0. The goal card announces the demo: the „Neu“ row shows the hand with „Erst schaust du zu – Die Hand zeigt dir
+     einen Zug. Danach bist du dran.“ and the button reads „Zeig mir, wie es geht“ (instead of „Los!“).
+  1. „Schau zu! · Gleich bist du dran“ – 0.25 s after the button, before the player can do anything, input is locked
+     (cube and HUD) and the hand plays **one** real move of slice x = 1 by itself (finger swipe, the slice turns all
+     the way, the new Erde row grows a Wiese). The lane says what happens, it gives no order: „Schau zu: Die Hand
+     dreht eine Scheibe – drei Erden in einer geraden Reihe werden eine Wiese.“ (`coach_demo`). A tap or swipe
+     during the lock does not count, but the lane hops (`DayUI.blocked_tap`), so the tap visibly arrives.
+     This demo move is free (`GameState.gift_twists`): it costs no twist and no star.
+  2. The moment the Wiese appears, input unlocks (no waiting for the camera) and „Aus drei Erden wird eine Wiese.
+     Super!“ shows; 2.6 s later „Jetzt du! Wisch über die leuchtende Scheibe – oder finde selbst drei Erden.“ From
+     here on **no code path moves a slice without the player** (`World.can_self_move()`: only day 1, tutorial board,
+     no counted twist and no touch yet).
+     Help is the slice glow (after 1.2 s idle until the player's own first Wiese), the onboarding auto-hint
+     (`ONBOARD_HINT_SECONDS`) and the free „Tipp“ – never a moving slice.
   3. After the 2nd growth: „Gut so! Du bist der Gott dieser Welt.“ – then quiet play until the goal.
   - The camera turns to the first Wiese (it may grow on a side face), so the „it grew!“ moment is not missed.
-  - The hand and the slice glow only ever show a twist that grows: if the first twist was a different one and the
-    guided slice no longer makes a Wiese, `Game.tutorial_move()` returns a twist that does (top-face slices first),
+  - The slice glow only ever shows a twist that grows: `Game.tutorial_move()` returns one (top-face slices first),
     or `{}` if none does. After the first twist that grows nothing the dock (with the free „Tipp“) comes in.
-- The guided twist counts as twist 1. No fire, so nothing can go wrong.
+  - The demo runs **once**: when its Wiese appears, `coach_seen["day1_demo"]` is saved. Leaving day 1 through the
+    menu and coming back (still board 0) gives no demo and no lock: the goal card says „Los!“ and the player starts
+    at step 2 (glow only). It runs again only with „Tutorial nochmal“ (clears `coach_seen`) or an explicitly chosen
+    board 0. Retry and next board are not the tutorial board: no demo. If the demo cannot run (nothing visible, a
+    modal open, the app paused), input unlocks at once; after 6 s it unlocks as soon as nothing moves, and it never
+    stays locked longer than 12 s. Overview, new game, win and loss always unlock.
+- No fire, so nothing can go wrong.
 - Fail: twists used up → fail card (practically never: hint bot 100 %, weak bot 90 %).
 
 **Day 2 – Pflanzen**
@@ -388,7 +437,8 @@ A modal card over the cube (the cube already shows the start board):
   „in 14 Drehungen“.
 - If the day has a new thing: a „Neu“ row with the icon and one line (the unlock reveal, 4.6).
 - Star line: „★★★ in 8 Drehungen“.
-- Button „Los!“. Nothing else.
+- Button „Los!“. Nothing else. (Day 1 with the demo still to come: the „Neu“ row announces it and the button reads
+  „Zeig mir, wie es geht“, see 2.3.)
 
 ### 4.3 Goal chip (always on screen)
 
@@ -582,8 +632,16 @@ Reading:
    rain, Gewitter or Flut; Paradies only via the Tiere card.
 2. Erde rows: 3 Erde in a new row → the target becomes Wiese, the other two stay Erde; a standing Erde row does not
    count; Erde rows in free play too.
-3. Rests today (1.2): with `unlocked = {Erde, Wiese}` a new Wiese row does nothing and counts as a miss; with Wald
-   unlocked it grows.
+3. Rests today (1.2): with `unlocked = {Erde, Wiese}` a new Wiese row does not grow, sends `still`/`rest` and is
+   **not** a miss (nothing burns, also on every other day with its resting kind); with Wald unlocked it grows.
+3a. Still rows (1.2a): day 1 twist without growth sends `miss` with `counted = false`; a diagonal on a day sends
+   `still`/`diag` and the miss says `diag`; water rows `still`/`water`; twist-back `still`/`repeat`.
+3b. Fuzz (`test_still_fuzz`): all pool boards of all days plus free play (Einfach, Mittel, Schwer), random twists
+   (25 % twist-back): every new visible line of 3 equal fields through a moved field grows or appears in a
+   `still`/`repeat` event; every twist without growth sends `miss` or `still`; a resting row never adds a miss.
+3c. Guard (`test_self_move_guard`): `World.can_self_move()` is true only on day 1, tutorial board, before the first
+   counted twist and before the first touch (a touch during the locked demo does not count); after it `auto_twist`,
+   `demo_move` and `demo_twist` refuse; „Tutorial nochmal“ allows the one demo again, other boards and free play never.
 4. Choices per day: day 4 config → a Wiese row makes Wald and `card == -1`; day 5 → card for Wiese; day 6 → card for
    Dorf; day 7 → card for Stadt; Großer Wald never has a card; free play → Tiere card (Hütte/Paradies).
 5. `made` counting: row, cascade (both kinds), face (9), rain, fulfilled wish count; fire, war, smog, Gewitter and
@@ -617,10 +675,13 @@ Add to the tour and to the expected list in `.github/workflows/gdpd.yml`:
 | name | what it checks |
 |---|---|
 | `day_overview` | 7 tiles, day 1 open, days 2–7 locked, „Freies Spiel“ locked |
-| `day1_goal_card` | goal card text „Lass 8 Wiesen wachsen“, „in 15 Drehungen“ |
-| `day1_tutorial` | guided swipe of slice x = 1 grows a Wiese; chip shows „1/8“ |
-| `goal_chip` | chip progress and twists left update after a twist |
-| `day1_your_turn` | „Jetzt du!“ lane, hand gone, dock with „Tipp“ visible |
+| `day1_goal_card` | goal card text „Lass 8 Wiesen wachsen“, „in 15 Drehungen“, rule line (gerade / Wasser), demo announced („Zeig mir, wie es geht“, „Erst schaust du zu“) |
+| `day1_tutorial` | „Schau zu! · Gleich bist du dran“ with the `coach_demo` sentence: input locked, a real swipe during the lock is ignored, the hand plays the one demo move (slice x = 1) which grows a Wiese; chip shows „1/8“ |
+| `goal_chip` | chip progress updates; the demo move costs no twist |
+| `day1_your_turn` | „Jetzt du!“ lane, hand gone, dock with „Tipp“ visible, input unlocked |
+| `no_auto_twist_after_input` | after a real swipe that grows nothing, 30 s without input: no slice moves, no twist is counted, `auto_twist` refuses |
+| `resting_row_feedback` | day 2: a real swipe makes a new row of 3 Wälder (resting): glow + lock badge, pill caps „Ruht heute · Wälder wachsen erst ab Tag 3 weiter“ with „Mach lieber neue Wälder aus Wiesen“, misses unchanged |
+| `resting_row_rain` | right after that, rain on a Wiese finishes a second resting Wald row (same `turn`): it still gets its own pill, no miss |
 | `day_success` | success card with stars and „Weiter zu Tag 2 · Pflanzen“ (tour plays with the hint) |
 | `day_next` | day 2 goal card with „Neu: Regen“ |
 | `day2_rain_reveal` | „Neu: Regen“ reveal, rain on a Wiese counts for the goal |

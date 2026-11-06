@@ -378,6 +378,7 @@ func setup(w: World) -> void:
 	world.wish_made_shown.connect(_on_wish_made)
 	world.income_shown.connect(_on_income)
 	world.punish_shown.connect(_on_punish)
+	world.still_shown.connect(_on_still)
 	world.cancel_zone = cancel_strip
 	Game.choice_needed.connect(_on_choice_needed)
 	Game.choice_made.connect(_on_choice_made)
@@ -442,6 +443,44 @@ func _build() -> void:
 	_build_confirm()
 	_build_over()
 	_build_tip()      # ganz oben: Erklärungen gehen auch in Dialogen
+
+
+## Tag 1 „Schau zu!“: Würfel und Oberfläche kurz sperren (eine unsichtbare Fläche über allem fängt jedes Tippen).
+## Wird immer wieder freigegeben (day_ui: nach der Vorführung, Übersicht, neues Spiel, Sieg, Niederlage).
+var input_block: Control = null
+
+
+func set_input_locked(on: bool) -> void:
+	if world != null:
+		world.input_locked = on
+		if on:
+			world._touches.clear()
+	if on and input_block == null:
+		input_block = Control.new()
+		input_block.name = "InputBlock"
+		input_block.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		input_block.mouse_filter = Control.MOUSE_FILTER_STOP
+		input_block.gui_input.connect(_on_block_input)
+		root.add_child(input_block)
+	if input_block != null:
+		input_block.visible = on
+		if on:
+			root.move_child(input_block, root.get_child_count() - 1)
+
+
+func input_locked() -> bool:
+	return world != null and world.input_locked
+
+
+## Ein Tippen/Wischen während der Sperre: zählt nicht, aber die „Schau zu!“-Zeile antwortet sichtbar.
+func _on_block_input(ev: InputEvent) -> void:
+	var press := false
+	if ev is InputEventMouseButton:
+		press = (ev as InputEventMouseButton).pressed
+	elif ev is InputEventScreenTouch:
+		press = (ev as InputEventScreenTouch).pressed
+	if press and day_ui != null:
+		day_ui.blocked_tap()
 
 
 func _layer() -> Control:
@@ -2893,47 +2932,21 @@ func _on_tutorial_tap() -> void:
 		_auto_at = minf(_auto_at, _time)
 
 
-## Tutorial-Ablauf pro Frame. Robust: Der erste Zug startet sicher von selbst (auch nach
-## „Tutorial neu“), und klappt das nicht, darf man nach kurzer Zeit selbst drehen.
+## Das alte Schritt-für-Schritt-Tutorial ist weg (Tag 1 ist das Tutorial). Hier bewegte sich früher der Würfel von
+## selbst (Hand alle paar Sekunden, Auto-Zug): Das gibt es nicht mehr. Die einzige Vorführung spielt day_ui ganz am
+## Anfang von Tag 1, solange die Eingabe gesperrt ist (_play_demo_move).
 func _tutorial_tick() -> void:
-	var tw_wait := _tut_wait()
-	if tw_wait == "twist":
-		# Die Hand zeigt den Zug, bis man selbst dreht (alle paar Sekunden wieder)
-		if _time >= _demo_at and world._idle > 1.0 and not _twisting and not world.animating and not Game.busy and not modal_bg.visible:
-			_demo_at = _time + 4.0
-			_play_demo()
-		return
-	if tw_wait != "auto":
-		return
-	if _auto_at == INF and not _auto_fired:
-		_auto_at = _time + 1.6
-		_tut_step_at = _time
-		world.focus_place(Vector3i(0, 1, 0))
-	if _auto_fired:
-		if _time - _tut_step_at > 14.0 and not world.animating and not Game.busy:
-			Game.tutorial_next()      # Zug lief, Schritt ging aber nicht weiter: freigeben
-		return
-	if _time < _auto_at:
-		return
-	if modal_bg != null and modal_bg.visible:
-		return
-	if world.auto_twist(0, 1, 1):
-		_auto_fired = true
-		_auto_at = INF
-	elif _time - _tut_step_at > 6.0 and not world.animating and not Game.busy:
-		# Notausgang: nie festhängen, dann zeigt die Hand den Zug und man dreht selbst
-		push_warning("Tutorial: Auto-Zug blockiert, gebe Steuerung frei")
-		_auto_fired = true
-		Game.tutorial_next()
+	pass
 
 
-## Tutorial: den Zug vorzeigen (Finger wischt, Scheibe dreht ein Stück an). mv: {"axis", "layer", "turns"}
-## (leer = der alte Tutorial-Zug). Die Hand wischt auf der ersten sichtbaren Seite, auf der die Scheibe liegt.
-func _play_demo(mv: Dictionary = {}) -> void:
+## Tag 1 „Schau zu!“: Die Hand spielt den ersten Zug vor (Finger wischt, die Scheibe dreht ganz, die Reihe wächst).
+## mv: {"axis", "layer", "turns"}. Die Hand wischt auf der ersten sichtbaren Seite, auf der die Scheibe liegt.
+## Nur, solange World.can_self_move() gilt (vor jeder Eingabe). false = ging nicht (dann keine Vorführung).
+func _play_demo_move(mv: Dictionary) -> bool:
 	var gs := Game.state
 	var axis := int(mv.get("axis", 0))
 	var layer := int(mv.get("layer", 1))
-	var sgn := -1.0 if int(mv.get("turns", 1)) < 0 else 1.0
+	var turns := int(mv.get("turns", 1))
 	var a: FieldData = null
 	var b: FieldData = null
 	var mid: FieldData = null
@@ -2956,14 +2969,14 @@ func _play_demo(mv: Dictionary = {}) -> void:
 			break
 		a = null
 	if a == null:
-		return
+		return false
 	var p0: Vector2 = sa["pos"]
 	var p1: Vector2 = sb["pos"]
-	_demo_until = _time + 1.6           # solange ist es eine Vorführung (kein Abbrechen-Streifen)
-	var dir := world.demo_twist(mid.id, p1 - p0, axis, layer, sgn)
+	_demo_until = _time + 2.0           # solange ist es eine Vorführung (kein Abbrechen-Streifen)
+	var dir := world.demo_move(mid.id, p1 - p0, axis, layer, turns)
 	if dir == Vector2.ZERO:
 		_demo_until = 0.0
-		return
+		return false
 	var from := p0 if dir.dot(p1 - p0) > 0.0 else p1
 	var to := p1 if from == p0 else p0
 	tut_finger.position = from - tut_finger.size * 0.5
@@ -2972,8 +2985,9 @@ func _play_demo(mv: Dictionary = {}) -> void:
 	var tw := _fx(tut_finger, "v")
 	tw.tween_property(tut_finger, "modulate:a", 1.0, 0.18)
 	tw.parallel().tween_property(tut_finger, "scale", Vector2.ONE, 0.18)
-	tw.tween_property(tut_finger, "position", to - tut_finger.size * 0.5, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(tut_finger, "position", to - tut_finger.size * 0.5, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(tut_finger, "modulate:a", 0.0, 0.3)
+	return true
 
 
 ## Ein Würfelplatz auf der Seite n: Koordinate layer auf der Drehachse, off (-1, 0, 1) auf der freien Achse.
@@ -3474,7 +3488,7 @@ func _fill_sheet(fid: int) -> void:
 
 ## kind: merge, combo, age, face, miss, fire. Ein neuer Aufruf ersetzt die aktuelle Pille.
 ## Wichtige Pillen (Krieg, Wunsch, Smog, Strafe) bleiben kurz stehen; was dann kommt, wartet dahinter.
-const BANNER_KEEP = {"war": 1.3, "wish": 1.3, "smog": 1.2, "punish": 1.1, "fire": 1.0}
+const BANNER_KEEP = {"war": 1.3, "wish": 1.3, "smog": 1.2, "punish": 1.1, "fire": 1.0, "still": 1.2}
 
 
 func _show_banner(kind: String, caps: String, text: String, icon_name: String) -> void:
@@ -3501,6 +3515,7 @@ func _show_banner(kind: String, caps: String, text: String, icon_name: String) -
 	banner_caps.visible = caps != ""
 	banner_caps.add_theme_color_override("font_color", cc)
 	banner_text.text = text
+	banner_text.add_theme_font_size_override("font_size", 24 if text.length() <= 28 else 20)      # lange Ratschläge passen noch
 	banner_icon.texture = Style.icon(icon_name)
 	banner.size = Vector2.ZERO
 	banner.reset_size()
@@ -3511,6 +3526,8 @@ func _show_banner(kind: String, caps: String, text: String, icon_name: String) -
 	var hold := 1.6 if kind == "age" or kind == "combo" else 1.1
 	if kind == "welcome":
 		hold = 2.5
+	elif kind == "miss" or kind == "still":
+		hold = 2.0 if caps.length() > 24 else 1.7        # Grund und Ratschlag: Zeit zum Lesen
 	var tw := _fx(banner, "t")
 	tw.tween_interval(hold)
 	tw.tween_callback(_disappear.bind(banner, Vector2(0, -16), 0.22, false))
@@ -3539,14 +3556,106 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 		Style.haptic(Style.HAPTIC_MERGE)
 
 
+## Warum ist nichts gewachsen? [Kopfzeile = der Grund, Satz = was man stattdessen tun kann] für die Pille
+## (why aus GameState._miss_why / still).
+func _miss_text(why: String) -> Array:
+	if why == "repeat":
+		return ["Zurückgedreht", "Dreh eine andere Scheibe"]
+	if why == "spent":
+		return ["Schon gewachsen", "Bau eine neue Reihe mit einem anderen Feld"]
+	if why == "standing":
+		return ["Stand schon da", "Bring ein neues Feld in die Reihe"]
+	if why == "finished":
+		return ["Fertig", "Wächst nicht mehr"]
+	if why == "diag":
+		if _diag_text() == "Nur gerade Reihen zählen":
+			return ["Schräg zählt nicht", "Leg die drei gerade nebeneinander"]
+		return ["Schräg", _diag_text()]
+	if why == "water":
+		return ["Wasser wächst nie", "Bring drei Erden zusammen"]
+	return ["", "Nichts gewachsen"]
+
+
+## Ruht die Art k: Was wächst heute stattdessen? „Mach lieber neue Wälder aus Wiesen“ (sonst „Morgen wächst hier mehr.“).
+func _rest_action(k: int) -> String:
+	var gs := Game.state
+	if gs != null:
+		for p in FieldData.KIND_COUNT:
+			if int(FieldData.NEXT[p]) == k and gs.can_row(p):
+				return "Mach lieber neue %s aus %s" % [FieldData.kind_plural(k), FieldData.kind_plural(p)]
+	return str(Days.TEXT["rest"])
+
+
+## Schräge Reihen: an den Tagen nie, im freien Spiel je nach Stufe.
+func _diag_text() -> String:
+	var gs := Game.state
+	if gs == null or gs.is_day() or not gs.diagonals:
+		return "Nur gerade Reihen zählen"
+	for k in FieldData.KIND_COUNT:
+		if FieldData.can_row(k) and FieldData.tier(k) == gs.diag_from:
+			return "Schräg zählt erst ab %s" % FieldData.kind_name(k)
+	return "Schräg zählt hier nicht"
+
+
+## Ab welchem Tag wächst die ruhende Art k weiter? Satz für die Pille.
+func _rest_text(k: int, nx: int) -> String:
+	var name := FieldData.kind_plural(k)
+	name = name.substr(0, 1).to_upper() + name.substr(1)
+	var from := Game.day_no + 1 if Game.in_day() else 1
+	for d in range(maxi(1, from), Days.count() + 1):
+		if (Days.config(d).get("unlocked", []) as Array).has(nx):
+			return "%s wachsen erst ab Tag %d weiter" % [name, d]
+	return "%s wachsen erst im freien Spiel weiter" % name
+
+
+## Eine stille Reihe (World._still_fx): drei gleiche, die nicht wachsen. Die Felder leuchten schon mit Abzeichen;
+## hier steht kurz, warum. Kam ein Fehlversuch, sagt dessen Pille den Grund (keine zweite Pille).
+var _still_said := -1          # in dieser Runde schon eine Pille für eine stille Reihe (World.round_no; Regen ist eine eigene Runde)
+
+
+func _on_still(info: Dictionary) -> void:
+	var why := str(info.get("why", ""))
+	if why == "other" or why == "water":
+		return            # Wasser: nur das Abzeichen (und der Grund in der Fehlversuch-Pille)
+	if bool(info.get("miss", false)) and why != "rest":
+		return
+	if not bool(info.get("visible", true)) or input_locked():
+		return            # Reihe gerade nicht zu sehen, oder die Vorführung von Tag 1 läuft (dort zählt nur das Wachsen)
+	var rnd := int(info.get("round", -1))
+	if Game.state == null or _still_said == rnd:
+		return
+	_still_said = rnd
+	var caps := ""
+	var text := ""
+	var icon_name := str(World.STILL_BADGE.get(why, "info"))
+	if why == "rest":
+		# Kopfzeile: warum (ruht bis Tag n), Satz: was heute stattdessen wächst (eine Pille, keine zweite Karte)
+		caps = "Ruht heute · " + _rest_text(int(info.get("kind", 0)), int(info.get("next", -1)))
+		text = _rest_action(int(info.get("kind", 0)))
+	else:
+		var mt := _miss_text(why)
+		caps = str(mt[0])
+		text = str(mt[1])
+	Style.haptic(Style.HAPTIC_TAP)
+	if bool(info.get("grew", false)) and banner.visible:
+		# Erst die Jubel-Pille fürs Gewachsene sehen lassen, dann diese
+		_banner_next = ["still", caps, text, icon_name]
+		var wait := _fx(banner, "q")
+		wait.tween_interval(0.8)
+		wait.tween_callback(_banner_flush)
+		return
+	_show_banner("still", caps, text, icon_name)
+
+
 ## Fehlversuch: Pille zeigen, dann fliegt eine Flamme oben in ihren Platz.
 func _on_miss(_fid: int, count: int, why: String = "") -> void:
 	if Game.tutorial():
 		return
 	if Game.in_day() and Game.state.no_fire:
-		# Ohne Feuer (Tag 1) zählen Fehlversuche nicht: nur kurz sagen, dass nichts gewachsen ist
+		# Ohne Feuer (Tag 1) zählen Fehlversuche nicht: nur kurz sagen, warum nichts gewachsen ist
 		_miss_streak += 1
-		_show_banner("miss", "", "Nichts gewachsen", "fire_off")
+		var mt0 := _miss_text(why)
+		_show_banner("miss", str(mt0[0]), str(mt0[1]), str(World.STILL_BADGE.get(why, "info")))
 		return
 	_miss_streak += 1
 	# Die Flammen oben erscheinen mit dem ersten Fehlversuch (die Flamme fliegt hinein)
@@ -3555,17 +3664,16 @@ func _on_miss(_fid: int, count: int, why: String = "") -> void:
 	_coach_once("miss", flame_chip)
 	if count < Balance.FIRE_AFTER:
 		# Nur zurückgedreht? Dann sagen, warum die Reihe diesmal nicht wächst
-		if why == "repeat":
-			_show_banner("miss", "Zurückgedreht · Erst anderer Zug", "Zählt noch nicht", "fire_off")
-		elif why == "spent":
-			_show_banner("miss", "Schon gewachsen", "Zählt nur einmal", "fire_off")
-		else:
-			_show_banner("miss", "", "Nichts gewachsen", "fire_off")
+		# Sagen, warum die Reihe diesmal nicht wächst (zurückgedreht, schon gewachsen, schräg, Wasser …)
+		var mt := _miss_text(why)
+		_show_banner("miss", str(mt[0]), str(mt[1]), "fire_off")
 		Style.haptic(Style.HAPTIC_TAP)
 	elif why == "repeat":
 		_on_message("Nur zurückgedreht – das zählt nicht.", "info")       # gleich brennt es: sagen, warum
-	elif why == "spent":
+	elif why == "spent" or why == "standing":
 		_on_message("Diese Reihe ist schon gewachsen – sie zählt nur einmal.", "info")
+	elif why == "diag":
+		_on_message(_diag_text() + " – schräg wächst hier nichts.", "info")
 	var slot: TextureRect = miss_flames[clampi(count - 1, 0, miss_flames.size() - 1)]
 	slot.set_meta("lock", _time + 1.2)
 	var fl := TextureRect.new()

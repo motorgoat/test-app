@@ -71,6 +71,7 @@ var gc_goal: Label
 var gc_limit: Label
 var gc_rule: PanelContainer
 var gc_rule_label: Label
+var gc_rule_icon: TextureRect
 var gc_new: PanelContainer
 var gc_new_tile: PanelContainer
 var gc_new_title: Label
@@ -127,9 +128,12 @@ var fx_layer: Control
 var _info: Dictionary = {}          # day_info() beim Start des Versuchs
 var _hold: Dictionary = {}          # Dinge, die erst nach „Los!“ an ihren Platz fliegen ("rain", "scale", "strike", "hint", "dock")
 var _playing := false               # „Los!“ getippt, der Tag läuft
-var _tut := 0                       # Tag 1 (Tutorial-Brett): 0 aus, 1 Hand zeigt den Zug, 2 „Jetzt du!“, 3 fertig
+var _tut := 0                       # Tag 1 (Tutorial-Brett): 0 aus, 1 „Schau zu!“ (die Hand spielt den ersten Zug), 2 „Jetzt du!“, 3 fertig
 var _tut_at := 0.0
-var _demo_at := INF
+var _demo_at := INF                 # dann startet die eine Vorführung (INF = keine mehr)
+var _demo_done := false             # die Vorführung lief (oder ging nicht): nie wieder in diesem Versuch
+var _demo_started := 0.0
+var _lock_at := 0.0                 # seit dann ist die Eingabe für die Vorführung gesperrt
 var _tut_misses := 0
 var _last_progress := -1
 var _last_left := -1
@@ -436,14 +440,15 @@ func _build_goal_card() -> void:
 	gv.add_child(gc_goal)
 	gc_limit = ui._label("", 17, Style.INK_2, Style.W_LABEL)
 	gv.add_child(gc_limit)
-	# Regel (Tag 6: „Kein Krieg!“)
+	# Regel (Tag 1: „Nur gerade Reihen zählen · Wasser wächst nie“, Tag 6: „Kein Krieg!“)
 	gc_rule = PanelContainer.new()
 	gc_rule.add_theme_stylebox_override("panel", Style.box(Style.FIRE_TINT, 18, 14, 6))
 	gc_rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	gc_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var rh := ui._hbox(8)
 	gc_rule.add_child(rh)
-	rh.add_child(ui._icon("swords", 22))
+	gc_rule_icon = ui._icon("swords", 22)
+	rh.add_child(gc_rule_icon)
 	gc_rule_label = ui._label("Kein Krieg!", 16, Style.FIRE_DEEP, Style.W_BOLD)
 	gc_rule_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	rh.add_child(gc_rule_label)
@@ -614,6 +619,7 @@ func show_overview(animate: bool = true) -> void:
 	_end_gen += 1
 	_playing = false
 	_tut = 0
+	_unlock_input()
 	ui._hide_finger()
 	_fill_overview()
 	ui.top.visible = false
@@ -749,6 +755,9 @@ func _on_new_game() -> void:
 	_hold = {}
 	_playing = false
 	_tut = 0
+	_demo_at = INF
+	_demo_done = false
+	_unlock_input()
 	_last_progress = -1
 	_last_left = -1
 	_warned_fire = false
@@ -803,13 +812,25 @@ func _fill_goal_card(info: Dictionary) -> void:
 	var rule := str(info.get("rule_line", ""))
 	gc_rule.visible = rule != ""
 	gc_rule_label.text = rule
+	# Krieg: rot; eine Spielregel (Tag 1): grün
+	var war_rule := str(info.get("rule_icon", "swords")) == "swords"
+	gc_rule_icon.texture = Style.icon(str(info.get("rule_icon", "swords")))
+	gc_rule.add_theme_stylebox_override("panel", Style.box(Style.FIRE_TINT if war_rule else Style.LEAF_TINT, 18, 14, 6))
+	gc_rule_label.add_theme_color_override("font_color", Style.FIRE_DEEP if war_rule else Style.LEAF_DEEP)
 	var nw: Dictionary = info.get("new", {})
-	gc_new.visible = not nw.is_empty() and n > 1
-	if gc_new.visible:
+	var demo := demo_due()
+	gc_new.visible = (not nw.is_empty() and n > 1) or demo
+	if demo:
+		# Tag 1, ganz am Anfang: Die Karte sagt vorher, dass erst die Hand einen Zug zeigt (dann wundert sich niemand)
+		ui._set_tile(gc_new_tile, "hand", Style.SURFACE)
+		gc_new_title.text = str(Days.TEXT["demo_title"])
+		gc_new_text.text = str(Days.TEXT["demo_text"])
+	elif gc_new.visible:
 		var ic := str(nw.get("icon", "star"))
 		ui._set_tile(gc_new_tile, ic, Style.SURFACE)
 		gc_new_title.text = str(nw.get("title", ""))
 		gc_new_text.text = str(nw.get("text", ""))
+	gc_go.text = str(Days.TEXT["go_demo"]) if demo else str(Days.TEXT["go"])
 	var st: Array = info.get("stars", [0, 0])
 	gc_star_label.text = Days.limit_line(int(st[0]))
 	var mercy := int(info.get("mercy", 0))
@@ -817,17 +838,43 @@ func _fill_goal_card(info: Dictionary) -> void:
 	gc_mercy.text = str(Days.TEXT["mercy"]) % mercy
 
 
+## Zeigt die Hand gleich den ersten Zug vor? Nur ganz am Anfang: Tag 1 auf dem Tutorial-Brett, solange die
+## Vorführung noch nie eine Wiese gezeigt hat (oder „Tutorial“ im Menü / ein ausdrücklich gewähltes Brett 0).
+func demo_due() -> bool:
+	return Game.day_tutorial() and Game.state.twists == 0 and (not Game.coach_seen.has("day1_demo") or Game._board_explicit)
+
+
 func _on_go() -> void:
 	ui._close_modal()
 	_playing = true
 	_tut_at = ui._time
 	var n := int(_info.get("day", 0))
-	if Game.day_tutorial():
+	if demo_due():
+		# „Schau zu!“: Ganz am Anfang, bevor man etwas tun kann, spielt die Hand genau einen Zug vor (die Reihe
+		# wächst). Die Ziel-Karte hat das angekündigt („Zeig mir, wie es geht“). Solange ist die Eingabe gesperrt
+		# (ein Tippen lässt die Zeile kurz hüpfen); sobald die Wiese da ist: frei – und der Würfel bewegt sich nie
+		# mehr von selbst.
 		_tut = 1
 		_tut_misses = 0
-		_demo_at = ui._time + 0.9
+		_demo_done = false
+		_demo_at = ui._time + 0.25
+		_lock_at = ui._time
+		ui.set_input_locked(true)
 		var c: Array = _info.get("coach", [])
-		_show_lane(str(c[0]) if not c.is_empty() else "", "Du bist dran", "touch", Style.LEAF_TINT, INF)
+		var demo_line := str(_info.get("coach_demo", ""))
+		if demo_line == "" and not c.is_empty():
+			demo_line = str(c[0])
+		_show_lane(demo_line, str(Days.TEXT["demo_caps"]), "hand", Style.LEAF_TINT, INF)
+		ui.world.focus_place(Vector3i(0, 1, 0))
+		return
+	if Game.day_tutorial():
+		# Die Vorführung lief schon einmal (Tag 1 verlassen und wieder da): keine Sperre, keine Hand – gleich
+		# „Jetzt du!“ mit der leuchtenden Scheibe
+		_tut = 2
+		_tut_misses = 0
+		_demo_done = true
+		_demo_at = INF
+		_tut_your_turn(_end_gen)
 		ui.world.focus_place(Vector3i(0, 1, 0))
 		return
 	var delay := 0.35
@@ -1021,6 +1068,11 @@ func _on_day_progress(_status: Dictionary) -> void:
 		_tut = 2
 		ui._hide_finger()
 		_demo_at = INF
+		# Die Wiese ist da: sofort frei (kein Warten auf die Kamera), und die Vorführung kommt nie wieder
+		_unlock_input()
+		if not Game.coach_seen.has("day1_demo"):
+			Game.coach_seen["day1_demo"] = true
+			Game.save_settings()
 		# Die erste Wiese nicht verpassen: Die Kamera dreht zu ihr (liegt sie auf einer Seite, schräg von oben)
 		if _goal_field >= 0:
 			ui.world.focus_field(_goal_field)
@@ -1036,6 +1088,7 @@ func _on_day_progress(_status: Dictionary) -> void:
 func _tut_your_turn(gen: int) -> void:
 	if gen != _end_gen or not Game.in_day() or Game.over:
 		return
+	_unlock_input()          # (schon frei, seit die Wiese da ist; nur zur Sicherheit)
 	_hold.erase("dock")
 	ui.refresh()
 	if not ui.dock.visible:
@@ -1057,11 +1110,11 @@ func _on_move_done(kind: String) -> void:
 			ui.refresh()
 			if not ui.dock.visible:
 				ui._dock_in(0.0)
+		# Nur Text und Leuchten (die Scheibe bewegt sich nicht von selbst)
 		if Game.tutorial_move().is_empty():
 			_show_lane("Tipp auf „Tipp“ – dann leuchtet eine gute Reihe.", "Du bist dran", "bulb", Style.LEAF_TINT, INF)
 		else:
 			_show_lane("Fast! Wisch über die leuchtende Reihe.", "Du bist dran", "touch", Style.LEAF_TINT, INF)
-		_demo_at = ui._time + 1.0
 	elif lane.visible and _lane_until == INF and _tut != 1 and _tut != 2:
 		_hide_lane()
 	elif lane.visible and _tut == 0 and _lane_until != INF:
@@ -1147,20 +1200,51 @@ func _process(delta: float) -> void:
 	if lane.visible and ui._time > _lane_until:
 		_hide_lane()
 	if not _playing or not Game.in_day() or Game.over:
+		if ui.input_locked():
+			_unlock_input()
 		return
-	if _tut == 1:
-		# Die Hand zeigt den Zug (immer wieder), bis man selbst dreht. Dreht man lange nicht, dreht er sich selbst.
-		var w := ui.world
-		if ui._time >= _demo_at and w._idle > 0.8 and not ui._twisting and not w.animating and not Game.busy and not ui.modal_bg.visible:
-			_demo_at = ui._time + 4.2
+	var w := ui.world
+	if _tut == 1 and not _demo_done and ui._time >= _demo_at and ui.input_locked():
+		# Die eine Vorführung (nur vor jeder Eingabe; wartet, solange etwas offen ist oder sich bewegt)
+		if not w.animating and not Game.busy and w._mode == "" and not ui.modal_bg.visible:
+			_demo_done = true
+			_demo_at = INF
+			_demo_started = ui._time
 			var demo := Game.tutorial_move()      # nur ein Zug, der auch etwas wachsen lässt
-			if not demo.is_empty():
-				ui._play_demo(demo)
-		if Game.state.twists == 0 and ui._time - _tut_at > 16.0 and not ui._twisting and not w.animating and not Game.busy:
-			var mv := Game.tutorial_move()
-			if not mv.is_empty() and w.auto_twist(int(mv["axis"]), int(mv["layer"]), int(mv["turns"])):
-				ui._hide_finger()
-				_demo_at = INF
+			if demo.is_empty() or not w.can_self_move() or not ui._play_demo_move(demo):
+				_demo_failed()
+	if ui.input_locked():
+		# Notausgang: Die Eingabe bleibt nie hängen (Vorführung lief nicht durch, App pausiert …): nach 6 s, sobald
+		# sich nichts mehr bewegt; spätestens nach 12 s
+		var still := not w.animating and not Game.busy and w._mode == ""
+		var idle_after := _tut == 1 and _demo_done and still and ui._time - _demo_started > 3.0
+		if idle_after or (still and ui._time - _lock_at > 6.0) or ui._time - _lock_at > 12.0:
+			_demo_failed()
+
+
+## Während „Schau zu!“ getippt oder gewischt: Das zählt nicht – aber man sieht, dass es ankam (die Zeile hüpft).
+func blocked_tap() -> void:
+	if _tut != 1 or lane == null or not lane.visible:
+		return
+	lane_caps.text = str(Days.TEXT["demo_caps"])
+	lane_caps.visible = true
+	ui._pop(lane, 1.06)
+
+
+## Die Vorführung ging nicht (oder nicht ganz): sofort freigeben, der Spieler dreht selbst (Leuchten zeigt die Scheibe).
+func _demo_failed() -> void:
+	_demo_done = true
+	_demo_at = INF
+	ui._hide_finger()
+	_unlock_input()
+	if _tut == 1:
+		var c: Array = _info.get("coach", [])
+		_show_lane(str(c[0]) if not c.is_empty() else "", "Du bist dran", "touch", Style.LEAF_TINT, INF)
+
+
+func _unlock_input() -> void:
+	if ui != null:
+		ui.set_input_locked(false)
 
 
 ## Halten: Erklärungen für den Ziel-Chip, die Kacheln und „Kein Krieg!“.
@@ -1202,6 +1286,7 @@ func tooltip(key: String) -> Dictionary:
 func _on_day_won(info: Dictionary) -> void:
 	_playing = false
 	_tut = 0
+	_unlock_input()
 	_end_gen += 1
 	_hide_lane()
 	ui._hide_finger()
@@ -1306,6 +1391,7 @@ func _confetti_step(t: float, p: Control, p0: Vector2, v0: Vector2) -> void:
 func _on_day_lost(info: Dictionary) -> void:
 	_playing = false
 	_tut = 0
+	_unlock_input()
 	_end_gen += 1
 	_hide_lane()
 	ui._hide_finger()

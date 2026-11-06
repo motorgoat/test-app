@@ -126,6 +126,10 @@ var use_lcg := false          # Tage: Wünsche mit dem einfachen Zufall des Pyth
 var lcg: int = 0
 var _row_ok: Array = []       # Art → bildet heute eine Reihe
 var _goal0: int = 0           # Ziel-Fortschritt zu Beginn des Zugs
+var gift_twists: int = 0      # Tag 1: die vorgeführte Drehung („Schau zu!“) kostet keine Drehung und keinen Stern
+var _eq0: Dictionary = {}     # vor dem Zug: alle Dreier aus gleichen Feldern (jede Art, auch schräg) → was danach neu ist
+var _still_told: Dictionary = {}   # in diesem Zug schon gemeldete stille Reihen
+var _still_calm := false      # dieser Zug hat eine ruhende Reihe gebildet: das ist kein Fehlversuch
 
 ## Alter Name für faith.
 var score: int:
@@ -225,6 +229,7 @@ func _reset(seed_value: int, endless_mode: bool, lvl: int, with_hearts: bool) ->
 	for k in FieldData.KIND_COUNT:
 		made.append(0)
 	day_limit = 0
+	gift_twists = 0
 	day_won = false
 	day_lost = ""
 	day_won_at = 0
@@ -482,6 +487,10 @@ func clone() -> GameState:
 	gs.use_lcg = use_lcg
 	gs.lcg = lcg
 	gs._goal0 = _goal0
+	gs.gift_twists = gift_twists
+	gs._eq0 = _eq0               # nur gelesen (wird bei jedem Zug neu angelegt)
+	gs._still_told = _still_told.duplicate()
+	gs._still_calm = _still_calm
 	for f in fields:
 		gs.fields.append(f.copy())
 	gs.rebuild_index()
@@ -869,6 +878,7 @@ func _remember_before() -> void:
 	if not moved.is_empty():
 		return
 	standing = _line_keys()
+	_eq0 = _trio_keys()
 	_broke_now = {}
 	_open_turn()
 
@@ -887,6 +897,8 @@ func _open_turn() -> void:
 	_church0 = church_groups()
 	_w0 = balance()
 	_goal0 = goal_progress()
+	_still_told = {}
+	_still_calm = false
 
 
 func _line_keys() -> Dictionary:
@@ -894,6 +906,90 @@ func _line_keys() -> Dictionary:
 	for ln in lines():
 		out[line_key(ln)] = true
 	return out
+
+
+## Alle Dreier aus drei gleichen Feldern auf einer Linie einer Seite (gerade und schräg, jede Art, auch Wasser).
+func _trio_keys() -> Dictionary:
+	if not _cache_ready:
+		_build_cache()
+	var out := {}
+	var i := 0
+	var n := _LINES.size()
+	while i < n:
+		var f0: FieldData = _index[_LINES[i]]
+		var f1: FieldData = _index[_LINES[i + 1]]
+		if f1.kind == f0.kind:
+			var f2: FieldData = _index[_LINES[i + 2]]
+			if f2.kind == f0.kind:
+				out[line_key([f0, f1, f2])] = true
+		i += 4
+	return out
+
+
+## Stille Reihen: Was nach dem Zug als drei gleiche Felder auf einer Linie zu sehen ist, durch ein bewegtes oder
+## gewachsenes Feld geht und trotzdem nicht wächst, wird nie verschwiegen. Jede bekommt ein Ereignis
+## {"type": "still", "why", "kind", "fields", "diag", "late"} (why: rest, diag, water, finished, repeat, spent,
+## standing, other; bei rest dazu "next": die Art, die erst später frei wird). Die Oberfläche markiert die Felder
+## und sagt kurz, warum. Eine ruhende Reihe (rest) ist kein Fehlversuch: Der Spieler hat richtig gedreht, die Art
+## darf heute nur noch nicht weiter. Alles andere zählt wie bisher (schräg an den Tagen: die Pool-Lösungen bleiben gültig).
+## focus: bewegte und gewachsene Felder; changed: Felder, deren Art sich gerade durch Wachsen geändert hat.
+func _still_rows(ev: Array, focus: Dictionary, changed: Dictionary, late: bool) -> void:
+	if focus.is_empty():
+		return
+	if not _cache_ready:
+		_build_cache()
+	var i := 0
+	var n := _LINES.size()
+	while i < n:
+		var f0: FieldData = _index[_LINES[i]]
+		var f1: FieldData = _index[_LINES[i + 1]]
+		var f2: FieldData = _index[_LINES[i + 2]]
+		var diag: bool = _LINES[i + 3] != 0
+		i += 4
+		var k := f0.kind
+		if f1.kind != k or f2.kind != k:
+			continue
+		if not (focus.has(f0.id) or focus.has(f1.id) or focus.has(f2.id)):
+			continue
+		if changed.has(f0.id) and changed.has(f1.id) and changed.has(f2.id):
+			continue      # ist gerade als Ganzes gewachsen (Einfach, ganze Seite)
+		var ln: Array = [f0, f1, f2]
+		var key := line_key(ln)
+		if _still_told.has(key):
+			continue
+		var why := _still_why(k, diag, key)
+		if why == "":
+			continue
+		_still_told[key] = true
+		if why == "rest":
+			_still_calm = true
+		var e := {"type": "still", "why": why, "kind": k, "fields": [f0.id, f1.id, f2.id], "diag": diag, "late": late}
+		if why == "rest":
+			e["next"] = int(FieldData.NEXT[k])
+		ev.append(e)
+
+
+## Warum wächst diese Reihe (Art k, key = line_key) nicht? "" = nichts zu sagen (sie stand schon so da).
+func _still_why(k: int, diag: bool, key: int) -> String:
+	var diag_ok := not diag or (diagonals and FieldData.tier(k) >= diag_from)
+	if _eq0.has(key):
+		# Stand schon vor dem Zug genau so da und wurde nur mitgedreht: Hinweis nur, wenn sie sonst wachsen würde
+		return "standing" if can_row(k) and diag_ok else ""
+	if FieldData.finished(k):
+		return "finished"
+	if not FieldData.can_row(k):
+		return "water"
+	if not diag_ok:
+		return "diag"
+	if not can_row(k):
+		return "rest"
+	if broken.has(key):
+		return "repeat"
+	if spent.has(key):
+		return "spent"
+	if standing.has(key):
+		return "standing"
+	return "other"
 
 
 ## Zählt diese Reihe? Nur, wenn sie neu gebildet ist (nicht schon da, nicht sofort zurückgedreht, nicht zusammen gewachsen).
@@ -1129,6 +1225,10 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 	var total := resolve_faces(ev, locked)
 	var combo := 0
 	var focus := moved.duplicate()
+	var touched := moved.duplicate()      # bewegt oder gewachsen (für die stillen Reihen)
+	var changed := locked.duplicate()     # Art hat sich durch Wachsen geändert
+	for fid in locked:
+		touched[fid] = true
 	var done := {}      # Einfach: was in diesem Zug schon gewachsen ist, wächst nicht gleich nochmal
 	var told := {}
 	for pass_i in Balance.MAX_CASCADES:
@@ -1195,6 +1295,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 					done[h.id] = true
 					_grow_to(h, nk)
 					focus[h.id] = true
+					touched[h.id] = true
+					changed[h.id] = true
 					if h != mid:
 						gids.append(h.id)
 						if k0 == card:
@@ -1212,6 +1314,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 			_grow_to(mid, grown(k0, mid.id))
 			mid.burning = false
 			focus[mid.id] = true
+			touched[mid.id] = true
+			changed[mid.id] = true
 			var other_ids: Array = []
 			for g in rest:
 				other_ids.append((g as FieldData).id)
@@ -1225,6 +1329,7 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 					all_done = false
 			if all_done:
 				spent[line_key(ln)] = true
+	_still_rows(ev, touched, changed, late)
 	return total
 
 
@@ -1348,22 +1453,20 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 		if rain_every > 0:
 			next_rain = (twists / rain_every + 1) * rain_every
 	# 12. Fehlversuch? Beim dritten brennt die zuletzt gedrehte Reihe (ein erfüllter Wunsch zählt als Wachsen)
-	if twist and _grew == 0 and wish_gain == 0 and not no_fire:
-		misses += 1
+	# Eine ruhende Reihe ist kein blinder Zug: Sie zählt nicht als Fehlversuch (die Oberfläche sagt, warum sie
+	# nicht wächst). Ohne Feuer (Tag 1) zählt nichts, gemeldet wird der Zug trotzdem (counted = false).
+	if twist and _grew == 0 and wish_gain == 0 and not _still_calm:
 		var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
-		var why := ""
-		for e in ev:
-			if str(e["type"]) == "repeat":
-				if bool(e.get("spent", false)):
-					if why == "":
-						why = "spent"
-				else:
-					why = "repeat"
-		ev.append({"type": "miss", "count": misses, "field": mid_id, "why": why})
-		if misses >= Balance.FIRE_AFTER:
-			misses = 0
-			stats["fires"] = int(stats["fires"]) + 1
-			disaster("fire", ev)
+		var why := _miss_why(ev)
+		if no_fire:
+			ev.append({"type": "miss", "count": misses, "field": mid_id, "why": why, "counted": false})
+		else:
+			misses += 1
+			ev.append({"type": "miss", "count": misses, "field": mid_id, "why": why, "counted": true})
+			if misses >= Balance.FIRE_AFTER:
+				misses = 0
+				stats["fires"] = int(stats["fires"]) + 1
+				disaster("fire", ev)
 	# 13. Ein neuer Wunsch
 	if twist and not calm:
 		if sys_wishes:
@@ -1389,6 +1492,23 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 	return _close_turn(ev, growth, faith - faith_before, income, loss, wish_gain + _pre_gain, got, age_before)
 
 
+## Warum ist in diesem Zug nichts gewachsen? repeat (zurückgedreht), spent (schon zusammen gewachsen),
+## standing (stand schon da), diag (schräg zählt hier nicht), finished, water oder "" (keine Reihe).
+func _miss_why(ev: Array) -> String:
+	var why := ""
+	var rank := {"": 0, "water": 1, "finished": 2, "diag": 3, "standing": 4, "spent": 5, "repeat": 6}
+	for e in ev:
+		var t := str(e["type"])
+		var w := ""
+		if t == "repeat":
+			w = "spent" if bool(e.get("spent", false)) else "repeat"
+		elif t == "still":
+			w = str(e["why"])
+		if rank.has(w) and int(rank[w]) > int(rank[why]):
+			why = w
+	return why
+
+
 ## Ende eines Zugs: Karte merken (Gewohnheit), Ereignisse zusammenfassen.
 func _close_turn(ev: Array, growth: int, delta: int, income: int, loss: int, wish_gain: int, got: Dictionary, age_before: int) -> Dictionary:
 	if card >= 0:
@@ -1406,6 +1526,7 @@ func _close_turn(ev: Array, growth: int, delta: int, income: int, loss: int, wis
 		ev.append({"type": "balance", "w": w, "was": _w0, "zone": z, "zone_was": z0})
 	last_grew = _grew
 	_turn_open = false
+	_eq0 = {}
 	_church0 = {}
 	_pre_gain = 0
 	moved = {}
@@ -2163,7 +2284,12 @@ func goal_met() -> bool:
 
 ## Drehungen, die an diesem Tag noch bleiben.
 func twists_left() -> int:
-	return maxi(0, day_limit - twists)
+	return maxi(0, day_limit - used_twists())
+
+
+## Gezählte Drehungen an einem Tag (ohne die vorgeführte Drehung von Tag 1).
+func used_twists() -> int:
+	return maxi(0, twists - gift_twists)
 
 
 ## Sterne für einen gewonnenen Tag: ★★★ bis stars[0] Drehungen, ★★ bis stars[1], sonst ★ (0 = nicht gewonnen).
@@ -2182,7 +2308,7 @@ func day_status() -> Dictionary:
 		return {}
 	return {"day": day_no, "type": goal_type(), "kinds": goal_kinds(), "target": goal_target(),
 		"progress": goal_progress(), "met": goal_met(), "green": balance_green(), "need_green": goal_green(),
-		"twists": twists, "limit": day_limit, "left": twists_left(), "won": day_won, "lost": day_lost,
+		"twists": used_twists(), "limit": day_limit, "left": twists_left(), "won": day_won, "lost": day_lost,
 		"won_at": day_won_at, "stars": stars(), "no_war": no_war}
 
 
@@ -2202,13 +2328,13 @@ func _check_day(ev: Array, war_now: bool) -> void:
 		day_lost = "war"
 	elif goal_met():
 		day_won = true
-		day_won_at = twists
+		day_won_at = used_twists()
 	elif died():
 		day_lost = "fire"
-	elif twists >= day_limit:
+	elif used_twists() >= day_limit:
 		day_lost = "twists"
 	if day_won:
-		ev.append({"type": "day_won", "day": day_no, "twists": twists, "stars": stars()})
+		ev.append({"type": "day_won", "day": day_no, "twists": used_twists(), "stars": stars()})
 	elif day_lost != "":
 		ev.append({"type": "day_lost", "day": day_no, "why": day_lost, "progress": p, "target": goal_target()})
 
@@ -2300,7 +2426,7 @@ func goal_value(before: GameState, w: Array) -> float:
 	else:
 		v += float(mini(p, goal_target()))
 		var inc := 0 if (sys_smog and smog()) else income_potential()
-		var left := maxi(0, day_limit - twists)
+		var left := maxi(0, day_limit - used_twists())
 		v += float(inc) * float(mini(left, 6)) * 0.8
 		if goal_green():
 			var bw := balance()

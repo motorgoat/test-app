@@ -61,6 +61,8 @@ func _shots(dir: String) -> void:
 	world.wish_done_shown.connect(_note2.bind("wish"))
 	world.punish_shown.connect(_note3.bind("punish"))
 	world.miss_shown.connect(_on_tour_miss)
+	world.still_shown.connect(_on_tour_still)
+	world.tour_auto = true          # die Tour darf Züge ohne Finger spielen (das Spiel selbst nie)
 	var only := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
@@ -151,29 +153,48 @@ func _days_tour(dir: String) -> void:
 	var card1 := await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.5)
 	await _shot(dir, "00b_tag1_ziel")
-	_check(card1 and Game.in_day() and Game.day_no == 1 and dui.gc_goal.text == "Lass 8 Wiesen wachsen" and dui.gc_limit.text == "in 15 Drehungen",
-		"day1_goal_card", "tag=%d ziel=%s grenze=%s" % [Game.day_no, dui.gc_goal.text, dui.gc_limit.text])
-	# 2. „Los!“: Die Hand zeigt die Scheibe, dann wischt der Spieler selbst (echte Wisch-Eingabe)
+	# Die Karte kündigt die Vorführung an („Zeig mir, wie es geht“, „Erst schaust du zu“) und nennt die Regel
+	var announced := dui.gc_go.text == str(Days.TEXT["go_demo"]) and dui.gc_new.visible and dui.gc_new_title.text == str(Days.TEXT["demo_title"])
+	var rule1 := dui.gc_rule.visible and dui.gc_rule_label.text.contains("gerade") and dui.gc_rule_label.text.contains("Wasser")
+	_check(card1 and Game.in_day() and Game.day_no == 1 and dui.gc_goal.text == "Lass 8 Wiesen wachsen" and dui.gc_limit.text == "in 15 Drehungen"
+		and announced and rule1, "day1_goal_card", "tag=%d ziel=%s grenze=%s knopf=%s angekuendigt=%s regel=%s" % [Game.day_no,
+		dui.gc_goal.text, dui.gc_limit.text, dui.gc_go.text, str(announced), dui.gc_rule_label.text])
+	# 2. „Los!“: „Schau zu!“ – die Eingabe ist gesperrt, die Hand spielt genau einen Zug vor (die Reihe wächst).
+	# Ein Wisch des Spielers in dieser Zeit zählt nicht (echte Eingabe).
+	var left0 := Game.state.twists_left()
+	world.tour_auto = false
 	await _tap(dui.gc_go)
-	await _wait(0.8)
-	for i in 80:
+	await _wait(0.2)
+	var locked0 := ui.input_locked() and dui.lane_caps.text == str(Days.TEXT["demo_caps"]) and Game.state.twists == 0 \
+		and dui.lane_label.text == str(Days.config(1)["coach_demo"])
+	var vs0 := get_viewport().get_visible_rect().size
+	await _swipe(vs0 * Vector2(0.3, 0.47), vs0 * Vector2(0.7, 0.47))      # während der Sperre: wird ignoriert
+	var swipe_ignored := Game.state.twists == 0 and world._touched_state != Game.state
+	var demo_seen := false
+	var locked_in_demo := false
+	for i in 120:
 		if ui.tut_finger.modulate.a > 0.8 and world._mode == "twist":
+			demo_seen = true
+			locked_in_demo = ui.input_locked() and Game.state.twists == 0
 			break
 		await _wait(0.05)
 	await _wait(0.25)
 	await _shot(dir, "00c_tag1_hand")
 	var hand := dui.lane.visible and Game.day_tutorial()
-	var left0 := Game.state.twists_left()
-	var mv := Game.tutorial_move()
-	var swiped := await _swipe_move(int(mv.get("axis", 0)), int(mv.get("layer", 1)), int(mv.get("turns", 1)))
+	for i in 100:
+		if Game.state.twists >= 1 and not world._mode == "twist":
+			break          # die Vorführung hat ihren Zug gespielt (die Runde läuft jetzt)
+		await _wait(0.05)
 	await _settle(8.0)
 	await _wait(0.5)
 	await _shot(dir, "00d_tag1_erste_wiese")
 	var p1 := Game.state.goal_progress()
-	_check(hand and swiped and p1 >= 1 and Game.state.twists == 1 and dui.chip_num.text == "%d/8" % p1, "day1_tutorial",
-		"hand=%s wisch=%s wiesen=%d chip=%s" % [str(hand), str(swiped), p1, dui.chip_num.text])
-	_check(dui.chip.visible and dui.ring.left == left0 - 1 and dui.ring.left == Game.state.twists_left(), "goal_chip",
-		"left=%d->%d" % [left0, dui.ring.left])
+	_check(locked0 and swipe_ignored and demo_seen and locked_in_demo and hand and p1 >= 1 and Game.state.twists == 1
+		and Game.state.gift_twists == 1 and dui.chip_num.text == "%d/8" % p1, "day1_tutorial",
+		"sperre=%s wisch_ignoriert=%s vorfuehrung=%s gesperrt=%s wiesen=%d chip=%s" % [str(locked0), str(swipe_ignored),
+		str(demo_seen), str(locked_in_demo), p1, dui.chip_num.text])
+	_check(dui.chip.visible and dui.ring.left == left0 and dui.ring.left == Game.state.twists_left(), "goal_chip",
+		"left=%d->%d (die Vorführung kostet nichts)" % [left0, dui.ring.left])
 	# „Jetzt du!“: Die Hand ist weg, das Dock mit dem Tipp kommt, der Spieler sucht selbst
 	var c1: Array = Days.config(1).get("coach", [])
 	var your_turn := false
@@ -184,8 +205,12 @@ func _days_tour(dir: String) -> void:
 		await _wait(0.05)
 	await _wait(0.4)
 	await _shot(dir, "00d2_tag1_jetzt_du")
-	_check(your_turn and ui.hint_btn.is_visible_in_tree() and ui.tut_finger.modulate.a < 0.1, "day1_your_turn",
-		"lane=%s dock=%s" % [dui.lane_label.text.left(30), str(ui.dock.visible)])
+	_check(your_turn and ui.hint_btn.is_visible_in_tree() and ui.tut_finger.modulate.a < 0.1 and not ui.input_locked(), "day1_your_turn",
+		"lane=%s dock=%s sperre=%s" % [dui.lane_label.text.left(30), str(ui.dock.visible), str(ui.input_locked())])
+	# Nach der ersten echten Eingabe bewegt sich keine Scheibe mehr von selbst: ein Wisch, der nichts wachsen lässt
+	# (früher kam danach alle 4 s die Hand-Drehung, nach 16 s ein Auto-Zug), dann 30 s nichts tun
+	await _no_auto_twist_check()
+	world.tour_auto = true
 	# 3. Den Rest selbst: immer die beste Drehung (wie „Tipp“), echte Wisch-Eingabe, bis das Ziel erreicht ist
 	var won := await _play_day(14)
 	var wcard := await _until_shown(dui.win_card, 5.0)
@@ -235,6 +260,9 @@ func _days_tour(dir: String) -> void:
 		"day_help", "baum=%d" % tree_n)
 	ui._close_modal(true)
 	await _wait(0.4)
+	# Tag 2: Eine neue Reihe aus drei Wäldern ruht (Großer Wald erst ab Tag 3): leuchtet mit Schloss, sagt warum,
+	# und ist kein Fehlversuch
+	await _resting_row_check(dir)
 	# Ab hier sind alle Tage offen (die Tour springt)
 	Game.day_free = 7
 	# 6. Tag 3: Ziel-Karte, dann die letzte Drehung bringt nichts → Fehlversuch, „Nochmal“ mit +2 Drehungen
@@ -1228,6 +1256,112 @@ func _settle(sec: float, pick: int = 0) -> void:
 
 func _on_tour_miss(_fid: int, _count: int, why: String) -> void:
 	_last_miss_why = why
+
+
+var _stills: Array = []          # stille Reihen, die die Welt gezeigt hat (still_shown)
+
+
+func _on_tour_still(info: Dictionary) -> void:
+	_stills.append(info)
+
+
+## Tag 1 nach „Jetzt du!“: echte Eingabe (ein Wisch ohne Wachsen), dann 30 s warten. Keine Scheibe darf sich bewegen:
+## kein Drehen (world._mode „twist“), keine Runde, keine Animation, keine Drehung mehr gezählt.
+func _no_auto_twist_check() -> void:
+	world.tour_auto = false
+	var dud := _twist_without_progress()
+	var swiped := await _swipe_move(int(dud[0]), int(dud[1]), int(dud[2]))
+	await _settle(8.0)
+	var t0 := Game.state.twists
+	var touched := world._touched_state == Game.state
+	var moved := false
+	var waited := 0.0
+	var t_start := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t_start < 30000:
+		if world._mode == "twist" or world.animating or Game.busy or world._pivot != null and is_instance_valid(world._pivot):
+			moved = true
+		await get_tree().process_frame
+	waited = (Time.get_ticks_msec() - t_start) / 1000.0
+	var guard := not world.can_self_move() and not world.auto_twist(0, 1, 1)
+	_check(swiped and touched and not moved and Game.state.twists == t0 and guard and Game.in_day() and not Game.over,
+		"no_auto_twist_after_input", "wisch=%s beruehrt=%s bewegt=%s drehungen=%d->%d warten=%.0fs sperre=%s" % [str(swiped),
+		str(touched), str(moved), t0, Game.state.twists, waited, str(guard)])
+
+
+## Tag 2: Wald ruht (Großer Wald ist erst ab Tag 3 frei). Eine echte Drehung bildet oben eine neue Reihe aus drei
+## Wäldern: Die drei Felder leuchten mit Schloss, die Pille sagt „Wälder wachsen erst ab Tag 3 weiter“,
+## kein Fehlversuch (misses bleibt).
+func _resting_row_check(dir: String) -> void:
+	var gs := Game.state
+	for f in gs.fields:
+		(f as FieldData).kind = FieldData.WATER
+		(f as FieldData).burning = false
+		(f as FieldData).fresh = 0
+	gs.wishes = []
+	gs.field_at(Vector3i(-1, 1, 1), Vector3i(0, 1, 0)).kind = FieldData.FOREST
+	gs.field_at(Vector3i(0, 1, 1), Vector3i(0, 1, 0)).kind = FieldData.FOREST
+	var third: FieldData = gs.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
+	third.kind = FieldData.FOREST          # kommt mit der Drehung x = 1 nach oben in die Reihe
+	gs.misses = 1
+	Game.state_changed.emit()
+	world.focus_place(Vector3i(0, 1, 0))
+	await _wait(1.2)
+	_stills.clear()
+	var m0 := gs.misses
+	var swiped := await _swipe_move(0, 1, 1)
+	var pill := false
+	var badge := false
+	var pill_text := ""
+	for i in 120:
+		if ui.banner.visible and ui.banner_caps.text.contains("erst ab Tag 3") and ui.banner_text.text.contains("Wälder aus Wiesen"):
+			pill = true
+			pill_text = ui.banner_caps.text + " / " + ui.banner_text.text
+		var v: FieldView = world.views.get(third.id)
+		if v != null and v._badge_name == "lock" and v._glow.visible:
+			badge = true
+		if pill and badge:
+			break
+		await _wait(0.05)
+	await _shot(dir, "00h3_tag2_ruht")
+	await _settle(6.0)
+	var rest_seen := false
+	for e in _stills:
+		if str((e as Dictionary)["why"]) == "rest" and int((e as Dictionary)["kind"]) == FieldData.FOREST:
+			rest_seen = true
+	_check(swiped and rest_seen and pill and badge and third.kind == FieldData.FOREST and Game.state.misses == m0,
+		"resting_row_feedback", "wisch=%s still=%s pille=%s schloss=%s fehlversuche=%d->%d text=%s" % [str(swiped), str(rest_seen),
+		str(pill), str(badge), m0, Game.state.misses, pill_text])
+	# Gleich danach Regen (kein Zug, dieselbe Zugnummer): Er macht aus einer Wiese den dritten Wald einer zweiten
+	# ruhenden Reihe. Auch das sagt eine Pille (früher: Schloss, aber kein Wort, weil der Zug schon „gesagt“ hatte).
+	gs.field_at(Vector3i(-1, 1, -1), Vector3i(0, 1, 0)).kind = FieldData.FOREST
+	gs.field_at(Vector3i(0, 1, -1), Vector3i(0, 1, 0)).kind = FieldData.FOREST
+	var wet: FieldData = gs.field_at(Vector3i(1, 1, -1), Vector3i(0, 1, 0))
+	wet.kind = FieldData.MEADOW
+	gs.rain = maxi(gs.rain, 1)
+	Game.state_changed.emit()
+	for i in 80:
+		if not ui.banner.visible:
+			break
+		await _wait(0.05)
+	await _wait(0.4)
+	var turn0 := gs.turn
+	await _tap(ui.rain_btn)
+	await _wait(0.5)
+	var rt := _rain_target("target", -1, FieldData.MEADOW)
+	var rain_pill := false
+	var rain_text := ""
+	if int(rt["fid"]) == wet.id:
+		await _touch(rt["pos"])
+		for i in 120:
+			if ui.banner.visible and ui.banner_caps.text.contains("erst ab Tag 3"):
+				rain_pill = true
+				rain_text = ui.banner_caps.text + " / " + ui.banner_text.text
+				break
+			await _wait(0.05)
+	await _settle(6.0)
+	ui._set_bonus_mode("")
+	_check(rain_pill and wet.kind == FieldData.FOREST and gs.turn == turn0 and Game.state.misses == m0, "resting_row_rain",
+		"ziel=%d wiese=%d pille=%s zug=%d->%d text=%s" % [int(rt["fid"]), wet.id, str(rain_pill), turn0, gs.turn, rain_text])
 
 
 ## Eine Drehung bildet oben eine neue Reihe aus 3 Wäldern (Mittel): Sie muss wachsen.

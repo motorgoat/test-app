@@ -57,6 +57,7 @@ func _init() -> void:
 	test_start_no_ready_lines()
 	test_erde_rows()
 	test_rests_today()
+	test_still_rows()
 	test_day_choices()
 	test_made_counting()
 	test_rain_rules()
@@ -79,6 +80,9 @@ func _init() -> void:
 	test_day_hint()
 	test_day_bots()
 	test_bot()
+	test_still_fuzz()
+	await process_frame          # das Autoload Game ist jetzt im Baum
+	test_self_move_guard()
 	print("")
 	print("%d Prüfungen, %d Fehler" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -1422,8 +1426,13 @@ func test_rests_today() -> void:
 	var third := ready_row(gs, MEADOW)
 	check(not gs.can_row(MEADOW) and gs.resting(MEADOW) and gs.can_row(E), "Tag 1: Wiese ruht (Wald ist noch nicht frei), Erde nicht")
 	check(gs.kind_help(MEADOW).ends_with(FieldData.REST_HELP), "ruhende Art: „Morgen wächst hier mehr.“ (%s)" % gs.kind_help(MEADOW))
+	gs.misses = 2
 	var r := twist(gs, 0, 1, 1)
-	check(third.kind == MEADOW and int(r["grew"]) == 0 and gs.misses == 1, "Tag 1: eine neue Wiesen-Reihe wächst nicht und zählt als Fehlversuch")
+	var st := _still_of(r, "rest")
+	check(third.kind == MEADOW and int(r["grew"]) == 0 and gs.misses == 2 and not _has_event(r, "miss") and _disaster_of(r).is_empty(),
+		"Tag 1 (mit Feuer): eine neue Wiesen-Reihe wächst nicht, ist aber kein Fehlversuch und brennt nicht (misses %d)" % gs.misses)
+	check(not st.is_empty() and int(st["kind"]) == MEADOW and int(st["next"]) == FOREST and (st["fields"] as Array).has(third.id),
+		"Tag 1: die ruhende Reihe meldet sich (still/rest, nächste Art Wald, ihre drei Felder) %s" % str(st))
 	var g2 := day_state(2)
 	var t2 := ready_row(g2, MEADOW)
 	twist(g2, 0, 1, 1)
@@ -1439,6 +1448,223 @@ func test_rests_today() -> void:
 		if (f as FieldData).kind != ANIMALS:
 			faces_ok = false
 	check(faces_ok, "Tag 3: 9 Tiere wachsen nicht (Hütte ist noch nicht frei)")
+
+
+## Das erste still-Ereignis mit diesem Grund ({} = keins).
+func _still_of(r: Dictionary, why: String) -> Dictionary:
+	for e in r["events"]:
+		if str(e["type"]) == "still" and str(e["why"]) == why:
+			return e
+	return {}
+
+
+## Stille Reihen (GameState._still_rows): Jede neue Reihe aus drei gleichen Feldern, die nicht wächst, meldet sich mit
+## einem Grund. Ruhende Reihen sind an jedem Tag kein Fehlversuch und brennen nie; Tag 1 (ohne Feuer) meldet einen Zug
+## ohne Wachsen trotzdem (miss, counted = false).
+func test_still_rows() -> void:
+	# Je Tag die Art, die heute ruht (ihre nächste Art ist noch nicht frei)
+	var rest_kind := {1: MEADOW, 2: FOREST, 3: ANIMALS, 4: VILLAGE, 5: VILLAGE, 6: TOWN, 7: BIGCITY}
+	for n in range(1, 8):
+		var cfg := Days.config(n)
+		cfg["fire"] = true
+		var gs := GameState.new()
+		var kinds: Array = []
+		for i in 54:
+			kinds.append(WATER)
+		gs.setup_day(cfg, kinds, 1, 0)
+		var k := int(rest_kind[n])
+		var third := ready_row(gs, k)
+		gs.misses = Balance.FIRE_AFTER - 1
+		var r := twist(gs, 0, 1, 1)
+		var st := _still_of(r, "rest")
+		check(gs.resting(k) and int(r["grew"]) == 0 and third.kind == k and gs.misses == Balance.FIRE_AFTER - 1
+			and _disaster_of(r).is_empty() and not st.is_empty() and int(st["kind"]) == k,
+			"Tag %d: neue Reihe aus %s ruht: still/rest, kein Fehlversuch, nichts brennt (misses %d, %s)" % [n, FieldData.kind_name(k), gs.misses, str(st)])
+	# Tag 1: ein Zug ohne jede Reihe wird gemeldet (kein Feuer: zählt nicht)
+	var g1 := day_state(1)
+	top(g1, 0, 0).kind = E
+	var r1 := twist(g1, 0, 1, 1)
+	var m1 := _event(r1, "miss")
+	check(int(r1["grew"]) == 0 and not m1.is_empty() and not bool(m1.get("counted", true)) and g1.misses == 0,
+		"Tag 1: Zug ohne Wachsen → miss-Ereignis für die Oberfläche (zählt nicht) %s" % str(m1))
+	# Schräg zählt an den Tagen nicht: die Reihe meldet sich (still/diag), der Fehlversuch sagt warum
+	var g2 := day_state(2)
+	top(g2, -1, -1).kind = E
+	top(g2, 0, 0).kind = E
+	var t2 := g2.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1))
+	t2.kind = E                          # kommt mit x = 1 nach oben auf (1, 1): die Schräge (-1,-1) (0,0) (1,1)
+	var r2 := twist(g2, 0, 1, 1)
+	var sd := _still_of(r2, "diag")
+	check(int(r2["grew"]) == 0 and not sd.is_empty() and bool(sd["diag"]) and str(_event(r2, "miss").get("why", "")) == "diag"
+		and g2.misses == 1, "Tag 2: schräge Erde-Reihe → still/diag, Fehlversuch mit Grund „diag“ (%s)" % str(_event(r2, "miss")))
+	# Wasser: drei blaue in einer neuen Reihe → still/water; nichts gewachsen → Grund „water“
+	var gw := day_state(2)
+	top(gw, -1, 1).kind = E
+	top(gw, 0, 1).kind = FOREST
+	var rw := twist(gw, 0, 1, 1)
+	check(not _still_of(rw, "water").is_empty() and str(_event(rw, "miss").get("why", "")) == "water",
+		"Wasser-Reihe → still/water, Fehlversuch mit Grund „water“ (%s)" % str(_event(rw, "miss")))
+	# Freies Spiel (Mittel): eine schräge Erde-Reihe zählt erst ab Wald → still/diag; schräge Wälder wachsen
+	var gm := empty_state(1)
+	top(gm, -1, -1).kind = E
+	top(gm, 0, 0).kind = E
+	gm.field_at(Vector3i(1, 1, -1), Vector3i(0, 0, -1)).kind = E
+	var rm := twist(gm, 0, 1, 1)
+	check(not _still_of(rm, "diag").is_empty() and int(rm["grew"]) == 0, "Mittel: schräge Erde-Reihe → still/diag")
+	# Hin und zurück: still/repeat (zusätzlich zum alten repeat-Ereignis)
+	var gr := empty_state(1)
+	var tr := ready_row(gr, FOREST)
+	twist(gr, 0, 1, 1)
+	tr.kind = FOREST
+	twist(gr, 0, 1, -1)
+	var rr := twist(gr, 0, 1, 1)
+	check(not _still_of(rr, "repeat").is_empty() and str(_event(rr, "miss").get("why", "")) == "repeat", "hin und zurück → still/repeat")
+
+
+## Fuzz: Auf allen Pool-Brettern jedes Tages und im freien Spiel (Einfach, Mittel, Schwer) zufällige Drehungen (auch
+## sofort zurück). Nach jeder Drehung: Jede neu sichtbare Linie aus drei gleichen Feldern (gerade oder schräg, jede Art)
+## durch ein bewegtes Feld wächst (ein Feld ändert sich) oder steht in einem still-/repeat-Ereignis. Keine stille Reihe
+## ohne Rückmeldung. Dazu: Jede Drehung ohne Wachsen meldet sich (miss oder still); eine ruhende Reihe ist nie ein
+## Fehlversuch.
+func test_still_fuzz() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711
+	var twists := 0
+	var trios := 0
+	var silent := 0
+	var quiet := 0
+	var rest_miss := 0
+	var others := 0
+	var example := ""
+	var games: Array = []
+	for n in range(1, 8):
+		for i in Days.pool_size(n):
+			games.append([n, i])
+	for lvl in [0, 1, 2]:
+		for sd in 4:
+			games.append([0, lvl * 10 + sd])
+	for gi in games.size():
+		var spec: Array = games[gi]
+		var gs := GameState.new()
+		var steps := 12
+		if int(spec[0]) > 0:
+			var b := Days.board(int(spec[0]), int(spec[1]))
+			gs.setup_day(Days.config(int(spec[0])), b["kinds"], int(b["seed"]), 0)
+		else:
+			gs.setup(900 + int(spec[1]), true, int(spec[1]) / 10)
+			steps = 30
+		var last: Array = []
+		for step in steps:
+			if gs.is_over():
+				break
+			var mv: Array = GameState.MOVES[rng.randi() % GameState.MOVES.size()]
+			if not last.is_empty() and rng.randf() < 0.25:
+				mv = [int(last[0]), int(last[1]), -int(last[2]) if absi(int(last[2])) == 1 else 2]
+			last = mv
+			var arr := gs.clone()
+			var pre: Dictionary = arr._trio_keys()
+			arr.apply_rotation(int(mv[0]), int(mv[1]), int(mv[2]))
+			var new_trios: Array = []
+			for key in arr._trio_keys():
+				if pre.has(key):
+					continue
+				var c := (int(key) >> 4) & 63
+				var b2 := (int(key) >> 10) & 63
+				var a := (int(key) >> 16) & 63
+				if arr.moved.has(a) or arr.moved.has(b2) or arr.moved.has(c):
+					new_trios.append([a, b2, c])
+			var kinds0: Array = []
+			for f in arr.fields:
+				kinds0.append((f as FieldData).kind)
+			var m0 := gs.misses
+			var r := gs.play({"type": "twist", "axis": int(mv[0]), "layer": int(mv[1]), "turns": int(mv[2])})
+			twists += 1
+			var told := {}
+			var has_rest := false
+			var has_miss := false
+			var has_still := false
+			for e in r["events"]:
+				var t := str(e["type"])
+				if t == "still" or t == "repeat":
+					var fs: Array = (e["fields"] as Array).duplicate()
+					fs.sort()
+					told[str(fs)] = true
+				if t == "still":
+					has_still = true
+					if str(e["why"]) == "rest":
+						has_rest = true
+					elif str(e["why"]) == "other":
+						others += 1
+				if t == "miss":
+					has_miss = true
+			for tri in new_trios:
+				trios += 1
+				var grew := false
+				for fid in tri:
+					if (gs.fields[int(fid)] as FieldData).kind != int(kinds0[int(fid)]):
+						grew = true
+				var key_s := str((tri as Array).duplicate())
+				if not grew and not told.has(key_s):
+					silent += 1
+					if example == "":
+						example = "Spiel %s, Zug %d %s: Reihe %s (%s) ohne Rückmeldung" % [str(spec), step, str(mv), key_s, FieldData.kind_name(int(kinds0[int(tri[0])]))]
+			if int(r["grew"]) == 0 and not has_miss and not has_still and not _has_event(r, "wish_done"):
+				quiet += 1
+			if has_rest and int(r["grew"]) == 0 and gs.misses != m0 and not _has_event(r, "wish_done"):
+				rest_miss += 1
+	print("  Fuzz stille Reihen: %d Drehungen, %d neue Dreier, %d ohne Rückmeldung, %d stille Züge, %d „other“" % [twists, trios, silent, quiet, others])
+	check(twists > 1500 and trios > 1000, "Fuzz: genug Drehungen und neue Reihen (%d, %d)" % [twists, trios])
+	check(silent == 0, "Fuzz: jede neue Reihe aus drei gleichen wächst oder meldet sich (%d ohne Rückmeldung) %s" % [silent, example])
+	check(quiet == 0, "Fuzz: jeder Zug ohne Wachsen meldet sich (miss oder still): %d stumm" % quiet)
+	check(rest_miss == 0, "Fuzz: eine ruhende Reihe zählt nie als Fehlversuch (%d)" % rest_miss)
+
+
+## Der Würfel bewegt sich nur ganz am Anfang von Tag 1 von selbst (die eine Vorführung), nie nach der ersten Eingabe.
+## World.can_self_move() bewacht auto_twist, demo_move und demo_twist (World ohne Szene: nur die Wächter).
+## Läuft als Letztes, nach einem Bild: Dann ist das Autoload Game im Baum.
+func test_self_move_guard() -> void:
+	var g: Node = root.get_node_or_null("Game")
+	if g == null:
+		check(false, "Autoload Game fehlt")
+		return
+	var path := "user://test_guard.cfg"
+	var old_path: String = g.save_path
+	g.save_path = path
+	g.start_day(1, 0)
+	# Erst jetzt laden: world.gd braucht das Autoload Game (beim Übersetzen dieser Datei gibt es das noch nicht)
+	var world_script: GDScript = load("res://scripts/world.gd")
+	var w: Node = world_script.new()
+	check(g.day_tutorial() and w.can_self_move(), "Tag 1, Tutorial-Brett, vor jeder Eingabe: die eine Vorführung darf laufen")
+	var t0 := InputEventScreenTouch.new()
+	t0.index = 0
+	t0.pressed = true
+	t0.position = Vector2(100, 100)
+	var t1 := InputEventScreenTouch.new()
+	t1.index = 1
+	t1.pressed = true
+	t1.position = Vector2(200, 160)
+	w.input_locked = true
+	w._unhandled_input(t0)
+	w._unhandled_input(t1)
+	check(w.can_self_move() and w._touches.is_empty(), "„Schau zu!“ (gesperrt): Finger zählen nicht, die Vorführung läuft weiter")
+	w.input_locked = false
+	w._unhandled_input(t0)
+	w._unhandled_input(t1)
+	check(not w.can_self_move() and not w.auto_twist(0, 1, 1) and w.demo_move(0, Vector2.RIGHT, 0, 1, 1) == Vector2.ZERO
+		and w.demo_twist(0, Vector2.RIGHT, 0, 1) == Vector2.ZERO and g.state.twists == 0,
+		"nach der ersten Eingabe (zwei Finger): kein Zug, keine Vorführung ohne den Spieler")
+	g.start_day(1, 0)
+	check(w.can_self_move(), "„Tutorial nochmal“: ganz am Anfang wieder genau eine Vorführung")
+	g.state.twists = 1
+	check(not w.can_self_move() and not w.auto_twist(0, 1, 1), "nach dem ersten gezählten Zug (auch der Vorführung) nie mehr")
+	g.start_day(1, 1)
+	check(not g.day_tutorial() and not w.can_self_move(), "Nochmal / anderes Brett: keine Vorführung")
+	g.start_mode("mittel")
+	check(not w.can_self_move() and not w.auto_twist(0, 1, 1), "freies Spiel: nie")
+	w.free()
+	g.save_path = old_path
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
 
 
 func test_day_choices() -> void:

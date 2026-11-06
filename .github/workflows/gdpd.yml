@@ -82,8 +82,8 @@ jobs:
           if grep -nE "CHECK ok=false" ../shots.log; then echo "Eine Prüfung der Screenshot-Tour ist fehlgeschlagen"; exit 1; fi
           # Die Tour muss ganz durchgelaufen sein, und jede Prüfung muss da sein (ein Abbruch druckt sie nicht)
           grep -qE "^TOUR-DONE checks=[0-9]+ failed=0" ../shots.log || { echo "Die Screenshot-Tour lief nicht bis zum Ende"; exit 1; }
-          for c in day_overview day1_goal_card day1_tutorial goal_chip day1_your_turn day_success day_next day2_rain_reveal day_help \
-                   day_fail day4_wish day5_choice \
+          for c in day_overview day1_goal_card day1_tutorial goal_chip day1_your_turn no_auto_twist_after_input day_success day_next \
+                   day2_rain_reveal day_help resting_row_feedback resting_row_rain day_fail day4_wish day5_choice \
                    day6_faith day6_war day7_green day7_smog world_complete free_play \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do

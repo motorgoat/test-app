@@ -22,6 +22,7 @@ signal wish_done_shown(fid: int, faith: int)   # Wunsch erfüllt (Herzen, Glaube
 signal wish_made_shown(fid: int)               # neuer Wunsch an diesem Feld
 signal income_shown(amount: int)               # Glaube pro Drehung von fertigen Feldern
 signal punish_shown(kind: String, fid: int, cost: int)   # Gewitter oder Flut
+signal still_shown(info: Dictionary)     # stille Reihe: {"why", "kind", "fields", "diag", "next", "grew", "miss", "visible"} (siehe GameState._still_rows)
 
 const ALL_AXES = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
 
@@ -55,6 +56,12 @@ var _tw_live := false           # die Drehung kommt vom Finger (nicht vorgeführ
 var _tw_auto := false           # Finger neben dem Würfel gehalten: die Scheibe dreht von selbst weiter
 var _tw_out_t := 0.0            # so lange liegt der Finger schon neben dem Würfel / am Rand
 var _demo_tw: Tween = null      # Tutorial: die Hand-Vorführung (beim Antippen sofort abbrechen)
+var input_locked := false       # Tag 1 „Schau zu!“: Die eine Vorführung läuft, Finger auf dem Würfel zählen nicht
+var tour_auto := false          # nur die Screenshot-Tour darf Züge ohne Finger spielen (auto_twist)
+var _touched_state: GameState = null   # in diesem Spiel (GameState) hat der Spieler den Würfel schon berührt
+var _tw_gift := false           # die laufende Drehung ist die Vorführung von Tag 1 (kostet keine Drehung)
+var _still_gen := 0             # Markierungen stiller Reihen: gehören zu dieser Runde
+var _still_views: Array = []
 var bolt_mode := false          # Blitz gewählt: Wischen zeichnet die Reihe statt zu drehen
 var tool_mode := false          # ein Werkzeug ist gewählt: Tippen zielt auf Felder (nicht auf Wunsch-Blasen)
 var _bolt_row: Array = []
@@ -124,6 +131,9 @@ func _setup_environment() -> void:
 
 func rebuild() -> void:
 	_hint_views.clear()
+	_still_views.clear()
+	_still_gen += 1
+	input_locked = false
 	_hinted = false
 	_idle = 0.0
 	for c in cube_root.get_children():
@@ -574,6 +584,10 @@ func _notification(what: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if input_locked:
+		# „Schau zu!“: Während der Vorführung gehört der Würfel der Hand. Nichts davon zählt als Eingabe.
+		_touches.clear()
+		return
 	if event is InputEventScreenTouch:
 		var st := event as InputEventScreenTouch
 		if st.pressed:
@@ -581,6 +595,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			_touches.erase(st.index)
 		if _touches.size() >= 2:
+			_mark_touched()
 			_cancel_drag()
 			_pinch_dist = _touch_dist()
 			_two_center = _touch_center()
@@ -611,8 +626,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				_release(mb.position)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_mark_touched()
 			rig.zoom(0.92)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_mark_touched()
 			rig.zoom(1.08)
 		return
 	if event is InputEventMouseMotion:
@@ -622,6 +639,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMagnifyGesture:
 		var mg := event as InputEventMagnifyGesture
+		_mark_touched()
 		if mg.factor > 0.0:
 			rig.zoom(1.0 / mg.factor)
 
@@ -674,9 +692,18 @@ func _show_hint(move: Dictionary = {}) -> Dictionary:
 	return best
 
 
-## Tag 1 auf dem Tutorial-Brett, bevor die erste Wiese gewachsen ist: Die vorgezeigte Scheibe leuchtet.
+## Tag 1 auf dem Tutorial-Brett, bis der Spieler seine erste eigene Wiese hat: Eine Scheibe, die eine Wiese wachsen
+## lässt, leuchtet (nur Leuchten – sie bewegt sich nicht).
 func _day_guided() -> bool:
-	return Game.day_tutorial() and Game.state.goal_progress() == 0 and not Game.tutorial_move().is_empty()
+	return Game.day_tutorial() and not input_locked and Game.state.goal_progress() <= Game.state.gift_twists \
+		and not Game.tutorial_move().is_empty()
+
+
+## Darf sich eine Scheibe ohne den Finger des Spielers bewegen? Nur für die eine Vorführung ganz am Anfang von
+## Tag 1 (Tutorial-Brett): noch keine Drehung gezählt und der Spieler hat in diesem Spiel nichts berührt.
+## Danach bewegt sich der Würfel nie mehr von selbst (Hilfe ist dann nur Leuchten, Text und der Tipp).
+func can_self_move() -> bool:
+	return Game.day_tutorial() and Game.state.twists == 0 and _touched_state != Game.state
 
 
 ## Gratis-Tipp in der Eingewöhnung: nur, wenn eine Drehung sofort etwas wachsen lässt.
@@ -701,7 +728,14 @@ func _clear_hint() -> void:
 	_hint_views.clear()
 
 
+## Der Spieler hat den Würfel berührt (Tippen, Wischen, Ansicht drehen, zoomen): Ab jetzt bewegt sich in diesem
+## Spiel keine Scheibe mehr ohne ihn (can_self_move).
+func _mark_touched() -> void:
+	_touched_state = Game.state
+
+
 func _press(pos: Vector2) -> void:
+	_mark_touched()
 	# Tutorial: der erste Zug spielt sich selbst. Tippen startet ihn sofort.
 	if Game.tutorial() and Game.tutorial_step == 0:
 		tutorial_tap.emit()
@@ -811,6 +845,7 @@ func _raycast(screen_pos: Vector2) -> Dictionary:
 # =============================================================================
 
 func _begin_twist(drag: Vector2) -> void:
+	_still_clear()
 	var f: FieldData = Game.state.fields[_hit_field]
 	var cam := rig.cam
 	var s0 := cam.unproject_position(_hit_point)
@@ -1106,7 +1141,11 @@ func _finish_twist() -> void:
 		(views[fid] as FieldView).set_danger(false)
 		(views[fid] as FieldView).set_badge("")
 	preview_changed.emit({})
+	var gift := _tw_gift
+	_tw_gift = false
 	if turns != 0:
+		if gift and Game.state != null and not Game.busy:
+			Game.state.gift_twists += 1      # die Vorführung von Tag 1 kostet keine Drehung
 		Game.play_turn(_tw_axis, _tw_layer, turns, _tw_row)
 	else:
 		animating = false
@@ -1147,8 +1186,10 @@ func wait_turn() -> void:
 	Game.play_turn(0, 0, 0)
 
 
-## Tutorial: die Scheibe dreht sich von selbst und spielt den Zug (damit man gleich ein Upgrade sieht).
+## Ein Zug ohne Finger: nur für die Screenshot-Tour (tour_auto) oder die Vorführung vor der ersten Eingabe.
 func auto_twist(axis: int, layer: int, turns: int) -> bool:
+	if not tour_auto and not can_self_move():
+		return false
 	if _mode != "" or animating or Game.busy:
 		return false
 	_clear_hint()
@@ -1171,7 +1212,7 @@ func auto_twist(axis: int, layer: int, turns: int) -> bool:
 ## Tutorial: eine Scheibe ein Stück andrehen und zurück (zeigt, wie man dreht). Kein Zug.
 ## Gibt die Bildschirm-Richtung zurück, in die der Finger wischen müsste (ZERO = ging nicht).
 func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int, sgn: float = 1.0) -> Vector2:
-	if _mode != "" or animating or Game.busy:
+	if not can_self_move() or _mode != "" or animating or Game.busy:
 		return Vector2.ZERO
 	debug_begin_twist(fid, drag, 0.0)
 	if _mode != "twist":
@@ -1190,6 +1231,43 @@ func demo_twist(fid: int, drag: Vector2, want_axis: int, want_layer: int, sgn: f
 	tw.tween_method(_demo_set_angle, PI * 0.5 * 0.42 * sgn, 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(_demo_end)
 	return dir
+
+
+## Tag 1 „Schau zu!“: Die Hand spielt den ersten Zug wirklich – die Scheibe dreht ganz herum, die Reihe wächst.
+## Nur vor der ersten Eingabe (can_self_move). Der Zug kostet keine Drehung (GameState.gift_twists).
+## Gibt die Bildschirm-Richtung des Wischens zurück (ZERO = ging nicht, dann gibt es keine Vorführung).
+func demo_move(fid: int, drag: Vector2, want_axis: int, want_layer: int, turns: int) -> Vector2:
+	if not can_self_move() or _mode != "" or animating or Game.busy or turns == 0:
+		return Vector2.ZERO
+	debug_begin_twist(fid, drag, 0.0)
+	if _mode != "twist":
+		_mode = ""
+		return Vector2.ZERO
+	if _tw_axis != want_axis or _tw_layer != want_layer:
+		_cancel_drag()
+		return Vector2.ZERO
+	var sgn := -1.0 if turns < 0 else 1.0
+	var dir := _tw_screen_dir * float(_tw_sign) * sgn
+	if _demo_tw != null and _demo_tw.is_valid():
+		_demo_tw.kill()
+	var tw := create_tween()
+	_demo_tw = tw
+	tw.tween_interval(0.2)
+	tw.tween_method(_demo_set_angle, 0.0, PI * 0.5 * float(turns) * 0.8, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(_demo_commit.bind(turns))
+	return dir
+
+
+func _demo_commit(turns: int) -> void:
+	_demo_tw = null
+	if _mode != "twist" or _tw_live:
+		return
+	if not can_self_move():
+		_cancel_drag()
+		return
+	_tw_quarter = turns
+	_tw_gift = true
+	_finish_twist()
 
 
 func _demo_set_angle(a: float) -> void:
@@ -1243,8 +1321,13 @@ func debug_end_twist() -> void:
 # Runde abspielen
 # =============================================================================
 
+var round_no := 0               # jede ausgewertete Runde (auch Regen, der kein Zug ist) zählt eins weiter
+
+
 func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
+	round_no += 1
 	animating = true
+	_still_clear()
 	_clear_hint()
 	clear_choice()
 	set_pick([])
@@ -1376,6 +1459,8 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 		await _merge_fx(e)
 	if late_any:
 		await get_tree().create_timer(0.25).timeout
+	# Stille Reihen: drei gleiche, die nicht wachsen – leuchten kurz mit Abzeichen, die Oberfläche sagt warum
+	_still_fx(events, int(result.get("grew", 0)) > 0)
 	# Glaube pro Drehung von fertigen Feldern
 	for e in events:
 		if str(e["type"]) == "income":
@@ -1406,6 +1491,88 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	await get_tree().create_timer(0.35).timeout
 	animating = false
 	Game.finish_round(result)
+
+
+## Abzeichen über den Feldern einer stillen Reihe (warum sie nicht wächst).
+const STILL_BADGE = {"rest": "lock", "diag": "close", "water": "water", "finished": "check", "standing": "check",
+	"spent": "check", "repeat": "undo", "other": "wait"}
+
+
+## Stille Reihen zeigen (GameState._still_rows). Blockiert nicht: Die Felder leuchten kurz mit Abzeichen, dann ist
+## es von selbst weg (oder mit dem nächsten Zug). Wasser nur, wenn sonst nichts gewachsen ist und keine andere Reihe
+## etwas sagt, und dann nur eine Reihe (sonst stünde es nach fast jeder Drehung überall). Die Oberfläche bekommt jede
+## gezeigte Reihe als still_shown.
+func _still_fx(events: Array, grew: bool) -> void:
+	var miss := false
+	var other := false
+	var water: Array = []
+	for e in events:
+		var t := str(e["type"])
+		if t == "miss":
+			miss = true
+		elif t == "still":
+			if str(e["why"]) == "water":
+				water.append(e)
+			else:
+				other = true
+	# Wasser nur, wenn sonst nichts zu sehen ist – und nur eine Reihe (am liebsten die gewischte)
+	var water_pick: Dictionary = {}
+	if not grew and not other and not water.is_empty():
+		water_pick = water[0]
+		var swiped := {}
+		for i in Game.state.last_row:
+			swiped[int(i)] = true
+		for e in water:
+			for i in (e as Dictionary)["fields"]:
+				if swiped.has(int(i)):
+					water_pick = e
+	var shown := 0
+	for e in events:
+		if str(e["type"]) != "still":
+			continue
+		var why := str(e["why"])
+		if why == "water" and e != water_pick:
+			continue
+		var ids: Array = e["fields"]
+		for i in ids:
+			var v: FieldView = views.get(int(i))
+			if v == null:
+				continue
+			v.refresh(Game.state.fields[int(i)])
+			if why != "water":
+				v.set_highlight(true)
+			v.set_badge(str(STILL_BADGE.get(why, "info")))
+			v.nudge()
+			_still_views.append(v)
+		shown += 1
+		var info := (e as Dictionary).duplicate()
+		info["grew"] = grew
+		info["miss"] = miss
+		info["round"] = round_no
+		var seen := false
+		for i in ids:
+			if bool(field_screen(int(i))["visible"]):
+				seen = true
+		info["visible"] = seen          # liegt die Reihe gerade hinten, sagt die Oberfläche nichts dazu
+		still_shown.emit(info)
+	if shown > 0:
+		_still_gen += 1
+		get_tree().create_timer(2.6).timeout.connect(_still_end.bind(_still_gen))
+
+
+func _still_end(gen: int) -> void:
+	if gen == _still_gen:
+		_still_clear()
+
+
+func _still_clear() -> void:
+	_still_gen += 1
+	var drag := _mode == "twist"      # eine laufende Vorschau gehört dem Finger: dort nichts löschen
+	for v in _still_views:
+		if is_instance_valid(v) and not drag:
+			(v as FieldView).set_highlight(false)
+			(v as FieldView).set_badge("")
+	_still_views.clear()
 
 
 ## Was schon gewachsen ist, zeigen (außer was gleich brennt).

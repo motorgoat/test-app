@@ -620,7 +620,7 @@ func in_day() -> bool:
 
 ## Tag 1 auf dem Tutorial-Brett (Brett 0): die Oberfläche zeigt die Hand und die Coach-Sätze von Tag 1.
 func day_tutorial() -> bool:
-	return in_day() and day_no == 1 and int(day_board.get("index", -1)) == 0 and state.twists < 3
+	return in_day() and day_no == 1 and int(day_board.get("index", -1)) == 0 and state.used_twists() < 3
 
 
 ## Die vorgezeigte Drehung des Tutorials ({"axis", "layer", "turns"}) oder {}.
@@ -720,10 +720,10 @@ func day_info() -> Dictionary:
 	var n := day_no
 	return {"day": n, "title": str(cfg.get("title", "")), "intro": str(cfg.get("intro", "")),
 		"goal_text": Days.goal_line(cfg), "goal_icon": str(cfg.get("goal_icon", "")), "goal_type": state.goal_type(),
-		"target": state.goal_target(), "rule_line": str(cfg.get("rule_line", "")),
+		"target": state.goal_target(), "rule_line": str(cfg.get("rule_line", "")), "rule_icon": str(cfg.get("rule_icon", "swords")),
 		"limit": state.day_limit, "base_limit": int(cfg.get("limit", 0)), "mercy": state.day_limit - int(cfg.get("limit", 0)),
 		"stars": (cfg.get("stars", [0, 0]) as Array).duplicate(), "new": (cfg.get("new", {}) as Dictionary).duplicate(),
-		"coach": (cfg.get("coach", []) as Array).duplicate(), "best_stars": stars_of(n),
+		"coach": (cfg.get("coach", []) as Array).duplicate(), "coach_demo": str(cfg.get("coach_demo", "")), "best_stars": stars_of(n),
 		"best_twists": int(day_best[n - 1]), "board": int(day_board.get("index", 0)),
 		"tutorial": (cfg.get("tutorial", {}) as Dictionary).duplicate() if int(day_board.get("index", -1)) == 0 and n == 1 else {},
 		"first_visit": int(day_stars[n - 1]) == 0 and int(day_fails[n - 1]) == 0,
