@@ -15,7 +15,16 @@
 - Ein neues Level pro echtem Tag (Die Schöpfung in 7 echten Tagen), danach täglich eine „Welt des Tages“.
 - Serie (Streak) mit Flammen-Zähler und Feier; Serien-Schutz; Wochenkalender.
 - Nach dem Schaffen im gleichen Level ohne Drehungs-Limit weiterspielen; das nächste Level erst morgen.
-- Erinnerung am nächsten Tag als Handy-Benachrichtigung (Android-Plugin), Warnung, wenn die Serie in Gefahr ist.
+- Erinnerung als Handy-Benachrichtigung (Android-Plugin), nicht nervig, nach dem Vorbild von Duolingo:
+  - höchstens eine Erinnerung pro Tag, zu der Uhrzeit, zu der man zuletzt gespielt hat (etwa 24 Stunden danach),
+    und nur, wenn man heute noch nicht gespielt hat;
+  - keine Warnung kurz vor Mitternacht;
+  - abwechselnde Texte vom eigenen Charakter, nie zweimal hintereinander derselbe;
+  - reagiert man mehrere Tage nicht, werden die Erinnerungen seltener und hören nach etwa einer Woche
+    mit einer freundlichen letzten Nachricht auf; wer zurückkommt, bekommt sie wieder;
+  - nie in der Nacht (Ruhezeit), Uhrzeit in den Einstellungen änderbar oder ganz aus.
+- Entschieden: Das nächste Level ist bis morgen gesperrt; Erinnerungen mit Plugin gleich einbauen;
+  Test-Knopf „Nächster Tag“ in der Testversion.
 - Test-Knopf „Nächster Tag“ nur in der Testversion.
 
 ## Eigener Charakter (Wunsch von Philipp)
