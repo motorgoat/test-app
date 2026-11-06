@@ -13,11 +13,18 @@ import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.util.Log;
 
+import java.util.Calendar;
+
 /**
- * Alarm → notification. Drops the alarm if its Spieltag is already done (mark_done) or the entry was cancelled.
+ * Alarm → notification. Drops the alarm if its Spieltag is already done (mark_done), the entry was cancelled, or it
+ * fires late or in the quiet hours (inexact alarms).
  */
 public class ReminderReceiver extends BroadcastReceiver {
 	static final String CHANNEL_ID = "erinnerung";
+	/** Day key of the test entry: never dropped as done, shown at any time. Same as Game.DEBUG_REMINDER_KEY. */
+	static final int TEST_KEY = Integer.MAX_VALUE;
+	/** A reminder that fires more than this late is dropped. */
+	static final long LATE_MAX_MS = 60L * 60L * 1000L;
 	private static final String POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS";
 
 	@Override
@@ -30,11 +37,33 @@ public class ReminderReceiver extends BroadcastReceiver {
 			return;
 		}
 		Store.remove(ctx, id);
-		if (p.dayKey <= Store.done(ctx)) {
+		if (p.dayKey != TEST_KEY && p.dayKey <= Store.done(ctx)) {
 			Log.i(Store.TAG, "alarm " + id + " for day " + p.dayKey + " already done, dropped");
 			return;
 		}
+		if (!allowedNow(ctx, p, System.currentTimeMillis())) {
+			Log.i(Store.TAG, "alarm " + id + " fired late or in the quiet hours, dropped");
+			return;
+		}
 		show(ctx, p);
+	}
+
+	/**
+	 * Inexact alarms may fire late (batching, Doze). Show a reminder only inside the allowed window (8:00-21:30 local
+	 * time, from set_window) and at most LATE_MAX_MS after its planned time; never at night. The test entry
+	 * ("Erinnerung in 10 s", key TEST_KEY) is always shown.
+	 */
+	static boolean allowedNow(Context ctx, Planned p, long now) {
+		if (p.dayKey == TEST_KEY) {
+			return true;
+		}
+		if (now > p.millis() + LATE_MAX_MS) {
+			return false;
+		}
+		Calendar c = Calendar.getInstance();
+		c.setTimeInMillis(now);
+		int minute = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
+		return minute >= Store.earliest(ctx) && minute <= Store.latest(ctx);
 	}
 
 	static boolean mayPost(Context ctx) {

@@ -5,7 +5,7 @@ extends RefCounted
 ## „nie zweimal hintereinander derselbe Satz“ dazu (je Schlüssel).
 ##
 ##   Voice.line("win_3")                       # „Drei Sterne?! Okay, du darfst ein bisschen angeben.“ (frech)
-##   Voice.line("day_open", {"tag": "Tag 3 · Tiere"})
+##   Voice.line("day_open", {"tag": "Tag 3: Tiere"})
 ##   Voice.face("miss")                        # „worried“
 ##   Voice.day_coach(2, 1, fallback)           # Tages-Hinweis von Tag 2, Satz 1 (Feuer-Warnung)
 

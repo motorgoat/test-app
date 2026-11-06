@@ -410,6 +410,7 @@ func _build_chip() -> void:
 	v.custom_minimum_size = Vector2(96, 0)
 	h.add_child(v)
 	chip_caps = ui._caps("Wiesen")
+	chip_caps.clip_text = true           # nie breiter als CHIP_CAPS_MAX (sonst schiebt der Chip die Kopfzeile aus dem Bild)
 	v.add_child(chip_caps)
 	chip_num = ui._label("0/8", 34, Style.INK, Style.W_BLACK)
 	v.add_child(chip_num)
@@ -1022,7 +1023,7 @@ func _build_fail_card() -> void:
 func _build_free_card() -> void:
 	free_card = ui._modal_card(str(Days.TEXT["free"]), true)
 	var v: VBoxContainer = free_card.get_meta("body")
-	var sub := _center(ui._label("Bau weiter, bis sie vollendet ist.", 16, Style.INK_2, Style.W_BODY))
+	var sub := _center(ui._label("Bau deine Welt fertig.", 16, Style.INK_2, Style.W_BODY))
 	v.add_child(sub)
 	free_continue = ui._button("Weiterspielen", "primary", "", 56)
 	free_continue.pressed.connect(_on_free_continue)
@@ -1222,7 +1223,9 @@ func _fill_week(week: Array, streak: int, best: int) -> void:
 			st = str((e as Dictionary).get("state", "none")) if e is Dictionary else str(e)
 		(week_cells[i] as WeekDot).set_state(st)
 		(week_letters[i] as Label).add_theme_color_override("font_color", Style.SUN_DEEP if st == "today" or st == "streak" else Style.INK_3)
-	week_line.text = str(Days.TEXT["streak"]) % [streak, best] if streak != 1 else "Serie 1 · Rekord %d" % best
+	# Die Zahl trägt die Flammen-Pille; hier nur der Rekord, wenn er höher ist (eine neue Serie zeigt nichts)
+	week_line.text = str(Days.TEXT["record"]) % best if best > streak else ""
+	week_line.visible = week_line.text != ""
 
 
 ## Was der Charakter in der Übersicht sagt: einmal das Wiederkommen (Serienschutz / neue Serie), spät am Abend
@@ -1231,7 +1234,7 @@ func _ov_say_state() -> void:
 	var come := Game.take_comeback()
 	var state := str(_today.get("state", "new"))
 	var nn := Game.next_new_day()
-	var tag := str(Days.TEXT["day_title"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
+	var tag := str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
 	if come == "saved" or come == "lost":
 		_ov_say("comeback_" + come, {})
 		if come == "lost":
@@ -1250,8 +1253,8 @@ func _ov_say_state() -> void:
 		key = "open_night"
 		Game.coach_seen["night_%d" % Game.today_key()] = true
 	var said := "%s:%s" % [key, tag]
-	if said == _ov_said_key:
-		return
+	if said == _ov_said_key or (_ov_said_key == "day_wait" and key == "day_done"):
+		return            # „Nicht drängeln!“ nach dem Tippen auf morgen bleibt stehen
 	_ov_say(key, {"tag": tag})
 	_ov_said_key = said
 
@@ -1284,11 +1287,10 @@ func _on_tile(n: int) -> void:
 		ui._shake(t["btn"])
 		Style.haptic(Style.HAPTIC_TAP)
 		if bool((t["btn"] as Button).get_meta("morgen", false)):
-			# „Morgen geht's weiter: Tag 3 · Tiere“ – und der Charakter sagt es auf seine Art
-			var tag := str(Days.TEXT["day_title"]) % [n, str(Days.config(n).get("title", ""))]
-			_ov_say("day_done", {"tag": tag})
-			_ov_said_key = "day_done:%s" % tag
-			Game.message.emit(Game.locked_text(n), "info")
+			# Der Charakter: „Nicht drängeln! Erst morgen.“, dazu die Uhr bis zum neuen Tag (statt noch einmal „morgen“)
+			_ov_say("day_wait", {})
+			_ov_said_key = "day_wait"
+			Game.message.emit(Daily.countdown_text(Game.game_now()), "info")
 			return
 		ui._show_tooltip(t["btn"], "lock", str(Days.TEXT["day_title"]) % [n, str(Days.config(n).get("title", ""))],
 			Game.locked_text(n))
@@ -1335,6 +1337,7 @@ func _on_debug_next_day() -> void:
 	_ov_said_key = ""
 	_fill_overview()
 	ui._pop(today_card, 1.04)
+	ui.clear_toasts()
 	Game.message.emit(msg, "info")
 
 
@@ -1462,6 +1465,17 @@ func _open_goal_card() -> void:
 		tw.tween_property(gc_new_tile, "scale", Vector2.ONE, 0.2)
 
 
+## Die Zeile über der Zahl im Chip: so breit wie ihr Text, höchstens CHIP_CAPS_MAX (dann abgeschnitten).
+const CHIP_CAPS_MAX := 210.0
+
+
+func _fit_caps() -> void:
+	var f := chip_caps.get_theme_font("font")
+	var fs := chip_caps.get_theme_font_size("font_size")
+	var w := f.get_string_size(chip_caps.text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x if f != null else 0.0
+	chip_caps.custom_minimum_size.x = minf(ceilf(w) + 4.0, CHIP_CAPS_MAX)
+
+
 func _fill_goal_card(info: Dictionary) -> void:
 	var n := int(info["day"])
 	gc_caps.text = str(Days.TEXT["day_title"]) % [n, str(info.get("title", ""))]
@@ -1475,7 +1489,8 @@ func _fill_goal_card(info: Dictionary) -> void:
 	elif n == 1 and Game.day_tutorial():
 		intro = Voice.line("intro")
 	else:
-		face = "neutral"
+		intro = Voice.day_coach(n, "intro", intro)     # ab Tag 2: im Ton des Charakters (sonst der Satz der Tagestabelle)
+		face = Voice.day_face(n, "intro")
 	gc_intro.text = intro
 	ui._speak(gc_speaker, face, "", Style.SURFACE, false)
 	var gi := _goal_icon(info)
@@ -1680,6 +1695,7 @@ func refresh_hud() -> void:
 		# Weiterbauen: Haken, „Weiterbauen“, wie viel seit dem Sieg gewachsen ist – keine Drehungs-Grenze
 		chip_caps.text = str(Days.TEXT["build"])
 		chip_caps.add_theme_color_override("font_color", Style.LEAF_DEEP)
+		_fit_caps()
 		ui._set_tile(chip_tile, "check", Style.LEAF_TINT)
 		var tg := int(st.get("target", 0))
 		chip_num.text = "%d/%d" % [tg, tg] if tg > 0 else "✓"
@@ -1713,6 +1729,7 @@ func refresh_hud() -> void:
 			chip_caps.add_theme_color_override("font_color", Style.INK_3)
 		var gi := _goal_icon(_info if not _info.is_empty() else Game.day_info())
 		ui._set_tile(chip_tile, gi, ui._tint_for_icon(gi))
+	_fit_caps()
 	var warn := left <= 3 and not bool(st.get("won", false))
 	ring.set_value(left, int(st.get("limit", 1)), warn)
 	_chip_sb.bg_color = Style.SUN_TINT if warn else (Style.FIRE_TINT if waage else Style.GLASS)
@@ -1806,9 +1823,9 @@ func _on_move_done(kind: String) -> void:
 				ui._dock_in(0.0)
 		# Nur Text und Leuchten (die Scheibe bewegt sich nicht von selbst)
 		if Game.tutorial_move().is_empty():
-			_show_lane("Tipp auf „Tipp“.", "Du bist dran", "bulb", Style.LEAF_TINT, INF)
+			_show_lane(Voice.line("d1_hint"), "Du bist dran", "bulb", Style.LEAF_TINT, INF, Voice.face("d1_hint"))
 		else:
-			_show_lane("Fast! Wisch die leuchtende Reihe.", "Du bist dran", "touch", Style.LEAF_TINT, INF)
+			_show_lane(Voice.line("d1_retry"), "Du bist dran", "touch", Style.LEAF_TINT, INF, Voice.face("d1_retry"))
 	elif lane.visible and _lane_until == INF and _tut != 1 and _tut != 2:
 		_hide_lane()
 	elif lane.visible and _tut == 0 and _lane_until != INF:
@@ -1923,7 +1940,7 @@ func _process(delta: float) -> void:
 			_ov_tick = 0.0
 			Game.today_key()
 			if int(_time) % 30 == 0:
-				tc_count.text = Daily.countdown_text(Game.now_local())
+				tc_count.text = Daily.countdown_text(Game.game_now())
 	if not _playing or not Game.in_day() or Game.over:
 		if ui.input_locked():
 			_unlock_input()
@@ -1980,7 +1997,7 @@ func tooltip(key: String) -> Dictionary:
 		var info := Game.day_info()
 		var left := Game.state.twists_left()
 		if Game.state.day_free_build:
-			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Grenze weiterbauen. Je 10 Felder 1 Münze."}
+			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Limit. 10 Felder: 1 Münze."}
 		var body := "%s. %s" % [str(info.get("goal_text", "")), str(Days.TEXT["left"]) % left]
 		var st: Dictionary = info.get("status", {})
 		if bool(st.get("need_green", false)):
@@ -1995,9 +2012,9 @@ func tooltip(key: String) -> Dictionary:
 	if key == "day_week":
 		return {"icon": "streak", "title": str(Days.TEXT["week"]), "body": "Flamme: geschafft. Schild: gerettet. Kreis: verpasst."}
 	if key == "day_coins":
-		return {"icon": "coin", "title": "Münzen", "body": "Du hast %d. Für Serienschutz und Tipps." % Game.credits}
+		return {"icon": "coin", "title": "Münzen", "body": "Du hast %d." % Game.credits}
 	if key == "day_stars":
-		return {"icon": "star", "title": "Sterne", "body": "Weniger Drehungen, mehr Sterne. %d von %d." % [Game.stars_total(), Game.stars_max()]}
+		return {"icon": "star", "title": "Sterne", "body": "%d von %d." % [Game.stars_total(), Game.stars_max()]}
 	if key == "day_free":
 		return {"icon": "trophy", "title": str(Days.TEXT["free"]), "body": "Nach Tag 7: frei weiterbauen."}
 	if key.begins_with("day_tile_"):
@@ -2110,13 +2127,13 @@ func _win_char_cheer(got: int, gen: int) -> void:
 	wc_char.react("spin" if got >= 3 else "hop")
 
 
-## „Deine Serie beginnt“ · „2 Tage in Folge!“
-func _streak_caption(n: int, fresh: bool) -> String:
+## Neben der großen Zahl: „Tag in Folge“ · „Tage in Folge“ (der Charakter sagt den Serien-Satz dazu)
+func _streak_caption(n: int, _fresh: bool) -> String:
 	if n <= 0:
 		return "Noch keine Serie"
 	if n == 1:
-		return str(Days.TEXT["streak_one"]) if fresh else "1 Tag in Folge"
-	return str(Days.TEXT["streak_days"]) % n
+		return "Tag in Folge"
+	return "Tage in Folge"
 
 
 ## Die Serien-Feier (1.5): Die Zahl zählt hoch, heute leuchtet in der Woche, der Charakter sagt den Serien-Satz.
@@ -2344,7 +2361,7 @@ func _ask_due() -> bool:
 func _open_ask(then: Callable) -> void:
 	_ask_then = then
 	var nn := Game.next_new_day()
-	var tag := str(Days.TEXT["day_title"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
+	var tag := str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
 	ask_text.text = Voice.line("ask_reminder", {"tag": tag})
 	ui._speak(ask_speaker, "happy", "bell" if Style.icon("bell") != null else "moon", Style.MONSOON_TINT)
 	Game.note_reminder_asked()

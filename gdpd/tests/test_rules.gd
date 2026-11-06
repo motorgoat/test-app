@@ -1803,7 +1803,7 @@ func test_day_table() -> void:
 	for n in range(1, 8):
 		lines.append(Days.goal_line(Days.config(n)))
 	check(lines == ["Lass 8 Wiesen wachsen", "Lass 5 Wälder wachsen", "Erschaffe 3 Tiere", "Baue 4 Hütten", "Erfülle 3 Wünsche",
-		"Sammle 150 Glauben", "Sammle 250 Glauben – mit grüner Waage"], "Ziel-Texte (%s)" % str(lines))
+		"Sammle 150 Glauben", "250 Glauben, Waage grün"], "Ziel-Texte (%s)" % str(lines))
 	# Freischalt-Reihenfolge: Land → Pflanzen → Tiere → Menschen → Nahrung → Glaube → Industrie; jeder Tag bringt Neues
 	var order := [[E, MEADOW], [FOREST], [BIGFOREST, ANIMALS], [HUT, HOUSE, VILLAGE], [FIELD], [TOWN, CHURCH], [BIGCITY, INDUSTRY]]
 	var prev: Array = []
@@ -2513,8 +2513,9 @@ func test_daily_unlock() -> void:
 	check(g.start_day(1) and _win_in_game(g), "Game: Tag 1 gewonnen")
 	var ti: Dictionary = g.today_info()
 	check(not g.start_day(2) and g.start_day(1) and str(ti["state"]) == "done_next" and str(ti["line"]) == "Morgen geht's weiter: Tag 2 · Pflanzen"
-		and g.locked_text(2) == "Morgen geht's weiter: Tag 2 · Pflanzen" and g.locked_text(3) == "Erst Tag 2 schaffen." and g.current_day() == 1,
-		"Game: Tag 2 morgen, Heute-Karte „Heute geschafft!“ mit der Morgen-Zeile (%s)" % str(ti.get("line", "")))
+		and g.locked_text(2) == "Morgen geht's weiter: Tag 2 · Pflanzen" and g.locked_text(3) == "Ab Mittwoch." and g.locked_text(4) == "Ab Donnerstag."
+		and g.current_day() == 1 and str(ti["caps"]) == "Heute" and str(ti["title"]) == "Geschafft!",
+		"Game: Tag 2 morgen, Heute-Karte „Geschafft!“ mit der Morgen-Zeile, Tag 3 „Ab Mittwoch.“ (%s | %s)" % [str(ti.get("line", "")), g.locked_text(3)])
 	g.clock_override = lt(2026, 11, 10, 2, 30)
 	check(not g.day_unlocked(2), "Game: um 2:30 ist noch derselbe Spieltag")
 	g.clock_override = lt(2026, 11, 10, 3, 0)
@@ -2661,24 +2662,92 @@ func test_daily_clock() -> void:
 	g.clock_override = lt(2026, 10, 25, 2, 30)
 	check(g.today_key() == k0 and not g.day_unlocked(2) and g.done_today() and int(g.daily["last_seen"]) == lt(2026, 10, 25, 3, 30),
 		"Uhr 1 h zurück (Sommerzeit): derselbe Spieltag, nichts entsperrt, last_seen bleibt")
-	# 3 Tage zurück: neu aufsetzen; Serie bleibt, heute bleibt geschafft, nichts entsperrt heute; morgen geht's weiter
+	# 3 Tage zurück: der Spieltag bleibt (Spielzeit = Systemzeit + 3 Tage); nichts wird umgeschrieben, nichts entsperrt
 	g.clock_override = lt(2026, 10, 22, 12)
 	var k1: int = g.today_key()
-	check(k1 == k0 - 3 and g.streak() == 1 and g.done_today() and not g.day_unlocked(2) and int(g.daily["last_new_key"]) == k1
-		and (g.daily["streak_days"] as Array) == [k1] and int(g.daily["last_key"]) == k1, "Uhr 3 Tage zurück: neu aufgesetzt, Serie bleibt, heute nichts entsperrt")
+	check(k1 == k0 and g.streak() == 1 and g.done_today() and not g.day_unlocked(2) and int(g.daily["last_new_key"]) == k0
+		and (g.daily["streak_days"] as Array) == [k0] and int(g.daily["clock_off"]) == 3, "Uhr 3 Tage zurück: derselbe Spieltag, Serie bleibt, heute nichts entsperrt")
 	g.clock_override = lt(2026, 10, 23, 12)
-	check(g.day_unlocked(2) and g.streak() == 1 and not g.done_today(), "nach dem Zurückstellen: am nächsten Spieltag geht es normal weiter")
-	# Uhr vor: genau ein neuer Tag
+	check(g.day_unlocked(2) and g.streak() == 1 and not g.done_today() and g.today_key() == k0 + 1, "falsche Uhr: am nächsten Morgen geht es normal weiter")
 	g.start_day(2)
 	_win_in_game(g)
-	g.clock_override = lt(2026, 10, 24, 12)
+	# Uhr wieder richtig: der Versatz geht weg, kein Tag gilt als verpasst, nichts öffnet
+	g.clock_override = lt(2026, 10, 26, 13)
+	check(g.today_key() == k0 + 1 and int(g.daily["clock_off"]) == 0 and g.streak() == 2 and str(g.daily["comeback"]) == "" and g.shields() == 0
+		and not g.day_unlocked(3), "Uhr wieder richtig: derselbe Spieltag, Serie 2, nichts entsperrt")
+	# Uhr vor: genau ein neuer Tag
+	g.clock_override = lt(2026, 10, 27, 12)
 	check(g.day_unlocked(3) and not g.day_unlocked(4) and g.streak() == 2, "Uhr einen Tag vor: der nächste Tag öffnet genau einmal")
-	g.clock_override = lt(2026, 10, 30, 12)
+	g.clock_override = lt(2026, 11, 2, 12)
 	check(g.day_unlocked(3) and not g.day_unlocked(4) and g.streak() == 0 and str(g.daily["comeback"]) == "lost", "Uhr weit vor: ein neuer Tag, Serie vorbei (kein Schutz)")
-	# rein: Zurückstellen unter 36 h bleibt stehen, ab 36 h neu aufsetzen
+	g.free()
+	DirAccess.remove_absolute(path)
+	# Umgehen: Tag 3 heute geschafft, Uhr 2 Tage zurück, App öffnen, Uhr richtig → Tag 4 bleibt zu
+	var t := lt(2026, 11, 10, 12)
+	g = _daily_game(path, t)
+	for n in 3:
+		g.clock_override = t + (n - 2) * Daily.DAY
+		g.start_day(n + 1)
+		_win_in_game(g)
+	var kt: int = g.today_key()
+	check(not g.day_unlocked(4) and g.streak() == 3, "Umgehen: nach Tag 3 heute ist Tag 4 zu")
+	g.clock_override = t - 2 * Daily.DAY
+	var kb: int = g.today_key()
+	g.clock_override = t + 600
+	check(kb == kt and g.today_key() == kt and not g.day_unlocked(4) and g.streak() == 3 and g.shields() == 0 and str(g.daily["comeback"]) == "",
+		"Uhr 2 Tage zurück und wieder richtig: Tag 4 bleibt zu, Serie 3, kein Schutz verbraucht")
+	for i in 3:
+		g.clock_override = t - 2 * Daily.DAY + i
+		g.today_key()
+		g.clock_override = t + 700 + i
+		g.today_key()
+	check(not g.day_unlocked(4) and g.today_key() == kt, "Umgehen mehrmals hintereinander: Tag 4 bleibt zu")
+	# 30 Tage zurück und wieder richtig; 1970 und wieder richtig: Serie bleibt, kein Schutz
+	g.daily["shields"] = 1
+	g.clock_override = t - 30 * Daily.DAY
+	var k30: int = g.today_key()
+	g.clock_override = t + 900
+	check(k30 == kt and g.today_key() == kt and g.streak() == 3 and g.shields() == 1 and str(g.daily["comeback"]) == "", "Uhr 30 Tage zurück und richtig: Serie 3, Schutz bleibt")
+	g.clock_override = Daily.local_unix(1970, 1, 1, 0, 5)
+	var k70: int = g.today_key()
+	g.clock_override = t + 1000
+	check(k70 == kt and g.today_key() == kt and g.streak() == 3 and g.shields() == 1 and not g.day_unlocked(4), "Uhr auf 1970 und richtig: Serie 3, nichts entsperrt")
+	g.clock_override = t + Daily.DAY
+	check(g.day_unlocked(4) and g.streak() == 3, "danach am nächsten echten Tag: Tag 4 offen")
+	# Vor und zurück: +1 Tag, +2 Tage, dann zurück zur echten Zeit → der Spieltag bleibt (nie rückwärts, nichts doppelt)
+	g.clock_override = t + 3 * Daily.DAY
+	var kf: int = g.today_key()
+	g.clock_override = t + Daily.DAY + 3600
+	check(g.today_key() == kf and int(g.daily["clock_off"]) == 2 and int(g.daily["last_new_key"]) <= kf, "vor und wieder zurück: der Spieltag bleibt stehen")
+	g.clock_override = t + 2 * Daily.DAY + 3600
+	check(g.today_key() == kf + 1, "danach läuft die Spielzeit in Echtzeit weiter")
+	g.free()
+	DirAccess.remove_absolute(path)
+	# rein: Zurückstellen unter 36 h bleibt stehen, ab 36 h bleibt der Tag auch (Versatz), richtig = Versatz weg
 	var d := Daily.fresh(lt(2026, 11, 10, 12))
 	var kk := Daily.day_key(lt(2026, 11, 10, 12))
-	check(Daily.observe(d, lt(2026, 11, 9, 1)) == kk and Daily.observe(d, lt(2026, 11, 8, 23, 59)) == kk - 2, "Uhr-Regel: < 36 h zurück bleibt der Tag, ≥ 36 h neu")
+	check(Daily.observe(d, lt(2026, 11, 9, 1)) == kk and Daily.observe(d, lt(2026, 11, 8, 23, 59)) == kk and int(d["clock_off"]) == 2
+		and Daily.game_time(d, lt(2026, 11, 8, 23, 59)) == lt(2026, 11, 10, 23, 59), "Uhr-Regel: < 36 h zurück bleibt der Tag, ≥ 36 h Versatz 2 Tage")
+	check(Daily.observe(d, lt(2026, 11, 10, 12, 30)) == kk and int(d["clock_off"]) == 0, "Uhr-Regel: wieder richtig → Versatz 0, derselbe Tag")
+	var cfg := ConfigFile.new()
+	d["clock_off"] = 4
+	d["sys_seen"] = lt(2026, 11, 6, 12)
+	Daily.save(d, cfg)
+	var d2 := Daily.load_from(cfg, lt(2026, 11, 6, 13))
+	check(int(d2["clock_off"]) == 4 and int(d2["sys_seen"]) == lt(2026, 11, 6, 12), "Uhr-Versatz wird gespeichert")
+	# Sieg kurz nach 3 Uhr: zählt für den Spieltag, an dem der Versuch kurz vorher begann
+	var tg := lt(2026, 11, 11, 2, 50)
+	g = _daily_game(path, tg - Daily.DAY)
+	g.start_day(1)
+	_win_in_game(g)
+	var kd: int = g.today_key() + 1
+	g.clock_override = tg
+	g.start_day(2)
+	g.clock_override = lt(2026, 11, 11, 3, 5)
+	check(g.streak() == 1 and str(g.daily["comeback"]) == "", "Versuch über 3 Uhr: die Tagesprüfung wartet")
+	_win_in_game(g)
+	check(g.streak() == 2 and int(g.daily["streak_last"]) == kd and int((g.daily["won_key"] as Array)[1]) == kd and g.today_key() == kd + 1
+		and g.day_unlocked(3) and str(g.daily["comeback"]) == "", "Sieg um 3:05 (Start 2:50): zählt für den alten Spieltag, Serie 2, Tag 3 gleich offen")
 	g.free()
 	DirAccess.remove_absolute(path)
 
@@ -2862,7 +2931,7 @@ func test_daily_build() -> void:
 	# Übersicht → zurück zum Weiterbauen; ein neuer Versuch beendet es
 	var keep: GameState = g.state
 	g.new_game()
-	check(not g.can_resume_build(), "freies Spiel beendet das Weiterbauen")
+	check(g.can_resume_build() and g.resume_build() and g.state == keep and g.state.day_free_build, "freies Spiel: die heutige Welt bleibt zum Weiterbauen")
 	g.start_day(1)
 	_win_in_game(g)
 	g.continue_build()
@@ -2870,7 +2939,12 @@ func test_daily_build() -> void:
 	g.state = GameState.new()
 	check(g.resume_build() and g.state == keep and g.state.day_free_build and g.in_day(), "Weiterbauen: aus der Übersicht zurück in dieselbe Welt")
 	g.retry_day()
-	check(not g.can_resume_build() and not g.state.day_free_build, "Nochmal beendet das Weiterbauen")
+	check(g.can_resume_build() and not g.state.day_free_build and g.state != keep, "Nochmal: neuer Versuch, die heutige Welt bleibt")
+	g.state.day_lost = "twists"
+	g._finish_day()
+	check(g.can_resume_build() and g.resume_build() and g.state == keep, "Nochmal verloren: Weiterbauen bringt die geschaffte Welt zurück")
+	g.clock_override = lt(2026, 11, 10, 18)
+	check(not g.can_resume_build(), "neuer Spieltag: die Welt von gestern ist nicht mehr zum Weiterbauen")
 	g.free()
 	# Tag 6: Krieg im Weiterbauen ist nur Krieg
 	var gs6 := day_state(6)
@@ -2927,6 +3001,13 @@ func test_reminder_plan() -> void:
 	for e in p:
 		tpls[str(e["tpl"])] = true
 	check(tpls.size() == 4, "Plan: vier verschiedene Texte")
+	# Nachteule: Sitzung um 0:30 am 10.11. (Spieltag 9.11.) → nicht schon um 8:00, sondern 10.11. 21:30 (≈ 21 h später)
+	var night := lt(2026, 11, 10, 0, 30)
+	var kn := Daily.day_key(night)
+	var pn := ReminderPlan.plan(_plan_state({"today": kn, "done_today": true, "last_win_key": kn, "last_open_key": kn, "anchor_min": 30}), night)
+	check(not pn.is_empty() and int(pn[0]["at"]) == lt(2026, 11, 10, 21, 30) and ReminderPlan.minute_for("auto", 170, 0) == 1290
+		and ReminderPlan.minute_for("auto", 200, 0) == 480 and ReminderPlan.minute_for("fest", 30, 600) == 600,
+		"Nachteule: Sitzung 0:30 → Erinnerung 21:30 am selben Kalendertag, nicht 8:00 (%s)" % (ReminderPlan.log_line(pn[0]) if not pn.is_empty() else "leer"))
 	# Uhrzeiten
 	var p7 := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": 420}), now)
 	var p23 := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": 1430}), now)
@@ -3057,7 +3138,8 @@ func test_daily_debug() -> void:
 	check(g2.debug_day_offset == 1 and g2.today_key() == g.today_key() and (g2.remind["planned"] as Array).size() == (g.remind["planned"] as Array).size(),
 		"Test-Tage und Plan werden gespeichert")
 	var soon: Dictionary = g.debug_reminder_soon()
-	check(int(soon["id"]) == 199 and str(soon["cat"]) == "A" and str(soon["body"]) != "", "Test: Erinnerung in 10 s")
+	check(int(soon["id"]) == 199 and str(soon["cat"]) == "A" and str(soon["body"]) != "" and int(soon["key"]) == 2147483647,
+		"Test: Erinnerung in 10 s (Spieltag-Schlüssel, den das Plugin nie verwirft)")
 	g.set_reminder_mode("aus")
 	check(g.reminder_log.is_empty() and str(g.remind["mode"]) == "aus", "Einstellung „Aus“: kein Plan")
 	g.set_reminder_mode("fest", 15 * 60)
@@ -3080,8 +3162,8 @@ func test_voice_and_ask() -> void:
 	var b := Voice.praise()
 	check(a != "" and a != b, "Voice: Lob nie zweimal hintereinander gleich")
 	for ton in Character.TONES:
-		var ask := CharacterTexts.line("ask_reminder", str(ton), {"tag": "Tag 2 · Pflanzen"})
-		check(ask.contains("Tag 2 · Pflanzen") and ask.length() <= 110 and not ask.begins_with("Tag"), "Frage nach der Erinnerung (%s)" % ton)
+		var ask := CharacterTexts.line("ask_reminder", str(ton), {"tag": "Tag 2: Pflanzen"})
+		check(ask.contains("morgen") or ask.begins_with("Morgen"), "Frage nach der Erinnerung, kurz und ohne Tag (%s: %s)" % [ton, ask])
 	var path := "user://test_taeglich.cfg"
 	var g := _daily_game(path, lt(2026, 11, 9, 18, 10))
 	check(g.reminder_ask_due(0), "Fragen: beim ersten Mal ja")
@@ -3125,6 +3207,13 @@ func test_short_texts() -> void:
 		texts.append(str(GameState.WISH_TEXT[k]))
 	for k in Character.TONE_SAMPLE:
 		texts.append(str(Character.TONE_SAMPLE[k]))
+	for k in CharacterTexts.LINES:
+		for ton in CharacterTexts.TONES:
+			for v in CharacterTexts.variants(str(k), str(ton)):
+				texts.append(str(v))
+	for ton in CharacterTexts.NOTIFY:
+		for e in (CharacterTexts.NOTIFY[ton] as Array):
+			texts.append(str((e as Dictionary)["text"]))
 	var bad: Array = []
 	for t in texts:
 		var tx := str(t)

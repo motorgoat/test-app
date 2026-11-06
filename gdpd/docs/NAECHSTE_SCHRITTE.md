@@ -12,10 +12,12 @@
   Regen, fliehen vor Smog, Feuer und Krieg und kommen zurück, wenn es wieder gut ist.
 
 ## Ausrichtung wie Duolingo (Wunsch von Philipp, 6. November 2026)
-- Ein neues Level pro echtem Tag (Die Schöpfung in 7 echten Tagen), danach täglich eine „Welt des Tages“.
-- Serie (Streak) mit Flammen-Zähler und Feier; Serien-Schutz; Wochenkalender.
-- Nach dem Schaffen im gleichen Level ohne Drehungs-Limit weiterspielen; das nächste Level erst morgen.
-- Erinnerung als Handy-Benachrichtigung (Android-Plugin), nicht nervig, nach dem Vorbild von Duolingo:
+- Ein neues Level pro echtem Tag (Die Schöpfung in 7 echten Tagen), danach täglich eine „Welt des Tages“. (erledigt)
+- Serie (Streak) mit Flammen-Zähler und Feier; Serien-Schutz; Wochenkalender. (erledigt)
+- Nach dem Schaffen im gleichen Level ohne Drehungs-Limit weiterspielen; das nächste Level erst morgen. (erledigt;
+  „Weiterbauen“ bleibt auch nach einem verlorenen „Nochmal“ bis zum nächsten Spieltag)
+- Erinnerung als Handy-Benachrichtigung (Android-Plugin), nicht nervig, nach dem Vorbild von Duolingo (erledigt;
+  auf einem echten Handy noch zu prüfen: Zustellung, Ruhezeit beim späten Wecker, Gesicht als Bild):
   - höchstens eine Erinnerung pro Tag, zu der Uhrzeit, zu der man zuletzt gespielt hat (etwa 24 Stunden danach),
     und nur, wenn man heute noch nicht gespielt hat;
   - keine Warnung kurz vor Mitternacht;
@@ -24,18 +26,21 @@
     mit einer freundlichen letzten Nachricht auf; wer zurückkommt, bekommt sie wieder;
   - nie in der Nacht (Ruhezeit), Uhrzeit in den Einstellungen änderbar oder ganz aus.
 - Entschieden: Das nächste Level ist bis morgen gesperrt; Erinnerungen mit Plugin gleich einbauen;
-  Test-Knopf „Nächster Tag“ in der Testversion.
-- Test-Knopf „Nächster Tag“ nur in der Testversion.
+  Test-Knopf „Nächster Tag“ in der Testversion. (erledigt)
+- Test-Knopf „Nächster Tag“ nur in der Testversion. (erledigt)
+- Uhr verstellen bringt nichts: Zurück- und wieder Vorstellen öffnet kein Level und kostet keinen Serienschutz. (erledigt)
 
 ## Eigener Charakter (Wunsch von Philipp)
-- Man erstellt seinen eigenen Gott bzw. Charakter (Art, Farben, Gesicht, Zubehör, Name, Art zu reden: lieb, frech, streng).
-- Der Charakter ist der Begleiter im Spiel: Er erklärt, lobt, feiert die Serie und erinnert in den Benachrichtigungen.
-- Er reagiert: freut sich, wenn man spielt; ist traurig oder frech, wenn die Serie in Gefahr ist.
-- Später mehr Teile und Skins (Shop, Premium), z. B. das Spaghettimonster.
+- Man erstellt seinen eigenen Gott bzw. Charakter (Art, Farben, Gesicht, Zubehör, Name, Art zu reden: lieb, frech, streng). (erledigt)
+- Der Charakter ist der Begleiter im Spiel: Er erklärt, lobt, feiert die Serie und erinnert in den Benachrichtigungen. (erledigt)
+- Er reagiert: freut sich, wenn man spielt; ist traurig oder frech, wenn die Serie in Gefahr ist. (erledigt)
+- Später mehr Teile und Skins (Shop, Premium), z. B. das Spaghettimonster. (offen; das Spaghettimonster gibt es schon als Grundform)
 
 ## Texte (Regel von Philipp, gilt immer)
-- Regel allgemein erklären: „Bring 3 gleiche in eine Reihe.“ Nicht: „Bring 3 Erden zusammen.“
-- Alle Texte so kurz wie möglich: ein kurzer Satz, am besten 2–6 Wörter. Lieber Bilder als Worte.
+- Regel allgemein erklären: „Bring 3 gleiche in eine Reihe.“ Nicht: „Bring 3 Erden zusammen.“ (erledigt: Ziel-Karte
+  und Vorführung an Tag 1 sagen es)
+- Alle Texte so kurz wie möglich: ein kurzer Satz, am besten 2–6 Wörter. Lieber Bilder als Worte. (erledigt; ein Test
+  prüft alle Texte auf höchstens 8 Wörter)
 
 ## Realistischere Grafik (Wunsch von Philipp)
 - Die Welt soll realistischer aussehen: echtere Wiesen, Wälder, Wasser, Felder, Häuser, Licht und Schatten.

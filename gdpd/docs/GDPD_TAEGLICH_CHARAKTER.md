@@ -19,7 +19,7 @@ and „Eigener Charakter“. Everything not changed here stays as it is.
 | streak day | a Spieltag on which the player **wins one level** (the new day, a replay of an old day, or the Welt des Tages) |
 | streak protection | „Serienschutz“: hold at most 2; +1 at every 7-day milestone; buy for 5 coins; used automatically for missed days, only if it saves the whole gap |
 | after a win | **„Weiterbauen“** in the same level: no twist limit, no fail, the world keeps growing, wishes and faith continue, coins for growth; stars stay those of the winning attempt (more stars = „Nochmal“ on a fresh board) |
-| locked level | tile shows „Morgen“; tap → „Morgen geht's weiter: Tag 3 · Tiere“; overview shows a countdown |
+| locked level | tile shows „Morgen“; tap → the character „Nicht drängeln! Erst morgen.“ (`day_wait`) and a toast with the countdown; a later locked tile says „Ab Mittwoch.“; the win card and Heute card say „Morgen geht's weiter: Tag 3 · Tiere“ |
 | reminders | at most one per day, ~23.5 h after the start of the last **winning** session, clamped to 08:00–21:30, only if the streak day is not done; ladder: +1, +2, +4 days, then a friendly final message on +7 and silence until the player returns |
 | notification plugin | **own tiny Android v2 plugin „GdpdReminder“** (Kotlin, `AlarmManager.setAndAllowWhileIdle`, inexact, reboot-safe, large icon = the player's character). Built in CI with the Gradle wrapper of the Godot 4.3 Android build template. No maintained third-party plugin supports Godot 4.3 (section 6.1) |
 | permission | Android 13+: `POST_NOTIFICATIONS` asked after the first win of day 1, by the character first („Soll ich dich morgen erinnern?“), then `OS.request_permission()`; no exact-alarm permission |
@@ -173,16 +173,17 @@ Top to bottom (portrait, `Style.CONTENT_W`):
 2. **Character bubble** (one line, from the character, tone and state dependent, section 4.6).
 3. **Heute card** (the main button of the screen), one of these states:
    - *new day open:* caps „Heute neu“, title „Tag 3 · Tiere“, goal line „Erschaffe 3 Tiere“, button „Los!“.
-   - *today done, next is tomorrow:* a check tile, title „Heute geschafft!“, line „Morgen geht's weiter: Tag 4 ·
-     Menschen“, countdown line, buttons „Weiterbauen“ (only while the won world is still in memory, section 2.4) and
+   - *today done, next is tomorrow:* a check tile, caps „Heute“, title „Geschafft!“, line „Morgen geht's weiter: Tag 4 ·
+     Menschen“, countdown line, buttons „Weiterbauen“ (only while today's won world is still in memory, section 2.4) and
      „Nochmal · mehr Sterne“ (only if the day has < 3 stars).
    - *after day 7, not done today:* caps „Welt des Tages · Freitag“, the goal, „Los!“. (Before day 7 „not done
      today“ always means a new day is open: a locked new day implies a first win today.)
-   - *WdT done:* „Heute geschafft!“, „Morgen gibt es eine neue Welt.“, countdown.
+   - *WdT done:* „Geschafft!“, „Morgen gibt es eine neue Welt.“, countdown.
    - *day 7 won today:* „Deine Welt ist vollendet!“, „Morgen: deine erste Welt des Tages“, countdown.
 4. **Week row** („Diese Woche“): 7 circles Mo Di Mi Do Fr Sa So for the current week (Monday first):
    streak day = golden flame; shield day = blue shield (`Style.WATER`); missed = empty grey ring; today, not done =
-   ring with a soft pulse; future = faint dot. Under the row: „Serie: 3 Tage · Rekord: 9“.
+   ring with a soft pulse; future = faint dot. Under the row only „Rekord 9“ when the record is higher than the
+   current streak (the flame chip carries the number; a new player sees no „Serie 0 · Rekord 0“).
 5. **The 7 day tiles** (as now, 4 + 3) and „Freies Spiel“. The tile of the next new day, when it is tomorrow, shows
    a small moon icon and the caption „Morgen“ instead of the lock. Tap → the tile wiggles and the character says
    the locked line (4.6); toast text: „Morgen geht's weiter: Tag 4 · Menschen“. Tiles after it keep the lock and
@@ -196,17 +197,25 @@ Top to bottom (portrait, `Style.CONTENT_W`):
 
 ### 1.7 Clock changes, time travel, time zones
 
-`last_seen` = the largest `now_local()` ever seen (saved), `last_key` = its Spieltag.
+**Monotonic game clock (as built, `Daily.observe`).** Saved keys are never rewritten. The game time is
+`system time + clock_off` whole days (`Daily.game_time`, `Game.game_now()`), so the time of day stays the same and
+the Spieltag never goes backwards. `last_seen` = the largest game time seen, `last_key` = its Spieltag,
+`sys_seen` = the last system time seen (detects a correction), `clock_off` = days (saved as `uhr_versatz`,
+`zuletzt_system`).
 
 | case | rule |
 |---|---|
-| normal (`now >= last_seen`) | `today_key = day_key(now)`; update `last_seen` |
+| normal (game time ≥ `last_seen`) | `today_key = day_key(game time)`; update `last_seen` |
 | clock back < 36 h (DST in autumn, small correction, flying west) | `today_key = last_key` (the Spieltag never goes backwards); nothing unlocks, nothing is lost; `last_seen` unchanged |
-| clock back ≥ 36 h (big correction after a wrong date) | **rebase:** `last_seen = now`, `last_key = today_key = day_key(now)`; every saved key moves back by the same number of days (`Daily.shift_keys`, as implemented): nothing lies in the future afterwards, „heute geschafft“ / „morgen geht's weiter“ stay as they were (nothing unlocks today), the streak is kept, no shield is used, the day check runs normally from the next Spieltag |
-| clock forward (cheating or a wrong date) | accepted. It can open at most one new level per changed Spieltag and can break the streak (shields apply). A later correction backwards is the rebase above, so nobody gets stuck |
+| clock back ≥ 36 h (a wrong past date, a reset to 1970) | `clock_off = last_key − day_key(now)`: the Spieltag stays, nothing unlocks today; from there the game time runs in real time (the next level comes at the next 3:00 as usual) |
+| clock set right again (`clock_off > 0` and the system Spieltag reaches `last_key`, or a jump ≥ 36 h forward) | `clock_off` shrinks first (`max(0, last_key − day_key(now))`). Those days are **not** missed: nothing unlocks, no day check, no shield is used, the streak stays. Back-and-forward cycles therefore unlock nothing (tests: back 2 d then fixed, back 30 d then fixed, 1970 then fixed, repeated cycles) |
+| clock forward without `clock_off` (cheating or a wrong future date) | accepted (it cannot be told apart from real time offline). It opens at most one new level per Spieltag and can break the streak (shields apply). Going back afterwards keeps the Spieltag (`clock_off`), so a forward-then-back cycle never gains a second time and never runs the day check backwards |
 | time-zone travel east | a Spieltag can be shorter; at most it opens the next level a few hours earlier |
+| an attempt runs over 3:00 | a win counts for the Spieltag in which the attempt began if it began at most `Balance.WIN_GRACE` (60 min) before the day change; the day check (shields) waits until the attempt ends (`Game._win_grace`, `_win_key`) |
 
 All keys are local-time keys. The save stores keys, never UTC times, except `session_anchor` (minutes of the day).
+Leniency: while `clock_off > 0`, a forward jump of 36 h or more counts as a correction, so a player who lives with a
+wrong past date and skips a day is never punished (that day just does not open a new level).
 
 ### 1.8 Save format v2 and migration
 
@@ -230,6 +239,7 @@ Still `user://rekord.cfg`, written by `Game._save_profile()`. `[schoepfung] vers
 | `bau_muenzen` | Array[int] | `[key, coins]` earned in Weiterbauen today (cap 3, section 2.2) |
 | `test_tage` | int | `debug_day_offset` (ignored in release builds) |
 | `zuletzt_tag`, `erster_tag`, `geoeffnet` | int | `last_key`; first Spieltag of the profile (week row: earlier days are empty, not „missed“); Spieltag of the latest session start (reminder ladder base) |
+| `uhr_versatz`, `zuletzt_system` | int | `clock_off` (whole days the game time is ahead of the system clock after a big backward change, 1.7; default 0) and the last system time seen (default `zuletzt − uhr_versatz` days), so old saves load unchanged |
 | `schutz_je` | bool | a shield was ever held (the shield chip stays visible) |
 | `comeback` | String | "", "saved", "lost" – shown once, then cleared |
 
@@ -286,8 +296,11 @@ The win card (`day_ui._show_win`) changes:
 
 ### 2.4 Keeping the world
 
-The continued `GameState` stays in memory (`Game.build_state`) while the app runs, so the overview's „Weiterbauen“
-returns to it. It is **not** saved to disk in v1 (a day in progress is never saved, `GDPD_7_TAGE.md` 3.4). Persisting
+The world won **today** (today's level or today's WdT) stays in memory in its own slot (`Game.today_build` +
+`today_build_ctx` with its Spieltag) while the app runs, so the overview's „Weiterbauen“ returns to it – also after a
+lost „Nochmal · mehr Sterne“, a replay of an older day or free play. Only a new winning attempt of today's level or a
+new Spieltag replaces it (`can_resume_build()` checks the Spieltag). `Game.build_state` is only the session that is
+building right now. It is **not** saved to disk in v1 (a day in progress is never saved, `GDPD_7_TAGE.md` 3.4). Persisting
 it needs a `GameState` serializer – later.
 
 ---
@@ -483,7 +496,7 @@ caps, button labels and card titles stay neutral system text (they are short fac
 New `scripts/voice.gd` (`class_name Voice`): `Voice.line(key: String, args: Dictionary = {}) -> String` picks the
 variant for the current tone (and a random one where a key has a list, never the same twice in a row), fills
 placeholders, and `Voice.face(key) -> String` returns the expression. Placeholders: `{name}` (character),
-`{tag}` („Tag 3 · Tiere“, or „die Welt des Tages“ after day 7), `{streak}` (number). **Never start a sentence with
+`{tag}` („Tag 3: Tiere“, or „die Welt des Tages“ after day 7), `{streak}` (number). **Never start a sentence with
 `{tag}`** (lowercase „die Welt des Tages“).
 
 **Text rule (Philipp, overrides the longer texts below):** every player text is one short sentence, ideally 2–6
@@ -591,71 +604,139 @@ The free-play-only keys (`rain`, `bolt`, `monsoon`, `undo`, `coins`, `scale`, `c
 (`{ziel}` = the template's goal noun phrase, e.g. „5 Wäldern“ – keep it out of v1 if the grammar gets awkward and use
 the goal line on the card instead.)
 
+### 4.6b Shipped lines (as built, `CharacterTexts.LINES`)
+
+The tables in 4.1–4.6 are the first long drafts. This is what the game says (generated from
+`scripts/character_texts.gd`; `{tag}` is „Tag 3: Tiere“ with a colon, never the „·“ of titles):
+
+| key | lieb | frech | streng |
+|---|---|---|---|
+| `intro` | Hallo, ich bin {name}! | Hi, ich bin {name}. Los! | Ich bin {name}. Pass auf. |
+| `d1_demo` | Schau: 3 gleiche in eine Reihe! | Pass auf: 3 gleiche in eine Reihe! | 3 gleiche in eine Reihe. Schau. |
+| `d1_c0` | Bring 3 gleiche in eine Reihe! | Los: 3 gleiche in eine Reihe! | Bring 3 gleiche in eine Reihe. |
+| `d1_c1` | Eine Wiese! Wie schön! | Zack, eine Wiese! | Richtig. Eine Wiese. |
+| `d1_c2` | Jetzt du! Wisch die leuchtende Reihe. | Dein Zug! Wisch die leuchtende Reihe. | Jetzt du. Wisch die leuchtende Reihe. |
+| `d1_retry` | Fast! Wisch die leuchtende Reihe. | Knapp! Die leuchtende Reihe! | Die leuchtende Reihe. |
+| `d1_hint` | Drück die Lampe. Sie hilft. | Drück die Lampe! | Drück die Lampe. |
+| `d1_c3` | Gut so! Deine Welt. | Läuft! Du bist der Boss. | Gut. Pass auf deine Welt auf. |
+| `d2_intro` | Heute wachsen Pflanzen! | Heute: Pflanzen! Los! | Heute: Pflanzen. |
+| `d3_intro` | Heute kommen Tiere! | Tiere! Endlich Leben! | Heute: Tiere. |
+| `d4_intro` | Heute kommen Menschen! | Menschen! Jetzt wird's laut. | Heute: Menschen. |
+| `d5_intro` | Die Menschen haben Hunger. | Hunger! Mach Acker! | Heute: Nahrung. |
+| `d6_intro` | Die Menschen beten zu dir. | Sie beten dich an! | Heute: Glaube. |
+| `d7_intro` | Halte die Welt im Gleichgewicht. | Jetzt: Balance halten! | Heute: Gleichgewicht. |
+| `d2_c0` | Heute wächst Wald! | Wiesen? Langweilig. Mach Wald! | Heute: Wald. |
+| `d2_c1` | Wächst nichts, brennt's. Regen hilft. | Nix wächst? Dann brennt's! | Wächst nichts, brennt es. |
+| `d2_tool` | Tipp Regen, dann eine Wiese. | Abkürzung: Regen auf eine Wiese! | Regen auf eine Wiese: Wald. |
+| `d3_c0` | Heute kommen Tiere! | Großer Wald? Dann Tiere! | Großer Wald bringt Tiere. |
+| `d4_c0` | Aus Tieren werden Hütten! | Besuch! Menschen ziehen ein. | Tiere bringen Menschen. |
+| `d4_c1` | Erfüll Wünsche, dann wächst ihr Haus. | Wünsche erfüllen? Dann wächst ihr Haus! | Erfüll Wünsche. Ihr Haus wächst. |
+| `d5_c0` | Wald oder Acker? Du wählst. | Wald oder Acker? Hunger hat jeder. | Du wählst: Wald oder Acker. |
+| `d6_c0` | Kirchen geben Glauben. Zwei: Krieg! | Kirchen? Gut. Zwei? Krieg! | Zwei Kirchen treffen sich: Krieg. |
+| `d7_c0` | Halte die Waage im Grünen. | Fabriken stinken. Mehr Wald! | Halte die Waage im Grünen. |
+| `miss` | Nichts gewachsen. 3 Flammen: Feuer. | Nix gewachsen! Gleich wird's heiß. | Nichts gewachsen. 3 Flammen: Feuer. |
+| `fire` | Feuer! Gieß es mit Regen. | Es brennt! Regen drauf! | Feuer. Regen drauf. |
+| `war` | Oh weh, Krieg! | Krach! Kirchen-Krieg! | Krieg. Halte Kirchen auseinander. |
+| `smog` | Smog! Pflanz mehr Wald. | Puh, Smog! Mehr Wald! | Smog. Pflanz Wald. |
+| `hint` | Fest? Tipp hilft – heute gratis. | Hängst du? Tipp ist gratis. | Tipp zeigt die beste Drehung. |
+| `hold` | Halte ein Symbol für Hilfe. | Psst: Symbol gedrückt halten! | Halte ein Symbol gedrückt. |
+| `mini` | Tipp schnell das andere Bild. | Tipp schnell das andere Bild. | Tipp schnell das andere Bild. |
+| `rest` | Das wächst erst später. | Geduld! Morgen mehr. | Nicht heute. |
+| `praise` | Wie schön! / Toll gemacht! / Das wächst ja prima! / Hach, schön grün! / Super! | Zack! / Läuft bei dir! / Nicht übel! / Hui! / Hab ich dir beigebracht! | Gut. / Ordentlich. / So ist es richtig. / Sauber gedreht. / Weiter so. |
+| `surprise` | Oje! | Uiuiui! | Achtung! |
+| `win_1` | Geschafft! Ich bin stolz. | Geschafft! Knapp, aber egal. | Geschafft. Gut. |
+| `win_2` | Zwei Sterne – super! | Zwei Sterne. Fast! | Zwei Sterne. Gut. |
+| `win_3` | Drei Sterne! Naturtalent! | Drei Sterne?! Angeber! | Drei Sterne. Ausgezeichnet. |
+| `fail` | Nicht schlimm! Neues Glück! | Das war nix. Auf ein Neues! | Konzentrier dich. Nächster Versuch. |
+| `fail_war` | Halte die Kirchen auseinander. | Kirchen auseinander! Nochmal! | Kirchen auseinander halten. |
+| `streak_1` | Deine Serie beginnt! | Serie gestartet! | Tag 1 deiner Serie. |
+| `streak_n` | {streak} Tage in Folge! | {streak} Tage am Stück! | {streak} Tage in Folge. Gut. |
+| `streak_7` | Eine Woche! Hier, ein Serienschutz. | 7 Tage! Hier, ein Serienschutz. | Sieben Tage. Ein Serienschutz. |
+| `streak_7_full` | Eine Woche! Hier, 3 Münzen. | 7 Tage! 3 Münzen für dich. | Sieben Tage. 3 Münzen. |
+| `streak_big` | {streak} Tage! Unglaublich! | {streak} Tage?! Wahnsinn! | {streak} Tage. Bemerkenswert. |
+| `shield_bought` | Deine Serie ist geschützt! | Schlau! Serie geschützt. | Vernünftig. Serie geschützt. |
+| `comeback_saved` | Da bist du ja! Serie gerettet. | Glück gehabt! Serie gerettet. | Der Schutz hat deine Serie gerettet. |
+| `comeback_lost` | Schön, dass du wieder da bist! | Da bist du ja! Neue Serie! | Neue Serie. Heute geht's los. |
+| `open` | Hallo! Schön, dich zu sehen. | Na, auch wieder da? | Gut, dass du da bist. |
+| `open_night` | Gähn … nicht zu lange, ja? | Gähn! Du Nachteule! | Spät. Nur eine Runde. |
+| `day_open` | Heute wartet {tag}! | Heute gibt's {tag}! | Bereit für {tag}? |
+| `day_done` | Morgen kommt {tag}! | Morgen gibt's {tag}! | Morgen folgt {tag}. |
+| `day_wait` | Geduld! Morgen geht's weiter. | Nicht drängeln! Erst morgen. | Erst morgen. |
+| `wdt_open` | Eine neue Welt für dich! | Neue Welt! Schaffst du's? | Die Welt des Tages wartet. |
+| `wdt_done` | Geschafft! Morgen gibt's eine neue. | Erledigt! Morgen was Neues. | Erledigt. Morgen eine neue Welt. |
+| `weiterbauen` | Bau weiter, ohne Grenze! | Bonusrunde! Ohne Limit! | Weiterbauen. Ohne Grenze. |
+| `wdt_intro` | Heute: {ziel}. Viel Spaß! | Heute: {ziel}. Locker! | Heute: {ziel}. |
+| `ask_reminder` | Morgen erinnern? | Soll ich dich morgen erinnern? | Ich erinnere dich morgen. Okay? |
+| `ask_yes` | Schön! Bis morgen! | Abgemacht! | Gut. |
+| `ask_no` | Alles klar! | Okay, okay. | Wie du willst. |
+
 ### 4.7 Notification texts
 
 Notification **title** = `{name}`. **Body** = one template. Categories by slot of the reminder ladder (section 5.3):
 **A** = 1st day after the last play, **B** = 2nd day, **C** = 4th day, **F** = final message (7th day).
 Flag `S` = only if `streak >= 2`. 14 texts per tone + the final message.
 
+Shipped texts (`CharacterTexts.NOTIFY`, the source `ReminderPlan` reads; short by the text rule):
+
 **lieb**
 
 | id | cat | text |
 |---|---|---|
-| l01 | A | Hallo! Heute wartet {tag} auf dich. |
-| l02 | A | Deine Welt ist aufgewacht. Kommst du sie besuchen? |
-| l03 | A | Ich hab Regen für dich aufgehoben. Spielen wir eine Runde? |
-| l04 | A | Ein paar Drehungen, und deine Welt wird wieder ein Stück grüner. |
-| l05 | A, S | Deine Serie: {streak} Tage! Machen wir heute weiter? |
-| l06 | A | Die Wiesen fragen schon nach dir. Schaust du kurz vorbei? |
-| l07 | A | Heute ist ein guter Tag für {tag}. Ich freu mich auf dich! |
-| l08 | A | Nur fünf Minuten? Mehr braucht deine Welt heute nicht. |
-| l09 | B | Ich hab dich gestern vermisst. Hast du heute ein bisschen Zeit? |
-| l10 | B | Deine Welt ist ein bisschen still ohne dich. Kommst du heute? |
-| l11 | B | Kein Stress! Wenn du Zeit hast: {tag} ist bereit. |
-| l12 | C | Ich denk an dich! Deine Welt ist noch da – genau wie ich. |
-| l13 | C | Wir können jederzeit neu anfangen. Ich warte gern auf dich. |
-| l14 | C | Schau doch mal wieder rein. Ich hab dir viel zu zeigen! |
-| lF | F | Ich erinnere dich jetzt nicht mehr. Deine Welt und ich sind da, wenn du wiederkommst. Alles Liebe! |
+| l01 | A | Heute wartet {tag}! |
+| l02 | A | Deine Welt ist wach. Kommst du? |
+| l03 | A | Ich hab Regen für dich! |
+| l04 | A | Ein paar Drehungen? |
+| l05 | A, S | {streak} Tage! Machen wir weiter? |
+| l06 | A | Die Wiesen fragen nach dir. |
+| l07 | A | Heute ist {tag} dran! |
+| l08 | A | Nur fünf Minuten? |
+| l09 | B | Ich hab dich vermisst! |
+| l10 | B | Ohne dich ist es still. |
+| l11 | B | Kein Stress! {tag} wartet. |
+| l12 | C | Ich denk an dich! |
+| l13 | C | Ich warte gern auf dich. |
+| l14 | C | Schau mal wieder rein! |
+| lF | F | Ich bin jetzt still. Bis bald! |
 
 **frech**
 
 | id | cat | text |
 |---|---|---|
-| f01 | A | Psst! {tag} ist da. Ich hab nicht reingeschaut. Fast nicht. |
-| f02 | A | Deine Welt dreht sich nicht von allein. Hilfst du mir? |
-| f03 | A | Mir ist langweilig. Rettest du mich mit ein paar Drehungen? |
-| f04 | A | Die Wiesen wollen Wald werden. Ich kann das nicht – du schon. |
-| f05 | A, S | {streak} Tage am Stück! Machen wir heute einen mehr draus? |
-| f06 | A | Achtung, Durchsage: {name} sucht Gesellschaft. Belohnung: Spaß! |
-| f07 | A | Ich hab ganz zufällig Regen übrig. Willst du? |
-| f08 | A | Kurze Frage: Wer hat hier die Welt erschaffen? Genau, du. Weiter geht's! |
-| f09 | B | Gestern keine Drehung? Ich hab's gesehen. Ich sag's aber keinem. |
-| f10 | B | Huhu! Deine Welt hat ein kleines bisschen Staub angesetzt. Kommst du? |
-| f11 | B | Ich hab Kekse. Okay, hab ich nicht. Aber {tag} hab ich! |
-| f12 | C | Ich hab angefangen, mit den Wolken zu reden. Komm bitte zurück! |
-| f13 | C | Lange nicht gesehen! Ich hab neue Witze. Und deine Welt. |
-| f14 | C | Hallooo? Ist da wer? Deine Welt würde gern weiterwachsen. |
-| fF | F | Okay, ich hab's kapiert: Pause! Ich bin jetzt still. Aber wenn du wiederkommst, freu ich mich riesig. |
+| f01 | A | Psst! {tag} ist da. |
+| f02 | A | Deine Welt dreht sich nicht allein. |
+| f03 | A | Mir ist langweilig. Hilfe! |
+| f04 | A | Die Wiesen wollen Wald werden. |
+| f05 | A, S | {streak} Tage! Einer mehr? |
+| f06 | A | Ich such Gesellschaft! |
+| f07 | A | Regen übrig. Willst du? |
+| f08 | A | Wer hat die Welt erschaffen? Du! |
+| f09 | B | Gestern nichts gedreht? Ich sag nix. |
+| f10 | B | Huhu! Deine Welt staubt ein. |
+| f11 | B | Hey, {tag} wartet! |
+| f12 | C | Ich rede schon mit Wolken! |
+| f13 | C | Lange nicht gesehen! |
+| f14 | C | Hallooo? Jemand da? |
+| fF | F | Okay, Pause! Ich bin still. |
 
 **streng**
 
 | id | cat | text |
 |---|---|---|
-| s01 | A | Die Welt wartet. Heute ist {tag} bereit. |
-| s02 | A | Zeit für deine tägliche Schöpfung. Ein paar Minuten genügen. |
-| s03 | A | Ordnung muss sein: heute eine Runde. Ich zähle auf dich. |
-| s04 | A | Eine Welt baut sich nicht von selbst. Fangen wir an. |
-| s05 | A, S | {streak} Tage in Folge. So eine Serie pflegt man. |
-| s06 | A | Heute steht {tag} an. Pünktlich, bitte. |
-| s07 | A | Die Wiesen stehen bereit. Es fehlt nur noch jemand, der dreht. |
-| s08 | A | Eine Runde am Tag. Das ist der Plan. Bleib dabei. |
-| s09 | B | Gestern war Pause. Heute geht es weiter. |
-| s10 | B | Deine Welt hat heute noch nichts von dir gehört. Eine Runde? |
-| s11 | B | Kurze Erinnerung: {tag} ist bereit. Mehr verlange ich nicht. |
-| s12 | C | Es ist ruhig geworden. Wenn du bereit bist, machen wir weiter. |
-| s13 | C | Deine Welt ist in Ordnung. Ich habe aufgepasst. Kommst du zurück? |
-| s14 | C | Jede Welt verdient eine zweite Chance. Deine auch. |
-| sF | F | Ich erinnere dich nicht mehr. Deine Welt bleibt, wie sie ist. Wenn du wiederkommst: Ich bin bereit. |
+| s01 | A | Heute ist {tag} bereit. |
+| s02 | A | Zeit für deine Schöpfung. |
+| s03 | A | Ich zähle auf dich. |
+| s04 | A | Die Welt baut sich nicht allein. |
+| s05 | A, S | {streak} Tage. Bleib dran. |
+| s06 | A | Bitte pünktlich zu {tag}. |
+| s07 | A | Die Wiesen warten auf dich. |
+| s08 | A | Eine Runde am Tag. |
+| s09 | B | Gestern Pause. Heute weiter. |
+| s10 | B | Deine Welt wartet auf dich. |
+| s11 | B | Zeit für {tag}. |
+| s12 | C | Wenn du bereit bist: weiter. |
+| s13 | C | Ich habe aufgepasst. Kommst du? |
+| s14 | C | Jede Welt verdient eine Chance. |
+| sF | F | Ich bin jetzt still. Bis dann. |
 
 Category A texts may also be used for C when C has no unused text left; B/C never use `S` texts (the streak may
 already be over). Final messages are fixed per tone.
@@ -692,6 +773,7 @@ if mode == "aus" or not allowed: return []
 
 minute = (mode == "fest") ? fixed_min : anchor_min − 30          # ~23.5 h after the session start
 minute = clamp(minute, 08:00 = 480, 21:30 = 1290)
+# night owl (as built): a session that began 0:00–2:59 belongs to the Spieltag before → 21:30, not 8:00 the same morning
 
 base = max(last_win_key, last_open_key)        # opening the app counts as „came back“: the ladder restarts
 slots = [(base + 1, "A"), (base + 2, "B"), (base + 4, "C"), (base + 7, "F")]
@@ -739,7 +821,11 @@ History: when a plan is replaced, every entry of the old plan whose `at <= now` 
 `schedule(id, year, month, day, hour, minute, title, body, icon_path, day_key)` – wall-clock fields (the plugin
 converts them with the device's time zone, so DST and travel are handled by Android), the Spieltag for `mark_done`,
 and the large-icon PNG of the right expression (5.6). `cancel_all()` before every new plan.
-`mark_done(today_key)` after a streak-day win.
+`mark_done(key)` after a streak-day win (the Spieltag the win counted for; the plugin stores it exactly).
+`set_window(earliest, latest)` (`Balance.REMIND_EARLIEST/LATEST`) before every plan: inexact alarms can fire late, so
+`ReminderReceiver` checks the local time when an alarm fires and drops it outside 8:00–21:30 or more than 60 min after
+its planned time. The test entry „Erinnerung in 10 s“ has the day key `2147483647` (`Game.DEBUG_REMINDER_KEY`): never
+dropped as done, shown at any time.
 
 ### 5.6 Large icon (the character's face)
 
@@ -757,7 +843,8 @@ Menu → section „Erinnerung“ (after „Dein Charakter“):
 - footnote: „Höchstens eine am Tag. Nie zwischen 21:30 und 8:00 Uhr.“
 - permission denied or notifications off in Android: line „Benachrichtigungen sind am Handy ausgeschaltet.“ +
   button „Einstellungen öffnen“ (plugin `open_settings()`).
-- no plugin (PC, CI): the section shows „Erinnerungen gibt es nur auf dem Handy.“ and is disabled.
+- no plugin: on PC/CI the section shows „Nur auf dem Handy.“, on an Android APK without the plugin (Gradle export
+  failed) „In dieser Version keine Erinnerungen.“; the section is disabled (test builds on PC: usable, log only).
 
 Saved in `[erinnerung]`: `modus` ("auto" | "fest" | "aus", default "auto"), `uhrzeit` (minutes, default 1080),
 `gefragt` (how often the in-game question was shown, 0–2), `verlauf` (Array[String], max 8), `geplant`
@@ -780,8 +867,8 @@ Saved in `[erinnerung]`: `modus` ("auto" | "fest" | "aus", default "auto"), `uhr
 
 ### 5.8 Delivery limits (accepted)
 
-`setAndAllowWhileIdle` is inexact: Android may deliver a few minutes late (Doze maintenance windows). That is fine for
-a daily reminder. Some vendors (Xiaomi, Huawei, some Samsung modes) kill alarms of apps that were swiped away; we do
+`setAndAllowWhileIdle` is inexact: Android may deliver late (Doze maintenance windows). That is fine for a daily
+reminder; one that would arrive in the quiet hours or more than 60 min late is dropped at fire time (5.5). Some vendors (Xiaomi, Huawei, some Samsung modes) kill alarms of apps that were swiped away; we do
 not ask for battery-optimization exceptions (that would be annoying). Alarms are restored after a reboot, an app
 update and a time-zone change by the plugin's receiver.
 
@@ -1034,7 +1121,7 @@ REMINDER plan id=101 at=2026-11-07 17:30 cat=A tpl=l03 title=Lumi text=Ich hab R
 REMINDER cancel_all
 ```
 
-and the settings show „Erinnerungen gibt es nur auf dem Handy.“ Nothing else changes.
+and the settings show „Nur auf dem Handy.“ (Android APK without the plugin: „In dieser Version keine Erinnerungen.“) Nothing else changes.
 
 ### 6.8 As built (differences from the sketch above)
 
@@ -1044,7 +1131,9 @@ and the settings show „Erinnerungen gibt es nur auf dem Handy.“ Nothing else
   Maven is not reachable. The app's Gradle build (Godot's template) dexes it and merges manifest and resources. The
   small icon is looked up by name (`getIdentifier("ic_gdpd_notify")`), so no `R` class is needed.
 - **Extra methods:** `has_permission()`, `request_permission()` (POST_NOTIFICATIONS on API 33+, true below –
-  Godot's own `OS.request_permission` returns false for it below 33) and `planned_count()`.
+  Godot's own `OS.request_permission` returns false for it below 33), `planned_count()` and `set_window(earliest,
+  latest)` (quiet hours checked when an alarm fires, `ReminderReceiver.allowedNow`). `mark_done` stores the key
+  exactly (no maximum).
 - **GDScript wrapper `scripts/notifier.gd`** (`class_name Notifier`, instead of `reminders.gd`):
   `Notifier.attach(Game)` connects `Game.reminders_planned` → `schedule_plan`, `streak_changed` → `mark_done`, keeps
   `Game.remind_permission` up to date; plus `schedule(at_unix, title, body, id, icon_path, day_key)`, `cancel_all()`,
@@ -1070,7 +1159,8 @@ Only when `OS.is_debug_build()` (true in the editor, in tour runs, and in the CI
 - „Nächster Tag“: `Game.debug_day_offset += 1`, save, run the day check (1.5), refresh the overview (unlock, week row,
   comeback line), `Reminders.replan()`; toast „Test: Jetzt ist %s.“ (weekday name).
 - „Erinnerung in 10 s“: schedules id 199 in 10 s (wall clock now + 10 s; `setAndAllowWhileIdle` may add a little
-  delay) with the next A template and the happy face.
+  delay) with the next A template and the happy face; day key `2147483647`, so the plugin shows it even after
+  today's win and in the quiet hours.
 - „Serie zurücksetzen“: streak 0, shields 0, history cleared.
 
 Hooks for tests and the tour (all on `Game` / static, never used by the game itself):
@@ -1096,14 +1186,19 @@ Hooks for tests and the tour (all on `Game` / static, never used by the game its
 5. Shields: streak 5, 1 shield, miss 1 day → kept, shield 0, `shield_days` has the key; miss 2 days with 1 shield →
    streak 0 and the shield is **kept**; milestone 7 → +1 shield; at 2 shields → +3 coins; buy: 5 coins → +1, refused
    at 2 or with too few coins.
-6. Clock: back 1 h (DST) → same Spieltag, nothing changes; back 3 days → rebase, keys clamped, streak kept, nothing
-   unlocks today; forward 1 day → next day opens once.
+6. Clock (monotonic game clock): back 1 h (DST) → same Spieltag, nothing changes; back 3 days → same Spieltag
+   (`clock_off` 3), nothing unlocks today, next morning the next day opens; set right again → `clock_off` 0, no day
+   missed, no shield used; forward 1 day → next day opens once. Bypass: day 3 won today, back 2 days, open, set right
+   (also 3× in a row) → day 4 stays locked; back 30 days or 1970 and set right → streak and shield kept; forward then
+   back → the Spieltag stays. An attempt started 2:50 and won 3:05 counts for the old Spieltag.
 7. Welt des Tages: same key → same template/board/goal; 6 consecutive keys → 6 different templates; board index never
    0; a WdT win counts for the streak; replaying its solution from the pool JSON wins (cross-check with
    `GDPD_7_TAGE.md` 9.1/12).
 8. Weiterbauen: after a win `twists_left() == -1`, 30 more twists → `day_lost == ""`; stars unchanged; day 6 war in
-   Weiterbauen → not lost; growth counter = `made` delta; coins +1 per 10 growths, max 3 per key.
-9. Reminder plan: anchor 18:10 → A at 17:40 next day; anchor 07:00 → 08:00; anchor 23:50 → 21:30; slots are
+   Weiterbauen → not lost; growth counter = `made` delta; coins +1 per 10 growths, max 3 per key; free play, a
+   „Nochmal“ and a lost „Nochmal“ keep today's world for „Weiterbauen“, a new Spieltag drops it.
+9. Reminder plan: anchor 18:10 → A at 17:40 next day; anchor 07:00 → 08:00; anchor 23:50 → 21:30; night owl
+   (session 0:30, Spieltag before) → 21:30 that day, not 8:00; slots are
    base+1, +2, +4, +7 with categories A, B, C, F; won today → no slot today; `aus` or no permission → `[]`; fixed
    mode uses the fixed time; no entry within 2 h after `now`; every `at` is between 08:00 and 21:30 local.
 10. Templates: each tone has ≥ 12 A–C texts and one F; only the placeholders `{name}`, `{tag}`, `{streak}`; no body
@@ -1136,14 +1231,14 @@ Add to the tour and to the expected list in `.github/workflows/gdpd.yml`:
 |---|---|
 | `creator_flow` | clean profile: the creator opens before day 1; 4 steps with real taps; „Würfeln“ changes the preview look; tone card „Frech“ shows its sample; „Fertig – los geht's!“ saves `[charakter]` and opens day 1 |
 | `character_coach` | the day 1 coach bubble shows the character portrait (not the old tile) and the frech text of `d1 c0` |
-| `day_locked_tomorrow` | after the day 1 win: overview tile 2 shows „Morgen“, tap → toast „Morgen geht's weiter: Tag 2 · Pflanzen“, Heute card „Heute geschafft!“ with a countdown line |
+| `day_locked_tomorrow` | after the day 1 win: overview tile 2 shows „Morgen“, tap → toast „Morgen geht's weiter: Tag 2 · Pflanzen“, Heute card caps „Heute“, title „Geschafft!“ with a countdown line |
 | `continue_mode` | „Weiterbauen“ on the win card: chip shows the check and no ring, 3 real twists later the day is still won, no fail card, growth counter moved |
 | `streak_celebration` | first win: streak 1 line on the win card; after `debug_next_day` and the day 2 win: streak 2, flame number 2, week row with two flames |
 | `next_day_button` | the pill exists (debug), tapping it opens day 2 („Heute neu“) |
 | `streak_shield` | streak 7 milestone gives a shield (set state, win); then two `debug_next_day` without a win → streak kept, week row shows a shield circle, comeback line „… Serienschutz …“ |
 | `daily_world` | after day 7 + `debug_next_day`: Heute card „Welt des Tages · <weekday>“, goal card opens with the template's goal, win counts for the streak |
 | `reminder_plan` | after a win, the log has ≤ 4 `REMINDER plan` lines with ids 101/102/104/107, times within 08:00–21:30, four different templates, the last one is the tone's final text |
-| `reminder_settings` | menu section „Erinnerung“: on PC it shows „Erinnerungen gibt es nur auf dem Handy.“ |
+| `reminder_settings` | menu section „Erinnerung“: on PC it shows „Nur auf dem Handy.“ (Android APK without the plugin: „In dieser Version keine Erinnerungen.“) |
 | `permission_ask` | after the first day 1 win the character card „Soll ich dich morgen erinnern …“ appears once; „Lieber nicht“ closes it and it does not come back on the next win |
 
 Screenshots to add: `00_charakter_1.jpg` … `00_charakter_4.jpg`, `00u_morgen.jpg`, `00v_weiterbauen.jpg`,
@@ -1157,12 +1252,12 @@ prints these checks (all in the expected list of `.github/workflows/gdpd.yml`):
 | `creator_finish` | the creator opens before day 1; „Würfeln“ changes the look; Katzengott, a colour, the crown, tone „Frech“ (the preview says the sample); „Fertig – los geht's!“ saves `[charakter]` and opens the day 1 goal card with „Hi, ich bin Miez …“ |
 | `character_coach` | the day 1 „Schau zu!“ line comes from the character: its portrait (the cat) and the frech text of `d1_demo` |
 | `day_success` | win card: primary „Weiterbauen“, the line „Morgen geht's weiter: Tag 2 · Pflanzen“, the streak counted up to 1 |
-| `permission_ask` | leaving the first win card, the character asks once (frech text with „Tag 2 · Pflanzen“); „Lieber nicht“ closes it (`gefragt` = 1). On PC only because the tour sets `debug_ask_on_pc` |
+| `permission_ask` | leaving the first win card, the character asks once (frech „Soll ich dich morgen erinnern?“); „Lieber nicht“ closes it (`gefragt` = 1). On PC only because the tour sets `debug_ask_on_pc` |
 | `continue_mode_no_limit` | „Weiterbauen“: chip shows the check and „gewachsen“ instead of the ring, `twists_left() == -1`, 3 real twists later still won, no fail card, the growth counter moved |
-| `day_locked_until_tomorrow` | overview: tile 2 shows the moon and „Morgen“, Heute card „Heute geschafft!“ with „Neuer Tag in 9 Std. 20 Min.“ and „Weiterbauen“; tapping tile 2: toast „Morgen geht's weiter: Tag 2 · Pflanzen“ and the character's frech `day_done` line |
+| `day_locked_until_tomorrow` | overview: tile 2 shows the moon and „Morgen“, Heute card „Heute · Geschafft!“ with „Neuer Tag in 9 Std. 20 Min.“ and „Weiterbauen“; tapping tile 2: toast with the countdown („Neuer Tag in …“ / „Morgen früh“) and the character's frech `day_wait` line „Nicht drängeln! Erst morgen.“ |
 | `next_day_debug_unlocks` | the pill „Nächster Tag (Test)“: day 2 open, Heute card „Heute neu · Tag 2 · Pflanzen“, Tuesday is today in the week row |
 | `streak_increments` | day 2 won on the next Spieltag: the streak counts 1 → 2, two flames in the week row, the frech `streak_n` line |
-| `reminder_scheduled` | the plan after that win: ids 101/102/104/107, categories A/B/C/F, A at 17:10 (session 17:40 − 30 min), all within 08:00–21:30, four different texts, the last one the frech final message, every entry logged by `Notifier` (`REMINDER plan …`); menu „Erinnerung“: on PC „Erinnerungen gibt es nur auf dem Handy.“, „Feste Uhrzeit“ plans at 18:00 |
+| `reminder_scheduled` | the plan after that win: ids 101/102/104/107, categories A/B/C/F, A at 17:10 (session 17:40 − 30 min), all within 08:00–21:30, four different texts, the last one the frech final message, every entry logged by `Notifier` (`REMINDER plan …`); menu „Erinnerung“: on PC „Nur auf dem Handy.“ (Android APK without the plugin: „In dieser Version keine Erinnerungen.“), „Feste Uhrzeit“ plans at 18:00 |
 
 Implementation: `scripts/voice.gd` (`class_name Voice`, the character's voice on top of `CharacterTexts`: tone, name,
 never the same line twice per key, `day_coach(n, i, fallback)`); the creator is `scripts/character_creator.gd`

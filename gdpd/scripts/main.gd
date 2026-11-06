@@ -163,7 +163,8 @@ func _days_tour(dir: String) -> void:
 	await _wait(0.5)
 	await _shot(dir, "00b_tag1_ziel")
 	# Die Karte kündigt die Vorführung an („Zeig mir, wie es geht“, „Erst schaust du zu“) und nennt die Regel
-	var announced := dui.gc_go.text == str(Days.TEXT["go_demo"]) and dui.gc_new.visible and dui.gc_new_title.text == str(Days.TEXT["demo_title"])
+	var announced := dui.gc_go.text == str(Days.TEXT["go_demo"]) and dui.gc_new.visible and dui.gc_new_title.text == str(Days.TEXT["demo_title"]) \
+		and dui.gc_new_text.text == "3 gleiche in eine Reihe."
 	var rule1 := dui.gc_rule.visible and dui.gc_rule_label.text.contains("gerade") and dui.gc_rule_label.text.contains("Wasser")
 	_check(card1 and Game.in_day() and Game.day_no == 1 and dui.gc_goal.text == "Lass 8 Wiesen wachsen" and dui.gc_limit.text == "in 15 Drehungen"
 		and announced and rule1, "day1_goal_card", "tag=%d ziel=%s grenze=%s knopf=%s angekuendigt=%s regel=%s" % [Game.day_no,
@@ -244,7 +245,7 @@ func _days_tour(dir: String) -> void:
 	var ask := await _until_shown(dui.ask_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00e2_erinnern_frage")
-	var ask_ok := ask and dui.ask_text.text == CharacterTexts.fill(str((CharacterTexts.LINES["ask_reminder"] as Dictionary)["frech"]), {"tag": "Tag 2 · Pflanzen"})
+	var ask_ok := ask and dui.ask_text.text == CharacterTexts.fill(str((CharacterTexts.LINES["ask_reminder"] as Dictionary)["frech"]), {"tag": "Tag 2: Pflanzen"})
 	await _tap(dui.ask_no)
 	await _wait(1.2)
 	_check(ask_ok and int(Game.remind["asked"]) == 1 and not dui.ask_card.visible, "permission_ask",
@@ -282,13 +283,13 @@ func _days_tour(dir: String) -> void:
 	await _tap(t2["btn"])
 	var toast_ok := false
 	for i in 80:
-		if ui.toast.visible and ui.toast_label.text == line2:
+		if ui.toast.visible and (ui.toast_label.text.begins_with("Neuer Tag in") or ui.toast_label.text == str(Days.TEXT["countdown_late"])):
 			toast_ok = true
 			break
 		await _wait(0.05)
 	await _wait(0.4)
 	await _shot(dir, "00u2_morgen_tippen")
-	var said := CharacterTexts.line("day_done", "frech", {"tag": "Tag 2 · Pflanzen", "name": Voice.char_name()})
+	var said := CharacterTexts.line("day_wait", "frech", {"name": Voice.char_name()})
 	_check(morgen and toast_ok and dui.ov_say.text == said, "day_locked_until_tomorrow",
 		"morgen=%s toast=%s sagt=%s uhr=%s" % [str(morgen), str(toast_ok), dui.ov_say.text.left(40), dui.tc_count.text])
 	# 6. „Nächster Tag (Test)“ (nur in der Test-Version, echte Eingabe): Tag 2 ist offen, die Heute-Karte zeigt ihn
@@ -659,7 +660,7 @@ func _streak_day2(dir: String) -> void:
 	var fixed_plan: Array = Game.reminder_log
 	var fixed_ok := str(Game.remind["mode"]) == "fest" and not fixed_plan.is_empty() and int((fixed_plan[0] as Dictionary)["hour"]) == 18 \
 		and int((fixed_plan[0] as Dictionary)["minute"]) == 0 and ui._remind_time_row.visible
-	var note_ok := ui._remind_note.visible and ui._remind_note.text == "Erinnerungen gibt es nur auf dem Handy."
+	var note_ok := ui._remind_note.visible and ui._remind_note.text == "Nur auf dem Handy."
 	await _tap(ui.segment_button(ui._remind_seg, "auto"))
 	await _wait(0.4)
 	_check(ok_plan and fixed_ok and note_ok and str(Game.remind["mode"]) == "auto", "reminder_scheduled",
@@ -1529,7 +1530,7 @@ func _no_auto_twist_check() -> void:
 
 
 ## Tag 2: Wald ruht (Großer Wald ist erst ab Tag 3 frei). Eine echte Drehung bildet oben eine neue Reihe aus drei
-## Wäldern: Die drei Felder leuchten mit Schloss, die Pille sagt „Wälder wachsen erst ab Tag 3 weiter“,
+## Wäldern: Die drei Felder leuchten mit Schloss, die Pille sagt „Ruht · Großer Wald erst ab Tag 3“,
 ## kein Fehlversuch (misses bleibt).
 func _resting_row_check(dir: String) -> void:
 	var gs := Game.state

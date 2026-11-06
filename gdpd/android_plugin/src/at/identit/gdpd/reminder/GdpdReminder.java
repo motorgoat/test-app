@@ -76,12 +76,21 @@ public class GdpdReminder extends GodotPlugin {
 		Store.clear(c);
 	}
 
-	/** The Spieltag is done: alarms of this or an earlier Spieltag are dropped when they fire. */
+	/** The Spieltag is done: alarms of this or an earlier Spieltag are dropped when they fire (stored exactly). */
 	@UsedByGodot
 	public void mark_done(int day_key) {
 		Context c = ctx();
 		if (c != null) {
 			Store.setDone(c, day_key);
+		}
+	}
+
+	/** Quiet hours: reminders are only shown between earliest and latest (minutes of the local day). */
+	@UsedByGodot
+	public void set_window(int earliest, int latest) {
+		Context c = ctx();
+		if (c != null) {
+			Store.setWindow(c, earliest, latest);
 		}
 	}
 

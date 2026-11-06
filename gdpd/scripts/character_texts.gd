@@ -4,7 +4,7 @@ extends RefCounted
 ## Nur Daten und reine Hilfen (kein Zustand): Wer „nie zweimal hintereinander denselben Satz“ will, gibt den
 ## zuletzt gezeigten Satz als `last` mit.
 ##
-## Platzhalter: {name} (Charakter), {tag} („Tag 3 · Tiere“ oder „die Welt des Tages“, nie am Satzanfang),
+## Platzhalter: {name} (Charakter), {tag} („Tag 3: Tiere“ oder „die Welt des Tages“, nie am Satzanfang),
 ## {streak} (Zahl), {ziel} (Ziel der Welt des Tages, z. B. „5 Wäldern“).
 ##
 ##   CharacterTexts.line("win_3", "frech")                       # -> „Drei Sterne?! Okay, …“
@@ -23,9 +23,9 @@ const LINES := {
 	},
 	# 4.2 Tages-Hinweise (Days.DAYS[n].coach / coach_demo / coach_tool in dieser Reihenfolge)
 	"d1_demo": {
-		"lieb": "Schau zu, ich zeig's dir.",
-		"frech": "Pass auf, ich zeig's dir!",
-		"streng": "Schau genau hin.",
+		"lieb": "Schau: 3 gleiche in eine Reihe!",
+		"frech": "Pass auf: 3 gleiche in eine Reihe!",
+		"streng": "3 gleiche in eine Reihe. Schau.",
 	},
 	"d1_c0": {
 		"lieb": "Bring 3 gleiche in eine Reihe!",
@@ -42,11 +42,29 @@ const LINES := {
 		"frech": "Dein Zug! Wisch die leuchtende Reihe.",
 		"streng": "Jetzt du. Wisch die leuchtende Reihe.",
 	},
+	# Tutorial: Wisch ging daneben (1.) / öfter daneben (Tipp zeigen)
+	"d1_retry": {
+		"lieb": "Fast! Wisch die leuchtende Reihe.",
+		"frech": "Knapp! Die leuchtende Reihe!",
+		"streng": "Die leuchtende Reihe.",
+	},
+	"d1_hint": {
+		"lieb": "Drück die Lampe. Sie hilft.",
+		"frech": "Drück die Lampe!",
+		"streng": "Drück die Lampe.",
+	},
 	"d1_c3": {
 		"lieb": "Gut so! Deine Welt.",
 		"frech": "Läuft! Du bist der Boss.",
 		"streng": "Gut. Pass auf deine Welt auf.",
 	},
+	# Ziel-Karte ab Tag 2: der erste Satz im Ton des Charakters (sonst Days.DAYS[n].intro)
+	"d2_intro": {"lieb": "Heute wachsen Pflanzen!", "frech": "Heute: Pflanzen! Los!", "streng": "Heute: Pflanzen."},
+	"d3_intro": {"lieb": "Heute kommen Tiere!", "frech": "Tiere! Endlich Leben!", "streng": "Heute: Tiere."},
+	"d4_intro": {"lieb": "Heute kommen Menschen!", "frech": "Menschen! Jetzt wird's laut.", "streng": "Heute: Menschen."},
+	"d5_intro": {"lieb": "Die Menschen haben Hunger.", "frech": "Hunger! Mach Acker!", "streng": "Heute: Nahrung."},
+	"d6_intro": {"lieb": "Die Menschen beten zu dir.", "frech": "Sie beten dich an!", "streng": "Heute: Glaube."},
+	"d7_intro": {"lieb": "Halte die Welt im Gleichgewicht.", "frech": "Jetzt: Balance halten!", "streng": "Heute: Gleichgewicht."},
 	"d2_c0": {
 		"lieb": "Heute wächst Wald!",
 		"frech": "Wiesen? Langweilig. Mach Wald!",
@@ -147,7 +165,7 @@ const LINES := {
 	"win_1": {
 		"lieb": "Geschafft! Ich bin stolz.",
 		"frech": "Geschafft! Knapp, aber egal.",
-		"streng": "Geschafft. Weniger Drehungen, mehr Sterne.",
+		"streng": "Geschafft. Gut.",
 	},
 	"win_2": {
 		"lieb": "Zwei Sterne – super!",
@@ -166,7 +184,7 @@ const LINES := {
 	},
 	"fail_war": {
 		"lieb": "Halte die Kirchen auseinander.",
-		"frech": "Typisch Kirchen. Auf ein Neues!",
+		"frech": "Kirchen auseinander! Nochmal!",
 		"streng": "Kirchen auseinander halten.",
 	},
 	# 4.4 Serie
@@ -225,12 +243,18 @@ const LINES := {
 	"day_open": {
 		"lieb": "Heute wartet {tag}!",
 		"frech": "Heute gibt's {tag}!",
-		"streng": "Heute: {tag}.",
+		"streng": "Bereit für {tag}?",
 	},
 	"day_done": {
-		"lieb": "Morgen geht's weiter: {tag}!",
-		"frech": "Nicht drängeln! {tag} kommt morgen.",
-		"streng": "Geduld. Morgen: {tag}.",
+		"lieb": "Morgen kommt {tag}!",
+		"frech": "Morgen gibt's {tag}!",
+		"streng": "Morgen folgt {tag}.",
+	},
+	# Tippen auf den gesperrten Tag von morgen
+	"day_wait": {
+		"lieb": "Geduld! Morgen geht's weiter.",
+		"frech": "Nicht drängeln! Erst morgen.",
+		"streng": "Erst morgen.",
 	},
 	"wdt_open": {
 		"lieb": "Eine neue Welt für dich!",
@@ -254,9 +278,9 @@ const LINES := {
 	},
 	# Ersteller und Erinnerung (3.7, 5.7)
 	"ask_reminder": {
-		"lieb": "Morgen an {tag} erinnern?",
-		"frech": "Soll ich dich an {tag} erinnern?",
-		"streng": "Ich erinnere dich an {tag}. Okay?",
+		"lieb": "Morgen erinnern?",
+		"frech": "Soll ich dich morgen erinnern?",
+		"streng": "Ich erinnere dich morgen. Okay?",
 	},
 	"ask_yes": {
 		"lieb": "Schön! Bis morgen!",
@@ -274,6 +298,8 @@ const LINES := {
 const FACE := {
 	"intro": "happy", "d1_demo": "happy", "d1_c1": "happy", "d1_c3": "proud", "d2_c1": "worried", "d2_tool": "cheeky",
 	"d6_c0": "worried", "d7_c0": "worried",
+	"d2_intro": "happy", "d3_intro": "happy", "d4_intro": "happy", "d5_intro": "worried", "d6_intro": "proud",
+	"d7_intro": "neutral",
 	"miss": "worried", "fire": "worried", "war": "worried", "smog": "worried", "hint": "cheeky", "hold": "happy",
 	"mini": "neutral", "wish": "happy", "rest": "cheeky",
 	"praise": "happy", "surprise": "worried", "win_1": "proud", "win_2": "proud", "win_3": "proud", "fail": "neutral",
@@ -281,7 +307,7 @@ const FACE := {
 	"streak_1": "proud", "streak_n": "proud", "streak_7": "proud", "streak_7_full": "proud", "streak_big": "proud",
 	"shield_bought": "happy",
 	"comeback_saved": "happy", "comeback_lost": "sad", "open": "happy", "open_night": "sleepy",
-	"day_open": "happy", "day_done": "cheeky", "wdt_open": "happy", "wdt_done": "proud", "weiterbauen": "happy",
+	"day_open": "happy", "day_done": "happy", "day_wait": "cheeky", "d1_retry": "worried", "d1_hint": "cheeky", "wdt_open": "happy", "wdt_done": "proud", "weiterbauen": "happy",
 	"wdt_intro": "neutral", "ask_reminder": "happy", "ask_yes": "happy", "ask_no": "neutral",
 }
 
@@ -292,7 +318,7 @@ const NOTIFY := {
 		{"id": "l01", "cat": "A", "text": "Heute wartet {tag}!"},
 		{"id": "l02", "cat": "A", "text": "Deine Welt ist wach. Kommst du?"},
 		{"id": "l03", "cat": "A", "text": "Ich hab Regen für dich!"},
-		{"id": "l04", "cat": "A", "text": "Ein paar Drehungen? Deine Welt wartet."},
+		{"id": "l04", "cat": "A", "text": "Ein paar Drehungen?"},
 		{"id": "l05", "cat": "A", "streak": true, "text": "{streak} Tage! Machen wir weiter?"},
 		{"id": "l06", "cat": "A", "text": "Die Wiesen fragen nach dir."},
 		{"id": "l07", "cat": "A", "text": "Heute ist {tag} dran!"},
@@ -311,12 +337,12 @@ const NOTIFY := {
 		{"id": "f03", "cat": "A", "text": "Mir ist langweilig. Hilfe!"},
 		{"id": "f04", "cat": "A", "text": "Die Wiesen wollen Wald werden."},
 		{"id": "f05", "cat": "A", "streak": true, "text": "{streak} Tage! Einer mehr?"},
-		{"id": "f06", "cat": "A", "text": "{name} sucht Gesellschaft!"},
+		{"id": "f06", "cat": "A", "text": "Ich such Gesellschaft!"},
 		{"id": "f07", "cat": "A", "text": "Regen übrig. Willst du?"},
 		{"id": "f08", "cat": "A", "text": "Wer hat die Welt erschaffen? Du!"},
 		{"id": "f09", "cat": "B", "text": "Gestern nichts gedreht? Ich sag nix."},
 		{"id": "f10", "cat": "B", "text": "Huhu! Deine Welt staubt ein."},
-		{"id": "f11", "cat": "B", "text": "Keine Kekse. Aber {tag}!"},
+		{"id": "f11", "cat": "B", "text": "Hey, {tag} wartet!"},
 		{"id": "f12", "cat": "C", "text": "Ich rede schon mit Wolken!"},
 		{"id": "f13", "cat": "C", "text": "Lange nicht gesehen!"},
 		{"id": "f14", "cat": "C", "text": "Hallooo? Jemand da?"},
@@ -325,19 +351,19 @@ const NOTIFY := {
 	"streng": [
 		{"id": "s01", "cat": "A", "text": "Heute ist {tag} bereit."},
 		{"id": "s02", "cat": "A", "text": "Zeit für deine Schöpfung."},
-		{"id": "s03", "cat": "A", "text": "Eine Runde heute. Ich zähle auf dich."},
+		{"id": "s03", "cat": "A", "text": "Ich zähle auf dich."},
 		{"id": "s04", "cat": "A", "text": "Die Welt baut sich nicht allein."},
 		{"id": "s05", "cat": "A", "streak": true, "text": "{streak} Tage. Bleib dran."},
-		{"id": "s06", "cat": "A", "text": "Heute: {tag}. Pünktlich, bitte."},
+		{"id": "s06", "cat": "A", "text": "Bitte pünktlich zu {tag}."},
 		{"id": "s07", "cat": "A", "text": "Die Wiesen warten auf dich."},
-		{"id": "s08", "cat": "A", "text": "Eine Runde am Tag. So der Plan."},
+		{"id": "s08", "cat": "A", "text": "Eine Runde am Tag."},
 		{"id": "s09", "cat": "B", "text": "Gestern Pause. Heute weiter."},
 		{"id": "s10", "cat": "B", "text": "Deine Welt wartet auf dich."},
-		{"id": "s11", "cat": "B", "text": "Bereit: {tag}."},
+		{"id": "s11", "cat": "B", "text": "Zeit für {tag}."},
 		{"id": "s12", "cat": "C", "text": "Wenn du bereit bist: weiter."},
 		{"id": "s13", "cat": "C", "text": "Ich habe aufgepasst. Kommst du?"},
 		{"id": "s14", "cat": "C", "text": "Jede Welt verdient eine Chance."},
-		{"id": "sF", "cat": "F", "text": "Ich erinnere dich nicht mehr. Bis dann."},
+		{"id": "sF", "cat": "F", "text": "Ich bin jetzt still. Bis dann."},
 	],
 }
 

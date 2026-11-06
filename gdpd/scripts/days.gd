@@ -60,7 +60,7 @@ const DAYS = [
 		"coach": ["Bring 3 gleiche in eine Reihe.", "Super! Eine Wiese.",
 			"Jetzt du! Wisch die leuchtende Reihe.", "Gut so! Deine Welt."],
 		# „Schau zu!“ (Eingabe gesperrt): kein Befehl, sondern was die Hand gleich zeigt
-		"coach_demo": "Schau zu: 3 gleiche in einer Reihe."},
+		"coach_demo": "Schau: 3 gleiche in eine Reihe."},
 	{"title": "Pflanzen", "icon": "rain",
 		"intro": "Heute wachsen Pflanzen.",
 		"goal_type": "make", "goal_kinds": [FieldData.FOREST], "goal_target": 5, "goal_icon": "smallforest",
@@ -100,16 +100,16 @@ const DAYS = [
 		"unlocked": _L6, "choices": [FieldData.MEADOW, FieldData.VILLAGE], "rain_start": 1, "rain_every": 6, "gift": true,
 		"wishes": true, "wish_types": _ALL_WISHES, "wish_from": 2, "wish_every": 3, "scale": true, "scale_visible": false,
 		"income": true, "war": true, "no_war": true,
-		"new": {"key": "glaube", "icon": "church", "title": "Neu: Glaube", "text": "Kirchen geben Glauben. Zwei geben Krieg!"},
-		"coach": ["Kirchen geben Glauben. Zwei geben Krieg!"]},
+		"new": {"key": "glaube", "icon": "church", "title": "Neu: Glaube", "text": "Kirchen geben Glauben."},
+		"coach": ["Zwei Kirchen nebeneinander: Krieg!"]},
 	{"title": "Ruhe", "icon": "balance",
 		"intro": "Halte die Welt im Gleichgewicht.",
 		"goal_type": "faith", "goal_target": 250, "goal_green": true, "goal_icon": "faith",
-		"goal_text": "Sammle 250 Glauben – mit grüner Waage", "limit": 13, "stars": [9, 11],
+		"goal_text": "250 Glauben, Waage grün", "limit": 13, "stars": [9, 11],
 		"unlocked": _L7, "choices": [FieldData.MEADOW, FieldData.VILLAGE, FieldData.TOWN], "rain_start": 1, "rain_every": 6,
 		"gift": true, "wishes": true, "wish_types": _ALL_WISHES, "wish_from": 2, "wish_every": 3, "scale": true,
 		"income": true, "war": true, "smog": true, "strike": true,
-		"new": {"key": "industrie", "icon": "industry", "title": "Neu: Industrie & Gewitter", "text": "Industrie gibt Glauben, macht aber Smog."},
+		"new": {"key": "industrie", "icon": "industry", "title": "Neu: Industrie", "text": "Gibt Glauben, macht Smog."},
 		"coach": ["Halte die Waage im Grünen."]},
 ]
 
@@ -124,18 +124,18 @@ const TEXT = {
 	"go_demo": "Zeig's mir",
 	"demo_caps": "Schau zu!",
 	"demo_title": "Erst zuschauen",
-	"demo_text": "Die Hand zeigt's dir.",
+	"demo_text": "3 gleiche in eine Reihe.",
 	"left": "Noch %d Drehungen.",
-	"balance_needed": "Waage ins Grüne bringen",
-	"balance_ok": "Glaube · Waage grün",
-	"balance_goal": "Glaube + grüne Waage",
+	"balance_needed": "Waage ins Grüne",
+	"balance_ok": "Glaube · Waage",
+	"balance_goal": "Glaube · Waage",
 	"won": "Tag %d geschafft!",
 	"won_in": "in %d Drehungen",
 	"won_more": "in %d Drehungen · ★★★ bis %d",
 	"next": "Weiter zu Tag %d · %s",
 	"again": "Nochmal",
 	"again_more": "für mehr Sterne",
-	"lost_twists": "Keine Drehungen mehr.",
+	"lost_twists": "Keine Drehungen mehr",
 	"lost_war": "Krieg!",
 	"lost_war_body": "Halte Kirchen auseinander.",
 	"lost_try": "Diesmal nicht.",
@@ -153,8 +153,11 @@ const TEXT = {
 	"rest": "Wächst erst später.",
 	# Täglich spielen (GDPD_TAEGLICH_CHARAKTER.md 1, 2): neutrale Systemtexte (die Sätze des Charakters macht Voice)
 	"today_new": "Heute neu",
-	"today_done": "Heute geschafft!",
+	"today_done": "Geschafft!",
+	"today": "Heute",
 	"tomorrow": "Morgen",
+	"locked_on": "Ab %s.",
+	"day_tag": "Tag %d: %s",
 	"tomorrow_next": "Morgen geht's weiter: Tag %d · %s",
 	"wdt": "Welt des Tages",
 	"wdt_caps": "Welt des Tages · %s",
@@ -169,7 +172,8 @@ const TEXT = {
 	"build_coin": "+1 Münze",
 	"to_overview": "Zur Übersicht",
 	"streak": "Serie %d · Rekord %d",
-	"streak_one": "Deine Serie beginnt",
+	"record": "Rekord %d",
+	"streak_one": "Serie beginnt",
 	"streak_days": "%d Tage in Folge!",
 	"week": "Diese Woche",
 	"shield": "Serienschutz",
@@ -286,7 +290,7 @@ static func goal_line(cfg: Dictionary) -> String:
 	if t == "wishes":
 		return "Erfülle %d Wünsche" % n
 	if bool(cfg.get("goal_green", false)):
-		return "Sammle %d Glauben – mit grüner Waage" % n
+		return "%d Glauben, Waage grün" % n
 	return "Sammle %d Glauben" % n
 
 

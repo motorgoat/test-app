@@ -202,7 +202,7 @@ kinds. `made` is part of `clone()`, undo and the save. It never goes down, so th
 | 4 | Menschen | Baue 4 Hütten | `made[Hütte] ≥ 4` | 14 | 8 | 11 | Menschen (+ ihre Wünsche) | Hütte, Haus, Dorf | – |
 | 5 | Nahrung | Erfülle 3 Wünsche | wishes fulfilled ≥ 3 | 18 | 10 | 14 | Wahl-Karte, Acker | Acker | Wiese |
 | 6 | Glaube | Sammle 150 Glauben · Kein Krieg! | faith ≥ 150; war = fail | 13 | 8 | 11 | Glaube, Kirche, Krieg | Stadt, Kirche | Wiese, Dorf |
-| 7 | Ruhe | Sammle 250 Glauben – mit grüner Waage | faith ≥ 250 **and** −50 < W < 20 at that moment | 13 | 9 | 11 | Industrie & Gewitter (Weltwaage, Smog) | Großstadt, Industrie | Wiese, Dorf, Stadt |
+| 7 | Ruhe | 250 Glauben, Waage grün | faith ≥ 250 **and** −50 < W < 20 at that moment | 13 | 9 | 11 | Industrie & Gewitter (Weltwaage, Smog) | Großstadt, Industrie | Wiese, Dorf, Stadt |
 
 Systems per day (✓ = on):
 
@@ -327,12 +327,13 @@ All boards: no ready row of a kind that can row today; kinds placed by sticker t
 
 **Day 7 – Ruhe**
 - Intro: „Am siebten Tag ruht die Welt – aber nur, wenn sie im Gleichgewicht ist.“ Tile icon: `balance`.
-- Goal: „Sammle 250 Glauben – mit grüner Waage“. The chip always shows both halves: „x/250“ and the caps
-  „Glaube + grüne Waage“ (green: „Glaube · Waage grün“). If the faith is reached but the Waage is not green, the caps
-  say „Waage ins Grüne bringen“ with the balance icon on red. Green = Gleichgewicht, −50 < W < 20.
-- Goal card „Neu: Industrie & Gewitter“: „Industrie bringt viel Glauben, macht aber Smog. Mit Gewitter (kostet 15
-  Glauben) strafst du eine Fabrik.“ The reveal flies „Neu: Gewitter“ to its dock button; the Weltwaage is shown from
-  the start (it is the goal).
+- Goal: „250 Glauben, Waage grün“. The chip always shows both halves: „x/250“ and the caps „Glaube · Waage“
+  (green or not; the colour says it). If the faith is reached but the Waage is not green, the caps say
+  „Waage ins Grüne“ with the balance icon on red. Green = Gleichgewicht, −50 < W < 20. The caps label is at most
+  210 px wide (`DayUI.CHIP_CAPS_MAX`, clipped) and the HUD row snaps back to the screen width, so a long caps line
+  can never push the coin and heart pills off the screen in free play.
+- Goal card „Neu: Industrie“: „Gibt Glauben, macht Smog.“ (as built, short). The reveal flies „Neu: Gewitter“ to its
+  dock button; the Weltwaage is shown from the start (it is the goal).
 - The start board is already yellow (W ≈ +31) and has one Industrie, so the player sees the problem at once.
 - New things: Industrie (Stadt card), smog (W ≥ 50), Gewitter (dock, 15 Glaube).
   Coach at day start: „Industrie bringt viel Glauben – aber zu viel Stadt macht die Luft schmutzig. Bring die Waage

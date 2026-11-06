@@ -38,7 +38,11 @@ static func _tone(t: String) -> String:
 
 ## Uhrzeit (Minute des Tages) der Erinnerungen: „Feste Uhrzeit“ oder etwa 23,5 h nach dem Start der Sitzung, die den
 ## letzten Serientag geschafft hat (unbekannt: 18:00) – immer zwischen 8:00 und 21:30.
+## Nachteule: Begann die Sitzung zwischen 0:00 und 3:00 (sie gehört zum Spieltag davor), kommt die Erinnerung um 21:30 –
+## die erlaubte Zeit, die am nächsten an „etwa 24 h später“ liegt (nicht schon um 8:00 am selben Morgen).
 static func minute_for(mode: String, anchor_min: int, fixed_min: int) -> int:
+	if mode != "fest" and anchor_min >= 0 and anchor_min < Balance.DAY_START_HOUR * 60:
+		return Balance.REMIND_LATEST
 	var m := fixed_min if mode == "fest" else (Balance.REMIND_DEFAULT_MIN if anchor_min < 0 else anchor_min - Balance.REMIND_LEAD)
 	return clampi(m, Balance.REMIND_EARLIEST, Balance.REMIND_LATEST)
 

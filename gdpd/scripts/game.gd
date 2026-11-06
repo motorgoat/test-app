@@ -116,8 +116,17 @@ var debug_day_offset := 0        # „Nächster Tag (Test)“: so viele ganze Ta
 var debug_open_all := false      # Tour: alle 7 Tage offen (nur in Test-Versionen)
 var session_start := -1          # Ortszeit, zu der diese Sitzung begann (Uhrzeit der Erinnerung)
 var wdt_key := -1                # dieser Versuch ist die Welt des Tages dieses Spieltags (-1 = ein Tag 1 … 7)
-var build_state: GameState = null   # Weiterbauen: die gewonnene Welt (nur im Speicher, 2.4)
-var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner)}
+var build_state: GameState = null   # Weiterbauen: die Welt, in der gerade weitergebaut wird (nur im Speicher, 2.4)
+var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner), "key" (Spieltag)}
+## Die heute geschaffte Welt (der heutige Tag / die Welt des Tages): „Weiterbauen“ auf der Heute-Karte bringt sie
+## zurück. Nur ein neuer Sieg im heutigen Level oder ein neuer Spieltag ersetzt sie (nicht „Nochmal“, nicht ein
+## anderer Tag, nicht das freie Spiel).
+var today_build: GameState = null
+var today_build_ctx: Dictionary = {}
+var _slot_live := false          # das laufende Weiterbauen ist die heutige Welt (Zurücknehmen hält sie aktuell)
+var attempt_key := -1            # Spieltag, an dem der laufende Versuch begann (-1 = keiner)
+var attempt_start := -1          # Spielzeit, zu der er begann
+var _check_due := false          # Tagesprüfung (Serienschutz) steht noch aus
 var _last_today := -2147483648
 ## Der eigene Charakter (Character, [charakter] in user://charakter.cfg). {} = noch keiner: der Ersteller kommt zuerst.
 var character: Dictionary = {}
@@ -441,6 +450,8 @@ func undo() -> void:
 	undo_state = null
 	if build_state != null and state.day_free_build:
 		build_state = state
+		if _slot_live:
+			today_build = state
 	pending_choice = {}
 	over = false
 	new_game_started.emit()
@@ -661,6 +672,8 @@ func _start_attempt(n: int, cfg: Dictionary, b: Dictionary, mercy: int) -> void:
 	if state != null and not state.is_day():
 		_save_best()             # Glaube des freien Spiels zählt noch für den Rekord
 	_end_build()
+	attempt_key = today_key()
+	attempt_start = game_now()
 	day_no = n
 	day_board = b
 	tutorial_step = -1
@@ -829,7 +842,7 @@ func day_info() -> Dictionary:
 ## Ende eines Versuchs: Sterne, Freischalten, Gnade, nächstes Brett, speichern, Signal.
 func _finish_day() -> void:
 	_ensure_campaign()
-	var today := today_key()
+	var today := _win_key()
 	if wdt_key >= 0:
 		_finish_daily_world(today)
 		return
@@ -855,6 +868,7 @@ func _finish_day() -> void:
 		if n >= Days.count():
 			world_done = true
 		var streak := _streak_win(today)
+		_end_attempt()
 		_save_profile()
 		info["streak"] = streak
 		_add_next_info(info, today)
@@ -866,10 +880,13 @@ func _finish_day() -> void:
 		info["world_complete"] = complete
 		info["stars_total"] = stars_total()
 		info["stars_max"] = stars_max()
+		if first_win or int((daily["won_key"] as Array)[i]) == today:
+			_keep_for_build()       # der heute geschaffte Tag: Weiterbauen geht auch später aus der Übersicht
 		day_won.emit(info)
 		_after_win(streak)
 	else:
 		day_fails[i] = int(day_fails[i]) + 1
+		_end_attempt()
 		_save_profile()
 		info["why"] = state.day_lost
 		info["progress"] = state.goal_progress()
@@ -948,11 +965,46 @@ func today_key() -> int:
 	if k != _last_today:
 		var first := _last_today == -2147483648
 		_last_today = k
-		Daily.day_check(daily, k)
+		_check_due = true
 		_sync_day_free()
 		if not first:
 			call_deferred("emit_signal", "daily_changed")
+	if _check_due and not _win_grace(k):
+		_check_due = false
+		Daily.day_check(daily, k)
 	return k
+
+
+## Spielzeit (lokale Unix-Sekunden): Ortszeit + Versatz nach großem Zurückstellen der Uhr (Daily.observe). Für
+## Countdown und Erinnerungs-Plan; die Uhrzeit ist dieselbe wie now_local (der Versatz sind ganze Tage).
+func game_now() -> int:
+	today_key()
+	return Daily.game_time(daily, now_local())
+
+
+## Läuft ein Versuch, der kurz vor dem Tageswechsel (3 Uhr) begann? Dann zählt sein Sieg noch für den alten Spieltag
+## (Balance.WIN_GRACE), und die Tagesprüfung wartet bis zum Ende des Versuchs.
+func _win_grace(k: int) -> bool:
+	if attempt_key < 0 or attempt_key != k - 1 or attempt_start < 0 or not in_day():
+		return false
+	var boundary := Daily.next_boundary(attempt_start)
+	# nur für einen Versuch, der kurz vor 3 Uhr begann – und höchstens 3 × so lange danach (ein liegen gelassener
+	# Versuch hält die Tagesprüfung nicht ewig auf)
+	return boundary - attempt_start <= Balance.WIN_GRACE \
+		and Daily.game_time(daily, now_local()) - boundary <= 3 * Balance.WIN_GRACE
+
+
+## Spieltag, dem ein Sieg gutgeschrieben wird: der heutige – oder der Spieltag, an dem der Versuch kurz vor 3 Uhr begann.
+func _win_key() -> int:
+	var k := today_key()
+	return attempt_key if _win_grace(k) else k
+
+
+## Der Versuch ist zu Ende: die aufgeschobene Tagesprüfung jetzt machen.
+func _end_attempt() -> void:
+	attempt_key = -1
+	attempt_start = -1
+	today_key()
 
 
 ## Eine Sitzung beginnt (Start, Rückkehr in die App): Uhrzeit merken, die Erinnerungs-Leiter fängt neu an.
@@ -992,12 +1044,14 @@ func new_day_tomorrow() -> bool:
 	return Daily.new_day_tomorrow(daily, day_stars, today_key()) and not (debug_open_all and OS.is_debug_build())
 
 
-## Text für einen gesperrten Tag: „Morgen geht's weiter: Tag 3 · Tiere“ (der nächste neue, morgen) oder
-## „Erst Tag 3 schaffen.“
+## Text für einen gesperrten Tag: „Morgen geht's weiter: Tag 3 · Tiere“ (der nächste neue, morgen), ein späterer
+## Tag „Ab Mittwoch.“ (ein neuer Tag je Spieltag), sonst „Erst Tag 3 schaffen.“
 func locked_text(n: int) -> String:
 	var nn := next_new_day()
-	if n == nn and new_day_tomorrow():
-		return str(Days.TEXT["tomorrow_next"]) % [n, str(Days.config(n).get("title", ""))]
+	if n >= nn and new_day_tomorrow():
+		if n == nn:
+			return str(Days.TEXT["tomorrow_next"]) % [n, str(Days.config(n).get("title", ""))]
+		return str(Days.TEXT["locked_on"]) % Daily.weekday_name(today_key() + n - nn + 1)   # „Ab Mittwoch.“
 	return str(Days.TEXT["locked"]) % mini(nn, Days.count())
 
 
@@ -1026,7 +1080,7 @@ func shields() -> int:
 func today_info() -> Dictionary:
 	_ensure_campaign()
 	var k := today_key()
-	var now := now_local()
+	var now := game_now()
 	var nn := Daily.next_new_day(day_stars)
 	var out := {"today": k, "weekday": Daily.weekday_name(k), "countdown": Daily.countdown_text(now),
 		"done_today": Daily.done_today(daily, k), "streak": int(daily["streak"]), "best": int(daily["streak_best"]),
@@ -1041,7 +1095,7 @@ func today_info() -> Dictionary:
 		else:
 			var last := maxi(1, nn - 1)
 			out.merge({"state": "done_next", "day": nn, "title": str(Days.TEXT["today_done"]),
-				"caps": str(Days.TEXT["tomorrow"]), "goal": Days.goal_line(Days.config(nn)),
+				"caps": str(Days.TEXT["today"]), "goal": Days.goal_line(Days.config(nn)),
 				"line": str(Days.TEXT["tomorrow_next"]) % [nn, str(Days.config(nn).get("title", ""))],
 				"more_stars": stars_of(last) < 3, "replay_day": last})
 		return out
@@ -1055,7 +1109,7 @@ func today_info() -> Dictionary:
 				"goal": Days.goal_line(cfg), "line": Days.goal_line(cfg)})
 		return out
 	out.merge({"state": "world_done_today", "day": Days.count(), "title": str(Days.TEXT["complete"]),
-		"caps": str(Days.TEXT["today_done"]), "goal": "", "line": str(Days.TEXT["wdt_first_tomorrow"]),
+		"caps": str(Days.TEXT["today"]), "goal": "", "line": str(Days.TEXT["wdt_first_tomorrow"]),
 		"more_stars": stars_of(Days.count()) < 3, "replay_day": Days.count()})
 	return out
 
@@ -1122,6 +1176,7 @@ func _finish_daily_world(today: int) -> void:
 		var st := state.stars()
 		var first := Daily.wdt_win(daily, key, st)
 		var streak := _streak_win(today)
+		_end_attempt()
 		_save_profile()
 		info["stars"] = st
 		info["used"] = state.day_won_at
@@ -1137,10 +1192,12 @@ func _finish_daily_world(today: int) -> void:
 		info["next_open"] = false
 		info["next_locked"] = true
 		info["next_line"] = str(Days.TEXT["wdt_tomorrow"])
+		_keep_for_build()
 		day_won.emit(info)
 		_after_win(streak)
 	else:
 		Daily.wdt_fail(daily, key)
+		_end_attempt()
 		_save_profile()
 		info["why"] = state.day_lost
 		info["progress"] = state.goal_progress()
@@ -1162,26 +1219,43 @@ func continue_build() -> bool:
 	pending_choice = {}
 	undo_state = null
 	build_state = state
-	build_ctx = {"day_no": day_no, "wdt_key": wdt_key, "board": day_board, "given": 0}
+	build_ctx = {"day_no": day_no, "wdt_key": wdt_key, "board": day_board, "given": 0, "key": today_key()}
+	_slot_live = today_build == state
+	if _slot_live:
+		build_ctx = today_build_ctx
 	state_changed.emit()
 	day_progress.emit(state.day_status())
 	build_started.emit(day_info())
 	return true
 
 
-## Gibt es eine gewonnene Welt zum Weiterbauen (im Speicher, solange die App läuft)?
+## Gibt es die heute geschaffte Welt zum Weiterbauen (im Speicher, solange die App läuft, nur an ihrem Spieltag)?
 func can_resume_build() -> bool:
-	return build_state != null
+	return today_build != null and int(today_build_ctx.get("key", -1)) == today_key()
 
 
-## Zurück in die Welt zum Weiterbauen (aus der Übersicht).
+## Die gerade im heutigen Level geschaffte Welt merken: „Weiterbauen“ auf der Heute-Karte bringt sie zurück (auch ohne
+## vorher auf der Erfolgskarte „Weiterbauen“ getippt zu haben). Weiterbauen selbst beginnt erst mit resume_build.
+func _keep_for_build() -> void:
+	today_build = state
+	today_build_ctx = {"day_no": day_no, "wdt_key": wdt_key, "board": day_board, "given": 0, "key": today_key()}
+
+
+## Zurück in die heute geschaffte Welt zum Weiterbauen (aus der Übersicht).
 func resume_build() -> bool:
-	if build_state == null:
+	if not can_resume_build():
 		return false
-	state = build_state
+	if not today_build.day_free_build:
+		today_build.start_free_build()
+	state = today_build
+	build_state = today_build
+	build_ctx = today_build_ctx
+	_slot_live = true
 	day_no = int(build_ctx.get("day_no", day_no))
 	wdt_key = int(build_ctx.get("wdt_key", -1))
 	day_board = build_ctx.get("board", {})
+	attempt_key = -1
+	attempt_start = -1
 	over = false
 	busy = false
 	pending_choice = {}
@@ -1192,10 +1266,11 @@ func resume_build() -> bool:
 	return true
 
 
-## Weiterbauen endet (ein neuer Tag, „Nochmal“, freies Spiel).
+## Das laufende Weiterbauen endet (ein neuer Versuch, „Nochmal“, freies Spiel). Die heute geschaffte Welt bleibt.
 func _end_build() -> void:
 	build_state = null
 	build_ctx = {}
+	_slot_live = false
 
 
 ## Weiterbauen: 1 Münze je 10 gewachsene Felder, höchstens 3 je Spieltag.
@@ -1298,11 +1373,11 @@ func note_reminder_asked() -> void:
 	_save_profile()
 
 
-## {tag} der Erinnerung: der Tag, der als Nächstes wartet („Tag 3 · Tiere“), nach Tag 7 „die Welt des Tages“.
+## {tag} der Erinnerung: der Tag, der als Nächstes wartet („Tag 3: Tiere“), nach Tag 7 „die Welt des Tages“.
 func reminder_tag() -> String:
 	var nn := next_new_day()
 	if nn <= Days.count():
-		return str(Days.TEXT["day_title"]) % [nn, str(Days.config(nn).get("title", ""))]
+		return str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))]
 	return str(Days.TEXT["wdt_tag"])
 
 
@@ -1324,10 +1399,11 @@ func reminder_input() -> Dictionary:
 func replan_reminders() -> Array:
 	if remind.is_empty():
 		remind = REMIND_DEFAULTS.duplicate(true)
-	var now := now_local()
+	var now := game_now()
 	remind["history"] = ReminderPlan.absorb_shown(remind["history"], remind["planned"], now)
 	var plan := ReminderPlan.plan(reminder_input(), now)
-	var shift := (debug_day_offset * Daily.DAY) if OS.is_debug_build() else 0
+	var real := clock_override if clock_override >= 0 else Daily.system_local()
+	var shift := now - real         # Test-Tage und Uhr-Versatz: das Plugin bekommt die echte Uhrzeit
 	var stored: Array = []
 	for e in plan:
 		var d: Dictionary = e
@@ -1383,12 +1459,16 @@ func debug_next_day() -> String:
 	return str(Days.TEXT["test_now"]) % Daily.weekday_name(k)
 
 
-## Test: „Erinnerung in 10 s“ – ein Eintrag (id 199) mit dem nächsten A-Text, 10 s nach der echten Uhr.
+## Test: „Erinnerung in 10 s“ – ein Eintrag (id 199) mit dem nächsten A-Text, 10 s nach der echten Uhr. Sein Spieltag
+## ist DEBUG_REMINDER_KEY: Das Plugin zeigt ihn immer (auch wenn heute geschafft ist, auch in der Ruhezeit).
+const DEBUG_REMINDER_KEY := 2147483647
+
+
 func debug_reminder_soon() -> Dictionary:
 	var inp := reminder_input()
 	var at := Daily.system_local() + 10
 	var tpl := ReminderPlan.pick(str(inp["tone"]), "A", int(inp["streak"]), inp["history"], int(inp["today"]))
-	var e := ReminderPlan.entry(199, at, int(inp["today"]), "A", tpl, str(inp["name"]), str(inp["tag"]), int(inp["streak"]))
+	var e := ReminderPlan.entry(199, at, DEBUG_REMINDER_KEY, "A", tpl, str(inp["name"]), str(inp["tag"]), int(inp["streak"]))
 	e["at_real"] = at
 	return e
 

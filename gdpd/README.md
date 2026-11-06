@@ -18,12 +18,29 @@ begrenzten Drehungen und 1–3 Sternen (weniger Drehungen = mehr Sterne). Jeden 
 | 4 | Menschen | Baue 4 Hütten | Drei Tiere in einer Reihe bringen Menschen; sie haben Wünsche |
 | 5 | Nahrung | Erfülle 3 Wünsche | Die erste Wahl: Wiese → Wald oder Acker |
 | 6 | Glaube | Sammle 150 Glauben – kein Krieg! | Kirche und Glaube; zwei Kirchen treffen sich = Krieg |
-| 7 | Ruhe | Sammle 250 Glauben – mit grüner Waage | Industrie und Gewitter; die Weltwaage und Smog |
+| 7 | Ruhe | 250 Glauben, Waage grün | Industrie (Smog), danach Gewitter; die Weltwaage |
 
 Schafft man einen Tag nicht (keine Drehungen mehr, Krieg), gibt es „Nochmal“ – ohne Strafe, mit einem neuen
 Brett und +2 Drehungen. Sterne und freie Tage werden gespeichert. Nach Tag 7: „Deine Welt ist vollendet!“ –
 dann ist das **freie Spiel** offen (Einfach, Mittel, Schwer, 40 Drehungen). Weitere Pakete (Insel, Wüste, Winter)
 kommen als Daten dazu. Spec: [`docs/GDPD_7_TAGE.md`](docs/GDPD_7_TAGE.md).
+
+## Täglich spielen und dein eigener Charakter
+
+Wie bei Duolingo: **ein neuer Tag pro echtem Tag** (der Spieltag wechselt um 3 Uhr). Ist das heutige Level
+geschafft, ist das nächste bis morgen gesperrt („Morgen geht's weiter: Tag 3 · Tiere“, mit Countdown) – im
+geschafften Level kann man ohne Drehungs-Grenze **weiterbauen** (Sterne verbessern, Glauben und Münzen sammeln).
+Nach Tag 7 gibt es jeden Tag eine **Welt des Tages**; das freie Spiel ist jederzeit offen.
+**Serie** mit Flamme und Feier, **Serienschutz** (alle 7 Tage einer, oder für Münzen), Wochenkalender.
+Die Uhr verstellen bringt nichts: zurück und wieder richtig öffnet kein Level und kostet keinen Schutz.
+
+Vor Tag 1 erstellt man in unter einer Minute seinen **eigenen Gott** (Grundform, Farben, Gesicht, Schmuck, Name,
+Ton lieb/frech/streng). Er ist der Begleiter: alle Hinweise kommen als Sprechblase von ihm, kurz („Bring 3 gleiche
+in eine Reihe.“). Er schickt auch die **Erinnerungen** am Handy (Android-Plugin): höchstens eine am Tag, etwa zur
+Uhrzeit des letzten Spiels, nur wenn heute noch nicht gespielt, nie nachts (8:00–21:30, auch ein später Wecker wird
+verworfen), seltener wenn man nicht kommt, nach einer Woche eine freundliche letzte Nachricht. Einstellbar oder aus.
+In der Test-Version gibt es „Nächster Tag (Test)“ und „Erinnerung in 10 s“.
+Spec: [`docs/GDPD_TAEGLICH_CHARAKTER.md`](docs/GDPD_TAEGLICH_CHARAKTER.md).
 
 ## Die Idee
 
@@ -48,8 +65,8 @@ das kostet Glauben, rettet aber die Welt. Eine einzige Waage zeigt Natur ↔ Sta
   (Wiese → Wald → großer Wald …, Acker → Hütte → Haus → Dorf …). In Einfach wächst die ganze Gruppe mit.
   Wächst eine Reihe aus drei gleichen nicht, sagt das Spiel immer, warum: Die drei Felder leuchten mit einem
   Abzeichen, dazu eine Pille mit dem Grund und was man stattdessen tun kann („Schräg zählt nicht · Bring 3 gleiche
-  in eine gerade Reihe“, „Wasser wächst nie · Bring 3 gleiche in eine Reihe“, „Ruht · Wälder erst ab Tag 3 · Mach
-  neue Wälder aus Wiesen“) – auch, wenn Regen die Reihe fertig macht. Eine Reihe, die
+  in eine gerade Reihe“, „Wasser wächst nie · Bring 3 gleiche in eine Reihe“, „Ruht · Großer Wald erst ab Tag 3 ·
+  Mach neue Wälder aus Wiesen“) – auch, wenn Regen die Reihe fertig macht. Eine Reihe, die
   heute nur ruht, ist kein Fehlversuch.
 - **Tag 1 – Schau zu!:** Die Ziel-Karte kündigt es an („Zeig's mir“) und nennt die Regel („Nur gerade
   Reihen · Wasser wächst nie“). Dann spielt die Hand genau einmal, ganz am Anfang, einen Zug vor (kostet

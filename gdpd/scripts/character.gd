@@ -278,12 +278,62 @@ static func random(rng: RandomNumberGenerator, from: Dictionary = {}) -> Diction
 	return sanitize(look)
 
 
+## Zufällige Farben (Würfel). Nie zweimal (fast) dieselbe Farbe in einem Aussehen (sonst verschwindet z. B. das
+## Muster im gleich braunen Fell) – solange die Palette eine andere hat. Verglichen wird die Farbe, nicht der Name
+## (Fell „f3“ und Haar „braun“ sind dasselbe Braun).
 static func randomize_colors(look: Dictionary, rng: RandomNumberGenerator) -> void:
 	var farben: Dictionary = look.get("farben", {})
+	var used: Array = []
 	for row in rows(String(look.get("basis", "bart"))):
-		var keys := palette_keys(String(row[2]))
-		farben[String(row[0])] = keys[rng.randi_range(0, keys.size() - 1)]
+		var pal := String(row[2])
+		var keys := palette_keys(pal)
+		var free: Array = []
+		for k in keys:
+			if not _near_any(palette_color(pal, String(k)), used):
+				free.append(k)
+		var pool: Array = free if not free.is_empty() else keys
+		var picked := String(pool[rng.randi_range(0, pool.size() - 1)])
+		farben[String(row[0])] = picked
+		used.append(palette_color(pal, picked))
 	look["farben"] = farben
+
+
+## Gleicht Platz slot (fast) einem anderen Platz, bekommt er die Farbe seiner Palette, die sich am meisten abhebt.
+## Für Plätze, die der Spieler (noch) nicht selbst gewählt hat. Gibt true, wenn sich etwas geändert hat.
+static func make_distinct(look: Dictionary, slot: String) -> bool:
+	var others: Array = []
+	var pal := ""
+	for row in rows(String(look.get("basis", "bart"))):
+		if String(row[0]) == slot:
+			pal = String(row[2])
+		else:
+			others.append(color(look, String(row[0])))
+	if pal == "" or not _near_any(color(look, slot), others):
+		return false
+	var best := ""
+	var best_d := -1.0
+	for k in palette_keys(pal):
+		var d := 99.0
+		for o in others:
+			d = minf(d, _color_dist(palette_color(pal, String(k)), o as Color))
+		if d > best_d:
+			best_d = d
+			best = String(k)
+	var farben: Dictionary = look.get("farben", {})
+	farben[slot] = best
+	look["farben"] = farben
+	return true
+
+
+static func _color_dist(a: Color, b: Color) -> float:
+	return absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b)
+
+
+static func _near_any(c: Color, list: Array) -> bool:
+	for o in list:
+		if _color_dist(c, o as Color) < 0.12:
+			return true
+	return false
 
 
 static func randomize_accessories(look: Dictionary, rng: RandomNumberGenerator) -> void:

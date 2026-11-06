@@ -17,6 +17,10 @@ final class Store {
 	private static final String PREFS = "gdpd_reminder";
 	private static final String KEY_PLANNED = "planned";
 	private static final String KEY_DONE = "done_key";
+	private static final String KEY_EARLIEST = "window_earliest";
+	private static final String KEY_LATEST = "window_latest";
+	static final int DEFAULT_EARLIEST = 8 * 60;
+	static final int DEFAULT_LATEST = 21 * 60 + 30;
 
 	private Store() {}
 
@@ -87,10 +91,22 @@ final class Store {
 		prefs(ctx).edit().putString(KEY_PLANNED, "[]").apply();
 	}
 
+	/** Stores the done Spieltag exactly (no maximum), so a corrected clock never leaves a far-future key behind. */
 	static synchronized void setDone(Context ctx, int dayKey) {
-		if (dayKey > done(ctx)) {
-			prefs(ctx).edit().putInt(KEY_DONE, dayKey).apply();
-		}
+		prefs(ctx).edit().putInt(KEY_DONE, dayKey).apply();
+	}
+
+	/** Allowed window for showing reminders (minutes of the local day), from GDScript Balance.REMIND_EARLIEST/LATEST. */
+	static synchronized void setWindow(Context ctx, int earliest, int latest) {
+		prefs(ctx).edit().putInt(KEY_EARLIEST, earliest).putInt(KEY_LATEST, latest).apply();
+	}
+
+	static synchronized int earliest(Context ctx) {
+		return prefs(ctx).getInt(KEY_EARLIEST, DEFAULT_EARLIEST);
+	}
+
+	static synchronized int latest(Context ctx) {
+		return prefs(ctx).getInt(KEY_LATEST, DEFAULT_LATEST);
 	}
 
 	static synchronized int done(Context ctx) {

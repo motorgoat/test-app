@@ -101,6 +101,7 @@ static var DAY_ONBOARD_HINT_DAYS := 2      # Tag 1–2: der Tipp leuchtet nach e
 
 # --- Täglich spielen (GDPD_TAEGLICH_CHARAKTER.md 1, 2, 5; Logik in Daily und ReminderPlan) ----------------
 static var DAY_START_HOUR := 3             # der Spieltag wechselt um 3 Uhr Ortszeit
+static var WIN_GRACE := 3600               # Versuch so kurz vor 3 Uhr begonnen: der Sieg zählt noch für den alten Spieltag
 static var COUNTDOWN_EXACT_HOURS := 8      # mehr als so viele Stunden bis zum neuen Tag: genaue Zeit, sonst „Morgen früh“
 static var SHIELD_MAX := 2                 # Serienschutz: höchstens so viele …
 static var SHIELD_PRICE := 5               # … kaufen für so viele Münzen …

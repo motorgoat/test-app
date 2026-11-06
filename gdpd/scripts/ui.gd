@@ -272,19 +272,19 @@ const COACH = {
 	"rain": "Regen! Tipp drauf, dann aufs Feld.",
 	"fire": "Feuer! Gieß es mit Regen.",
 	"bolt": "Blitz! Tipp drauf, dann aufs Eckfeld.",
-	"monsoon": "Monsun! Tipp drauf, dann auf den Würfel.",
+	"monsoon": "Monsun! Tipp drauf, dann Würfel.",
 	"hint": "Fest? Tipp zeigt die beste Drehung.",
 	"undo": "Vertan? Zurück hilft.",
-	"coins": "Deine Münzen. Mehr gibt's per Video.",
+	"coins": "Mehr Münzen per Video.",
 	"age": "",      # Text kommt aus _coach_text (Zeitalter und was als Nächstes kommt)
 	"hold": "Halte ein Symbol für Hilfe.",
 	"scale": "Die Waage: links Natur, rechts Stadt.",
 	"wish": "Ein Wunsch! Erfüll ihn bald.",
-	"church": "Kirchen geben Glauben. Zwei geben Krieg!",
+	"church": "Zwei Kirchen nebeneinander: Krieg!",
 	"war": "Krieg! Halte Kirchen auseinander.",
 	"finished": "Fertig! Bringt jetzt Glauben.",
 	"industry": "Industrie: viel Glaube, aber Smog.",
-	"smog": "Smog! Pflanz Wald oder schick Gewitter.",
+	"smog": "Smog! Mehr Wald hilft.",
 	"nopeople": "Ohne Menschen kein Glaube.",
 	"mini": "Tipp schnell das andere Bild.",
 }
@@ -308,7 +308,7 @@ var _coach_in_hud := false    # der Hinweis hängt oben (dann wartet die Meldung
 const TOOLTIPS = {
 	"menu": {"icon": "menu", "title": "Menü", "body": "Pause, Spiel, Ton, Hilfe."},
 	"score": {"icon": "faith", "title": "Glaube", "body": "Kommt vom Wachsen und von Wünschen."},
-	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Links Natur, rechts Stadt. Grün ist gut."},
+	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Links Natur, rechts Stadt."},
 	"goal": {"icon": "star", "title": "Vollenden", "body": "Vollende %d fertige Felder."},
 	"choice": {"icon": "wish", "title": "Dein Wille geschehe", "body": "Du wählst, was hier wächst."},
 	"mini": {"icon": "check", "title": "Deine Wahl", "body": "Tipp das andere Bild zum Wechseln."},
@@ -515,6 +515,14 @@ func _hbox(sep: int) -> HBoxContainer:
 	return h
 
 
+## Die Kopfzeile wieder auf Bildschirmbreite (ein breiter Chip an Tag 7 hat sie verbreitert; sie schrumpft nicht von selbst).
+func _fit_top() -> void:
+	if top == null:
+		return
+	top.set_deferred("offset_left", Style.MARGIN)
+	top.set_deferred("offset_right", -Style.MARGIN)
+
+
 func _vbox(sep: int) -> VBoxContainer:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", sep)
@@ -527,6 +535,7 @@ func _build_top() -> void:
 	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	top.offset_left = Style.MARGIN
 	top.offset_right = -Style.MARGIN
+	top.minimum_size_changed.connect(_fit_top)
 	_home_top()
 	root.add_child(top)
 
@@ -999,16 +1008,25 @@ func _modal_card(title: String, with_close: bool = false) -> PanelContainer:
 
 
 ## Scrollbereich in einer Dialogkarte (wird beim Öffnen an die Bildschirmhöhe angepasst).
+const MODAL_SCROLL_PAD := 12
+
+
 func _modal_scroll(card: PanelContainer, reserve: float) -> VBoxContainer:
 	var v: VBoxContainer = card.get_meta("body")
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.mouse_filter = Control.MOUSE_FILTER_PASS
 	v.add_child(sc)
+	# Rechts Platz für die Bildlaufleiste (sonst klebt der Inhalt an ihr, links sind es 24 px)
+	var pad := MarginContainer.new()
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pad.mouse_filter = Control.MOUSE_FILTER_PASS
+	pad.add_theme_constant_override("margin_right", MODAL_SCROLL_PAD)
+	sc.add_child(pad)
 	var inner := _vbox(16)
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inner.mouse_filter = Control.MOUSE_FILTER_PASS
-	sc.add_child(inner)
+	pad.add_child(inner)
 	card.set_meta("scroll", sc)
 	card.set_meta("inner", inner)
 	card.set_meta("reserve", reserve)
@@ -1020,19 +1038,19 @@ func _build_help() -> void:
 	help_card = _modal_card("So geht's", true)
 	var inner := _modal_scroll(help_card, 150.0)
 	# An den Tagen zuerst: die Aufgabe, die Drehungen und die Sterne
-	_help_rows["task"] = _help_row("goal", Style.SUN_TINT, "Deine Aufgabe", "Weniger Drehungen, mehr Sterne.")
+	_help_rows["task"] = _help_row("goal", Style.SUN_TINT, "Deine Aufgabe", "")
 	inner.add_child(_help_rows["task"])
 	inner.add_child(_help_row("round", Style.SURFACE_2, "Drehen", "Wisch über eine Reihe."))
 	inner.add_child(_help_row("up", Style.LEAF_TINT, "Wachsen", "Bring 3 gleiche in eine Reihe."))
 	# Was wächst woraus (an den Tagen: nur, was heute schon wachsen kann), als Bildreihe
-	var tree := _help_row("up", Style.LEAF_TINT, "Was wächst woraus", "Daraus wird das Nächste:")
+	var tree := _help_row("up", Style.LEAF_TINT, "Was wächst woraus", "")
 	inner.add_child(tree)
 	_help_rows["tree"] = tree
 	_help_tree = HFlowContainer.new()
 	_help_tree.add_theme_constant_override("h_separation", 6)
 	_help_tree.add_theme_constant_override("v_separation", 6)
 	_help_tree.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_help_tree.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 44 - 14 - 8, 0)
+	_help_tree.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 44 - 14 - 8 - MODAL_SCROLL_PAD, 0)
 	(tree.get_child(1) as Control).add_child(_help_tree)
 	# Die Wahl als Bild: Wiese → Wald oder Acker
 	var will := _help_row("hand", Style.SUN_TINT, "Dein Wille geschehe", "Hier wählst du, was wächst.")
@@ -1049,7 +1067,7 @@ func _build_help() -> void:
 	pic.add_child(_icon(_kind_icon(FieldData.FIELD), 26))
 	_help_rows["faith"] = _help_row("faith", Style.SUN_TINT, "Glaube", "Kommt vom Wachsen und von Wünschen.")
 	inner.add_child(_help_rows["faith"])
-	_help_rows["scale"] = _help_row("balance", Style.LEAF_TINT, "Weltwaage", "Links Natur, rechts Stadt. Grün ist gut.")
+	_help_rows["scale"] = _help_row("balance", Style.LEAF_TINT, "Weltwaage", "Links Natur, rechts Stadt.")
 	_help_rows["wish"] = _help_row("wish", Style.SUN_TINT, "Wünsche", "Erfüll Wünsche in %d Drehungen." % Balance.WISH_TWISTS)
 	_help_rows["war"] = _help_row("swords", Style.FIRE_TINT, "Krieg", "Treffen sich zwei Kirchen: Krieg.")
 	_help_rows["smog"] = _help_row("smog", Style.FIRE_TINT, "Smog", "Zu viel Industrie: Natur welkt.")
@@ -1061,7 +1079,7 @@ func _build_help() -> void:
 	inner.add_child(_help_rows["fire"])
 	_help_rows["rain"] = _help_row("rain", Style.WATER_TINT, "Regen", "Natur wächst. Feuer geht aus.")
 	inner.add_child(_help_rows["rain"])
-	_help_rows["bolt"] = _help_row("lightning", Style.SUN_TINT, "Blitz", "3 gleiche an einer Ecke. Dann wächst die schräge Linie dort.")
+	_help_rows["bolt"] = _help_row("lightning", Style.SUN_TINT, "Blitz", "3 gleiche an einer Ecke.")
 	_help_rows["monsoon"] = _help_row("monsoon", Style.MONSOON_TINT, "Monsun", "Eine ganze Seite wächst.")
 	_help_rows["strike"] = _help_row("strike", PUNISH_TINT, "Gewitter", "Straft ein Feld. Kostet %d Glauben." % Balance.STRIKE_COST)
 	_help_rows["flood"] = _help_row("flood", Style.WATER_TINT, "Flut", "Wäscht eine Seite rein. %d Glauben." % Balance.FLOOD_COST)
@@ -1102,7 +1120,8 @@ func _help_row(icon_name: String, tint: Color, title: String, body: String) -> H
 	v.add_child(_label(title, 17, Style.INK, Style.W_BOLD))
 	var l := _label(body, Style.F_BODY_S, Style.INK_2, Style.W_BODY)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 44 - 14 - 8, 0)
+	l.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 44 - 14 - 8 - MODAL_SCROLL_PAD, 0)
+	l.visible = body != ""          # ohne Satz: nur Titel (und Bilder)
 	v.add_child(l)
 	return h
 
@@ -1325,7 +1344,7 @@ func _refresh_menu_daily() -> void:
 		(c as Button).disabled = not usable
 	_remind_settings.visible = false
 	if not supported:
-		_remind_note.text = "Erinnerungen gibt es nur auf dem Handy."
+		_remind_note.text = remind_unsupported_text()
 		_remind_note.add_theme_color_override("font_color", Style.INK_3)
 		_remind_note.visible = true
 	elif mode != "aus" and not notifier.notifications_enabled():
@@ -1335,6 +1354,11 @@ func _refresh_menu_daily() -> void:
 		_remind_settings.visible = true
 	else:
 		_remind_note.visible = false
+
+
+## Ohne Plugin: am PC „Nur auf dem Handy.“, auf einem Handy (APK ohne Gradle-Build) „In dieser Version keine Erinnerungen.“
+static func remind_unsupported_text() -> String:
+	return "In dieser Version keine Erinnerungen." if OS.get_name() == "Android" else "Nur auf dem Handy."
 
 
 func _on_edit_character() -> void:
@@ -2138,7 +2162,9 @@ func _pulse(c: Control, on: bool) -> void:
 		tw.tween_property(c, "scale", Vector2.ONE, 0.15)
 		return
 	tw.set_loops()
-	tw.tween_property(c, "scale", Vector2.ONE * 1.07, 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# Breite Knöpfe (z. B. „Los!“ über die ganze Karte) wachsen seitlich nur um ~7 px je Seite: nie bis an den Kartenrand
+	var big := Vector2(minf(1.07, 1.0 + 14.0 / maxf(c.size.x, 1.0)), 1.06 if c.size.x > 300.0 else 1.07)
+	tw.tween_property(c, "scale", big, 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(c, "scale", Vector2.ONE, 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
@@ -2494,7 +2520,7 @@ func _tooltip_for(key: String) -> Dictionary:
 				body += " Noch %d %s." % [gs.lives, "Herz" if gs.lives == 1 else "Herzen"]
 		"rain":
 			if gs != null and gs.rain <= 0:
-				body += " Der nächste Regen kommt in %d Drehungen." % maxi(1, gs.next_rain - gs.twists)
+				body += " Nächster Regen in %d Drehungen." % maxi(1, gs.next_rain - gs.twists)
 		"goal":
 			body = body % (gs.complete_goal() if gs != null else 22)
 			if gs != null:
@@ -2917,7 +2943,7 @@ func _offer_buy(kind: String) -> void:
 	var when := ""
 	if kind == "rain":
 		var left := maxi(1, gs.next_rain - gs.twists)
-		when = "Der nächste Regen kommt in %d %s. " % [left, "Drehung" if left == 1 else "Drehungen"]
+		when = "Nächster Regen in %d %s. " % [left, "Drehung" if left == 1 else "Drehungen"]
 	elif kind == "bolt":
 		when = "Blitz: 3 gleiche an einer Ecke. "
 	else:
@@ -3116,7 +3142,7 @@ func _pay(cost: int, what: String, action: Callable) -> void:
 		return
 	_pending = action
 	_pending_cost = cost
-	ad_label.text = "%s kostet %d %s. Du hast %d.\nSchau ein kurzes Video und bekomm %d %s." % [
+	ad_label.text = "%s: %d %s. Du hast %d.\nVideo: +%d %s." % [
 		what, cost, _coin_word(cost), Game.credits, Balance.CREDITS_PER_AD, _coin_word(Balance.CREDITS_PER_AD)]
 	refresh()
 	_open_modal(ad_card)
@@ -3806,11 +3832,11 @@ func _fill_sheet(fid: int) -> void:
 	else:
 		body = _kind_body(k, f.is_finished())
 	if not f.burning and world.smog_fields(gs).has(fid):
-		body += "\nSmog! Industrie daneben macht die Luft schmutzig. Mehr Natur oder ein Gewitter hilft."
+		body += "\nSmog! Mehr Natur hilft."
 	if k == FieldData.CHURCH:
 		for g in gs.neighbors(f):
 			if (g as FieldData).kind == FieldData.CHURCH:
-				body += "\nAchtung: Kirche daneben – das gibt Krieg."
+				body += "\nKirche daneben: Krieg!"
 				break
 	body = body.strip_edges()
 	var w := gs.wish_at(fid)
@@ -3946,8 +3972,9 @@ func _diag_text() -> String:
 
 
 ## Ab welchem Tag wächst die ruhende Art k weiter? Satz für die Pille.
+## Was noch gesperrt ist, ist die NÄCHSTE Art (an Tag 2: „Großer Wald erst ab Tag 3“, nicht „Wälder“ – die gibt es heute).
 func _rest_text(k: int, nx: int) -> String:
-	var name := FieldData.kind_plural(k)
+	var name := FieldData.kind_name(nx if nx >= 0 else k)
 	name = name.substr(0, 1).to_upper() + name.substr(1)
 	var from := Game.day_no + 1 if Game.in_day() else 1
 	for d in range(maxi(1, from), Days.count() + 1):
@@ -4139,6 +4166,13 @@ func _on_message(text: String, kind: String) -> void:
 	_toasts.append({"text": text, "kind": kind})
 	while _toasts.size() > 3:
 		_toasts.pop_front()
+
+
+## Alte Meldungen weg (die Übersicht hat sich geändert, z. B. „Nächster Tag (Test)“): die sichtbare geht sofort.
+func clear_toasts() -> void:
+	_toasts.clear()
+	if _toast_busy and not _toast_leaving:
+		_toast_until = _time
 
 
 func _toast_tick() -> void:
@@ -4478,6 +4512,9 @@ func _show_help() -> void:
 	(_help_rows["tree"] as Control).visible = day
 	if day:
 		_fill_help_tree(gs)
+		var task_l := ((_help_rows["task"] as Control).get_child(1) as Control).get_child(1) as Label
+		task_l.text = str(Game.day_info().get("goal_text", ""))
+		task_l.visible = task_l.text != ""
 	var wish_l := ((_help_rows["wish"] as Control).get_child(1) as Control).get_child(1) as Label
 	if day and not _faith_shown():
 		wish_l.text = "Wunsch in %d Drehungen: Haus wächst." % Balance.WISH_TWISTS
@@ -4954,7 +4991,7 @@ func _on_choice_made(info: Dictionary) -> void:
 	if not _choice.is_empty():
 		_close_choice(int(info.get("picked", -1)))
 	if Game.tutorial() and Game.tutorial_step >= 1:
-		_tut_set("Gut so! Du bist der Gott dieser Welt.", false, Game.tutorial_step)
+		_tut_set("Gut so! Deine Welt.", false, Game.tutorial_step)
 	if bool(info.get("mini", false)):
 		_coach_once("mini", _anchor, int(info.get("field", -1)))
 

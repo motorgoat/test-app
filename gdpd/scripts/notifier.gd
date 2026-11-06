@@ -11,7 +11,8 @@ extends Node
 ##   n.request_permission()           # nach „Ja, gern“ (Android 13+: Systemdialog; Antwort → permission_changed)
 ##   n.notifications_enabled()        # Menü: „Benachrichtigungen sind am Handy ausgeschaltet.“ wenn false
 ##   n.open_settings()                # Knopf „Einstellungen öffnen“
-##   Notifier.is_supported()          # false → Menü: „Erinnerungen gibt es nur auf dem Handy.“
+##   Notifier.is_supported()          # false → Menü: „Nur auf dem Handy.“ (Android ohne Plugin: „In dieser Version
+##                                    # keine Erinnerungen.“)
 ## Direkt (ohne Game): schedule(at_unix, title, body, id), cancel(id), cancel_all(), mark_done(day_key).
 ## Zeiten sind immer Ortszeit als „lokale Unix-Sekunden“ (Datum/Uhrzeit der Wanduhr, als wäre es UTC – wie
 ## Game.now_local ohne die Test-Tage); das Plugin rechnet sie mit der Zeitzone des Handys um (Sommerzeit, Reisen).
@@ -109,6 +110,7 @@ func schedule_entry(e: Dictionary) -> bool:
 ## Den ganzen Plan einplanen: erst alles löschen, dann jeden Eintrag. Gibt zurück, wie viele das Handy angenommen hat.
 func schedule_plan(plan: Array) -> int:
 	cancel_all()
+	_push_window()
 	var n := 0
 	for e in plan:
 		if e is Dictionary and schedule_entry(e as Dictionary):
@@ -198,6 +200,12 @@ func _schedule_fields(id: int, year: int, month: int, day: int, hour: int, minut
 	return bool(_plugin.call("schedule", id, year, month, day, hour, minute, title, body, icon_path, key))
 
 
+## Ruhezeit an das Plugin: Es zeigt nichts außerhalb von 8:00–21:30 (Balance), auch wenn Android den Wecker spät auslöst.
+func _push_window() -> void:
+	if _plugin != null and _plugin.has_method("set_window"):
+		_plugin.call("set_window", Balance.REMIND_EARLIEST, Balance.REMIND_LATEST)
+
+
 func _log(line: String) -> void:
 	log_lines.append(line)
 	while log_lines.size() > 32:
@@ -235,7 +243,9 @@ func _on_permission_result(permission: String, _granted: bool) -> void:
 func _on_streak_changed(info: Dictionary) -> void:
 	if not bool(info.get("counted", true)):
 		return
-	if _game != null and _game.has_method("today_key"):
+	if info.has("key"):
+		mark_done(int(info["key"]))
+	elif _game != null and _game.has_method("today_key"):
 		mark_done(int(_game.call("today_key")))
 
 

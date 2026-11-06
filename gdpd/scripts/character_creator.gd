@@ -277,14 +277,18 @@ func _layout() -> void:
 func _layout_bubble() -> void:
 	if not _bubble.visible:
 		return
-	var w := minf(size.x - 2 * Style.MARGIN, 380.0)
+	# So breit wie der Satz (höchstens 380 px): ein kurzer Satz bekommt eine kleine Blase, keine halb leere
+	var f := _bubble_label.get_theme_font("font")
+	var fs := _bubble_label.get_theme_font_size("font_size")
+	var tw := f.get_string_size(_bubble_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x if f != null else 380.0
+	var w := minf(minf(size.x - 2 * Style.MARGIN, 380.0), ceilf(tw) + 36.0)
 	# Erst die Breite des Satzes festlegen, dann seine Höhe messen (sonst bricht er jedes Wort um und die Blase
 	# wird riesig und leer)
 	_bubble_label.custom_minimum_size = Vector2(w - 32, 0)
 	_bubble_label.size = Vector2(w - 32, 0)
 	var h := _bubble_label.get_minimum_size().y + 24.0
 	_bubble.size = Vector2(w, h)
-	_bubble.position = Vector2((size.x - w) * 0.5, maxf(Style.TOP_GAP + 52.0, preview.position.y - h + 18.0))
+	_bubble.position = Vector2((size.x - w) * 0.5, maxf(Style.TOP_GAP + 52.0, preview.position.y - h - 4.0))
 
 
 # --- Schritte -------------------------------------------------------------------------------------------
@@ -325,10 +329,11 @@ func _fill_step() -> void:
 			_sub.text = "Ganz wie du magst."
 			_step_face()
 		3:
-			_title.text = "Wie heißt du?"
-			_sub.text = "Gib ihm einen Namen."
+			_title.text = "Name und Ton"
+			_sub.text = ""
 			_step_name()
 			_next.text = "Speichern" if edit_mode else "Fertig – los geht's!"
+	_sub.visible = _sub.text != ""
 	_scroll.scroll_vertical = 0
 	if is_inside_tree():
 		_content.modulate.a = 0.0
@@ -493,8 +498,12 @@ func _on_base(basis: String) -> void:
 		preview.react("hop")
 		return
 	look = Character.with_base(look, basis)
+	_picked_colors = {}
 	_changed()
 	_fill_step()
+
+
+var _picked_colors := {}       # Farb-Plätze, die der Spieler selbst getippt hat (die weichen nie aus)
 
 
 func _on_quick() -> void:
@@ -506,6 +515,12 @@ func _on_quick() -> void:
 func _on_color(slot: String, key: String) -> void:
 	var farben: Dictionary = look["farben"]
 	farben[slot] = key
+	_picked_colors[slot] = true
+	# Gleiche Farbe wie ein Platz, den der Spieler nicht gewählt hat (braunes Fell, braunes Muster): der andere weicht aus
+	for row in Character.rows(String(look.get("basis", "bart"))):
+		var other := String(row[0])
+		if other != slot and not _picked_colors.has(other):
+			Character.make_distinct(look, other)
 	_changed()
 	_fill_step_keep_scroll()
 
@@ -599,6 +614,7 @@ func randomize_step() -> void:
 			look = Character.with_base(look, String(others[_rng.randi_range(0, others.size() - 1)]))
 		1:
 			Character.randomize_colors(look, _rng)
+			_picked_colors = {}
 		2:
 			look["augen"] = Character.EYE_ORDER[_rng.randi_range(0, Character.EYE_ORDER.size() - 1)]
 			Character.randomize_accessories(look, _rng)

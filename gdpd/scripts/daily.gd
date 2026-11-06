@@ -15,7 +15,9 @@ extends RefCounted
 ##   open_key (Spieltag des letzten Sitzungs-Starts), anchor (Minute des Tages, zu der die Sitzung begann, die den
 ##   letzten Serientag geschafft hat; −1 = unbekannt), wdt_stars ({"key": Sterne}, letzte 14), wdt_fails ([key, n]),
 ##   wdt_total (geschaffte Welten des Tages), build_coins ([key, Münzen] aus dem Weiterbauen), test_days (Test-Knopf),
-##   comeback ("" | "saved" | "lost": einmal zeigen, dann take_comeback())
+##   comeback ("" | "saved" | "lost": einmal zeigen, dann take_comeback()),
+##   clock_off (ganze Tage, die die Spielzeit vor der Systemuhr liegt, nach großem Zurückstellen; sonst 0),
+##   sys_seen (zuletzt gesehene Systemzeit: erkennt das Wieder-Richtigstellen)
 
 const DAY := 86400
 const KEEP_DAYS := 21
@@ -90,7 +92,7 @@ static func fresh(now: int, days: int = 7) -> Dictionary:
 	return {"won_key": won, "last_new_key": -1, "streak": 0, "streak_best": 0, "streak_last": -1, "shields": 0,
 		"shields_ever": false, "streak_days": [], "shield_days": [], "last_seen": now, "last_key": k, "first_key": k,
 		"open_key": k, "anchor": -1, "wdt_stars": {}, "wdt_fails": [-1, 0], "wdt_total": 0, "build_coins": [-1, 0],
-		"test_days": 0, "comeback": ""}
+		"test_days": 0, "comeback": "", "clock_off": 0, "sys_seen": now}
 
 
 ## Fehlende Einträge ergänzen und Typen richten (alte/kaputte Spielstände). days: Anzahl der Tage.
@@ -108,7 +110,7 @@ static func sanitize(d: Dictionary, now: int, days: int = 7) -> Dictionary:
 		won.pop_back()
 	d["won_key"] = won
 	for k in ["last_new_key", "streak", "streak_best", "streak_last", "shields", "last_seen", "last_key", "first_key",
-			"open_key", "anchor", "wdt_total", "test_days"]:
+			"open_key", "anchor", "wdt_total", "test_days", "clock_off", "sys_seen"]:
 		d[k] = int(d[k])
 	d["shields"] = clampi(int(d["shields"]), 0, Balance.SHIELD_MAX)
 	d["shields_ever"] = bool(d["shields_ever"])
@@ -139,56 +141,40 @@ static func _push_key(arr: Array, key: int, keep: int = KEEP_DAYS) -> void:
 
 # --- Uhr-Regeln (1.7) -------------------------------------------------------------------------
 
-## Die Uhr ansehen: gibt den heutigen Spieltag zurück und merkt sich die Zeit.
-## - normal (now ≥ last_seen): Spieltag von now.
+## Die Uhr ansehen: gibt den heutigen Spieltag zurück und merkt sich die Zeit. Die Spielzeit läuft nie rückwärts:
+## Spielzeit = Systemzeit + clock_off ganze Tage (game_time). Gemerkte Spieltage werden nie umgeschrieben.
+## - normal (Spielzeit ≥ last_seen): Spieltag der Spielzeit.
 ## - Uhr etwas zurück (< 36 h, Sommerzeit-Ende, Reise nach Westen): der Spieltag bleibt stehen (nie rückwärts).
-## - Uhr weit zurück (≥ 36 h, falsches Datum korrigiert): neu aufsetzen. Alle gemerkten Spieltage rücken um den
-##   Abstand mit (so bleibt alles, wie es war: Serie, „heute geschafft“, „morgen geht's weiter“), nichts liegt danach
-##   in der Zukunft, kein Schutz wird verbraucht, niemand bleibt hängen.
-## - Uhr vor: wird angenommen (öffnet höchstens einen neuen Tag je Spieltag; Serienschutz gilt).
+## - Uhr weit zurück (≥ 36 h, falsches Datum): clock_off = so viele Tage, dass der Spieltag bleibt. Die Spielzeit
+##   läuft von dort in Echtzeit weiter (am nächsten Morgen kommt der nächste Tag).
+## - Uhr wieder richtig (Systemtag erreicht den Spieltag, oder ein Sprung ≥ 36 h vor, während clock_off > 0): erst
+##   clock_off abbauen. Diese Tage zählen nicht als verpasst, nichts wird entsperrt, kein Schutz wird verbraucht.
+## - Uhr vor (ohne clock_off): wird angenommen (öffnet höchstens einen neuen Tag je Spieltag; Serienschutz gilt).
 static func observe(d: Dictionary, now: int) -> int:
 	var seen := int(d.get("last_seen", now))
 	var last := int(d.get("last_key", day_key(seen)))
-	if now >= seen:
-		d["last_seen"] = now
-		d["last_key"] = maxi(last, day_key(now))
+	var off := maxi(0, int(d.get("clock_off", 0)))
+	var sys_seen := int(d.get("sys_seen", seen - off * DAY))
+	d["sys_seen"] = now
+	if off > 0 and (day_key(now) >= last or now - sys_seen >= BIG_BACK):
+		off = maxi(0, last - day_key(now))      # zurückgestellt: Uhr wieder richtig – erst den Versatz abbauen
+	d["clock_off"] = off
+	var g := now + off * DAY
+	if g >= seen:
+		d["last_seen"] = g
+		d["last_key"] = maxi(last, day_key(g))
 		return int(d["last_key"])
-	if seen - now < BIG_BACK:
+	if seen - g < BIG_BACK:
 		return last
-	var today := day_key(now)
-	shift_keys(d, today - last)
-	d["last_seen"] = now
-	d["last_key"] = today
-	return today
+	off = maxi(0, last - day_key(now))           # weit zurück: der Spieltag bleibt, die Spielzeit läuft weiter
+	d["clock_off"] = off
+	d["last_key"] = last                         # last_seen bleibt: die Spielzeit holt ihn wieder ein
+	return last
 
 
-## Alle gemerkten Spieltage um delta Tage verschieben (Neuaufsetzen nach einer großen Uhr-Korrektur).
-static func shift_keys(d: Dictionary, delta: int) -> void:
-	if delta == 0:
-		return
-	var won: Array = d["won_key"]
-	for i in won.size():
-		if int(won[i]) >= 0:
-			won[i] = int(won[i]) + delta
-	for k in ["last_new_key", "streak_last"]:
-		if int(d[k]) >= 0:
-			d[k] = int(d[k]) + delta
-	for k in ["first_key", "open_key"]:
-		d[k] = int(d[k]) + delta
-	for k in ["streak_days", "shield_days"]:
-		var a: Array = []
-		for v in (d[k] as Array):
-			a.append(int(v) + delta)
-		d[k] = a
-	var ws := {}
-	var src: Dictionary = d["wdt_stars"]
-	for k in src:
-		ws[str(int(str(k)) + delta)] = int(src[k])
-	d["wdt_stars"] = ws
-	for k in ["wdt_fails", "build_coins"]:
-		var p: Array = d[k]
-		if int(p[0]) >= 0:
-			p[0] = int(p[0]) + delta
+## Spielzeit (lokale Unix-Sekunden) zu einer Systemzeit: now + clock_off Tage (nach observe aufrufen).
+static func game_time(d: Dictionary, now: int) -> int:
+	return now + maxi(0, int(d.get("clock_off", 0))) * DAY
 
 
 # --- Serie und Serienschutz (1.4, 1.5) ----------------------------------------------------------
@@ -225,12 +211,12 @@ static func done_today(d: Dictionary, today: int) -> bool:
 ## Ein Sieg (neuer Tag, Wiederholung oder Welt des Tages) am Spieltag today. anchor_min: Minute des Tages, zu der die
 ## Sitzung begann (−1 = unbekannt, bleibt wie es war). Nur der erste Sieg eines Spieltags zählt.
 ## {"counted", "before", "streak", "best", "milestone" (Vielfaches von 7), "big" (große Feier), "shield" (+1 Schutz),
-##  "coins" (Münzen statt Schutz), "shields"}
+##  "coins" (Münzen statt Schutz), "shields", "key" (der Spieltag, dem der Sieg zählt)}
 static func win(d: Dictionary, today: int, anchor_min: int = -1) -> Dictionary:
 	day_check(d, today)
 	var before := int(d["streak"])
 	var out := {"counted": false, "before": before, "streak": before, "best": int(d["streak_best"]), "milestone": false,
-		"big": false, "shield": 0, "coins": 0, "shields": int(d["shields"])}
+		"big": false, "shield": 0, "coins": 0, "shields": int(d["shields"]), "key": today}
 	if int(d["streak_last"]) == today:
 		return out
 	var st := before + 1
@@ -489,6 +475,8 @@ static func save(d: Dictionary, cfg: ConfigFile) -> void:
 	cfg.set_value(s, "bau_muenzen", d["build_coins"])
 	cfg.set_value(s, "test_tage", int(d["test_days"]))
 	cfg.set_value(s, "comeback", str(d["comeback"]))
+	cfg.set_value(s, "uhr_versatz", int(d["clock_off"]))
+	cfg.set_value(s, "zuletzt_system", int(d["sys_seen"]))
 
 
 ## Laden. Ohne [taeglich] (Spielstand v1 oder neu): Migration – jeder geschaffte Tag gilt als „früher geschafft“
@@ -508,6 +496,8 @@ static func load_from(cfg: ConfigFile, now: int, days: int = 7) -> Dictionary:
 		"open_key": cfg.get_value(s, "geoeffnet", f["open_key"]), "anchor": cfg.get_value(s, "anker", -1),
 		"wdt_stars": cfg.get_value(s, "wdt_sterne", {}), "wdt_fails": cfg.get_value(s, "wdt_fehlversuche", [-1, 0]),
 		"wdt_total": cfg.get_value(s, "wdt_gesamt", 0), "build_coins": cfg.get_value(s, "bau_muenzen", [-1, 0]),
-		"test_days": cfg.get_value(s, "test_tage", 0), "comeback": cfg.get_value(s, "comeback", "")}
+		"test_days": cfg.get_value(s, "test_tage", 0), "comeback": cfg.get_value(s, "comeback", ""),
+		"clock_off": cfg.get_value(s, "uhr_versatz", 0)}
+	d["sys_seen"] = cfg.get_value(s, "zuletzt_system", int(d["last_seen"]) - int(d["clock_off"]) * DAY)
 	d["last_key"] = cfg.get_value(s, "zuletzt_tag", day_key(int(d["last_seen"])))
 	return sanitize(d, now, days)
