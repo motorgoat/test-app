@@ -2,15 +2,15 @@ class_name Balance
 extends RefCounted
 ## Zentrale Balancing-Datei: ALLE Spielzahlen stehen hier.
 
-# --- gdpd: Arten, Wahl und Glaube (gdpd_spec/GDPD_REGELN.md, Abschnitt 13) ---------------
+# --- gdpd: Arten, Wahl und Glaube (docs/GDPD_7_TAGE.md Abschnitt 1, GDPD_REGELN.md Abschnitt 13) -----
 # Die Arten stehen in FieldData (Art-Tabelle). Drei gleiche in einer NEUEN Reihe wachsen:
-#   Wiese → Wald | Acker, Wald → Großer Wald → Tiere | Hütte, Acker → Hütte, Tiere → Paradies ★,
-#   Hütte → Haus → Dorf → Stadt | Kirche ★, Stadt → Großstadt | Industrie ★, Großstadt → Metropole ★.
+#   Erde → Wiese → Wald | Acker, Wald → Großer Wald → Tiere → Hütte | Paradies ★ (nur freies Spiel), Acker → Hütte,
+#   Hütte → Haus → Dorf → Stadt | Kirche ★, Stadt → Großstadt | Industrie ★, Großstadt → Metropole ★. Wasser: nie.
 #   ★ = fertig: wächst nicht mehr, bildet keine Reihe, bringt jede Drehung Glauben.
-static var MAX_STAGE := 14                # höchste Art-Nummer (alter Name, Oberfläche)
-static var KIND_COUNT := 15
+static var MAX_STAGE := 15                # höchste Art-Nummer (alter Name, Oberfläche)
+static var KIND_COUNT := 16
 # Glaube fürs Wachsen nach Stufe (tier) der Art vor dem Wachsen, × Kombo.
-static var GROW_FAITH := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75]
+static var GROW_FAITH := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75, 100]
 static var MERGE_POINTS := GROW_FAITH     # alter Name
 static var MAX_CASCADES := 6
 static var OTHERS_DROP := 0               # die beiden anderen Felder der Reihe bleiben
@@ -18,9 +18,13 @@ static var DIAGONAL_FROM := 2             # Mittel: Diagonalen ab Stufe 2 (Einfa
 static var DIAGONAL_FROM_EASY := 1
 static var FACE_BONUS := 9                # ganze Seite: Glaube der Stufe × so viel
 
-# --- Start ----------------------------------------------------------------------
-static var START_MEADOW := 0.5            # Anteil Wiesen beim Würfeln, der Rest ist leere Erde …
-static var START_NATURE := 0.40           # … nie drei Wiesen beisammen, dann bis zu diesem Anteil auffüllen
+# --- Start (freies Spiel, GDPD_7_TAGE.md 3.2: vorläufig) ---------------------------------
+# So viele Felder je Art, nach Sticker-Art verteilt (etwa die Hälfte auf Ecken), dann fertige Reihen auflösen.
+static var START_KINDS := {FieldData.MEADOW: 26, FieldData.EMPTY: 24, FieldData.WATER: 4}
+static var START_CORNER_SHARE := 0.5      # Anteil jeder Art auf Ecken …
+static var START_CENTER_SHARE := 0.1      # … und auf Mitten (der Rest auf Kanten)
+static var START_MEADOW := 0.5            # alt (v1.1-Würfeln), nicht mehr benutzt
+static var START_NATURE := 0.40
 
 # --- Jede Drehung ------------------------------------------------------------------
 # Glaube pro Drehung von fertigen Feldern (nicht bei Smog, nie bei Regen/Werkzeugen).
@@ -78,7 +82,7 @@ static var MINI_CARD_SECONDS := 2.0
 static var OTHER_CHOICE_HABIT := true      # weitere Wahl im selben Zug (ohne Karte): true = Gewohnheit (Spec), false = immer Option 1 (Python-Modell)
 
 # --- Ziel und Modi ------------------------------------------------------------------------------
-static var COMPLETE_AT := [36, 22, 22]    # Vollendet: so viele fertige Felder (Einfach, Mittel, Schwer) …
+static var COMPLETE_AT := [36, 18, 16]    # Vollendet (vorläufig, GDPD_7_TAGE.md 3.2): so viele fertige Felder (Einfach, Mittel, Schwer) …
 static var COMPLETE_BONUS_PCT_PER_HEART := 10   # … und WILD_AT < W < SMOG_AT. Bonus: so viel % Glaube pro Herz
 static var AGES := ["Urzeit", "Steinzeit", "Antike", "Mittelalter", "Neuzeit", "Industriezeitalter", "Moderne"]
 ## Eine typische Art je Zeitalter (für Icons; alter Name).
@@ -88,6 +92,12 @@ static var AGE_GOAL := ["Steinzeit – leg einen Acker an oder bau eine Hütte."
 	"Vollende deine Welt!"]
 # Challenge: 40 Drehungen nach Mittel-Regeln, so viel Glauben wie möglich.
 static var MAX_TWISTS := 40
+
+# --- Die Schöpfung in 7 Tagen (GDPD_7_TAGE.md; die Tag-Tabelle steht in Days) -------------------
+static var MERCY_TWISTS := 2               # jeder Fehlversuch eines Tages: nächster Versuch so viele Drehungen mehr …
+static var MERCY_MAX := 6                  # … höchstens so viele
+static var DAY_HINT_FREE := true           # Tipp kostet an den Tagen nichts (Produktentscheidung, 4.6)
+static var DAY_ONBOARD_HINT_DAYS := 2      # Tag 1–2: der Tipp leuchtet nach einer Pause von selbst
 
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42
