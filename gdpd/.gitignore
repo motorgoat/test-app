@@ -1,4 +1,7 @@
 .godot/
 export/
 *.import
+!icons/character/**/*.import
 build/
+android/
+addons/gdpd_reminder/bin/

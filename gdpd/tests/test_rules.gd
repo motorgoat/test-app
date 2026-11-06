@@ -30,6 +30,13 @@ var _saved := {}
 
 
 func _init() -> void:
+	if OS.get_cmdline_user_args().has("--daily"):       # schneller Lauf: nur „Täglich spielen“
+		_daily_tests()
+		test_day_save()
+		print("")
+		print("%d Prüfungen, %d Fehler" % [checks, failures])
+		quit(1 if failures > 0 else 0)
+		return
 	test_setup()
 	test_geometry()
 	test_kind_table()
@@ -77,6 +84,7 @@ func _init() -> void:
 	test_day_toggles()
 	test_day_tutorial()
 	test_day_save()
+	_daily_tests()
 	test_day_hint()
 	test_day_bots()
 	test_bot()
@@ -2181,6 +2189,8 @@ func test_day_save() -> void:
 		DirAccess.remove_absolute(path)
 	var g: Node = GameScript.new()
 	g.save_path = path
+	g.reminder_echo = false
+	g.clock_override = lt(2026, 11, 9, 10, 0)
 	g._load_best()
 	check(g.first_launch and g.day_free == 1 and g.stars_total() == 0 and not g.world_done and g.current_day() == 1, "neues Profil: Tag 1, keine Sterne, erster Start")
 	check(not g.start_day(2) and g.start_day(1) and g.in_day() and g.day_no == 1 and int(g.day_board["index"]) == 0, "nur Tag 1 ist frei; erster Besuch: Brett 0")
@@ -2191,8 +2201,12 @@ func test_day_save() -> void:
 	g.day_lost.connect(func(info): lost.append(info))
 	_replay_in_game(g)
 	check(won.size() == 1 and g.over and int(won[0]["stars"]) >= 1 and int(won[0]["next_day"]) == 2, "Tag 1 gewonnen: Signal mit Sternen und nächstem Tag (%s)" % str(won))
-	check(g.day_free == 2 and g.stars_of(1) == int(won[0]["stars"]) and int(g.day_next_board[0]) == 1 and int(g.day_best[0]) > 0, "nach dem Sieg: Tag 2 frei, Sterne und Brett gemerkt")
+	check(g.day_free == 1 and not g.day_unlocked(2) and g.new_day_tomorrow() and bool(won[0]["next_locked"]) and g.stars_of(1) == int(won[0]["stars"]) and int(g.day_next_board[0]) == 1 and int(g.day_best[0]) > 0,
+		"nach dem Sieg: Tag 2 erst morgen, Sterne und Brett gemerkt")
 	check(not g.can_undo(), "ein beendeter Tag lässt sich nicht zurücknehmen")
+	check(not g.next_day(), "Weiter zu Tag 2 geht erst morgen")
+	g.clock_override += 86400
+	check(g.day_free == 2 and g.day_unlocked(2), "am nächsten Spieltag: Tag 2 frei")
 	# Scheitern: Gnade und nächstes Brett
 	check(g.next_day() and g.day_no == 2 and g.state.day_limit == 15, "Weiter zu Tag 2")
 	g.state.twists = g.state.day_limit - 1
@@ -2202,27 +2216,33 @@ func test_day_save() -> void:
 	check(lost.size() == 1 and str(lost[0]["why"]) == "twists" and int(lost[0]["mercy_next"]) == 2 and int(g.day_fails[1]) == 1, "Tag 2 gescheitert: +2 Drehungen beim nächsten Versuch (%s)" % str(lost))
 	check(g.retry_day() and g.state.day_limit == 17 and int(g.day_board["index"]) == 1, "Nochmal: nächstes Brett, 17 Drehungen")
 	_replay_in_game(g)
-	check(won.size() == 2 and int(g.day_fails[1]) == 0 and g.day_free == 3, "Sieg setzt die Gnade zurück, Tag 3 frei")
+	check(won.size() == 2 and int(g.day_fails[1]) == 0 and g.next_new_day() == 3 and not g.day_unlocked(3), "Sieg setzt die Gnade zurück, Tag 3 erst morgen")
 	# Rundreise: speichern → laden
 	var g2: Node = GameScript.new()
 	g2.save_path = path
+	g2.reminder_echo = false
+	g2.clock_override = g.clock_override
 	g2._load_best()
-	check(not g2.first_launch and g2.day_free == 3 and g2.day_stars == g.day_stars and g2.day_best == g.day_best
-		and g2.day_next_board == g.day_next_board and g2.day_fails == g.day_fails and g2.current_day() == 3, "Fortschritt: speichern und laden (%s)" % str(g2.day_stars))
+	check(not g2.first_launch and g2.day_free == 2 and g2.day_stars == g.day_stars and g2.day_best == g.day_best
+		and g2.day_next_board == g.day_next_board and g2.day_fails == g.day_fails and g2.current_day() == 2 and g2.daily["won_key"] == g.daily["won_key"]
+		and int(g2.daily["streak"]) == 2, "Fortschritt: speichern und laden (%s)" % str(g2.day_stars))
+	g2.clock_override += 86400
+	check(g2.current_day() == 3, "am nächsten Spieltag geht es mit Tag 3 weiter")
 	# Nach Tag 7: Welt vollendet, freies Spiel offen
-	g2.day_free = 7
+	g2.debug_open_all = true
 	g2.tutorial_done = false
 	check(not g2.free_play_unlocked() and g2.start_day(7, 0), "Tag 7 frei (Test), freies Spiel noch zu")
 	var won2: Array = []
 	g2.day_won.connect(func(info): won2.append(info))
 	_replay_in_game(g2)
-	check(won2.size() == 1 and bool(won2[0]["world_complete"]) and g2.world_done and g2.free_play_unlocked() and g2.day_free == 8 and int(won2[0]["next_day"]) == 0,
+	check(won2.size() == 1 and bool(won2[0]["world_complete"]) and g2.world_done and g2.free_play_unlocked() and int(won2[0]["next_day"]) == 0,
 		"nach Tag 7: „Deine Welt ist vollendet!“, freies Spiel offen")
 	g2.start_mode("mittel")
 	check(not g2.in_day() and not g2.state.is_day() and g2.state.hearts and g2.state.is_choice(ANIMALS), "Freies Spiel: Herzen, alle Karten")
 	# Ein Zug über Game (wie die World) behält die Regeln des Tages (Tag 1: kein Feuer)
 	var g3: Node = GameScript.new()
 	g3.save_path = path
+	g3.reminder_echo = false
 	g3._load_campaign(null)
 	g3.start_day(1)
 	var res3: Array = []
@@ -2407,3 +2427,641 @@ func test_bot() -> void:
 		if gp.is_over():
 			break
 	check(gp.faith == 0, "Nichtstun bringt keinen Glauben")
+
+
+# =============================================================================
+# Täglich spielen (docs/GDPD_TAEGLICH_CHARAKTER.md 8.1): Spieltag, Freischalten nach Datum, Migration, Serie,
+# Serienschutz, Uhr, Welt des Tages, Weiterbauen, Erinnerungs-Plan, Texte, Test-Knopf
+# =============================================================================
+
+func _daily_tests() -> void:
+	test_daily_keys()
+	test_daily_unlock()
+	test_daily_migration()
+	test_daily_streak()
+	test_daily_shields()
+	test_daily_clock()
+	test_daily_week()
+	test_daily_world()
+	test_daily_world_game()
+	test_daily_build()
+	test_reminder_plan()
+	test_reminder_templates()
+	test_daily_debug()
+
+
+## Ortszeit (lokale Unix-Sekunden).
+func lt(y: int, m: int, d: int, h: int = 12, mi: int = 0) -> int:
+	return Daily.local_unix(y, m, d, h, mi)
+
+
+## Ein Game-Knoten mit eigener Spielstand-Datei und fester Uhr (frisches Profil, wenn fresh).
+func _daily_game(path: String, now: int, fresh: bool = true) -> Node:
+	if fresh and FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	var g: Node = GameScript.new()
+	g.save_path = path
+	g.reminder_echo = false
+	g.clock_override = now
+	g._load_best()
+	return g
+
+
+## Den laufenden Tag (oder die Welt des Tages) mit der Pool-Lösung gewinnen; true = gewonnen.
+func _win_in_game(g: Node) -> bool:
+	_replay_in_game(g)
+	return (g.state as GameState).day_won
+
+
+func test_daily_keys() -> void:
+	var k9 := Daily.day_key(lt(2026, 11, 9, 12))
+	check(Daily.day_key(lt(2026, 11, 10, 2, 59)) == k9 and Daily.day_key(lt(2026, 11, 10, 3, 0)) == k9 + 1,
+		"Spieltag: 2:59 gehört zum Vortag, 3:00 zum neuen Tag")
+	check(Daily.day_key(lt(2026, 11, 9, 0, 10)) == k9 - 1 and Daily.day_key(lt(2026, 11, 8, 23, 50)) == k9 - 1,
+		"Spieltag: um Mitternacht bleibt der Tag (23:50 und 0:10 sind derselbe Spieltag)")
+	check(Daily.next_boundary(lt(2026, 11, 9, 12)) == lt(2026, 11, 10, 3) and Daily.next_boundary(lt(2026, 11, 10, 1)) == lt(2026, 11, 10, 3),
+		"nächster Tageswechsel: das nächste 3 Uhr")
+	check(Daily.weekday(k9) == 0 and Daily.weekday_name(k9) == "Montag" and Daily.weekday(k9 + 4) == 4 and Daily.weekday(k9 - 1) == 6,
+		"Wochentag: 9.11.2026 ist ein Montag (0), Freitag 4, Sonntag 6")
+	check(Daily.countdown_text(lt(2026, 11, 9, 12, 40)) == "Neuer Tag in 14 Std. 20 Min." and Daily.countdown_text(lt(2026, 11, 9, 19, 1)) == "Morgen früh"
+		and Daily.countdown_text(lt(2026, 11, 10, 1)) == "Morgen früh", "Countdown: genau bis 8 h vorher, dann „Morgen früh“ (%s)" % Daily.countdown_text(lt(2026, 11, 9, 12, 40)))
+	check(Daily.minute_of_day(lt(2026, 11, 9, 18, 10)) == 1090, "Minute des Tages")
+
+
+func test_daily_unlock() -> void:
+	# rein: Sterne + Tageszustand
+	var t0 := lt(2026, 11, 9, 10)
+	var d := Daily.fresh(t0)
+	var k := Daily.day_key(t0)
+	var st: Array = [0, 0, 0, 0, 0, 0, 0]
+	check(Daily.day_unlocked(d, st, 1, k) and not Daily.day_unlocked(d, st, 2, k) and Daily.new_day_open(d, st, k), "neu: nur Tag 1 offen")
+	st[0] = 2
+	Daily.register_first_win(d, 1, k)
+	check(not Daily.day_unlocked(d, st, 2, k) and Daily.new_day_tomorrow(d, st, k) and Daily.day_unlocked(d, st, 1, k), "Tag 1 an K geschafft: Tag 2 erst morgen, Tag 1 wiederholbar")
+	check(Daily.day_unlocked(d, st, 2, k + 1) and Daily.day_unlocked(d, st, 2, k + 5) and not Daily.day_unlocked(d, st, 3, k + 5) and Daily.day_free(d, st, k + 5) == 2,
+		"Tag 2 offen ab K+1 und auch an K+5 der einzige neue Tag (nichts stapelt sich)")
+	st[1] = 1
+	Daily.register_first_win(d, 2, k + 5)
+	check(not Daily.day_unlocked(d, st, 3, k + 5) and Daily.day_unlocked(d, st, 3, k + 6) and Daily.day_unlocked(d, st, 1, k + 5) and Daily.day_unlocked(d, st, 2, k + 5),
+		"Tag 3 nie am Spieltag des ersten Siegs von Tag 2; Wiederholungen immer offen")
+	# im Autoload Game: Sieg, dann am selben Spieltag gesperrt, am nächsten offen
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, lt(2026, 11, 9, 18, 10))
+	g.session_start = lt(2026, 11, 9, 18, 0)
+	check(g.start_day(1) and _win_in_game(g), "Game: Tag 1 gewonnen")
+	var ti: Dictionary = g.today_info()
+	check(not g.start_day(2) and g.start_day(1) and str(ti["state"]) == "done_next" and str(ti["line"]) == "Morgen geht's weiter: Tag 2 · Pflanzen"
+		and g.locked_text(2) == "Morgen geht's weiter: Tag 2 · Pflanzen" and g.locked_text(3) == "Erst Tag 2 schaffen." and g.current_day() == 1,
+		"Game: Tag 2 morgen, Heute-Karte „Heute geschafft!“ mit der Morgen-Zeile (%s)" % str(ti.get("line", "")))
+	g.clock_override = lt(2026, 11, 10, 2, 30)
+	check(not g.day_unlocked(2), "Game: um 2:30 ist noch derselbe Spieltag")
+	g.clock_override = lt(2026, 11, 10, 3, 0)
+	var ti2: Dictionary = g.today_info()
+	check(g.day_unlocked(2) and str(ti2["state"]) == "new" and int(ti2["day"]) == 2 and str(ti2["title"]) == "Tag 2 · Pflanzen" and g.current_day() == 2,
+		"Game: ab 3:00 ist Tag 2 offen („Heute neu“)")
+	g.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_daily_migration() -> void:
+	var path := "user://test_taeglich_v1.cfg"
+	var cfg := ConfigFile.new()
+	cfg.set_value("konto", "credits", 4)
+	cfg.set_value("schoepfung", "sterne", [3, 2, 0, 0, 0, 0, 0])
+	cfg.set_value("schoepfung", "beste", [5, 9, 0, 0, 0, 0, 0])
+	cfg.set_value("schoepfung", "frei", 3)
+	cfg.set_value("schoepfung", "fehlversuche", [0, 0, 1, 0, 0, 0, 0])
+	cfg.set_value("schoepfung", "brett", [1, 1, 1, 0, 0, 0, 0])
+	cfg.set_value("schoepfung", "fertig", false)
+	cfg.set_value("schoepfung", "version", 1)
+	cfg.set_value("anderes", "wert", 7)
+	cfg.save(path)
+	var g := _daily_game(path, lt(2026, 11, 12, 9), false)
+	check(g.day_unlocked(1) and g.day_unlocked(2) and g.day_unlocked(3) and not g.day_unlocked(4) and g.current_day() == 3
+		and int(g.daily["streak"]) == 0 and int(g.daily["shields"]) == 0 and g.daily["won_key"] == [-1, -1, -1, -1, -1, -1, -1] and int(g.daily["last_new_key"]) == -1,
+		"Migration v1: Tage 1–2 wiederholbar, Tag 3 heute offen, Serie 0")
+	g._save_profile()
+	var c2 := ConfigFile.new()
+	c2.load(path)
+	check(int(c2.get_value("schoepfung", "version", 0)) == 2 and c2.has_section("taeglich") and c2.has_section("erinnerung")
+		and int(c2.get_value("anderes", "wert", 0)) == 7, "Migration: Version 2, [taeglich] und [erinnerung] gespeichert, andere Abschnitte bleiben")
+	g.free()
+	# vollendete Welt: heute schon die Welt des Tages
+	var c3 := ConfigFile.new()
+	c3.set_value("schoepfung", "sterne", [3, 3, 2, 2, 1, 1, 1])
+	c3.set_value("schoepfung", "frei", 8)
+	c3.set_value("schoepfung", "fertig", true)
+	c3.save(path)
+	var g3 := _daily_game(path, lt(2026, 11, 12, 9), false)
+	check(g3.world_done and g3.daily_world_available() and str(g3.today_info()["state"]) == "wdt" and g3.start_daily_world() and g3.in_daily_world(),
+		"Migration: vollendete Welt → heute die Welt des Tages")
+	g3.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_daily_streak() -> void:
+	var t := lt(2026, 11, 9, 18)
+	var d := Daily.fresh(t)
+	var k := Daily.day_key(t)
+	var w1 := Daily.win(d, k, 1080)
+	var w1b := Daily.win(d, k, 1100)
+	var w2 := Daily.win(d, k + 1)
+	var w3 := Daily.win(d, k + 2)
+	check(bool(w1["counted"]) and int(w1["streak"]) == 1 and not bool(w1b["counted"]) and int(w2["streak"]) == 2 and int(w3["streak"]) == 3
+		and int(d["streak"]) == 3 and int(d["streak_best"]) == 3 and int(d["anchor"]) == 1080 and (d["streak_days"] as Array) == [k, k + 1, k + 2],
+		"Serie: K, K+1, K+2 → 3; zweiter Sieg am selben Tag zählt nicht")
+	check(Daily.day_check(d, k + 3) == "" and int(d["streak"]) == 3 and Daily.day_check(d, k + 4) == "lost" and int(d["streak"]) == 0
+		and int(d["streak_best"]) == 3 and Daily.take_comeback(d) == "lost" and str(d["comeback"]) == "", "Serie: ein verpasster Tag ohne Schutz → 0 (Rekord bleibt, Comeback einmal)")
+	# Game: eine Wiederholung zählt, ein Fehlversuch nicht
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, lt(2026, 11, 9, 18))
+	var streaks: Array = []
+	g.streak_changed.connect(func(info): streaks.append(info))
+	g.start_day(1)
+	_win_in_game(g)
+	g.clock_override += 86400
+	g.start_day(2)
+	_lose_day(g)
+	check(g.streak() == 1 and not g.done_today(), "Game: ein Fehlversuch zählt nicht für die Serie")
+	g.start_day(1)
+	_win_in_game(g)
+	check(g.streak() == 2 and g.done_today() and streaks.size() == 2 and int(streaks[1]["streak"]) == 2 and g.day_unlocked(2),
+		"Game: eine Wiederholung (Tag 1) zählt; der neue Tag bleibt offen")
+	g.start_day(2)
+	_win_in_game(g)
+	check(g.streak() == 2 and streaks.size() == 2 and not g.day_unlocked(3), "Game: der zweite Sieg am selben Tag zählt nicht mehr")
+	g.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_daily_shields() -> void:
+	var t := lt(2026, 11, 9, 18)
+	var k := Daily.day_key(t)
+	var d := Daily.fresh(t)
+	d["streak"] = 5
+	d["streak_last"] = k
+	d["shields"] = 1
+	check(Daily.day_check(d, k + 2) == "saved" and int(d["streak"]) == 5 and int(d["shields"]) == 0 and (d["shield_days"] as Array) == [k + 1]
+		and int(d["streak_last"]) == k + 1, "Schutz: Serie 5, ein Tag verpasst → bleibt, Schutz verbraucht, Schutz-Tag gemerkt")
+	check(Daily.day_check(d, k + 2) == "", "Tagesprüfung zweimal: nichts doppelt")
+	var d2 := Daily.fresh(t)
+	d2["streak"] = 5
+	d2["streak_last"] = k
+	d2["shields"] = 1
+	check(Daily.day_check(d2, k + 3) == "lost" and int(d2["streak"]) == 0 and int(d2["shields"]) == 1, "Schutz: zwei Tage verpasst mit einem Schutz → Serie 0, der Schutz bleibt")
+	var d3 := Daily.fresh(t)
+	d3["streak"] = 4
+	d3["streak_last"] = k
+	d3["shields"] = 2
+	check(Daily.day_check(d3, k + 3) == "saved" and int(d3["shields"]) == 0 and int(d3["streak"]) == 4 and (d3["shield_days"] as Array) == [k + 1, k + 2],
+		"Schutz: zwei Tage, zwei Schutze → gerettet")
+	# Meilenstein 7: +1 Schutz; bei vollem Schutz +3 Münzen
+	var d4 := Daily.fresh(t)
+	d4["streak"] = 6
+	d4["streak_last"] = k - 1
+	var m := Daily.win(d4, k)
+	check(bool(m["milestone"]) and bool(m["big"]) and int(m["shield"]) == 1 and int(d4["shields"]) == 1 and bool(d4["shields_ever"]), "Meilenstein 7: +1 Serienschutz")
+	d4["streak"] = 13
+	d4["shields"] = 2
+	var m2 := Daily.win(d4, k + 1)
+	check(int(m2["streak"]) == 14 and int(m2["shield"]) == 0 and int(m2["coins"]) == Balance.SHIELD_FULL_COINS and int(d4["shields"]) == 2, "Meilenstein mit vollem Schutz: +3 Münzen")
+	var m3 := Daily.win(d4, k + 2)
+	check(not bool(m3["milestone"]) and not bool(m3["big"]), "kein Meilenstein bei 15")
+	# Kaufen (Game)
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, t)
+	g.credits = 4
+	var e1: String = g.buy_shield()
+	g.credits = 11
+	var e2: String = g.buy_shield()
+	var e3: String = g.buy_shield()
+	var e4: String = g.buy_shield()
+	check(e1 == "Dir fehlen 1 Münzen." and e2 == "" and e3 == "" and e4 == "Du hast genug Serienschutz." and g.shields() == 2 and g.credits == 1,
+		"Serienschutz kaufen: 5 Münzen, höchstens 2 (%s | %s | %s | %s)" % [e1, e2, e3, e4])
+	# Meilenstein im Game: Münzen kommen aufs Konto
+	g.daily["streak"] = 13
+	g.daily["streak_last"] = g.today_key() - 1
+	var c0: int = g.credits
+	g.start_day(1)
+	_win_in_game(g)
+	check(g.streak() == 14 and g.credits == c0 + Balance.SHIELD_FULL_COINS, "Game: Meilenstein 14 mit vollem Schutz → +3 Münzen")
+	g.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_daily_clock() -> void:
+	var path := "user://test_taeglich.cfg"
+	# Sommerzeit-Ende: 3:30 → 2:30 (eine Stunde zurück): derselbe Spieltag, nichts ändert sich
+	var g := _daily_game(path, lt(2026, 10, 25, 3, 30))
+	var k0: int = g.today_key()
+	g.start_day(1)
+	_win_in_game(g)
+	g.clock_override = lt(2026, 10, 25, 2, 30)
+	check(g.today_key() == k0 and not g.day_unlocked(2) and g.done_today() and int(g.daily["last_seen"]) == lt(2026, 10, 25, 3, 30),
+		"Uhr 1 h zurück (Sommerzeit): derselbe Spieltag, nichts entsperrt, last_seen bleibt")
+	# 3 Tage zurück: neu aufsetzen; Serie bleibt, heute bleibt geschafft, nichts entsperrt heute; morgen geht's weiter
+	g.clock_override = lt(2026, 10, 22, 12)
+	var k1: int = g.today_key()
+	check(k1 == k0 - 3 and g.streak() == 1 and g.done_today() and not g.day_unlocked(2) and int(g.daily["last_new_key"]) == k1
+		and (g.daily["streak_days"] as Array) == [k1] and int(g.daily["last_key"]) == k1, "Uhr 3 Tage zurück: neu aufgesetzt, Serie bleibt, heute nichts entsperrt")
+	g.clock_override = lt(2026, 10, 23, 12)
+	check(g.day_unlocked(2) and g.streak() == 1 and not g.done_today(), "nach dem Zurückstellen: am nächsten Spieltag geht es normal weiter")
+	# Uhr vor: genau ein neuer Tag
+	g.start_day(2)
+	_win_in_game(g)
+	g.clock_override = lt(2026, 10, 24, 12)
+	check(g.day_unlocked(3) and not g.day_unlocked(4) and g.streak() == 2, "Uhr einen Tag vor: der nächste Tag öffnet genau einmal")
+	g.clock_override = lt(2026, 10, 30, 12)
+	check(g.day_unlocked(3) and not g.day_unlocked(4) and g.streak() == 0 and str(g.daily["comeback"]) == "lost", "Uhr weit vor: ein neuer Tag, Serie vorbei (kein Schutz)")
+	# rein: Zurückstellen unter 36 h bleibt stehen, ab 36 h neu aufsetzen
+	var d := Daily.fresh(lt(2026, 11, 10, 12))
+	var kk := Daily.day_key(lt(2026, 11, 10, 12))
+	check(Daily.observe(d, lt(2026, 11, 9, 1)) == kk and Daily.observe(d, lt(2026, 11, 8, 23, 59)) == kk - 2, "Uhr-Regel: < 36 h zurück bleibt der Tag, ≥ 36 h neu")
+	g.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_daily_week() -> void:
+	var t := lt(2026, 11, 12, 18)     # Donnerstag
+	var k := Daily.day_key(t)
+	var d := Daily.fresh(t)
+	d["first_key"] = k - 3            # Montag
+	d["streak_days"] = [k - 3, k - 1]
+	d["shield_days"] = [k - 2]
+	var w := Daily.week(d, k)
+	var states: Array = []
+	for e in w:
+		states.append(str((e as Dictionary)["state"]))
+	check(w.size() == 7 and str((w[0] as Dictionary)["short"]) == "Mo" and states == ["streak", "shield", "streak", "today", "future", "future", "future"],
+		"Wochenreihe Mo–So: Flamme, Schutz, Flamme, heute, Zukunft (%s)" % str(states))
+	d["first_key"] = k - 1
+	d["streak_days"] = [k - 1, k]
+	d["shield_days"] = []
+	states = []
+	for e in Daily.week(d, k):
+		states.append(str((e as Dictionary)["state"]))
+	check(states == ["none", "none", "streak", "streak", "future", "future", "future"], "Wochenreihe: Tage vor dem ersten Spieltag sind leer, heute geschafft = Flamme (%s)" % str(states))
+	d["first_key"] = k - 10
+	states = []
+	for e in Daily.week(d, k + 1):
+		states.append(str((e as Dictionary)["state"]))
+	check(states[0] == "missed" and states[4] == "today", "Wochenreihe: verpasst = leerer Ring")
+
+
+## Welt des Tages: fest je Spieltag, jede Vorlage einmal in 6 Tagen, nie Brett 0, lösbar (die Pool-Lösung gewinnt im
+## Spiel unter den Regeln der Welt des Tages) – für 60 Spieltage geprüft; dazu der Tipp-Bot auf einer Probe.
+func test_daily_world() -> void:
+	var k0 := Daily.day_key(lt(2026, 11, 9, 12))
+	var same := Daily.wdt_config(k0 + 3)
+	var same2 := Daily.wdt_config(k0 + 3)
+	check(same == same2 and Daily.wdt_board(k0 + 3) == Daily.wdt_board(k0 + 3) and bool(same["wdt"]) and str(same["title"]) == "Welt des Tages"
+		and (same["new"] as Dictionary).is_empty() and str(same["caps"]) == "Welt des Tages · Donnerstag", "Welt des Tages: gleicher Spieltag → gleiche Welt (%s)" % str(same.get("caps", "")))
+	var seen := {}
+	var prev := -1
+	var repeat_next := false
+	for i in 6:
+		var t := Daily.wdt_template(k0 + i)
+		seen[t] = true
+		if t == prev:
+			repeat_next = true
+		prev = t
+	check(seen.size() == 6 and not repeat_next and seen.has(2) and seen.has(7) and not seen.has(1), "6 Spieltage in Folge: 6 verschiedene Vorlagen (Tag 2–7)")
+	var worlds := {}
+	var board0 := 0
+	for i in 114:
+		var key := k0 + i
+		var bi := Daily.wdt_board_index(key, 20)
+		if bi == 0:
+			board0 += 1
+		worlds["%d/%d" % [Daily.wdt_template(key), bi]] = true
+	check(board0 == 0 and worlds.size() == 114, "nie Brett 0; 114 verschiedene Welten, bevor sich eine wiederholt (%d)" % worlds.size())
+	# Lösbar: 60 Spieltage (auch alte und künftige), die Pool-Lösung gewinnt unter den Regeln der Welt des Tages
+	var bad := 0
+	var rule_diff := 0
+	var keys: Array = []
+	for i in 60:
+		keys.append(k0 - 200 + i * 7 + (i % 5))
+	for key in keys:
+		var cfg := Daily.wdt_config(int(key))
+		var b := Daily.wdt_board(int(key))
+		var tc := Days.config(Daily.wdt_template(int(key)))
+		for rk in ["goal_type", "goal_target", "goal_kinds", "goal_green", "limit", "stars", "unlocked", "choices", "wishes", "wish_types", "war", "no_war", "smog", "strike", "income", "fire", "rain_start", "rain_every"]:
+			if cfg.get(rk) != tc.get(rk):
+				rule_diff += 1
+		var gs := GameState.new()
+		gs.setup_day(cfg, b["kinds"], int(b["seed"]), 0)
+		for step in b["solution"]:
+			gs.will = {}
+			var sa := Days.solution_step(step)
+			gs.play(sa[0], sa[1])
+			if gs.is_over():
+				break
+		if not gs.day_won or int(b["index"]) == 0:
+			bad += 1
+			print("  Welt des Tages %d: Vorlage %d Brett %d nicht gelöst (%s)" % [int(key), Daily.wdt_template(int(key)), int(b["index"]), gs.day_lost])
+	check(rule_diff == 0, "Welt des Tages: dieselben Regeln wie die geprüfte Vorlage (%d Abweichungen)" % rule_diff)
+	check(bad == 0, "Welt des Tages: 60 Spieltage, alle lösbar (Pool-Lösung gewinnt; %d nicht)" % bad)
+	# Tipp-Bot auf einer Probe (eine Welt je Vorlage)
+	var bot_won := 0
+	for i in 6:
+		var key2 := k0 + 40 + i
+		var cfg2 := Daily.wdt_config(key2)
+		var b2 := Daily.wdt_board(key2)
+		var gs2 := GameState.new()
+		gs2.setup_day(cfg2, b2["kinds"], int(b2["seed"]), 0)
+		var guard := 0
+		while not gs2.is_over() and guard < 60:
+			guard += 1
+			var a := gs2.best_action()
+			if a.is_empty():
+				break
+			var ans := {}
+			if int(a["card"]) >= 0:
+				ans[int(a["card"])] = int(a["choice"])
+			gs2.play(a, ans)
+		if gs2.day_won:
+			bot_won += 1
+	print("  Welt des Tages: Tipp-Bot gewinnt %d von 6" % bot_won)
+	check(bot_won >= 4, "Welt des Tages: der Tipp-Bot gewinnt die meisten (%d/6)" % bot_won)
+
+
+## Welt des Tages im Autoload Game: erst nach Tag 7 (am Spieltag danach), zählt für die Serie, Gnade je Spieltag.
+func test_daily_world_game() -> void:
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, lt(2026, 11, 13, 17))
+	for i in 6:
+		g.day_stars[i] = 2
+	g.daily["last_new_key"] = g.today_key() - 1
+	check(g.day_unlocked(7) and not g.daily_world_available() and not g.start_daily_world(), "vor Tag 7: keine Welt des Tages")
+	g.start_day(7)
+	var won: Array = []
+	g.day_won.connect(func(info): won.append(info))
+	_win_in_game(g)
+	var ti: Dictionary = g.today_info()
+	check(g.world_done and not g.daily_world_available() and str(ti["state"]) == "world_done_today" and str(won[0]["next_line"]) == "Morgen: deine erste Welt des Tages",
+		"Tag 7 heute geschafft: die erste Welt des Tages kommt morgen")
+	g.clock_override += 86400
+	var k: int = g.today_key()
+	var ti2: Dictionary = g.today_info()
+	check(g.daily_world_available() and str(ti2["state"]) == "wdt" and str(ti2["caps"]) == "Welt des Tages · " + Daily.weekday_name(k), "am Spieltag danach: Welt des Tages (%s)" % str(ti2.get("caps", "")))
+	check(g.start_daily_world() and g.in_daily_world() and g.day_no == Daily.wdt_template(k) and str(g.day_info()["title"]) == "Welt des Tages" and bool(g.day_info()["wdt"]),
+		"Welt des Tages startet mit ihrer Vorlage")
+	_lose_day(g)
+	check(Daily.wdt_mercy(g.daily, k) == 2 and g.retry_day() and g.in_daily_world() and g.state.day_limit == int(Days.config(g.day_no)["limit"]) + 2,
+		"Welt des Tages: Gnade +2 an ihrem Spieltag, Nochmal = dieselbe Welt")
+	var s0: int = g.streak()
+	_win_in_game(g)
+	var ti3: Dictionary = g.today_info()
+	check(g.streak() == s0 + 1 and g.done_today() and str(ti3["state"]) == "wdt_done" and int(g.daily["wdt_total"]) == 1 and Daily.wdt_stars(g.daily, k) >= 1
+		and bool(won[1]["wdt"]) and str(won[1]["next_line"]) == "Morgen gibt es eine neue Welt." and not g.next_day(), "Welt des Tages geschafft: zählt für die Serie, „Morgen gibt es eine neue Welt.“")
+	g.clock_override += 86400
+	check(Daily.wdt_mercy(g.daily, g.today_key()) == 0 and str(g.today_info()["state"]) == "wdt" and Daily.wdt_template(g.today_key()) != Daily.wdt_template(k),
+		"nächster Spieltag: neue Welt, Gnade zurückgesetzt")
+	g.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_daily_build() -> void:
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, lt(2026, 11, 9, 18))
+	g.start_day(1)
+	_win_in_game(g)
+	var st0: int = g.stars_of(1)
+	var gst0: int = g.state.stars()
+	check(g.over and g.continue_build() and not g.over and g.state.day_free_build and g.state.twists_left() == -1 and not g.state.is_over()
+		and g.can_resume_build(), "Weiterbauen: keine Grenze, nicht vorbei")
+	var made0: int = g.state.total_made()
+	var c0: int = g.credits
+	var msgs: Array = []
+	g.message.connect(func(text, kind): msgs.append(text))
+	for i in 30:
+		var gs: GameState = g.state
+		var a := gs.best_action()
+		if a.is_empty():
+			a = {"type": "twist", "axis": 1, "layer": 1, "turns": 1}
+		var ans := {}
+		if int(a.get("card", -1)) >= 0:
+			ans[int(a["card"])] = int(a["choice"])
+		var res: Dictionary = gs.play(a, ans)
+		g.finish_round(res)
+	var growth: int = g.state.build_growth()
+	print("  Weiterbauen Tag 1: %d Felder in 30 Drehungen gewachsen" % growth)
+	var coins_want := mini(Balance.BUILD_COIN_MAX, growth / Balance.BUILD_COIN_EVERY)
+	check(g.state.day_lost == "" and g.state.day_won and g.state.stars() == gst0 and g.stars_of(1) == st0 and not g.over and growth == g.state.total_made() - made0
+		and int(g.state.day_status()["growth"]) == growth and bool(g.state.day_status()["free_build"]), "Weiterbauen: 30 Drehungen später nicht gescheitert, Sterne unverändert, Zähler = %d" % growth)
+	check(g.credits == c0 + coins_want and msgs.count(str(Days.TEXT["build_coin"])) == coins_want, "Weiterbauen: +1 Münze je 10 Felder, höchstens 3 (%d gewachsen, %d Münzen)" % [growth, g.credits - c0])
+	# Höchstens 3 je Spieltag – auch in einer zweiten Welt
+	var d := Daily.fresh(lt(2026, 11, 9, 18))
+	var kk := Daily.day_key(lt(2026, 11, 9, 18))
+	var a1 := Daily.build_coins(d, kk, 25, 0)
+	var a2 := Daily.build_coins(d, kk, 50, 2)
+	var a3 := Daily.build_coins(d, kk + 1, 50, 0)
+	check(a1 == 2 and a2 == 1 and a3 == 3, "Bau-Münzen: 2, dann nur noch 1 (Grenze 3), am nächsten Tag wieder 3 (%d %d %d)" % [a1, a2, a3])
+	# Übersicht → zurück zum Weiterbauen; ein neuer Versuch beendet es
+	var keep: GameState = g.state
+	g.new_game()
+	check(not g.can_resume_build(), "freies Spiel beendet das Weiterbauen")
+	g.start_day(1)
+	_win_in_game(g)
+	g.continue_build()
+	keep = g.state
+	g.state = GameState.new()
+	check(g.resume_build() and g.state == keep and g.state.day_free_build and g.in_day(), "Weiterbauen: aus der Übersicht zurück in dieselbe Welt")
+	g.retry_day()
+	check(not g.can_resume_build() and not g.state.day_free_build, "Nochmal beendet das Weiterbauen")
+	g.free()
+	# Tag 6: Krieg im Weiterbauen ist nur Krieg
+	var gs6 := day_state(6)
+	gs6.day_won = true
+	gs6.day_won_at = 5
+	gs6.start_free_build()
+	gs6.faith = 100
+	gs6.field_at(Vector3i(1, 0, -1), Vector3i(0, 0, -1)).kind = CHURCH
+	top(gs6, 0, 0).kind = CHURCH
+	var r6 := twist(gs6, 0, 1, 1)
+	check(_has_event(r6, "war") and gs6.day_lost == "" and not gs6.is_over() and gs6.twists_left() == -1 and gs6.faith < 100 and gs6.stars() == Days.stars_for(gs6.day, 5),
+		"Tag 6 im Weiterbauen: Krieg ist nur Krieg (Glaube −), nichts scheitert")
+	# Grenze egal: über die alte Grenze hinaus
+	var gs2 := day_state(2)
+	gs2.day_won = true
+	gs2.start_free_build()
+	gs2.twists = gs2.day_limit + 5
+	twist(gs2, 1, 1, 1)
+	check(gs2.day_lost == "" and not gs2.is_over() and gs2.clone().day_free_build and gs2.clone().build_made0 == gs2.build_made0, "Weiterbauen: über die Grenze hinaus, clone() behält es")
+	DirAccess.remove_absolute(path)
+
+
+func _plan_state(extra: Dictionary) -> Dictionary:
+	var st := {"mode": "auto", "allowed": true, "tone": "lieb", "name": "Lumi", "tag": "Tag 2 · Pflanzen", "streak": 1, "history": []}
+	st.merge(extra, true)
+	return st
+
+
+func _plan_ok_times(plan: Array) -> bool:
+	for e in plan:
+		var m := Daily.minute_of_day(int((e as Dictionary)["at"]))
+		if m < Balance.REMIND_EARLIEST or m > Balance.REMIND_LATEST:
+			return false
+	return true
+
+
+func test_reminder_plan() -> void:
+	var now := lt(2026, 11, 9, 18, 40)
+	var k := Daily.day_key(now)
+	# gewonnen heute in der Sitzung ab 18:10: A morgen 17:40, dann +2, +4, +7
+	var p := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": 1090}), now)
+	var ids: Array = []
+	var cats: Array = []
+	var keys: Array = []
+	for e in p:
+		ids.append(int(e["id"]))
+		cats.append(str(e["cat"]))
+		keys.append(int(e["key"]) - k)
+	check(ids == [101, 102, 104, 107] and cats == ["A", "B", "C", "F"] and keys == [1, 2, 4, 7], "Plan: Leiter +1, +2, +4, +7 mit A, B, C, F (%s %s)" % [str(ids), str(cats)])
+	check(int(p[0]["at"]) == lt(2026, 11, 10, 17, 40) and int(p[0]["hour"]) == 17 and int(p[0]["minute"]) == 40 and int(p[0]["day"]) == 10 and str(p[0]["title"]) == "Lumi",
+		"Plan: Sitzung 18:10 → morgen 17:40 (%s)" % ReminderPlan.log_line(p[0]))
+	check(str(p[3]["tpl"]) == "lF" and str(p[3]["body"]) == ReminderPlan.text_of("lF") and _plan_ok_times(p), "Plan: zuletzt die freundliche letzte Nachricht; alle Zeiten 8:00–21:30")
+	var tpls := {}
+	for e in p:
+		tpls[str(e["tpl"])] = true
+	check(tpls.size() == 4, "Plan: vier verschiedene Texte")
+	# Uhrzeiten
+	var p7 := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": 420}), now)
+	var p23 := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": 1430}), now)
+	var pu := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": -1}), now)
+	var pf := ReminderPlan.plan(_plan_state({"today": k, "done_today": true, "last_win_key": k, "last_open_key": k, "anchor_min": 1090, "mode": "fest", "fixed_min": 600}), now)
+	check(Daily.minute_of_day(int(p7[0]["at"])) == 480 and Daily.minute_of_day(int(p23[0]["at"])) == 1290 and Daily.minute_of_day(int(pu[0]["at"])) == 1080
+		and Daily.minute_of_day(int(pf[0]["at"])) == 600 and _plan_ok_times(p23) and _plan_ok_times(p7), "Uhrzeit: Sitzung 7:00 → 8:00, 23:50 → 21:30, unbekannt → 18:00, „Feste Uhrzeit“ 10:00")
+	# Aus / keine Erlaubnis
+	check(ReminderPlan.plan(_plan_state({"today": k, "mode": "aus"}), now).is_empty() and ReminderPlan.plan(_plan_state({"today": k, "allowed": false}), now).is_empty(),
+		"„Aus“ oder keine Erlaubnis: kein Plan")
+	# heute nur geöffnet, nicht geschafft, früh am Tag: A morgen (nie gleich nach dem Besuch), und kein Slot heute
+	var morning := lt(2026, 11, 9, 9, 0)
+	var po := ReminderPlan.plan(_plan_state({"today": k, "done_today": false, "last_win_key": k - 1, "last_open_key": k, "anchor_min": 1090}), morning)
+	check(int(po[0]["key"]) == k + 1 and str(po[0]["cat"]) == "A", "nur geöffnet: die Leiter beginnt neu, A morgen")
+	# gestern gewonnen, heute noch nicht geöffnet (Plan von gestern Abend aus gesehen): A heute, nicht innerhalb von 2 h
+	var pg := ReminderPlan.plan(_plan_state({"today": k, "done_today": false, "last_win_key": k - 1, "last_open_key": k - 1, "anchor_min": 1090}), lt(2026, 11, 9, 8, 0))
+	var pg2 := ReminderPlan.plan(_plan_state({"today": k, "done_today": false, "last_win_key": k - 1, "last_open_key": k - 1, "anchor_min": 1090}), lt(2026, 11, 9, 16, 0))
+	check(int(pg[0]["key"]) == k and int(pg[0]["at"]) == lt(2026, 11, 9, 17, 40) and int(pg2[0]["key"]) == k + 1 and str(pg2[0]["cat"]) == "B",
+		"heute noch nicht gespielt: A heute 17:40; um 16:00 zu nah → erst B morgen")
+	var gap_ok := true
+	for e in pg2:
+		if int(e["at"]) < lt(2026, 11, 9, 16, 0) + 7200:
+			gap_ok = false
+	check(gap_ok, "nie innerhalb von 2 h nach jetzt")
+	# nach einer Woche ohne Besuch: nichts mehr
+	check(ReminderPlan.plan(_plan_state({"today": k, "last_win_key": k - 8, "last_open_key": k - 8}), now).is_empty(), "nach der letzten Nachricht: Ruhe, bis der Spieler zurückkommt")
+	# Sommerzeit: Wanduhr-Felder (das Plugin rechnet mit der Zeitzone des Handys)
+	var kd := Daily.day_key(lt(2026, 10, 24, 18))
+	var pd := ReminderPlan.plan(_plan_state({"today": kd, "done_today": true, "last_win_key": kd, "last_open_key": kd, "anchor_min": 1090}), lt(2026, 10, 24, 18, 40))
+	check(int(pd[0]["day"]) == 25 and int(pd[0]["month"]) == 10 and int(pd[0]["hour"]) == 17 and int(pd[0]["minute"]) == 40, "Sommerzeit-Ende: trotzdem 17:40 Ortszeit am 25.10.")
+	# Geschichte: Gezeigtes kommt nach vorn (die letzte Nachricht nicht), höchstens 8
+	var hist := ReminderPlan.absorb_shown(["l01"], [{"at": 100, "tpl": "l03"}, {"at": 200, "tpl": "l09"}, {"at": 900, "tpl": "l12"}, {"at": 150, "tpl": "lF"}], 500)
+	check(hist == ["l09", "l03", "l01"], "Geschichte: gezeigt (neueste zuerst), ohne die letzte Nachricht (%s)" % str(hist))
+	var long := ReminderPlan.absorb_shown(["a", "b", "c", "d", "e", "f", "g"], [{"at": 1, "tpl": "x"}, {"at": 2, "tpl": "y"}], 5)
+	check(long.size() == 8 and long[0] == "y", "Geschichte: höchstens 8")
+
+
+func test_reminder_templates() -> void:
+	var allowed := ["{name}", "{tag}", "{streak}"]
+	var re := RegEx.new()
+	re.compile("\\{[a-z]+\\}")
+	var ok_ph := true
+	var bad_start := 0
+	var too_long: Array = []
+	for tone in ReminderPlan.TONES:
+		var n_ac := 0
+		for e in ReminderPlan.templates(tone):
+			var d: Dictionary = e
+			n_ac += 1
+			var txt := str(d["text"])
+			for m in re.search_all(txt):
+				if not allowed.has(m.get_string()):
+					ok_ph = false
+			if txt.begins_with("{tag}"):
+				bad_start += 1
+			for tg in ["die Welt des Tages", "Tag 4 · Menschen"]:
+				var r := ReminderPlan.render(txt, "Abcdefghijkl", tg, 365)
+				if r.length() > 90:
+					too_long.append(str(d["id"]))
+		var fin := ReminderPlan.render(ReminderPlan.text_of(ReminderPlan.final_id(tone)), "Abcdefghijkl", "die Welt des Tages", 365)
+		if fin.length() > 110:
+			too_long.append(ReminderPlan.final_id(tone))
+		check(n_ac >= 12 and ReminderPlan.final_id(tone).ends_with("F") and ReminderPlan.text_of(ReminderPlan.final_id(tone)) != "", "Texte %s: ≥ 12 A–C und eine letzte Nachricht" % tone)
+	check(ok_ph and bad_start == 0, "Texte: nur {name}, {tag}, {streak}; keiner beginnt mit {tag}")
+	check(too_long.is_empty(), "Texte: höchstens 90 Zeichen (letzte ≤ 110) mit langem Namen (%s)" % str(too_long))
+	# S-Texte: nie bei Serie < 2 und nie in B/C; F = die letzte Nachricht des Tons
+	var s_bad := 0
+	for tone in ReminderPlan.TONES:
+		for i in 80:
+			for cat in ["A", "B", "C"]:
+				var streak := 1 if cat == "A" else 9
+				var id := ReminderPlan.pick(tone, cat, streak, [], 20000 + i)
+				if ["l05", "f05", "s05"].has(id):
+					s_bad += 1
+		check(ReminderPlan.pick(tone, "F", 3, ["x"], 5) == ReminderPlan.final_id(tone), "F ist die letzte Nachricht (%s)" % tone)
+	check(s_bad == 0, "S-Texte nie bei Serie < 2 oder in B/C (%d)" % s_bad)
+	# 60 Pläne nacheinander (mit Geschichte): nie zweimal derselbe Text hintereinander, die letzten 4 nie
+	for tone in ReminderPlan.TONES:
+		var hist: Array = []
+		var shown: Array = []
+		var k := Daily.day_key(lt(2026, 11, 9, 12))
+		var repeat := 0
+		var recent := 0
+		var c_ok := true
+		for i in 60:
+			var cat := "A" if i % 3 != 2 else ("B" if i % 2 == 0 else "C")
+			var id := ReminderPlan.pick(tone, cat, 5, hist, k + i)
+			if not hist.is_empty() and hist[0] == id:
+				repeat += 1
+			if hist.slice(0, 4).has(id):
+				recent += 1
+			if cat == "C" and not (ReminderPlan.text_of(id) != ""):
+				c_ok = false
+			shown.append(id)
+			hist.push_front(id)
+			if hist.size() > 8:
+				hist.pop_back()
+		var distinct := {}
+		for x in shown:
+			distinct[x] = true
+		check(repeat == 0 and recent == 0 and c_ok and distinct.size() >= 10, "60 Pläne %s: nie zweimal hintereinander, die letzten 4 nie (%d verschiedene)" % [tone, distinct.size()])
+	# frech/streng: manchmal ein lieber Text
+	var lieb := 0
+	for i in 200:
+		if ReminderPlan.pick("frech", "A", 3, [], 30000 + i).begins_with("l"):
+			lieb += 1
+	check(lieb > 5 and lieb < 70, "frech: etwa 15 %% liebe Texte (%d von 200)" % lieb)
+	check(ReminderPlan.pick("frech", "A", 3, ["f01"], 7) == ReminderPlan.pick("frech", "A", 3, ["f01"], 7), "gleiche Eingabe → gleicher Text")
+
+
+func test_daily_debug() -> void:
+	var path := "user://test_taeglich.cfg"
+	var g := _daily_game(path, lt(2026, 11, 9, 18, 10))
+	g.session_start = lt(2026, 11, 9, 18, 0)
+	var t0: int = g.now_local()
+	g.start_day(1)
+	var plans: Array = []
+	g.reminders_planned.connect(func(plan): plans.append(plan))
+	_win_in_game(g)
+	check(plans.size() == 1 and (plans[0] as Array).size() == 4 and int(g.daily["anchor"]) == 1080 and int((plans[0] as Array)[0]["hour"]) == 17
+		and int((plans[0] as Array)[0]["minute"]) == 30 and (g.remind["planned"] as Array).size() == 4, "nach dem Sieg: Erinnerungen neu geplant (morgen 17:30)")
+	var toast: String = g.debug_next_day()
+	check(OS.is_debug_build() and g.now_local() == t0 + 86400 and g.day_unlocked(2) and toast == "Test: Jetzt ist Dienstag." and g.debug_day_offset == 1,
+		"Test-Knopf: ein ganzer Tag weiter, Tag 2 offen (%s)" % toast)
+	var p2: Array = plans[plans.size() - 1]
+	check(not p2.is_empty() and int(p2[0]["at_real"]) == int(p2[0]["at"]) - 86400 and int(p2[0]["key"]) == g.today_key() + 1, "Test-Tage: das Plugin bekommt die echte Uhrzeit")
+	var g2 := _daily_game(path, lt(2026, 11, 9, 18, 10), false)
+	check(g2.debug_day_offset == 1 and g2.today_key() == g.today_key() and (g2.remind["planned"] as Array).size() == (g.remind["planned"] as Array).size(),
+		"Test-Tage und Plan werden gespeichert")
+	var soon: Dictionary = g.debug_reminder_soon()
+	check(int(soon["id"]) == 199 and str(soon["cat"]) == "A" and str(soon["body"]) != "", "Test: Erinnerung in 10 s")
+	g.set_reminder_mode("aus")
+	check(g.reminder_log.is_empty() and str(g.remind["mode"]) == "aus", "Einstellung „Aus“: kein Plan")
+	g.set_reminder_mode("fest", 15 * 60)
+	check(not g.reminder_log.is_empty() and int(g.reminder_log[0]["hour"]) == 15, "Feste Uhrzeit 15:00")
+	g.debug_reset_streak()
+	check(g.streak() == 0 and g.shields() == 0 and (g.remind["history"] as Array).is_empty(), "Test: Serie zurücksetzen")
+	g.free()
+	g2.free()
+	DirAccess.remove_absolute(path)

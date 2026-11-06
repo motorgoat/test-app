@@ -701,7 +701,7 @@ func _on_tile(n: int) -> void:
 		ui._shake(t["lock"])
 		Style.haptic(Style.HAPTIC_TAP)
 		ui._show_tooltip(t["btn"], "lock", str(Days.TEXT["day_title"]) % [n, str(Days.config(n).get("title", ""))],
-			str(Days.TEXT["locked"]) % mini(Game.day_free, Days.count()))
+			Game.locked_text(n))
 		ui._tip_hide_at = ui._time + 2.4
 		return
 	ui.ask_day(n)
@@ -1270,7 +1270,7 @@ func tooltip(key: String) -> Dictionary:
 		var cfg := Days.config(n)
 		var title := str(Days.TEXT["day_title"]) % [n, str(cfg.get("title", ""))]
 		if not Game.day_unlocked(n):
-			return {"icon": "lock", "title": title, "body": str(Days.TEXT["locked"]) % mini(Game.day_free, Days.count())}
+			return {"icon": "lock", "title": title, "body": Game.locked_text(n)}
 		var b := "%s – %s. %s." % [Days.goal_line(cfg), Days.limit_line(int(cfg.get("limit", 0))), Days.star_line(cfg)]
 		var st2 := Game.stars_of(n)
 		if st2 > 0:
@@ -1441,7 +1441,8 @@ func _on_win_next() -> void:
 		return
 	var nxt := int(wc_next.get_meta("next", 0))
 	if nxt > 0:
-		Game.next_day()
+		if not Game.next_day():
+			show_overview()          # der nächste Tag kommt erst morgen (Game.locked_text)
 	else:
 		show_overview()
 

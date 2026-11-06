@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small notification icon: a white cube (the world) with a small sun. Android tints it; only alpha counts. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- top face -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,5.2 L19.5,9 L12,12.8 L4.5,9 Z" />
+    <!-- left face -->
+    <path android:fillColor="#B3FFFFFF" android:pathData="M4,9.9 L11.4,13.7 L11.4,21.6 L4,17.8 Z" />
+    <!-- right face -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M20,9.9 L12.6,13.7 L12.6,21.6 L20,17.8 Z" />
+    <!-- sun -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M17,3.4 A2.2,2.2 0,1 1,21.4 3.4 A2.2,2.2 0,1 1,17 3.4 Z" />
+</vector>

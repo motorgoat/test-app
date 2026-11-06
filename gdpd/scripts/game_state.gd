@@ -104,6 +104,10 @@ var day_limit: int = 0        # Drehungen für diesen Versuch (Grenze + Gnade)
 var day_won := false
 var day_lost := ""            # "" | "twists" | "war" | "fire"
 var day_won_at: int = 0       # bei so vielen Drehungen gewonnen
+## „Weiterbauen“ nach dem Sieg (GDPD_TAEGLICH_CHARAKTER.md 2.2): keine Drehungs-Grenze, kein Scheitern, die Sterne
+## bleiben die des Sieges. build_made0: so viel war bis zum Sieg gewachsen (Wachstums-Zähler, Münzen).
+var day_free_build := false
+var build_made0: int = 0
 var unlocked: Dictionary = {} # Art → true: darf heute entstehen
 var choices_on: Dictionary = {}   # Art → true: ihre Wahl-Karte ist aktiv (wenn Option 2 freigeschaltet ist)
 var sys_wishes := true
@@ -233,6 +237,8 @@ func _reset(seed_value: int, endless_mode: bool, lvl: int, with_hearts: bool) ->
 	day_won = false
 	day_lost = ""
 	day_won_at = 0
+	day_free_build = false
+	build_made0 = 0
 	use_lcg = false
 	lcg = 0
 	_goal0 = 0
@@ -465,6 +471,8 @@ func clone() -> GameState:
 	gs.day_won = day_won
 	gs.day_lost = day_lost
 	gs.day_won_at = day_won_at
+	gs.day_free_build = day_free_build
+	gs.build_made0 = build_made0
 	gs.unlocked = unlocked        # nur gelesen
 	gs.choices_on = choices_on    # nur gelesen
 	gs._row_ok = _row_ok          # nur gelesen
@@ -726,6 +734,8 @@ func next_age_goal() -> String:
 ## Vorbei: Welt verbrannt, 40 Drehungen um (Challenge) oder vollendet. An einem Tag: gewonnen oder gescheitert.
 func is_over() -> bool:
 	if not day.is_empty():
+		if day_free_build:
+			return false              # Weiterbauen: nie vorbei
 		return day_won or day_lost != ""
 	return finished() or died() or completed
 
@@ -2282,9 +2292,36 @@ func goal_met() -> bool:
 	return true
 
 
-## Drehungen, die an diesem Tag noch bleiben.
+## Drehungen, die an diesem Tag noch bleiben (-1 = keine Grenze: Weiterbauen).
 func twists_left() -> int:
+	if day_free_build:
+		return -1
 	return maxi(0, day_limit - used_twists())
+
+
+## Weiterbauen nach dem Sieg beginnen: keine Grenze, kein Scheitern (auch Krieg an Tag 6 ist nur Krieg).
+## Die Sterne bleiben die des Sieges (day_won, day_won_at bleiben).
+func start_free_build() -> void:
+	if not is_day() or not day_won:
+		return
+	day_free_build = true
+	no_war = false
+	build_made0 = total_made()
+
+
+## So oft ist bisher etwas gewachsen (alle Arten zusammen).
+func total_made() -> int:
+	var t := 0
+	for v in made:
+		t += int(v)
+	return t
+
+
+## Weiterbauen: so viele Felder sind seit dem Sieg gewachsen (0 sonst).
+func build_growth() -> int:
+	if not day_free_build:
+		return 0
+	return maxi(0, total_made() - build_made0)
 
 
 ## Gezählte Drehungen an einem Tag (ohne die vorgeführte Drehung von Tag 1).
@@ -2309,7 +2346,7 @@ func day_status() -> Dictionary:
 	return {"day": day_no, "type": goal_type(), "kinds": goal_kinds(), "target": goal_target(),
 		"progress": goal_progress(), "met": goal_met(), "green": balance_green(), "need_green": goal_green(),
 		"twists": used_twists(), "limit": day_limit, "left": twists_left(), "won": day_won, "lost": day_lost,
-		"won_at": day_won_at, "stars": stars(), "no_war": no_war}
+		"won_at": day_won_at, "stars": stars(), "no_war": no_war, "free_build": day_free_build, "growth": build_growth()}
 
 
 ## Nach jedem Zug (end_round) und jedem Regen (resolve_now): Fortschritt melden, gewonnen oder gescheitert?
@@ -2322,7 +2359,7 @@ func _check_day(ev: Array, war_now: bool) -> void:
 	if p != _goal0:
 		ev.append({"type": "goal", "progress": p, "was": _goal0, "target": goal_target(), "met": goal_met()})
 		_goal0 = p
-	if day_won or day_lost != "":
+	if day_won or day_lost != "" or day_free_build:
 		return
 	if no_war and war_now:
 		day_lost = "war"
@@ -2400,7 +2437,7 @@ func goal_weights() -> Array:
 
 ## Wert dieses Stands für das Ziel des Tages (before: der Stand vor dem Zug).
 func goal_value(before: GameState, w: Array) -> float:
-	if day_won:
+	if day_won and not day_free_build:
 		return 1e6 - 1000.0 * float(twists)
 	if day_lost != "" and day_lost != "twists":
 		return -1e5
@@ -2426,7 +2463,7 @@ func goal_value(before: GameState, w: Array) -> float:
 	else:
 		v += float(mini(p, goal_target()))
 		var inc := 0 if (sys_smog and smog()) else income_potential()
-		var left := maxi(0, day_limit - used_twists())
+		var left := 6 if day_free_build else maxi(0, day_limit - used_twists())
 		v += float(inc) * float(mini(left, 6)) * 0.8
 		if goal_green():
 			var bw := balance()
@@ -2516,7 +2553,7 @@ func best_day_action(twist_only: bool = false) -> Dictionary:
 	for m in MOVES:
 		var o := _day_option({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])}, w)
 		var st: GameState = o["state"]
-		if st.goal_progress() > p0 or st.day_won:
+		if st.goal_progress() > p0 or (st.day_won and not st.day_free_build):
 			progressed = true
 		if float(o["value"]) > best_v:
 			best_v = float(o["value"])
@@ -2529,7 +2566,7 @@ func best_day_action(twist_only: bool = false) -> Dictionary:
 				continue
 			var o := _day_option({"type": "strike", "field": f.id}, w)
 			var st: GameState = o["state"]
-			if st.goal_progress() > p0 or st.day_won:
+			if st.goal_progress() > p0 or (st.day_won and not st.day_free_build):
 				progressed = true
 			if float(o["value"]) > best_v:
 				best_v = float(o["value"])

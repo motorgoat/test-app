@@ -134,6 +134,7 @@ func _check(ok: bool, check_name: String, extra: String = "") -> void:
 func _days_tour(dir: String) -> void:
 	var dui := ui.day_ui
 	# Wie ein neuer Spieler: kein Fortschritt, keine gesehenen Hinweise
+	Game.debug_open_all = false
 	Game.reset_campaign()
 	Game.coach_seen = {}
 	Game.cards_seen = {}
@@ -221,7 +222,9 @@ func _days_tour(dir: String) -> void:
 		"won=%s stars=%d drehungen=%d knopf=%s" % [str(won), Game.stars_of(1), Game.state.day_won_at, dui.wc_next.text])
 	if _only == "day1":
 		return
-	# 4. „Weiter zu Tag 2“ (echte Eingabe): Ziel-Karte mit dem Neuen (Regen)
+	# 4. Tag 2 kommt erst morgen (ein neuer Tag je echtem Tag): „Nächster Tag (Test)“, dann „Weiter zu Tag 2“
+	# (echte Eingabe): Ziel-Karte mit dem Neuen (Regen)
+	print("Tour: ", Game.debug_next_day())
 	await _tap(dui.wc_next)
 	var card2 := await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.9)
@@ -264,7 +267,7 @@ func _days_tour(dir: String) -> void:
 	# und ist kein Fehlversuch
 	await _resting_row_check(dir)
 	# Ab hier sind alle Tage offen (die Tour springt)
-	Game.day_free = 7
+	Game.debug_open_all = true
 	# 6. Tag 3: Ziel-Karte, dann die letzte Drehung bringt nichts → Fehlversuch, „Nochmal“ mit +2 Drehungen
 	Game.start_day(3)
 	await _until_shown(dui.goal_card, 4.0)

@@ -99,6 +99,24 @@ static var MERCY_MAX := 6                  # … höchstens so viele
 static var DAY_HINT_FREE := true           # Tipp kostet an den Tagen nichts (Produktentscheidung, 4.6)
 static var DAY_ONBOARD_HINT_DAYS := 2      # Tag 1–2: der Tipp leuchtet nach einer Pause von selbst
 
+# --- Täglich spielen (GDPD_TAEGLICH_CHARAKTER.md 1, 2, 5; Logik in Daily und ReminderPlan) ----------------
+static var DAY_START_HOUR := 3             # der Spieltag wechselt um 3 Uhr Ortszeit
+static var COUNTDOWN_EXACT_HOURS := 8      # mehr als so viele Stunden bis zum neuen Tag: genaue Zeit, sonst „Morgen früh“
+static var SHIELD_MAX := 2                 # Serienschutz: höchstens so viele …
+static var SHIELD_PRICE := 5               # … kaufen für so viele Münzen …
+static var STREAK_MILESTONE := 7           # … und einer geschenkt alle so viele Tage in Folge
+static var SHIELD_FULL_COINS := 3          # Meilenstein mit vollem Serienschutz: so viele Münzen statt dessen
+static var STREAK_BIG := [7, 14, 30, 50, 100, 365]   # Meilensteine mit großer Feier
+static var BUILD_COIN_EVERY := 10          # Weiterbauen: 1 Münze je so viele gewachsene Felder …
+static var BUILD_COIN_MAX := 3             # … höchstens so viele je Spieltag
+static var REMIND_EARLIEST := 480          # Erinnerungen nie vor 8:00 …
+static var REMIND_LATEST := 1290           # … und nie nach 21:30 (Minuten des Tages)
+static var REMIND_LEAD := 30               # so viele Minuten vor der Uhrzeit der letzten Sitzung (≈ 23,5 h danach)
+static var REMIND_DEFAULT_MIN := 1080      # unbekannte Uhrzeit / Standard für „Feste Uhrzeit“: 18:00
+static var REMIND_LADDER := [1, 2, 4, 7]   # Tage nach dem letzten Besuch: A, B, C, dann die letzte Nachricht (F)
+static var REMIND_MIN_GAP := 7200          # nie innerhalb von 2 Stunden nach jetzt
+static var REMIND_LIEB_SHARE := 0.15       # frech/streng: so oft ein lieber Text (bleibt freundlich und abwechslungsreich)
+
 # --- Bedienung (etwas behäbig, damit es sich schwer und echt anfühlt) ----------------
 static var TWIST_SNAP_SECONDS := 0.42
 static var TWIST_FINGER_UNITS := 2.5      # Fingerweg (in Würfelfeldern) für eine Vierteldrehung

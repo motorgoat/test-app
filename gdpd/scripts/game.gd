@@ -26,6 +26,17 @@ signal day_progress(status: Dictionary)
 signal day_won(info: Dictionary)
 ## Tag gescheitert: info = day_info() + {"why" ("twists"|"war"|"fire"), "progress", "target", "mercy_next"}.
 signal day_lost(info: Dictionary)
+## Täglich spielen (docs/GDPD_TAEGLICH_CHARAKTER.md): der Spieltag, die Freischaltung, die Serie oder der Serienschutz
+## haben sich geändert (neuer Spieltag, Test-Knopf, Kauf). Die Übersicht zeichnet neu (today_info()).
+signal daily_changed
+## Ein Serientag ist geschafft: info = Daily.win() ({"counted", "before", "streak", "best", "milestone", "big",
+## "shield", "coins", "shields"}). Kommt direkt nach day_won (dort steht es auch als info["streak"]).
+signal streak_changed(info: Dictionary)
+## Weiterbauen hat begonnen (oder geht weiter): info = day_info().
+signal build_started(info: Dictionary)
+## Ein neuer Erinnerungs-Plan (ReminderPlan.plan, schon mit echter Uhrzeit): das Plugin plant ihn ein.
+## Hört niemand zu (PC, CI), schreibt Game die Zeilen „REMINDER …“ ins Protokoll.
+signal reminders_planned(plan: Array)
 
 const SAVE_PATH := "user://rekord.cfg"
 const SETTINGS_PATH := "user://einstellungen.cfg"
@@ -77,16 +88,44 @@ var first_launch := false    # allererster Start: gleich in Tag 1 (keine Übersi
 ## Fortschritt (in rekord.cfg, Abschnitt [schoepfung]), getrennt von den Rekorden des freien Spiels:
 var day_stars: Array = []    # beste Sterne je Tag (0 = nicht geschafft)
 var day_best: Array = []     # wenigste Drehungen je Tag (0 = keine)
-var day_free := 1            # höchster spielbarer Tag (1 … 7; 8 = alle geschafft)
+## Höchster spielbarer Tag (1 … 7; 8 = alle geschafft). Alter Wert: Er folgt der Freischaltung nach Datum
+## (Daily.day_free); gesetzt wird nur noch der gespeicherte Rohwert.
+var day_free: int:
+	get:
+		if daily.is_empty() or day_stars.size() != Days.count():
+			return _day_free_raw
+		return Daily.day_free(daily, day_stars, today_key())
+	set(v):
+		_day_free_raw = v
+var _day_free_raw := 1
 var day_fails: Array = []    # Fehlversuche seit dem letzten Sieg je Tag (Gnade)
 var day_next_board: Array = []   # nächstes Pool-Brett je Tag
 var world_done := false      # Tag 7 einmal geschafft: freies Spiel offen, „Vollendet“
 var save_path := SAVE_PATH   # Tests leiten das auf eine eigene Datei um
 
+# --- Täglich spielen (GDPD_TAEGLICH_CHARAKTER.md 1, 2, 5, 7; reine Logik in Daily und ReminderPlan) -----------
+var daily: Dictionary = {}       # Tageszustand (Daily.fresh), gespeichert in [taeglich]
+## Erinnerungen [erinnerung]: "mode" ("auto" | "fest" | "aus"), "fixed_min" (Minute des Tages), "asked" (so oft
+## wurde im Spiel gefragt, 0–2), "history" (letzte Text-IDs, neueste zuerst), "planned" ({id, at, tpl, key} des Plans)
+var remind: Dictionary = {}
+var remind_permission := false   # das Plugin setzt das (Android: Erlaubnis da und Benachrichtigungen an)
+var reminder_log: Array = []     # der letzte Plan (Tests, Tour)
+var reminder_echo := true        # ohne Zuhörer: Plan als „REMINDER …“-Zeilen ausgeben
+var clock_override := -1         # Tests/Tour: feste Ortszeit (lokale Unix-Sekunden); -1 = Systemuhr
+var debug_day_offset := 0        # „Nächster Tag (Test)“: so viele ganze Tage weiter (nur in Test-Versionen)
+var debug_open_all := false      # Tour: alle 7 Tage offen (nur in Test-Versionen)
+var session_start := -1          # Ortszeit, zu der diese Sitzung begann (Uhrzeit der Erinnerung)
+var wdt_key := -1                # dieser Versuch ist die Welt des Tages dieses Spieltags (-1 = ein Tag 1 … 7)
+var build_state: GameState = null   # Weiterbauen: die gewonnene Welt (nur im Speicher, 2.4)
+var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner)}
+var _last_today := -2147483648
+
 
 func _ready() -> void:
 	_load_settings()
 	_load_best()
+	note_session()
+	call_deferred("replan_reminders")      # nach den anderen Autoloads (Plugin-Hülle)
 	if world_done:
 		new_game()
 	else:
@@ -110,6 +149,8 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 	_tut_board = false
 	day_no = 0
 	day_board = {}
+	wdt_key = -1
+	_end_build()
 	best = int(_best.get(mode_key(), 0))
 	state = GameState.new()
 	state.setup(seed_value, endless, level, true)
@@ -322,6 +363,8 @@ func finish_round(result: Dictionary) -> void:
 		if str(e["type"]) == "goal":
 			moved_goal = true
 	if state.is_day():
+		if state.day_free_build:
+			_build_coins()
 		if moved_goal:
 			day_progress.emit(state.day_status())
 		if state.is_over() and not over:
@@ -393,6 +436,8 @@ func undo() -> void:
 		return
 	state = undo_state
 	undo_state = null
+	if build_state != null and state.day_free_build:
+		build_state = state
 	pending_choice = {}
 	over = false
 	new_game_started.emit()
@@ -541,6 +586,7 @@ func _save_best() -> void:
 ## Einstellungen, Münzen, Hinweise und Wahl-Karten speichern, ohne den Rekord anzufassen.
 func _save_profile() -> void:
 	var cfg := ConfigFile.new()
+	cfg.load(save_path)                # andere Abschnitte (z. B. von neueren Teilen) behalten
 	for k in _best.keys():
 		cfg.set_value("rekorde", str(k), int(_best[k]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
@@ -556,7 +602,11 @@ func _save_profile() -> void:
 	cfg.set_value("schoepfung", "fehlversuche", day_fails)
 	cfg.set_value("schoepfung", "brett", day_next_board)
 	cfg.set_value("schoepfung", "fertig", world_done)
-	cfg.set_value("schoepfung", "version", 1)
+	cfg.set_value("schoepfung", "version", 2)
+	_ensure_daily()
+	daily["test_days"] = debug_day_offset
+	Daily.save(daily, cfg)
+	_save_remind(cfg)
 	cfg.save(save_path)
 
 
@@ -571,13 +621,43 @@ func start_day(n: int, board_index: int = -1) -> bool:
 	_ensure_campaign()
 	if n < 1 or n > Days.count() or not day_unlocked(n):
 		return false
-	if state != null and not state.is_day():
-		_save_best()             # Glaube des freien Spiels zählt noch für den Rekord
 	var idx := board_index if board_index >= 0 else int(day_next_board[n - 1])
 	_board_explicit = board_index >= 0
-	var b := Days.board(n, idx)
-	var cfg := Days.config(n)
-	var mercy := day_mercy(n)
+	wdt_key = -1
+	_start_attempt(n, Days.config(n), Days.board(n, idx), day_mercy(n))
+	return true
+
+
+## Die Welt des Tages von heute starten (nach Tag 7, GDPD_TAEGLICH_CHARAKTER.md 1.3). false: gibt es heute nicht.
+func start_daily_world() -> bool:
+	_ensure_campaign()
+	var k := today_key()
+	if not Daily.wdt_available(daily, day_stars, k):
+		return false
+	var cfg := Daily.wdt_config(k)
+	if cfg.is_empty():
+		return false
+	_board_explicit = true
+	wdt_key = k
+	_start_attempt(int(cfg["day"]), cfg, Daily.wdt_board(k), Daily.wdt_mercy(daily, k))
+	return true
+
+
+## Gibt es heute eine Welt des Tages (Tag 7 an einem früheren Spieltag geschafft)?
+func daily_world_available() -> bool:
+	_ensure_campaign()
+	return Daily.wdt_available(daily, day_stars, today_key())
+
+
+## Läuft gerade die Welt des Tages?
+func in_daily_world() -> bool:
+	return in_day() and wdt_key >= 0
+
+
+func _start_attempt(n: int, cfg: Dictionary, b: Dictionary, mercy: int) -> void:
+	if state != null and not state.is_day():
+		_save_best()             # Glaube des freien Spiels zählt noch für den Rekord
+	_end_build()
 	day_no = n
 	day_board = b
 	tutorial_step = -1
@@ -598,17 +678,19 @@ func start_day(n: int, board_index: int = -1) -> bool:
 	new_game_started.emit()
 	state_changed.emit()
 	day_started.emit(day_info())
-	return true
 
 
 ## Denselben Tag noch einmal (das nächste Brett des Pools, eine Wiederholung ist nie ein Gedächtnistest).
+## Die Welt des Tages: dieselbe Welt noch einmal (an ihrem Spieltag).
 func retry_day() -> bool:
+	if wdt_key >= 0:
+		return start_daily_world()
 	return start_day(maxi(1, day_no))
 
 
 ## Nach einem Sieg: der nächste Tag (false, wenn es keinen gibt – dann ist die Welt vollendet).
 func next_day() -> bool:
-	if day_no >= Days.count():
+	if wdt_key >= 0 or day_no >= Days.count():
 		return false
 	return start_day(day_no + 1)
 
@@ -659,9 +741,13 @@ func _twist_grows(axis: int, layer: int, turns: int) -> bool:
 	return sim.goal_progress() > state.goal_progress()
 
 
-## Ist Tag n spielbar?
+## Ist Tag n spielbar? Tag 1 immer; ein geschaffter Tag immer (Wiederholung); der nächste neue Tag erst an einem
+## späteren Spieltag als der letzte erste Sieg (ein neuer Tag je echtem Tag).
 func day_unlocked(n: int) -> bool:
-	return n >= 1 and n <= Days.count() and n <= day_free
+	_ensure_campaign()
+	if debug_open_all and OS.is_debug_build():
+		return n >= 1 and n <= Days.count()
+	return Daily.day_unlocked(daily, day_stars, n, today_key())
 
 
 ## Beste Sterne von Tag n (0 = noch nicht geschafft).
@@ -683,12 +769,15 @@ func stars_max() -> int:
 
 
 ## Der Tag, mit dem es weitergeht: der erste freie, noch nicht geschaffte Tag (sonst der letzte freie).
+## Ist der neue Tag erst morgen dran, kommt der zuletzt geschaffte.
 func current_day() -> int:
 	_ensure_campaign()
-	for n in range(1, mini(day_free, Days.count()) + 1):
-		if int(day_stars[n - 1]) == 0:
-			return n
-	return clampi(day_free, 1, Days.count())
+	var nn := Daily.next_new_day(day_stars)
+	if nn > Days.count():
+		return Days.count()
+	if day_unlocked(nn):
+		return nn
+	return maxi(1, nn - 1)
 
 
 ## Gnade für den nächsten Versuch von Tag n (zusätzliche Drehungen).
@@ -718,21 +807,29 @@ func day_info() -> Dictionary:
 		return {}
 	var cfg := state.day
 	var n := day_no
+	var wdt := wdt_key >= 0
 	return {"day": n, "title": str(cfg.get("title", "")), "intro": str(cfg.get("intro", "")),
+		"wdt": wdt, "wdt_key": wdt_key, "caps": str(cfg.get("caps", str(Days.TEXT["day"]) % n)),
+		"free_build": state.day_free_build,
 		"goal_text": Days.goal_line(cfg), "goal_icon": str(cfg.get("goal_icon", "")), "goal_type": state.goal_type(),
 		"target": state.goal_target(), "rule_line": str(cfg.get("rule_line", "")), "rule_icon": str(cfg.get("rule_icon", "swords")),
 		"limit": state.day_limit, "base_limit": int(cfg.get("limit", 0)), "mercy": state.day_limit - int(cfg.get("limit", 0)),
 		"stars": (cfg.get("stars", [0, 0]) as Array).duplicate(), "new": (cfg.get("new", {}) as Dictionary).duplicate(),
-		"coach": (cfg.get("coach", []) as Array).duplicate(), "coach_demo": str(cfg.get("coach_demo", "")), "best_stars": stars_of(n),
-		"best_twists": int(day_best[n - 1]), "board": int(day_board.get("index", 0)),
-		"tutorial": (cfg.get("tutorial", {}) as Dictionary).duplicate() if int(day_board.get("index", -1)) == 0 and n == 1 else {},
-		"first_visit": int(day_stars[n - 1]) == 0 and int(day_fails[n - 1]) == 0,
+		"coach": (cfg.get("coach", []) as Array).duplicate(), "coach_demo": str(cfg.get("coach_demo", "")),
+		"best_stars": Daily.wdt_stars(daily, wdt_key) if wdt else stars_of(n),
+		"best_twists": 0 if wdt else int(day_best[n - 1]), "board": int(day_board.get("index", 0)),
+		"tutorial": (cfg.get("tutorial", {}) as Dictionary).duplicate() if int(day_board.get("index", -1)) == 0 and n == 1 and not wdt else {},
+		"first_visit": false if wdt else (int(day_stars[n - 1]) == 0 and int(day_fails[n - 1]) == 0),
 		"status": state.day_status()}
 
 
 ## Ende eines Versuchs: Sterne, Freischalten, Gnade, nächstes Brett, speichern, Signal.
 func _finish_day() -> void:
 	_ensure_campaign()
+	var today := today_key()
+	if wdt_key >= 0:
+		_finish_daily_world(today)
+		return
 	var n := day_no
 	var i := n - 1
 	var info := day_info()
@@ -748,11 +845,16 @@ func _finish_day() -> void:
 		day_stars[i] = maxi(int(day_stars[i]), st)
 		day_best[i] = used if int(day_best[i]) == 0 else mini(int(day_best[i]), used)
 		day_fails[i] = 0
-		day_free = maxi(day_free, n + 1)
+		if first_win:
+			Daily.register_first_win(daily, n, today)
+		_sync_day_free()
 		var complete := n >= Days.count() and not world_done
 		if n >= Days.count():
 			world_done = true
+		var streak := _streak_win(today)
 		_save_profile()
+		info["streak"] = streak
+		_add_next_info(info, today)
 		info["stars"] = st
 		info["used"] = used
 		info["best_stars"] = int(day_stars[i])
@@ -762,6 +864,7 @@ func _finish_day() -> void:
 		info["stars_total"] = stars_total()
 		info["stars_max"] = stars_max()
 		day_won.emit(info)
+		_after_win(streak)
 	else:
 		day_fails[i] = int(day_fails[i]) + 1
 		_save_profile()
@@ -781,7 +884,7 @@ func _ensure_campaign() -> void:
 			a.append(0)
 		while a.size() > n:
 			a.pop_back()
-	day_free = clampi(day_free, 1, n + 1)
+	_day_free_raw = clampi(_day_free_raw, 1, n + 1)
 
 
 func _load_campaign(cfg: ConfigFile) -> void:
@@ -803,9 +906,474 @@ func _load_campaign(cfg: ConfigFile) -> void:
 		day_free = int(cfg.get_value("schoepfung", "frei", 1))
 		world_done = bool(cfg.get_value("schoepfung", "fertig", false))
 	_ensure_campaign()
+	# Täglich spielen: [taeglich] laden – oder aus einem Spielstand v1 übernehmen (Daily.load_from)
+	if cfg != null:
+		debug_day_offset = int(cfg.get_value(Daily.SECTION, "test_tage", 0))
+	daily = Daily.load_from(cfg, now_local(), Days.count())
+	_last_today = -2147483648
+	_load_remind(cfg)
+	_sync_day_free()
 
 
 ## Fortschritt der 7 Tage löschen (Einstellungen/Tests). Rekorde des freien Spiels bleiben.
 func reset_campaign() -> void:
 	_load_campaign(null)
 	_save_profile()
+
+
+# =============================================================================
+# Täglich spielen (docs/GDPD_TAEGLICH_CHARAKTER.md 1, 2, 5, 7): Uhr, Spieltag, Serie, Welt des Tages,
+# Weiterbauen, Erinnerungs-Plan, Test-Knopf. Die Regeln selbst stehen in Daily und ReminderPlan (rein, getestet).
+# =============================================================================
+
+## Ortszeit als „lokale Unix-Sekunden“ (Datum/Uhrzeit der Ortszeit, als wäre es UTC). Tests und Tour stellen die Uhr
+## mit clock_override; der Test-Knopf „Nächster Tag“ zählt ganze Tage dazu (nur in Test-Versionen).
+func now_local() -> int:
+	var t := clock_override
+	if t < 0:
+		t = Daily.system_local()
+	if OS.is_debug_build():
+		t += debug_day_offset * Daily.DAY
+	return t
+
+
+## Der heutige Spieltag (Uhr-Regeln: nie rückwärts, großes Zurückstellen setzt neu auf). Beim Wechsel des Spieltags:
+## Tagesprüfung (Serienschutz) und daily_changed.
+func today_key() -> int:
+	_ensure_daily()
+	var k := Daily.observe(daily, now_local())
+	if k != _last_today:
+		var first := _last_today == -2147483648
+		_last_today = k
+		Daily.day_check(daily, k)
+		_sync_day_free()
+		if not first:
+			call_deferred("emit_signal", "daily_changed")
+	return k
+
+
+## Eine Sitzung beginnt (Start, Rückkehr in die App): Uhrzeit merken, die Erinnerungs-Leiter fängt neu an.
+func note_session() -> void:
+	session_start = now_local()
+	var k := today_key()
+	daily["open_key"] = k
+
+
+func _ensure_daily() -> void:
+	if daily.is_empty():
+		daily = Daily.fresh(now_local(), Days.count())
+
+
+## Alter Wert day_free (höchster spielbarer Tag) passend zur Freischaltung nach Datum (der Rohwert für den Spielstand).
+func _sync_day_free() -> void:
+	if daily.is_empty() or day_stars.size() != Days.count():
+		return
+	_day_free_raw = Daily.day_free(daily, day_stars, Daily.observe(daily, now_local()))
+
+
+## Der nächste neue Tag (1 … 7; 8 = alle geschafft).
+func next_new_day() -> int:
+	_ensure_campaign()
+	return Daily.next_new_day(day_stars)
+
+
+## Ist heute ein neuer Tag offen?
+func new_day_open() -> bool:
+	_ensure_campaign()
+	return Daily.new_day_open(daily, day_stars, today_key())
+
+
+## Ist der nächste neue Tag erst morgen dran (heute schon ein erster Sieg)?
+func new_day_tomorrow() -> bool:
+	_ensure_campaign()
+	return Daily.new_day_tomorrow(daily, day_stars, today_key()) and not (debug_open_all and OS.is_debug_build())
+
+
+## Text für einen gesperrten Tag: „Morgen geht's weiter: Tag 3 · Tiere“ (der nächste neue, morgen) oder
+## „Erst Tag 3 schaffen.“
+func locked_text(n: int) -> String:
+	var nn := next_new_day()
+	if n == nn and new_day_tomorrow():
+		return str(Days.TEXT["tomorrow_next"]) % [n, str(Days.config(n).get("title", ""))]
+	return str(Days.TEXT["locked"]) % mini(nn, Days.count())
+
+
+## Ist der Serientag heute geschafft?
+func done_today() -> bool:
+	return Daily.done_today(daily, today_key())
+
+
+func streak() -> int:
+	today_key()
+	return int(daily["streak"])
+
+
+func shields() -> int:
+	today_key()
+	return int(daily["shields"])
+
+
+## Alles für die Übersicht (Heute-Karte, Kopfzeile, Wochenreihe):
+## {"today" (Spieltag), "weekday" („Freitag“), "state", "day" (Tag der Karte, 0 = Welt des Tages), "title"
+##  („Tag 3 · Tiere“ / „Welt des Tages“), "caps", "goal", "line" (Zeile unter dem Titel), "countdown", "done_today",
+##  "streak", "best", "shields", "shields_visible", "week" (Daily.week), "can_build" (Weiterbauen möglich),
+##  "more_stars" (heute geschaffter Tag hat < 3 Sterne), "comeback" ("" | "saved" | "lost", nicht abgeholt)}
+## state: "new" (neuer Tag offen) · "done_next" (heute geschafft, der nächste kommt morgen) · "wdt" (Welt des Tages
+## offen) · "wdt_done" (heute geschafft) · "world_done_today" (Tag 7 heute geschafft, ab morgen Welt des Tages)
+func today_info() -> Dictionary:
+	_ensure_campaign()
+	var k := today_key()
+	var now := now_local()
+	var nn := Daily.next_new_day(day_stars)
+	var out := {"today": k, "weekday": Daily.weekday_name(k), "countdown": Daily.countdown_text(now),
+		"done_today": Daily.done_today(daily, k), "streak": int(daily["streak"]), "best": int(daily["streak_best"]),
+		"shields": int(daily["shields"]), "shields_visible": int(daily["shields"]) > 0 or bool(daily["shields_ever"]),
+		"week": Daily.week(daily, k), "can_build": can_resume_build(), "comeback": str(daily["comeback"]),
+		"more_stars": false}
+	if nn <= Days.count():
+		var title := str(Days.TEXT["day_title"]) % [nn, str(Days.config(nn).get("title", ""))]
+		if day_unlocked(nn):
+			out.merge({"state": "new", "day": nn, "title": title, "caps": str(Days.TEXT["today_new"]),
+				"goal": Days.goal_line(Days.config(nn)), "line": Days.goal_line(Days.config(nn))})
+		else:
+			var last := maxi(1, nn - 1)
+			out.merge({"state": "done_next", "day": nn, "title": str(Days.TEXT["today_done"]),
+				"caps": str(Days.TEXT["tomorrow"]), "goal": Days.goal_line(Days.config(nn)),
+				"line": str(Days.TEXT["tomorrow_next"]) % [nn, str(Days.config(nn).get("title", ""))],
+				"more_stars": stars_of(last) < 3, "replay_day": last})
+		return out
+	if Daily.wdt_available(daily, day_stars, k):
+		var cfg := Daily.wdt_config(k)
+		if Daily.wdt_done(daily, k):
+			out.merge({"state": "wdt_done", "day": 0, "title": str(Days.TEXT["today_done"]), "caps": str(cfg.get("caps", "")),
+				"goal": Days.goal_line(cfg), "line": str(Days.TEXT["wdt_tomorrow"]), "more_stars": Daily.wdt_stars(daily, k) < 3})
+		else:
+			out.merge({"state": "wdt", "day": 0, "title": str(Days.TEXT["wdt"]), "caps": str(cfg.get("caps", "")),
+				"goal": Days.goal_line(cfg), "line": Days.goal_line(cfg)})
+		return out
+	out.merge({"state": "world_done_today", "day": Days.count(), "title": str(Days.TEXT["complete"]),
+		"caps": str(Days.TEXT["today_done"]), "goal": "", "line": str(Days.TEXT["wdt_first_tomorrow"]),
+		"more_stars": stars_of(Days.count()) < 3, "replay_day": Days.count()})
+	return out
+
+
+## Comeback-Zeile („saved“ / „lost“) einmal abholen (danach "").
+func take_comeback() -> String:
+	_ensure_daily()
+	var c := Daily.take_comeback(daily)
+	if c != "":
+		_save_profile()
+	return c
+
+
+## Serienschutz kaufen. "" = gekauft, sonst der Grund („Du hast genug Serienschutz.“ / „Dir fehlen 2 Münzen.“).
+func buy_shield() -> String:
+	today_key()
+	var err := Daily.shield_buy_error(daily, credits)
+	if err != "":
+		return err
+	credits -= Balance.SHIELD_PRICE
+	Daily.add_shield(daily)
+	_save_profile()
+	daily_changed.emit()
+	return ""
+
+
+## Der Sieg zählt für die Serie (nur der erste eines Spieltags). Meilenstein mit vollem Schutz: Münzen.
+func _streak_win(today: int) -> Dictionary:
+	var start := session_start if session_start >= 0 else now_local()
+	var s := Daily.win(daily, today, Daily.minute_of_day(start))
+	if int(s["coins"]) > 0:
+		credits += int(s["coins"])
+	return s
+
+
+## Für die Sieg-Karte: Was kommt als Nächstes? "next_new" (nächster neuer Tag, 0 = keiner), "next_open" (heute
+## schon offen: „Weiter zu Tag 3“), "next_locked" (erst morgen), "next_line" („Morgen geht's weiter: Tag 2 · Pflanzen“).
+func _add_next_info(info: Dictionary, today: int) -> void:
+	var nn := Daily.next_new_day(day_stars)
+	var has_next := nn <= Days.count()
+	var open := has_next and day_unlocked(nn)
+	info["next_new"] = nn if has_next else 0
+	info["next_open"] = open
+	info["next_locked"] = has_next and not open
+	if has_next and not open:
+		info["next_line"] = str(Days.TEXT["tomorrow_next"]) % [nn, str(Days.config(nn).get("title", ""))]
+	elif not has_next:
+		info["next_line"] = str(Days.TEXT["wdt_tomorrow"]) if Daily.wdt_available(daily, day_stars, today) else str(Days.TEXT["wdt_first_tomorrow"])
+	else:
+		info["next_line"] = ""
+
+
+func _after_win(streak_info: Dictionary) -> void:
+	if bool(streak_info.get("counted", false)):
+		streak_changed.emit(streak_info)
+	daily_changed.emit()
+	replan_reminders()
+
+
+func _finish_daily_world(today: int) -> void:
+	var key := wdt_key
+	var info := day_info()
+	if state.day_won:
+		var st := state.stars()
+		var first := Daily.wdt_win(daily, key, st)
+		var streak := _streak_win(today)
+		_save_profile()
+		info["stars"] = st
+		info["used"] = state.day_won_at
+		info["best_before"] = 0 if first else Daily.wdt_stars(daily, key)
+		info["best_stars"] = Daily.wdt_stars(daily, key)
+		info["first_win"] = first
+		info["next_day"] = 0
+		info["world_complete"] = false
+		info["stars_total"] = stars_total()
+		info["stars_max"] = stars_max()
+		info["streak"] = streak
+		info["next_new"] = 0
+		info["next_open"] = false
+		info["next_locked"] = true
+		info["next_line"] = str(Days.TEXT["wdt_tomorrow"])
+		day_won.emit(info)
+		_after_win(streak)
+	else:
+		Daily.wdt_fail(daily, key)
+		_save_profile()
+		info["why"] = state.day_lost
+		info["progress"] = state.goal_progress()
+		info["target"] = state.goal_target()
+		info["mercy_next"] = Daily.wdt_mercy(daily, key)
+		day_lost.emit(info)
+
+
+# --- Weiterbauen (2) -------------------------------------------------------------------------
+
+## Nach dem Sieg in derselben Welt weiterbauen: keine Drehungs-Grenze, kein Scheitern, Wünsche und Glaube laufen
+## weiter, Münzen fürs Wachsen. Die Sterne bleiben die des Sieges. false, wenn gerade kein gewonnener Tag läuft.
+func continue_build() -> bool:
+	if not in_day() or not state.day_won or state.day_free_build:
+		return false
+	state.start_free_build()
+	over = false
+	busy = false
+	pending_choice = {}
+	undo_state = null
+	build_state = state
+	build_ctx = {"day_no": day_no, "wdt_key": wdt_key, "board": day_board, "given": 0}
+	state_changed.emit()
+	day_progress.emit(state.day_status())
+	build_started.emit(day_info())
+	return true
+
+
+## Gibt es eine gewonnene Welt zum Weiterbauen (im Speicher, solange die App läuft)?
+func can_resume_build() -> bool:
+	return build_state != null
+
+
+## Zurück in die Welt zum Weiterbauen (aus der Übersicht).
+func resume_build() -> bool:
+	if build_state == null:
+		return false
+	state = build_state
+	day_no = int(build_ctx.get("day_no", day_no))
+	wdt_key = int(build_ctx.get("wdt_key", -1))
+	day_board = build_ctx.get("board", {})
+	over = false
+	busy = false
+	pending_choice = {}
+	undo_state = null
+	new_game_started.emit()
+	state_changed.emit()
+	build_started.emit(day_info())
+	return true
+
+
+## Weiterbauen endet (ein neuer Tag, „Nochmal“, freies Spiel).
+func _end_build() -> void:
+	build_state = null
+	build_ctx = {}
+
+
+## Weiterbauen: 1 Münze je 10 gewachsene Felder, höchstens 3 je Spieltag.
+func _build_coins() -> void:
+	var g := state.build_growth()
+	var given := int(build_ctx.get("given", 0))
+	var n := Daily.build_coins(daily, today_key(), g, given)
+	build_ctx["given"] = maxi(given, g / maxi(1, Balance.BUILD_COIN_EVERY))
+	if n > 0:
+		credits += n
+		_save_profile()
+		for i in n:
+			message.emit(str(Days.TEXT["build_coin"]), "good")
+
+
+# --- Erinnerungen (5): Plan rechnen, Geschichte führen, an das Plugin geben --------------------------
+
+const REMIND_DEFAULTS = {"mode": "auto", "fixed_min": 1080, "asked": 0, "history": [], "planned": []}
+
+
+func _load_remind(cfg: ConfigFile) -> void:
+	remind = REMIND_DEFAULTS.duplicate(true)
+	if cfg == null or not cfg.has_section("erinnerung"):
+		return
+	var m := str(cfg.get_value("erinnerung", "modus", "auto"))
+	remind["mode"] = m if ReminderPlan.MODES.has(m) else "auto"
+	remind["fixed_min"] = clampi(int(cfg.get_value("erinnerung", "uhrzeit", Balance.REMIND_DEFAULT_MIN)), Balance.REMIND_EARLIEST, Balance.REMIND_LATEST)
+	remind["asked"] = int(cfg.get_value("erinnerung", "gefragt", 0))
+	var h: Array = []
+	for v in cfg.get_value("erinnerung", "verlauf", []):
+		h.append(str(v))
+	remind["history"] = h
+	var pl: Array = []
+	for v in cfg.get_value("erinnerung", "geplant", []):
+		if v is Dictionary:
+			pl.append({"id": int(v.get("id", 0)), "at": int(v.get("at", 0)), "tpl": str(v.get("tpl", "")), "key": int(v.get("key", 0))})
+	remind["planned"] = pl
+
+
+func _save_remind(cfg: ConfigFile) -> void:
+	if remind.is_empty():
+		remind = REMIND_DEFAULTS.duplicate(true)
+	cfg.set_value("erinnerung", "modus", str(remind["mode"]))
+	cfg.set_value("erinnerung", "uhrzeit", int(remind["fixed_min"]))
+	cfg.set_value("erinnerung", "gefragt", int(remind["asked"]))
+	cfg.set_value("erinnerung", "verlauf", remind["history"])
+	cfg.set_value("erinnerung", "geplant", remind["planned"])
+
+
+## Dürfen Erinnerungen geplant werden? Ohne Plugin (PC, CI) immer (dann nur Protokoll-Zeilen).
+func reminders_allowed() -> bool:
+	if not Engine.has_singleton("GdpdReminder"):
+		return true
+	return remind_permission
+
+
+## Name und Ton des eigenen Charakters ([charakter] in user://charakter.cfg; Game.character, wenn es das gibt).
+func _character_value(key: String, fallback: String) -> String:
+	var c: Variant = get("character")
+	if c is Dictionary and (c as Dictionary).has(key):
+		return str((c as Dictionary)[key])
+	var cf := ConfigFile.new()
+	if cf.load("user://charakter.cfg") == OK and cf.has_section_key("charakter", key):
+		return str(cf.get_value("charakter", key, fallback))
+	return fallback
+
+
+## {tag} der Erinnerung: der Tag, der als Nächstes wartet („Tag 3 · Tiere“), nach Tag 7 „die Welt des Tages“.
+func reminder_tag() -> String:
+	var nn := next_new_day()
+	if nn <= Days.count():
+		return str(Days.TEXT["day_title"]) % [nn, str(Days.config(nn).get("title", ""))]
+	return str(Days.TEXT["wdt_tag"])
+
+
+## Eingabe für ReminderPlan.plan aus dem Spielstand.
+func reminder_input() -> Dictionary:
+	if remind.is_empty():
+		remind = REMIND_DEFAULTS.duplicate(true)
+	var k := today_key()
+	return {"today": k, "done_today": Daily.done_today(daily, k), "last_win_key": int(daily["streak_last"]),
+		"last_open_key": int(daily["open_key"]), "anchor_min": int(daily["anchor"]), "mode": str(remind["mode"]),
+		"fixed_min": int(remind["fixed_min"]), "allowed": reminders_allowed(), "tone": _character_value("ton", "lieb"),
+		"name": _character_value("name", ReminderPlan.DEFAULT_NAME), "tag": reminder_tag(), "streak": int(daily["streak"]),
+		"history": (remind["history"] as Array).duplicate()}
+
+
+## Neu planen (Start, Rückkehr, Pause, nach jedem Serientag, nach einer Einstellung): Was schon gezeigt wurde, kommt in
+## die Geschichte; der neue Plan ersetzt den alten (das Plugin löscht vorher alle). Gibt den Plan zurück.
+## Jeder Eintrag hat zusätzlich "at_real" und die Kalender-Felder der echten Uhr (ohne die Test-Tage).
+func replan_reminders() -> Array:
+	if remind.is_empty():
+		remind = REMIND_DEFAULTS.duplicate(true)
+	var now := now_local()
+	remind["history"] = ReminderPlan.absorb_shown(remind["history"], remind["planned"], now)
+	var plan := ReminderPlan.plan(reminder_input(), now)
+	var shift := (debug_day_offset * Daily.DAY) if OS.is_debug_build() else 0
+	var stored: Array = []
+	for e in plan:
+		var d: Dictionary = e
+		d["at_real"] = int(d["at"]) - shift
+		if shift != 0:
+			var f := Daily.fields_of(int(d["at_real"]))
+			for fk in ["year", "month", "day", "hour", "minute"]:
+				d[fk] = int(f[fk])
+		stored.append({"id": int(d["id"]), "at": int(d["at"]), "tpl": str(d["tpl"]), "key": int(d["key"])})
+	remind["planned"] = stored
+	reminder_log = plan
+	_save_profile()
+	reminders_planned.emit(plan)
+	if reminder_echo and reminders_planned.get_connections().is_empty():
+		print("REMINDER cancel_all")
+		for e in plan:
+			print(ReminderPlan.log_line(e))
+	return plan
+
+
+## Einstellung „Erinnerung“: "auto" | "fest" | "aus"; fixed_min (Minute des Tages, 8:00–21:30) für „Feste Uhrzeit“.
+func set_reminder_mode(mode: String, fixed_min: int = -1) -> void:
+	if remind.is_empty():
+		remind = REMIND_DEFAULTS.duplicate(true)
+	remind["mode"] = mode if ReminderPlan.MODES.has(mode) else "auto"
+	if fixed_min >= 0:
+		remind["fixed_min"] = clampi(fixed_min, Balance.REMIND_EARLIEST, Balance.REMIND_LATEST)
+	replan_reminders()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_RESUMED:
+		note_session()
+		daily_changed.emit()
+		replan_reminders()
+	elif what == NOTIFICATION_APPLICATION_PAUSED:
+		replan_reminders()          # wichtig: vielleicht kommt der Spieler nie zurück
+
+
+# --- Test-Knopf und Test-Haken (7) -----------------------------------------------------------------
+
+## „Nächster Tag (Test)“: einen ganzen Tag weiter (nur in Test-Versionen). Gibt den Toast-Text zurück
+## („Test: Jetzt ist Freitag.“), "" in einer Store-Version.
+func debug_next_day() -> String:
+	if not OS.is_debug_build():
+		return ""
+	debug_day_offset += 1
+	var k := today_key()
+	note_session()
+	_save_profile()
+	replan_reminders()
+	daily_changed.emit()
+	return str(Days.TEXT["test_now"]) % Daily.weekday_name(k)
+
+
+## Test: „Erinnerung in 10 s“ – ein Eintrag (id 199) mit dem nächsten A-Text, 10 s nach der echten Uhr.
+func debug_reminder_soon() -> Dictionary:
+	var inp := reminder_input()
+	var at := Daily.system_local() + 10
+	var tpl := ReminderPlan.pick(str(inp["tone"]), "A", int(inp["streak"]), inp["history"], int(inp["today"]))
+	var e := ReminderPlan.entry(199, at, int(inp["today"]), "A", tpl, str(inp["name"]), str(inp["tag"]), int(inp["streak"]))
+	e["at_real"] = at
+	return e
+
+
+## Test: „Serie zurücksetzen“ – Serie 0, kein Schutz, keine Text-Geschichte.
+func debug_reset_streak() -> void:
+	_ensure_daily()
+	daily["streak"] = 0
+	daily["shields"] = 0
+	daily["streak_days"] = []
+	daily["shield_days"] = []
+	daily["comeback"] = ""
+	if not remind.is_empty():
+		remind["history"] = []
+	_save_profile()
+	daily_changed.emit()
+
+
+## Test/Einstellungen: [taeglich] und [erinnerung] frisch (der Fortschritt der 7 Tage bleibt; die Test-Tage auch).
+func reset_daily() -> void:
+	daily = Daily.fresh(now_local(), Days.count())
+	_last_today = -2147483648
+	remind = REMIND_DEFAULTS.duplicate(true)
+	_sync_day_free()
+	_save_profile()
+	daily_changed.emit()

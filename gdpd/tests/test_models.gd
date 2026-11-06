@@ -13,6 +13,7 @@ var _errors := 0
 var _cam: Camera3D
 var _fx_time := -1.0
 var _shot := 0
+var _char_done := false            # der Charakter-Test lief bis zum Ende (ein Laufzeitfehler bricht ihn ab)
 
 
 func _initialize() -> void:
@@ -92,6 +93,176 @@ func _initialize() -> void:
 		if Style.icon(n) == null:
 			_fail("Symbol lädt nicht: " + n)
 	print("Modelle gebaut: %d Ansichten" % _views.size())
+	_test_character()
+
+
+# --- Eigener Charakter (GDPD_TAEGLICH_CHARAKTER.md 3, 4) -------------------------------------------------------
+
+func _test_character() -> void:
+	var t0 := Time.get_ticks_msec()
+	# Alle Teile vorhanden und als Bild ladbar
+	for path_v in Character.all_files():
+		var path: String = path_v
+		if not ResourceLoader.exists(path):
+			_fail("Charakter-Teil fehlt: " + path)
+		elif not (load(path) is Texture2D):
+			_fail("Charakter-Teil kein Bild: " + path)
+	# Jede Kombination aus Basis, Augen und Zubehör einmal bauen (Ausdrücke reihum)
+	var cv := CharacterView.new()
+	cv.size = Vector2(240, 240)
+	get_root().add_child(cv)
+	var builds := 0
+	var exprs: Array = Character.EXPRESSION_ORDER
+	for basis_v in Character.BASE_ORDER:
+		var basis: String = basis_v
+		for stil in Character.EYE_ORDER:
+			for kopf in Character.accessory_ids("kopf", basis):
+				for ges in Character.accessory_ids("gesicht", basis):
+					for hals in Character.accessory_ids("hals", basis):
+						var l := Character.default_look(basis)
+						l["augen"] = stil
+						l["kopf"] = kopf
+						l["gesicht"] = ges
+						l["hals"] = hals
+						cv.set_look(l)
+						cv.set_expression(String(exprs[builds % exprs.size()]))
+						builds += 1
+						if builds % 97 == 0:
+							_check_layers(cv, "%s/%s/%s/%s/%s" % [basis, stil, kopf, ges, hals])
+		# jede Farbe jedes Platzes, jeder Ausdruck, jeder Ton
+		var l2 := Character.default_look(basis)
+		for row_v in Character.rows(basis):
+			var row: Array = row_v
+			for key in Character.palette_keys(String(row[2])):
+				l2["farben"][String(row[0])] = key
+				var c := Character.color(l2, String(row[0]))
+				if c != Character.palette_color(String(row[2]), String(key)):
+					_fail("Farbe %s/%s" % [basis, key])
+		for ton in Character.TONES:
+			l2["ton"] = ton
+			cv.set_look(l2)
+			for e in exprs:
+				cv.set_expression(String(e))
+				_check_layers(cv, "%s/%s/%s" % [basis, ton, e])
+		if Character.has_neck(basis) != Character.BASES[basis].has("neck"):
+			_fail("Hals " + basis)
+	for kind in ["hop", "shake", "spin", "nod"]:
+		cv.react(kind)
+	cv.talking(true)
+	cv.look_dir(Vector2(1, 0))
+	cv.blink()
+	# Kopfbild klein
+	var small := CharacterView.make(Character.default_look("nudel"), 40, true, "happy")
+	get_root().add_child(small)
+	_check_layers(small, "Kopfbild")
+	# Datenmodell: Zufall gültig und stabil, Namen, Speichern
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 42
+	for i in 300:
+		var r := Character.random(rng)
+		if Character.sanitize(r) != r:
+			_fail("random nicht stabil: %s" % str(r))
+		if not Character.has_neck(String(r["basis"])) and String(r["hals"]) != "":
+			_fail("Halszubehör ohne Hals")
+	var names := {"  Zeus\n{x}  ": "Zeus x", "": "Barti", "Abcdefghijklmnopq": "Abcdefghijkl", "   ": "Barti", "Hera": "Hera"}
+	for n in names:
+		if Character.sanitize_name(String(n), "bart") != String(names[n]):
+			_fail("Name '%s' -> '%s'" % [n, Character.sanitize_name(String(n), "bart")])
+	var bad := Character.sanitize({"basis": "drache", "farben": {"haupt": "lila!"}, "augen": "x", "kopf": "hut", "ton": "laut"})
+	if String(bad["basis"]) != "bart" or String(bad["augen"]) != "rund" or String(bad["kopf"]) != "" or String(bad["ton"]) != "lieb":
+		_fail("sanitize kaputter Daten")
+	var wb := Character.with_base({"basis": "katze", "hals": "fliege", "name": "Mauz", "augen": "gross"}, "sonne")
+	if String(wb["hals"]) != "" or String(wb["name"]) != "Mauz" or String(wb["augen"]) != "gross":
+		_fail("with_base")
+	if String(Character.with_base(Character.default_look("katze"), "wolke")["name"]) != "Wolki":
+		_fail("with_base Standardname")
+	var path := "user://test_charakter.cfg"
+	var look := Character.random(rng)
+	look["name"] = "Testi"
+	if Character.save_look(look, path) != OK or Character.load_look(path) != Character.sanitize(look):
+		_fail("Speichern/Laden")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	if not Character.load_look(path).is_empty():
+		_fail("load_look ohne Datei")
+	# Texte: jeder Schlüssel in jedem Ton, Längen, nie zweimal hintereinander gleich
+	for key in CharacterTexts.LINES:
+		for ton in CharacterTexts.TONES:
+			var vs := CharacterTexts.variants(String(key), String(ton))
+			if vs.is_empty():
+				_fail("Text fehlt: %s/%s" % [key, ton])
+			for v in vs:
+				var tx := String(v)
+				var lim := 160 if String(key).begins_with("d") and String(key)[1].is_valid_int() else 115
+				if tx.length() > lim or tx.strip_edges() != tx or tx.begins_with("{tag}"):
+					_fail("Text %s/%s: %s" % [key, ton, tx])
+	var last := ""
+	for i in 40:
+		var p := CharacterTexts.line("praise", "frech", {}, rng, last)
+		if p == last:
+			_fail("Lob zweimal hintereinander")
+		last = p
+	if CharacterTexts.line("streak_n", "lieb", {"streak": 5}) != "5 Tage in Folge! Ich freu mich jeden Tag auf dich.":
+		_fail("Platzhalter")
+	var ids := {}
+	for ton in CharacterTexts.TONES:
+		var all: Array = CharacterTexts.NOTIFY[ton]
+		if all.size() != 15:
+			_fail("Benachrichtigungen %s: %d" % [ton, all.size()])
+		for n_v in all:
+			var n: Dictionary = n_v
+			var lim2 := 110 if String(n["cat"]) == "F" else 90
+			if String(n["text"]).length() > lim2:
+				_fail("Benachrichtigung zu lang: " + String(n["id"]))
+			if ids.has(n["id"]):
+				_fail("Benachrichtigung doppelt: " + String(n["id"]))
+			ids[n["id"]] = true
+		for cat in ["A", "B", "C", "F"]:
+			if CharacterTexts.notifications(String(ton), String(cat), true).is_empty():
+				_fail("keine Vorlage %s/%s" % [ton, cat])
+		for n_v in CharacterTexts.notifications(String(ton), "B", true):
+			if (n_v as Dictionary).get("streak", false):
+				_fail("Serien-Text in B")
+	for key in CharacterTexts.FACE:
+		if not Character.EXPRESSIONS.has(String(CharacterTexts.FACE[key])):
+			_fail("Gesicht unbekannt: " + String(key))
+	# Ersteller: alle Schritte, Würfeln, Fertig
+	var cc := CharacterCreator.new()
+	cc.autosave = false
+	cc.size = Vector2(600, 1066)
+	get_root().add_child(cc)
+	var got: Array = []
+	cc.finished.connect(func(l3: Dictionary) -> void: got.append(l3))
+	cc.open({}, false)
+	for st in 4:
+		cc.go_to_step(st)
+		cc.randomize_step()
+		if cc.step != st:
+			_fail("Schritt %d" % st)
+	cc.randomize_all()
+	cc.go_to_step(3)
+	cc._on_next()
+	if got.size() != 1 or Character.sanitize(got[0]) != got[0]:
+		_fail("Ersteller fertig")
+	cc.queue_free()
+	print("Charakter: %d Kombinationen gebaut, %d ms" % [builds, Time.get_ticks_msec() - t0])
+	_char_done = true
+
+
+func _check_layers(cv: CharacterView, what: String) -> void:
+	var n := 0
+	var stack: Array = [cv]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		for c in node.get_children():
+			stack.append(c)
+		if node is TextureRect:
+			n += 1
+			if (node as TextureRect).texture == null:
+				_fail("Ebene ohne Bild: %s (%s)" % [what, node.name])
+			if (node as Control).mouse_filter != Control.MOUSE_FILTER_IGNORE:
+				_fail("Ebene fängt Berührungen: " + what)
+	if n < 12:
+		_fail("zu wenige Ebenen: %s (%d)" % [what, n])
 
 
 func _setup_scene(root: Node3D) -> void:
@@ -162,6 +333,8 @@ func _process(delta: float) -> bool:
 			var v: FieldView = e[0]
 			if v.get_kind() < 0:
 				_fail("kind nicht gesetzt")
+		if not _char_done:
+			_fail("Charakter-Test abgebrochen")
 		if _errors == 0:
 			print("OK test_models")
 		else:
