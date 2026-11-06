@@ -52,3 +52,7 @@
 - Vorschlag: Mittel-Regeln, Feuer kostet 5 Sekunden, Wahl-Karte pausiert die Uhr (oder schnelle Pille),
   kein Tipp/Zurück; Rekord pro Modus, später Rangliste.
 - Kommt nach dem laufenden Grafik- und Balance-Umbau.
+
+## Oberfläche (Wunsch von Philipp)
+- HUD mehr ins Zentrum rücken und etwas größer machen (Ziel-Chip, Menü, Münzen, Serie, Dock).
+- Den eigenen Gott leichter finden: Antippen des Gottes in der Übersicht öffnet ihn (ansehen, ändern, Art zu reden).
