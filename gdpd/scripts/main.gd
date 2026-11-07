@@ -700,6 +700,26 @@ func _tool_target(kind: String) -> Dictionary:
 	return {"fid": best, "pos": best_pos}
 
 
+## Wie _tool_target; liegt kein passendes Feld frei, dreht sich die Ansicht zu einem (wie ein Spieler, der den Würfel
+## dreht).
+func _visible_target(kind: String) -> Dictionary:
+	var t := _tool_target(kind)
+	if int(t["fid"]) >= 0:
+		return t
+	var tries := 0
+	for f in Game.state.fields:
+		if tries >= 6:
+			break
+		if Game.state.can_bonus(kind, f as FieldData) == "":
+			tries += 1
+			world.focus_field((f as FieldData).id)
+			await _wait(1.4)
+			t = _tool_target(kind)
+			if int(t["fid"]) >= 0:
+				return t
+	return t
+
+
 ## Gerade frei für den Spieler: keine Runde, keine Animation, keine Karte, kein Werkzeug gewählt, keine Suche.
 func _input_free() -> bool:
 	return not Game.busy and not world.animating and world._mode == "" and not ui._blocked() and not ui.day_ui.blocking() \
@@ -782,11 +802,13 @@ func _bonus_round_tour(dir: String) -> void:
 	await _tap(ui.rain_btn)
 	await _wait(0.5)
 	var rain_mode := ui.bonus_mode == "rain"
-	var rt := _tool_target("rain")
+	var rt := await _visible_target("rain")
+	var rain_left := Game.state.rain
 	if int(rt["fid"]) >= 0:
 		await _touch(rt["pos"])
 		await _wait(0.4)
 		await _settle(8.0)
+	var rain_info := "%d:%d->%d" % [int(rt["fid"]), rain_left, Game.state.rain]
 	ui._set_bonus_mode("")
 	# Meteor (12 Glauben) über das Dock: ein Feld antippen (zeigt, was getroffen wird), noch einmal tippen bestätigt
 	Game.state.faith = maxi(Game.state.faith, GameState.METEOR_COST)
@@ -795,7 +817,7 @@ func _bonus_round_tour(dir: String) -> void:
 	await _tap(ui.strike_btn)
 	await _wait(0.5)
 	var strike_mode := ui.bonus_mode == "strike"
-	var mt := _tool_target("strike")
+	var mt := await _visible_target("strike")
 	if int(mt["fid"]) >= 0:
 		await _touch(mt["pos"])
 		await _wait(0.5)
@@ -858,9 +880,9 @@ func _bonus_round_tour(dir: String) -> void:
 	await _shot(dir, "00z_weiterbauen_bedienbar")
 	_check(building and swiped >= 38 and twisted >= 38 and rain_mode and rained and strike_mode and struck and hint_done and menu_open
 		and menu_closed and undone and free_now and accepted and tool_ok and frames_ok and Game.state.day_free_build and not Game.over,
-		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s meteor=%s/%s werkzeuge=%s tipp=%s menue=%s/%s " +
+		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s/%s meteor=%s/%s werkzeuge=%s tipp=%s menue=%s/%s " +
 		"zurueck=%s frei=%s wisch_danach=%s werkzeug=%s bilder=%d rechnen_max=%.0fms langsam=%d bild_max=%.0fms zeit=%.0fs") % [str(building),
-		swiped, twisted, str(rain_mode), str(rained), str(strike_mode), str(struck), str(_bonus_seen), str(hint_done), str(menu_open),
+		swiped, twisted, str(rain_mode), str(rained), rain_info, str(strike_mode), str(struck), str(_bonus_seen), str(hint_done), str(menu_open),
 		str(menu_closed), str(undone), str(free_now), str(accepted), str(tool_ok), probe.frames, float(probe.max_usec) / 1000.0,
 		probe.slow, float(probe.max_wall) / 1000.0, secs])
 	probe.queue_free()
