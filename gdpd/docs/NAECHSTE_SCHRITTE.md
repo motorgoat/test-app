@@ -108,3 +108,17 @@
 ## Nicht spoilern (Regel von Philipp)
 - Nie verraten, was am nächsten Tag kommt: keine Titel/Symbole gesperrter Kapitel, kein „Morgen: Tag 3 · Tiere“,
   keine Vorschau in Benachrichtigungen. Gesperrte Kacheln zeigen nur ein Schloss/„?“; Text z. B. „Morgen wartet etwas Neues“.
+
+## Entscheidung: Mischung aus Bibel und Erdgeschichte (Philipp, 7. November 2026)
+- Rahmen „Die Schöpfung“: 7 Schöpfungstage als große Abschnitte (Akte), jeder mit mehreren Leveln
+  nach der Erdgeschichte; ein Level pro echtem Tag (insgesamt rund 30 Level ≈ ein Monat), danach
+  täglich „Welt des Tages“ und später neue Welten (Insel, Wüste, Winter), damit die Serie Sinn hat.
+  1 Licht: glühende Erde, Lava, Urozean, Fels
+  2 Himmel: Atmosphäre, erster Regen, Ursuppe, Einzeller
+  3 Land und Pflanzen: Algen, Sauerstoff (Himmel wird blau), Moos, Farne, Wälder
+  4 Sonne, Mond und Sterne: Tag/Nacht und Jahreszeiten (Wachstum, Ernte)
+  5 Leben in Wasser und Luft: Fische, Vögel, Landgang
+  6 Tiere und Menschen: Pflanzenfresser, Raubtiere, Nahrungskette, Meteor, Menschen, Ackerbau, Dörfer,
+    Glaube und Krieg, Städte und Industrie (längster Abschnitt)
+  7 Ruhe: Gleichgewicht der vollendeten Welt
+- Kein Spoilern des nächsten Levels. Schritte zählen statt Limit; weniger Schritte = mehr Punkte.
