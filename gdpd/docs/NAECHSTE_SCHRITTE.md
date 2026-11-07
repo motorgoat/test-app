@@ -104,3 +104,7 @@
   Fortschritt oben wieder zurück. Derzeit zählt „make“ nur, wie oft etwas entstanden ist, und geht nie zurück.
 - Umsetzung im Erdgeschichte-Umbau: Fortschritt = entstanden − verloren (Verlust = Ziel-Feld fällt durch eine Gefahr
   auf eine niedrigere Art). Weiterentwickeln zur nächsten Stufe zählt nicht als Verlust. Kurzer Hinweis „−1 Tier“.
+
+## Nicht spoilern (Regel von Philipp)
+- Nie verraten, was am nächsten Tag kommt: keine Titel/Symbole gesperrter Kapitel, kein „Morgen: Tag 3 · Tiere“,
+  keine Vorschau in Benachrichtigungen. Gesperrte Kacheln zeigen nur ein Schloss/„?“; Text z. B. „Morgen wartet etwas Neues“.
