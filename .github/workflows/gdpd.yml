@@ -86,8 +86,9 @@ jobs:
           for c in creator_finish day_overview day1_goal_card character_coach day1_tutorial goal_chip day1_your_turn no_auto_twist_after_input \
                    day_success permission_ask continue_mode_no_limit day_locked_until_tomorrow next_day_debug_unlocks day_next \
                    streak_increments reminder_scheduled daily_world \
-                   day2_rain_reveal day_help resting_row_feedback resting_row_rain day_fail day4_wish day5_choice \
-                   day6_faith day6_war day7_green day7_smog world_complete free_play \
+                   day2_rain_reveal day_help resting_row_feedback resting_row_rain no_farming spent_feedback help_once \
+                   overnight_growth bolt_warn day_fail consume_hut extra_task thrive_preview war_preview meteor flood_warn \
+                   kinds_per_day task_chip world_complete free_play supply_preview look_life \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

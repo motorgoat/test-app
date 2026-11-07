@@ -328,6 +328,25 @@ eine dunkle Wolke und Funken am Einschlag.
 - Wunsch-Blasen, Abzeichen, Zahlen: bleiben (Lesbarkeit), aber mit weichem Schatten und ohne Hüpfen bei
   Dauerzustand.
 
+### 7.4 Tagesaufgabe immer sichtbar, danach Weiterbauen
+
+Wunsch von Philipp: Der Spieler hat **immer** die Tagesaufgabe vor Augen, damit er weiß, was er verbinden
+soll. Ist sie erledigt, kann er einfach weiterspielen („Weiterbauen“). Für die Grafik heißt das:
+
+- **Der Ziel-Chip oben (`day_ui.gd::_build_chip`) hat Vorrang vor jeder Wirkung.** Kein FX, kein Rauch, keine
+  Wolke, kein Bildblitz und kein Vignetten-Rand darf ihn verdecken oder abdunkeln. Die Post-Effekte (Tilt-Shift,
+  Vignette, Stimmungsfarbe) bleiben wie heute auf der Post-Ebene `World._postfx` (`CanvasLayer`, `layer = 0`)
+  unter der Oberfläche und wirken damit nur auf die 3D-Welt, nie auf die UI.
+- **Ziel-Art im Raum zeigen:** Die Felder, die zur Tagesaufgabe passen (z. B. „Bring 3 gleiche in eine Reihe“
+  mit der Ziel-Art), bekommen den weichen Lichtrand aus 7.3 nur dann, wenn der Spieler zögert (Hinweis wie heute),
+  sonst nicht. Die Welt bleibt ruhig, die Aufgabe steht im Chip.
+- **Aufgabe erledigt:** Der Chip wechselt in den Zustand „geschafft“ (goldener Haken, Stern), bleibt aber stehen.
+  Die Welt geht für das Weiterbauen in eine etwas wärmere Stimmung (`abend`-nahe, Glühen ein wenig höher),
+  ohne dass sich etwas an der Lesbarkeit der Arten ändert. Gewachsene Felder seit dem Sieg (`grow_box`) bekommen
+  den kurzen Wachs-Puls aus 6.3. So spürt man: Hier darf man jetzt einfach weiter „farmen“.
+- Prüfung: In den Tour-Bildern `00e_tag1_geschafft` und `00t_frei_mittel` ist der Chip voll lesbar und
+  nicht von FX überdeckt.
+
 ---
 
 ## 8. Teil A – Look-Dev (world.gd, Shader, neue Material-Skripte)
@@ -481,3 +500,75 @@ Zuständigkeiten: Teil A gehört zu `world.gd`, `camera_rig.gd`, `shaders/` und 
 zu `models.gd` und `field_view.gd`. Berührungspunkte: Teil A liefert Materialien und Shader-Schnittstellen
 (`COLOR.a` Wind, `COLOR.b` Gliedmaßen, `ground.*`-Uniforms), Teil B nutzt sie. `FieldView.set_kind()` bleibt
 die einzige Stelle, an der der Inhalt neu gebaut wird.
+
+---
+
+## 13. Stand Teil A (umgesetzt, 7. November 2026)
+
+Umgesetzt im Spiel (kein Prototyp mehr). `models.gd` ist unverändert. Die alten Spielzeug-Teile werden beim Bauen
+eines Felds über `Look.restyle()` auf gedeckte Materialien und Laub mit Wind umgerechnet. Das ist der Übergang, bis
+Teil B die Modelle neu baut.
+
+| Schritt | Stand | Wo |
+|---|---|---|
+| A1 Materialbibliothek | `scripts/look.gd` (`class_name Look`): Rauschtexturen gebacken in `textures/noise_*.res` (`tools/bake_look.gd`, Rückfall: zur Laufzeit), `ground_material()/apply_ground()`, `bedrock()`, `water()`, `foliage()`, `solid()`, `rim()`, `ring()`, `mote()`, `smoke()`, `dust()`, `natural()`, `restyle()` | `look.gd` |
+| A2 Boden und Fels | Boden je Art nach Tabelle `Look.GROUND` (Lesbarkeits-Regel 2.3), Furchen in Acker-Richtung, Trampelpfad, Blumentupfer, Pflaster, Erdschichten an den Seiten, Kontaktschatten. Würfelkörper Fels, Radius 0,05. Kachel-Radius 0,012 | `ground.gdshader`, `bedrock.gdshader`, `field_view.gd::_apply_tile_color`, `world.gd::rebuild` |
+| A3 Licht | Sonne/Füll-Licht/Umgebung neu, ACES, Glühen, Schatten 24 m. Energie etwas unter Abschnitt 4 (1,25 statt 1,45, Belichtung 1,0), sonst brennen helle Wände aus | `camera_rig.gd`, `world.gd::_setup_environment` |
+| A4 Himmel | Ebene an der Kamera mit Verlauf, Lichthof, Schleier- und Haufenwolken. Kugel-Wolken entfernt | `backdrop.gdshader`, `world.gd::_add_backdrop` |
+| A5 Post | Blur nach Bildbreite (0,0065 × Breite), Fokus folgt der Würfelmitte, Teilton, Kurve, Sättigung, Vignette, Bildblitz | `tilt_shift.gdshader`, `world.gd::_update_post` |
+| A6 Wasser | Shader mit `edge_mask` aus Nachbar-Wasser derselben Seite (kein Schaum dazwischen) | `water.gdshader`, `world.gd::_water_edges`, `FieldView.set_water_edges` |
+| A7 Wind | `foliage.gdshader`, Gewicht aus `VERTEX.y` (bei `use_vc` × `COLOR.a`), globaler Böen-Faktor `Look.set_wind()`, Nachwippen nach dem Wachsen | `look.gd`, `world.gd::_update_life` |
+| A8 Stimmungen | `World.MOODS` (tag, morgen, abend, weiter, regen, smog, krieg, vollendet), `set_mood(name, dauer)` blendet alle Werte. Auswahl ohne `game.gd`: Signale `day_started`, `day_won` (`world_complete` → vollendet, sonst weiter), `build_started`, `GameState.smog()`, Tag 1–2 morgen, 6–7 abend. Regen und Krieg kurz über `hold_mood()` | `world.gd` |
+| A9 Umgebungsleben | Wolkenschatten im Boden-Shader, Pollen (CPUParticles3D, 36), Vogelschwarm (MultiMesh, 6, alle 30 s), Rauch als Billboards mit Rausch-Alpha | `world.gd::_add_life`, `field_view.gd::_puff`, `set_polluted` |
+| A10 Kamera | Leerlauf-Drift (nach 4 s, wird beim Antippen in die Ruhelage übernommen, kein Sprung), weiches Schütteln (trauma²), Punch-in beim Verschmelzen. Drift aus bei Tour (`--shots`), Tutorial, Vorführung, Animation | `camera_rig.gd` (`poke()`, `punch()`) |
+| A11 Spiel-FX | Bodenpuls (`FieldView.pulse_light`), Lichtring (`ring.gdshader`), gestaffeltes Wachsen (`FieldView._grow_in`), Staub/Blätter beim Verschmelzen, Funken als leuchtende Punkte, Regen mit Rauschwolke, Strichen und nassem Boden (`set_wet`), Bildblitz bei Blitz und Gewitter, Rauch bei Krieg/Gewitter/Smog als Billboards | `world.gd`, `field_view.gd` |
+| A12 Hinweise | Auswahl, Hinweis, Ziel, Gefahr, Verschmelzen als weicher Rand: außen additiv (`rim.gdshader`), auf der Kachel gemischt (`rim_mix.gdshader`, sonst auf heller Wiese kaum sichtbar). Pulsieren im Shader statt in `_process` | `field_view.gd::build`, `set_target` |
+| A13 Qualität | automatisch nach den ersten 4 s (mittel: kein Pollen/Vögel; niedrig: kein Post-Blur, Schatten 2048). Die Tour bleibt auf hoch. **Offen:** Menüpunkt in `ui.gd` | `world.gd::_measure_quality`, `Look.quality` |
+
+Offen aus Teil A: Kamera-Fokus bei ★-Arten, Tour-Prüfungen `CHECK perf`/`CHECK mood` (brauchen `main.gd` und die
+Liste in `.github/workflows/gdpd.yml`), Menüpunkt Qualität. Ob das Environment-Glühen in `gl_compatibility` am Handy
+sichtbar wirkt, ist noch am Gerät zu prüfen; die Lichtpulse hängen deshalb nicht davon ab (Emission, additive Ränder).
+
+**Schnittstellen für Teil B:**
+
+- Laub/Gras/Ähren: `Look.foliage(farbe)` oder ein Mesh mit Vertexfarben und `Look.foliage(Color.WHITE, true)`.
+  Wind-Gewicht `COLOR.a` (0 = steif), Höhe im Mesh zählt zusätzlich (Stamm unten ruhig).
+- Gebäude, Tiere, Menschen, Steine: `Look.solid(farbe)` bzw. Vertexfarben; Farben aus der Palette (Abschnitt 2),
+  dann ist `restyle()` für sie ein Durchlauf ohne Wirkung und kann je Modell entfallen.
+- Rauch: `Look.smoke_puff(parent, durchmesser, farbe)`, Funken/Glut: `Look.mote(farbe)`.
+- Boden je Art: Werte in `Look.GROUND` (Wege `path`, Furchen `fur`, Tupfer `samt`). Neue Merkmale (z. B. `path_mask`
+  für echte Dorfwege) als Uniform in `ground.gdshader` ergänzen.
+- Wachsen: `FieldView._grow_in()` animiert die direkten Kinder von `_content`; Modelle sollten je Baum/Haus einen
+  eigenen `Node3D` haben (dann wächst das Ganze, nicht Stamm und Krone einzeln).
+- Leistung: heute ~1870 Draw-Calls bei voller Belegung (Würfel nah). Der Feld-Baker (9.4) bleibt der wichtigste Schritt.
+
+---
+
+## 14. Stand Teil B (umgesetzt, 7. November 2026)
+
+Alle Modelle sind neu gebaut. Die alten Spielzeug-Teile (Kugelbäume, Kugelblumen, Regenbogen, Heiligenschein,
+rot-weiße Schlote, Spielfiguren) sind entfernt; `Look.restyle()` wird für Felder nicht mehr gebraucht.
+
+| Schritt | Stand | Wo |
+|---|---|---|
+| Mesh-Bauer | `Models.MB`: Dreiecke mit Vertexfarben, Quader, Zylinder, Stäbe, verbeulte Ikosaeder (Laub glatt, Stein facettiert), gezackte Kegel (Fichte), Grashalme, Satteldach, Zeltdach, Fenster. Farben sRGB mit flacherer Kurve (Exponent 1,75), sonst saufen dunkle Töne im ACES-Licht ab. `COLOR.a` = Wind | `models.gd` |
+| Bibliothek | `Models.get_model(name, variante)` → `[[Mesh, matkind]]`, zwischengespeichert. matkind: `solid` (Vertexfarben, Detail-Rauschen), `leaf`/`grass` (Laub-Shader, Gras ohne Schatten), `warm`/`faith` (Fensterlicht), `glass` | `models.gd` |
+| B1 Bäume | Eiche, Buche, junger Baum, Birke (Rinde mit Flecken), Fichte, Kiefer, Blütenbaum, toter Baum, Busch (grün/dürr) | `_tree_*`, `_bush` |
+| B2 Boden | `Models.cover()`: Grasbüschel, Blüten (gedeckt), Kiesel je Feld als ein Mesh, Hindernisse ausgespart. Steine, Findling, Stumpf, Totholz | `cover`, `_rock`, `_stump`, `_log` |
+| B3 Acker | Reihen genau auf den Dämmen von `ground.gdshader` (gleiche Periode), Saat / grün / reif (Ähren mit Wind), Zaun, Vogelscheuche oder Karren, Bauer | `crops`, `_b_field` |
+| B4 Häuser | Blockhütte (Balken, Eckköpfe, Feldstein-Kamin), Wohnhaus (Putz, Fachwerk, Ziegeldach), Stadthaus 2–3 Geschosse (Laden, Gesims), Wohnblock 4–6 Geschosse, Glasturm | `_cabin`, `_house`, `_townhouse`, `_block`, `_glass_tower` |
+| B5 Sonderbauten | Kirche (Stein, Schieferdach, Apsis, Turm mit Helm, warme und violette Fenster), Industrie (Ziegelhalle mit Sheddach und Glas, Ziegelschlote mit Ruß, Silos, Gleis, Wagen), Metropole, Paradies (Blütenbaum, Teich mit Wasser-Shader, Lichtstrahlen statt Regenbogen) | `_church`, `_factory`, `_b_paradise` |
+| B6 Kleinkram | Brunnen, Marktstand, Holzstapel, Zaun, Vogelscheuche, Karren, Tränke | `models.gd` |
+| B7/B8 Figuren | Schaf, Kuh (4 Fellarten), Hirsch (mit/ohne Geweih), Hase, Ente; Menschen in 6 Varianten (Kleid/Hose, Hut, Gläubige mit violettem Tuch). Teile im UV, Drehpunkt im UV2 | `creature_mesh`, `shaders/creature.gdshader` |
+| Neue Arten/Zustände | **Stein** (16: Felsen, Abbaukante, Blöcke, Schutt, Steinhauer; Boden „Schotter“ `Look.GROUND[16]`, Symbol `stone`), **Feuer** (Flammen-Shader als Billboard längs der Feld-Normalen, verkohltes Laub, Rauchsäulen, Glut im Boden), **welk** (dürre Büsche, tote Bäume, Stümpfe), **Krater** (Meteor), **Kriegsfront**, **Blitz-Warnung** (Gewitterwolke mit Blitz-Symbol), **Flut-Gefahr** (Pfützen, nasser Boden), **Bedürfnisse** (Symbole über Menschen-Feldern, satt = Goldrand, „wächst bald“ = Pfeil, Hunger = grau, pulsiert vor dem Schrumpfen, Menschen grau und langsam) | `field_view.gd` |
+| 9.2 Leben | `_agents`: Tiere `idle → graze → walk`, Menschen `walk` zu Zielen (Türen, Brunnen, Reihen) `→ work` (bücken). Bei Feuer, Front oder Smog auf dem Feld oder nebenan (`set_alarm`, World) laufen alle zum Rand und verschwinden, später kommen sie zurück. Bei Regen hüpfen sie (`set_wet`). Gehen/Grasen/Bücken/Hüpfen im Vertex-Shader, je Figur ein Material | `field_view.gd::_update_agents` |
+| 9.3 LOD | `FieldView.set_detail(dot)` aus `World._process`: Rückseite (dot < −0,22) Inhalt aus, flach (< 0,3) Agenten ruhen | `field_view.gd`, `world.gd` |
+| 9.4 Baker | Jedes Teil ist ein eigener `Node3D` (wächst einzeln), danach `_bake()`: alle Teile → ein Mesh je Material (Cache je Art/Variante/Drehung/welk/Krater; höchstens 2 neue Back-Vorgänge je Bild). Anordnung je Feld: 4 Varianten × 4 Drehungen (Pfad-Arten ungedreht) | `field_view.gd` |
+| World-Haken | `refresh_all`: `apply_state8(field_state8 + flood_risk)`, `set_alarm`; Ereignisse `thrive` (Goldring), `satt_new` (Lichtpuls), `starve` (Staub), `war_hit` (Krieg), `flood` (Wasser steigt); Meteor fällt als glühender Fels und hinterlässt einen Krater | `world.gd` |
+
+Gemessen (Übersicht, ganzer Würfel belegt, 900×1300): **≈ 340 Draw-Calls, ≈ 160 k Primitive** (vorher ≈ 1870 Draw-Calls).
+Prüfung: `test_models` baut jede Art (0–16) und jeden Zustand, prüft alle Modelle (nicht leer, Vertexfarben), alle
+Figuren (Beine, Kopf), dass jedes Feld gebacken ist, dass es Tiere und Menschen gibt und dass sie bei Alarm fliehen.
+
+Offen aus Teil B: Kamera-Fokus bei ★-Arten und Tour-Prüfungen `CHECK perf`/`CHECK lod` (brauchen `main.gd`),
+Verbindungslinien Quelle → Menschen (6.2 in GDPD_BALANCE_2.md), Wasser-Ufer mit Schilf, Messung am Handy.

@@ -71,6 +71,10 @@ var _pinch_dist := 0.0
 var _two_center := Vector2.ZERO   # zwei Finger: Mittelpunkt (schwenken) …
 var _two_angle := 0.0             # … und Winkel (drehen)
 var _postfx: CanvasLayer
+var _post_mat: ShaderMaterial    # Tilt-Shift, Farbstimmung, Vignette, Bildblitz
+var _env: Environment
+var _backdrop_mat: ShaderMaterial
+var _tour := false               # Screenshot-Tour: feste Qualität, keine Kamera-Drift, ruhige Umgebung
 var _idle := 0.0
 var _hinted := false
 var _hint_views: Array = []
@@ -86,28 +90,42 @@ func _ready() -> void:
 	Game.state_changed.connect(_on_state_changed)
 	Game.round_resolved.connect(_on_round_resolved)
 	Game.tutorial_bloom.connect(bloom)
-	_add_clouds()
+	Game.day_started.connect(_on_day_mood.unbind(1))
+	Game.build_started.connect(_on_day_mood.unbind(1))
+	Game.day_won.connect(_on_day_won_mood)
+	Game.new_game_started.connect(_on_day_mood)
+	Game.new_game_started.connect(_night_clear)
+	Game.overnight_growth.connect(_on_overnight)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shots="):
+			_tour = true
+	_add_backdrop()
+	_add_life()
 	rebuild()
+	set_mood(_day_mood(), 0.0)
 
 
+## Umgebung (GDPD_GRAFIK.md 4/5): Hintergrund als Farbe plus Himmels-Ebene an der Kamera (ein Sky-Shader mit
+## TIME würde jedes Bild die Radiance neu rechnen), Umgebungslicht als Farbe, ACES, Glühen nur für Emissives.
 func _setup_environment() -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#9fd3f5")
-	sky_mat.sky_horizon_color = Color("#fdeedd")
-	sky_mat.ground_horizon_color = Color("#fdeedd")
-	sky_mat.ground_bottom_color = Color("#f6dcc0")
-	sky_mat.sun_angle_max = 0.0
-	sky_mat.sky_curve = 0.12
-	var sky := Sky.new()
-	sky.sky_material = sky_mat
 	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color("#d9dcd8")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#b9c6dc")
-	env.ambient_light_energy = 0.32
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 0.82
+	env.ambient_light_color = Color("#9fb3cc")
+	env.ambient_light_energy = 0.8
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.12
+	env.tonemap_white = 6.0
+	env.glow_enabled = true
+	env.glow_intensity = 0.6
+	env.glow_bloom = 0.05
+	env.glow_hdr_threshold = 1.0
+	env.fog_enabled = false
+	env.fog_light_color = Color("#b9bcbf")
+	env.fog_density = 0.0
+	env.fog_sky_affect = 0.0
+	_env = env
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -122,6 +140,7 @@ func _setup_environment() -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = load("res://shaders/tilt_shift.gdshader")
 	rect.material = sm
+	_post_mat = sm
 	layer.add_child(rect)
 
 
@@ -145,8 +164,8 @@ func rebuild() -> void:
 	_mode = ""
 	var gs := Game.state
 	var by_pos := {}
-	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.12, 4)
-	var body_mat := Models.mat(Color("#3a3d4a"), 0.35)
+	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.05, 2)
+	var body_mat := Look.bedrock()
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
 			for z in [-1, 0, 1]:
@@ -202,18 +221,126 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 	if gs == null:
 		gs = Game.state
 	var smog_ids := smog_fields(gs)
+	# Gefahr (Feuer, Kriegsfront): Tiere und Menschen auf dem Feld und daneben laufen weg (FieldView.set_alarm)
+	var danger := {}
+	for f in gs.fields:
+		if f.burning or gs.front.has(f.id):
+			danger[f.id] = true
 	for f in gs.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null or skip.has(f.id):
 			continue
-		v.refresh(f)
+		if _night.has(f.id) and gs == Game.state:
+			var old_f: FieldData = f.copy()
+			old_f.kind = int(_night[f.id])      # „Über Nacht gewachsen“: bis zur Welle noch die Art von gestern
+			v.refresh(old_f)
+		else:
+			v.refresh(f)
 		v.set_polluted(smog_ids.has(f.id))
+		var alarm: bool = smog_ids.has(f.id) and f.kind != FieldData.INDUSTRY
+		for g in gs.neighbors(f):
+			if danger.has((g as FieldData).id):
+				alarm = true
+		v.set_alarm(alarm)
+		if gs.v8:
+			var st := gs.field_state8(f)
+			st["flood_risk"] = gs.flood_warn.has(gs.face_index(f)) and bool(st.get("wet", false)) \
+				and [FieldData.EMPTY, FieldData.MEADOW, FieldData.FIELD, FieldData.HUT].has(f.kind)
+			v.apply_state8(st)
+		else:
+			v.apply_state8({})
 		v.set_selected(f.id == selected)
 		var w := gs.wish_at(f.id)
 		if w.is_empty():
 			v.set_wish("")
 		else:
 			v.set_wish(str(GameState.WISH_ICON.get(str(w["type"]), "wish")), int(w["left"]))
+	_water_edges()
+	_update_mood()
+
+
+# =============================================================================
+# „Über Nacht gewachsen“ (GDPD_BALANCE_2.md 5.6): Unter der Ziel-Karte steht noch die Welt von gestern; nach „Los!“
+# wachsen die unteren Felder in einer Welle (von oben nach unten auf dem Bildschirm) in ihre neue Art.
+# =============================================================================
+
+var _slice_last := Vector2i(-9, -9)   # Scheibe des letzten Zugs (Achse, Ebene)
+var _slice_same := false
+var _slice_noted := false
+var _night := {}                # Feld → Art von gestern (bis die Welle es wachsen lässt)
+var night_waved := 0            # so viele Felder ist die letzte Welle gewachsen (Tour-Prüfung)
+var _night_gen := 0
+
+
+func _night_clear() -> void:
+	_night_gen += 1
+	_night = {}
+
+
+func _on_overnight(info: Dictionary) -> void:
+	_night_gen += 1
+	_night = {}
+	night_waved = 0
+	for c in info.get("changes", []):
+		var cd: Dictionary = c
+		_night[int(cd["field"])] = int(cd["from"])
+	refresh_all()
+
+
+func night_pending() -> bool:
+	return not _night.is_empty()
+
+
+## Die Welle abspielen (DayUI nach „Los!“). Blockiert nichts: Eingaben gehen sofort, ein Zug beendet die Welle.
+func overnight_wave() -> void:
+	if _night.is_empty():
+		return
+	_night_gen += 1
+	var gen := _night_gen
+	var order: Array = []
+	for fid in _night:
+		var sc := field_screen(int(fid))
+		var vis := bool(sc["visible"])
+		var p: Vector2 = sc["pos"]
+		order.append([0 if vis else 1, p.y + p.x * 0.25, int(fid)])
+	order.sort()
+	var i := 0
+	for o in order:
+		var oa: Array = o
+		var fid := int(oa[2])
+		if int(oa[0]) == 1:
+			_night_grow(fid, gen, false)        # hinten: ohne Effekt, gleich die neue Art
+			continue
+		get_tree().create_timer(0.25 + 0.075 * float(i)).timeout.connect(_night_grow.bind(fid, gen, true))
+		i += 1
+	if i > 0:
+		_wind_kick = 2.5
+
+
+func _night_grow(fid: int, gen: int, fx: bool) -> void:
+	if gen != _night_gen or not _night.has(fid) or Game.state == null:
+		return
+	_night.erase(fid)
+	night_waved += 1
+	var v: FieldView = views.get(fid)
+	if v == null:
+		return
+	v.refresh(Game.state.fields[fid])
+	if fx:
+		v.pulse_light(Color("#e6f7b0"), 0.7)
+		_sparks(v.global_position + v.world_normal() * 0.12, v.global_position + v.world_normal() * 0.7, Color("#f4f0a8"), 3)
+
+
+## Steht noch etwas von gestern da, wenn gespielt wird: sofort die neue Art (ohne Welle).
+func _night_flush() -> void:
+	if _night.is_empty():
+		return
+	_night_gen += 1
+	for fid in _night.keys():
+		_night.erase(fid)
+		var v: FieldView = views.get(int(fid))
+		if v != null and Game.state != null:
+			v.refresh(Game.state.fields[int(fid)])
 
 
 ## Smog: Industrie und ihre Nachbarn liegen im grauen Dunst (solange die Waage im Smog steht).
@@ -341,24 +468,299 @@ func set_pick(ids: Array) -> void:
 
 
 
-## Ein paar Wolken im Hintergrund: hängen an der Kamera, immer hinter dem Würfel, ohne Schatten.
-var _clouds: Node3D
-var _cloud_base: Array = []
+# =============================================================================
+# Himmel, Umgebungsleben und Stimmungen (GDPD_GRAFIK.md 4–6)
+# =============================================================================
+
+## Himmel als Ebene an der Kamera: Verlauf, Dunst, ziehende Wolken (ersetzt die Kugel-Wolken).
+func _add_backdrop() -> void:
+	var q := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(90, 46)
+	q.mesh = qm
+	_backdrop_mat = ShaderMaterial.new()
+	_backdrop_mat.shader = load("res://shaders/backdrop.gdshader")
+	_backdrop_mat.set_shader_parameter("n_fbm", Look.fbm())
+	q.material_override = _backdrop_mat
+	q.position = Vector3(0, 0, -70)
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rig.cam.add_child(q)
+	rig.cam.far = 120.0
 
 
-func _add_clouds() -> void:
-	_clouds = Node3D.new()
-	rig.add_child(_clouds)
-	var cm := Models.unshaded(Color(1, 1, 1, 0.85))
-	var spots := [Vector3(-2.9, 2.2, -5.0), Vector3(2.7, 1.2, -6.0), Vector3(-2.2, -2.4, -5.5)]
-	for sp in spots:
-		var c := Node3D.new()
-		c.position = sp
-		_clouds.add_child(c)
-		_cloud_base.append(sp)
-		for k in 3:
-			var m := Models.sphere(c, [0.42, 0.55, 0.38][k], Color.WHITE, Vector3([-0.45, 0.0, 0.45][k], [0.0, 0.12, -0.02][k], 0.0), cm)
-			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+var _pollen: CPUParticles3D
+var _birds: MultiMeshInstance3D
+var _bird_t := 0.0
+var _bird_phase: Array = []
+var _life_on := true             # Pollen und Vögel (Stimmung und Qualität schalten sie)
+var _wind_kick := 0.0            # Nachwippen nach dem Wachsen (klingt ab)
+
+
+## Pollen im Licht und ein kleiner Vogelschwarm, der ab und zu durchs Bild zieht. Je ein Draw-Call.
+func _add_life() -> void:
+	_pollen = CPUParticles3D.new()
+	_pollen.amount = 36
+	_pollen.lifetime = 9.0
+	_pollen.preprocess = 9.0
+	_pollen.mesh = Look.quad(1.0)
+	_pollen.material_override = Look.mote(Color(1.0, 0.93, 0.74, 0.55), true)
+	_pollen.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE_SURFACE
+	_pollen.emission_sphere_radius = 2.15
+	_pollen.direction = Vector3(0, 1, 0)
+	_pollen.spread = 180.0
+	_pollen.gravity = Vector3(0.01, 0.012, 0)
+	_pollen.initial_velocity_min = 0.02
+	_pollen.initial_velocity_max = 0.06
+	_pollen.scale_amount_min = 0.012
+	_pollen.scale_amount_max = 0.024
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	fade.add_point(0.25, Color(1, 1, 1, 1))
+	fade.add_point(0.75, Color(1, 1, 1, 1))
+	_pollen.color_ramp = fade
+	_pollen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_pollen)
+	# Vögel: ein V je Vogel, Flügelschlag über die Instanz-Skalierung
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for sgn in [-1.0, 1.0]:
+		var sx: float = sgn
+		st.add_vertex(Vector3(0, 0, 0.05))
+		st.add_vertex(Vector3(sx * 0.5, 0.22, -0.08))
+		st.add_vertex(Vector3(0, 0, -0.08))
+	st.generate_normals()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = st.commit()
+	mm.instance_count = 6
+	_birds = MultiMeshInstance3D.new()
+	_birds.multimesh = mm
+	var bm := StandardMaterial3D.new()
+	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bm.albedo_color = Color(0.22, 0.22, 0.25, 0.85)
+	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_birds.material_override = bm
+	_birds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_birds.visible = false
+	rig.cam.add_child(_birds)
+	for i in 6:
+		_bird_phase.append(Vector3(randf_range(-0.9, 0.9) + float(i % 3) * 0.5, randf_range(-0.5, 0.5) - float(i) * 0.12, randf() * TAU))
+	_bird_t = 6.0
+
+
+func _update_life(delta: float) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	# Böen: alle paar Sekunden ein weicher Windstoß, nach dem Wachsen kurzes Nachwippen
+	_wind_kick = maxf(0.0, _wind_kick - delta * 1.6)
+	var g := maxf(0.0, sin(t * 0.61) * sin(t * 0.23 + 1.0))
+	Look.set_wind(1.0 + 0.8 * g * g + _wind_kick)
+	if _pollen != null:
+		_pollen.emitting = _life_on
+		_pollen.visible = _life_on
+	# Vögel: alle 30 s ziehen sie in 9 s quer durchs Bild (hinter dem Würfel)
+	if _birds == null:
+		return
+	_bird_t += delta
+	var cycle := fmod(_bird_t, 30.0)
+	var flying := _life_on and not _tour and cycle < 9.0
+	_birds.visible = flying
+	if not flying:
+		return
+	var k := cycle / 9.0
+	var base := Vector3(lerpf(-3.8, 3.8, k), 2.3 + sin(k * PI) * 0.7, -14.0)
+	for i in 6:
+		var ph: Vector3 = _bird_phase[i]
+		var flap := cos(t * 9.0 + ph.z)
+		var b := Basis.from_scale(Vector3(0.16, 0.16 * (0.3 + 0.7 * flap), 0.16))
+		_birds.multimesh.set_instance_transform(i, Transform3D(b, base + Vector3(ph.x * 0.5 - float(i) * 0.18, ph.y * 0.5 + sin(t * 1.3 + ph.z) * 0.05, 0.0)))
+
+
+## Stimmungen: Sonne, Füll-Licht, Umgebung, Himmel, Nebel und Farbstimmung. set_mood blendet weich hinüber.
+const MOODS := {
+	"tag": {"sun": Vector3(-36, -48, 0), "sun_c": Color("#ffe2b8"), "sun_e": 1.25, "fill_c": Color("#a9c2e8"), "fill_e": 0.55,
+		"amb_c": Color("#9fb3cc"), "amb_e": 0.83, "exp": 1.00, "glow": 0.6,
+		"top": Color("#7891ad"), "mid": Color("#c7d5e0"), "low": Color("#ede1cc"), "cloud": Color("#fffaf2"), "clouds": 1.0, "sunglow": 0.35,
+		"fog": 0.0, "fog_c": Color("#c9ced2"), "warm": Vector3(1.04, 1.0, 0.93), "cool": Vector3(0.93, 0.98, 1.06), "sat": 1.06, "con": 1.06,
+		"vig": 0.3, "life": 1.0},
+	"morgen": {"sun": Vector3(-26, -58, 0), "sun_c": Color("#ffd6a3"), "sun_e": 1.20, "fill_c": Color("#9db8e6"), "fill_e": 0.60,
+		"amb_c": Color("#a4b4cf"), "amb_e": 0.83, "exp": 1.00, "glow": 0.65,
+		"top": Color("#8aa3c0"), "mid": Color("#dcdcd6"), "low": Color("#f3d9b8"), "cloud": Color("#fff1e0"), "clouds": 0.9, "sunglow": 0.6,
+		"fog": 0.0, "fog_c": Color("#d8d4cc"), "warm": Vector3(1.06, 1.0, 0.9), "cool": Vector3(0.92, 0.97, 1.08), "sat": 1.03, "con": 1.03,
+		"vig": 0.3, "life": 1.0},
+	"abend": {"sun": Vector3(-22, -40, 0), "sun_c": Color("#ffc18a"), "sun_e": 1.25, "fill_c": Color("#93a3d8"), "fill_e": 0.55,
+		"amb_c": Color("#a8a2bd"), "amb_e": 0.81, "exp": 0.98, "glow": 0.8,
+		"top": Color("#6f7fa6"), "mid": Color("#d8c4bc"), "low": Color("#f2c49a"), "cloud": Color("#ffe3c8"), "clouds": 1.0, "sunglow": 0.7,
+		"fog": 0.0, "fog_c": Color("#d6c2b4"), "warm": Vector3(1.08, 0.99, 0.88), "cool": Vector3(0.92, 0.95, 1.08), "sat": 1.04, "con": 1.04,
+		"vig": 0.32, "life": 1.0},
+	"weiter": {"sun": Vector3(-30, -50, 0), "sun_c": Color("#ffd29c"), "sun_e": 1.29, "fill_c": Color("#a0b6e2"), "fill_e": 0.57,
+		"amb_c": Color("#a8b0c8"), "amb_e": 0.83, "exp": 1.00, "glow": 0.75,
+		"top": Color("#7a8fb0"), "mid": Color("#dcd3c8"), "low": Color("#f4d6b0"), "cloud": Color("#fff2e2"), "clouds": 1.0, "sunglow": 0.55,
+		"fog": 0.0, "fog_c": Color("#d8d0c4"), "warm": Vector3(1.06, 1.0, 0.9), "cool": Vector3(0.93, 0.97, 1.07), "sat": 1.05, "con": 1.03,
+		"vig": 0.3, "life": 1.0},
+	"regen": {"sun": Vector3(-52, -30, 0), "sun_c": Color("#dfe4ea"), "sun_e": 0.65, "fill_c": Color("#a3b4cc"), "fill_e": 0.72,
+		"amb_c": Color("#93a0b2"), "amb_e": 1.04, "exp": 0.92, "glow": 0.5,
+		"top": Color("#6d7a88"), "mid": Color("#aab3bb"), "low": Color("#c6c9c8"), "cloud": Color("#e3e6e8"), "clouds": 1.6, "sunglow": 0.0,
+		"fog": 0.012, "fog_c": Color("#a7afb6"), "warm": Vector3(1.0, 1.0, 0.98), "cool": Vector3(0.94, 0.98, 1.05), "sat": 0.92, "con": 1.02,
+		"vig": 0.34, "life": 0.0},
+	"smog": {"sun": Vector3(-40, -44, 0), "sun_c": Color("#ead9ad"), "sun_e": 0.90, "fill_c": Color("#aaa99c"), "fill_e": 0.49,
+		"amb_c": Color("#a5a191"), "amb_e": 0.85, "exp": 0.94, "glow": 0.5,
+		"top": Color("#8b8a7c"), "mid": Color("#bdb8a3"), "low": Color("#cfc4a4"), "cloud": Color("#d9d3bf"), "clouds": 1.3, "sunglow": 0.2,
+		"fog": 0.008, "fog_c": Color("#b5ad93"), "warm": Vector3(1.05, 1.0, 0.88), "cool": Vector3(0.97, 0.98, 1.0), "sat": 0.82, "con": 1.02,
+		"vig": 0.36, "life": 0.0},
+	"krieg": {"sun": Vector3(-24, -30, 0), "sun_c": Color("#ffb282"), "sun_e": 1.16, "fill_c": Color("#9c8aa8"), "fill_e": 0.49,
+		"amb_c": Color("#a6928c"), "amb_e": 0.79, "exp": 0.96, "glow": 0.8,
+		"top": Color("#7a6f75"), "mid": Color("#c7aa9c"), "low": Color("#e0b58e"), "cloud": Color("#e9d2c2"), "clouds": 1.2, "sunglow": 0.5,
+		"fog": 0.008, "fog_c": Color("#b59a8a"), "warm": Vector3(1.08, 0.97, 0.88), "cool": Vector3(0.95, 0.95, 1.04), "sat": 0.94, "con": 1.04,
+		"vig": 0.42, "life": 0.0},
+	"vollendet": {"sun": Vector3(-26, -52, 0), "sun_c": Color("#ffd08a"), "sun_e": 1.38, "fill_c": Color("#9fb5e6"), "fill_e": 0.60,
+		"amb_c": Color("#b0aec4"), "amb_e": 0.87, "exp": 1.02, "glow": 1.0,
+		"top": Color("#7f95b8"), "mid": Color("#e6d8c6"), "low": Color("#f6d3a2"), "cloud": Color("#fff0dc"), "clouds": 1.0, "sunglow": 0.8,
+		"fog": 0.0, "fog_c": Color("#e0d2c0"), "warm": Vector3(1.08, 1.0, 0.88), "cool": Vector3(0.93, 0.96, 1.07), "sat": 1.08, "con": 1.04,
+		"vig": 0.3, "life": 1.0},
+}
+
+var mood := ""                   # aktuelle Stimmung (Name)
+var _mood_now: Dictionary = {}   # gerade angewandte Werte (Ausgang der nächsten Überblendung)
+var _mood_from: Dictionary = {}
+var _mood_to: Dictionary = {}
+var _mood_tw: Tween
+var _mood_hold := ""             # kurze Ereignis-Stimmung (Regen, Krieg) hat Vorrang
+var _won_mood := ""              # nach dem Sieg: „weiter“ (Weiterbauen) oder „vollendet“ (Woche geschafft)
+
+
+func set_mood(name: String, dur: float = 2.0) -> void:
+	if not MOODS.has(name):
+		return
+	if name == mood and dur > 0.0:
+		return
+	mood = name
+	_mood_to = MOODS[name]
+	if _mood_tw != null and _mood_tw.is_valid():
+		_mood_tw.kill()
+	if dur <= 0.0 or _mood_now.is_empty():
+		_apply_mood(_mood_to)
+		return
+	_mood_from = _mood_now.duplicate()
+	_mood_tw = create_tween()
+	_mood_tw.tween_method(_mood_step, 0.0, 1.0, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _mood_step(k: float) -> void:
+	var m := {}
+	for key in _mood_to:
+		var a: Variant = _mood_from.get(key, _mood_to[key])
+		var b: Variant = _mood_to[key]
+		if b is Color:
+			m[key] = (a as Color).lerp(b as Color, k)
+		elif b is Vector3:
+			m[key] = (a as Vector3).lerp(b as Vector3, k)
+		else:
+			m[key] = lerpf(float(a), float(b), k)
+	_apply_mood(m)
+
+
+func _apply_mood(m: Dictionary) -> void:
+	_mood_now = m.duplicate()
+	if rig != null and rig.key != null:
+		rig.key.rotation_degrees = m["sun"]
+		rig.key.light_color = m["sun_c"]
+		rig.key.light_energy = float(m["sun_e"])
+		rig.fill.light_color = m["fill_c"]
+		rig.fill.light_energy = float(m["fill_e"])
+	_env.ambient_light_color = m["amb_c"]
+	_env.ambient_light_energy = float(m["amb_e"])
+	_env.tonemap_exposure = float(m["exp"])
+	_env.glow_intensity = float(m["glow"])
+	_env.background_color = m["mid"]
+	var fog := float(m["fog"])
+	_env.fog_enabled = fog > 0.001
+	_env.fog_density = fog
+	_env.fog_light_color = m["fog_c"]
+	if _backdrop_mat != null:
+		_backdrop_mat.set_shader_parameter("top_c", m["top"])
+		_backdrop_mat.set_shader_parameter("mid_c", m["mid"])
+		_backdrop_mat.set_shader_parameter("low_c", m["low"])
+		_backdrop_mat.set_shader_parameter("cloud_c", m["cloud"])
+		_backdrop_mat.set_shader_parameter("clouds", float(m["clouds"]))
+		_backdrop_mat.set_shader_parameter("sun_glow", float(m["sunglow"]))
+	if _post_mat != null:
+		_post_mat.set_shader_parameter("warm", m["warm"])
+		_post_mat.set_shader_parameter("cool", m["cool"])
+		_post_mat.set_shader_parameter("saturation", float(m["sat"]))
+		_post_mat.set_shader_parameter("contrast", float(m["con"]))
+		_post_mat.set_shader_parameter("vignette", float(m["vig"]))
+	Look.set_sky((m["mid"] as Color).lerp(m["top"] as Color, 0.35))
+	_life_on = float(m["life"]) > 0.5 and Look.quality >= 1
+
+
+## Welche Stimmung gilt gerade? Ereignis > Smog > Sieg > Weiterbauen > Tag der Woche.
+func _day_mood() -> String:
+	if _mood_hold != "":
+		return _mood_hold
+	var gs := Game.state
+	if gs != null and gs.smog():
+		return "smog"
+	if _won_mood != "":
+		return _won_mood
+	if gs != null and gs.day_free_build:
+		return "weiter"
+	if Game.in_day():
+		var d := Game.day_no
+		if d <= 2:
+			return "morgen"
+		if d >= 6:
+			return "abend"
+	return "tag"
+
+
+func _update_mood(dur: float = 2.0) -> void:
+	set_mood(_day_mood(), dur)
+
+
+func _on_day_mood() -> void:
+	_won_mood = ""
+	_update_mood()
+
+
+func _on_day_won_mood(info: Dictionary) -> void:
+	_won_mood = "vollendet" if bool(info.get("world_complete", false)) else "weiter"
+	_update_mood(2.5)
+
+
+## Kurze Ereignis-Stimmung (Regen, Krieg); hold("") kehrt zur normalen Stimmung zurück.
+func hold_mood(name: String, dur: float = 0.8) -> void:
+	_mood_hold = name
+	_update_mood(dur)
+
+
+## Wasser: Schaum nur dort, wo kein Nachbarwasser auf derselben Seite liegt (Seen statt Pfützen).
+func _water_edges() -> void:
+	var water: Array = []
+	for fid in views:
+		var v: FieldView = views[fid]
+		if v.get_kind() == FieldView.K_WATER:
+			water.append(v)
+	for vv in water:
+		var v: FieldView = vv
+		var mask := Vector4.ONE
+		for ww in water:
+			if ww == vv:
+				continue
+			var lp: Vector3 = v.to_local((ww as FieldView).global_position)
+			if absf(lp.y) > 0.2 or Vector2(lp.x, lp.z).length() > 1.2:
+				continue
+			if absf(lp.x) > absf(lp.z):
+				if lp.x > 0.0:
+					mask.y = 0.0
+				else:
+					mask.w = 0.0
+			elif lp.z > 0.0:
+				mask.z = 0.0
+			else:
+				mask.x = 0.0
+		v.set_water_edges(mask)
 
 
 ## Regensymbole auf den Feldern, wo Gießen etwas bringt (nur solange man den Regen gewählt hat).
@@ -476,13 +878,16 @@ func select(fid: int) -> void:
 		views[fid].set_selected(true)
 
 
+var _perf_t := 0.0
+var _perf_frames := 0
+var _perf_done := false
+
+
 func _process(delta: float) -> void:
-	if _clouds != null:
-		var t := Time.get_ticks_msec() / 1000.0
-		for i in _clouds.get_child_count():
-			var c: Node3D = _clouds.get_child(i)
-			var b: Vector3 = _cloud_base[i]
-			c.position = b + Vector3(sin(t * 0.07 + i * 2.0) * 0.6, 0.0, 0.0)
+	_update_life(delta)
+	_update_post()
+	_measure_quality(delta)
+	rig.drift_enabled = not _tour and not Game.tutorial() and not input_locked and not animating and _mode == "" and not Game.busy
 	if _mode == "" and not animating and not Game.busy and not Game.over:
 		_idle += delta
 		if (Game.tutorial() or _day_guided()) and _idle > 1.2 and not _hinted:
@@ -521,7 +926,9 @@ func _process(delta: float) -> void:
 	for fid in views:
 		var v: FieldView = views[fid]
 		var to_cam := (cam_pos - v.global_position).normalized()
-		v.set_labels_visible(v.world_normal().dot(to_cam) > 0.2)
+		var facing := v.world_normal().dot(to_cam)
+		v.set_labels_visible(facing > 0.2)
+		v.set_detail(facing)
 
 
 ## Bildschirmposition eines Felds. {"pos": Vector2, "visible": bool}
@@ -543,6 +950,42 @@ func focus_field(fid: int) -> void:
 
 func set_postfx(on: bool) -> void:
 	_postfx.visible = on
+
+
+## Tilt-Shift folgt dem Würfel, die Unschärfe hängt von der Bildgröße ab (GDPD_GRAFIK.md 7.1).
+func _update_post() -> void:
+	if _post_mat == null or not _postfx.visible:
+		return
+	var win := get_window().size
+	var vs := get_viewport().get_visible_rect().size
+	var fy := 0.47
+	if not rig.cam.is_position_behind(Vector3.ZERO) and vs.y > 0.0:
+		fy = clampf(rig.cam.unproject_position(Vector3.ZERO).y / vs.y, 0.3, 0.7)
+	_post_mat.set_shader_parameter("focus_y", fy)
+	_post_mat.set_shader_parameter("blur_px", 0.0 if Look.quality == 0 else 0.0065 * float(win.x))
+
+
+## Qualität: Die ersten Sekunden messen; ist das Handy zu langsam, gehen Pollen, Vögel, Post-Unschärfe und
+## Schattenauflösung herunter (GDPD_GRAFIK.md A13). Die Tour bleibt auf „hoch“ (gleiche Bilder in der CI).
+func _measure_quality(delta: float) -> void:
+	if _perf_done or _tour:
+		return
+	_perf_t += delta
+	if _perf_t < 1.0:
+		return
+	_perf_frames += 1
+	if _perf_t < 4.0:
+		return
+	_perf_done = true
+	var avg := (_perf_t - 1.0) / maxf(1.0, float(_perf_frames))
+	if avg > 1.0 / 26.0:
+		Look.quality = 0
+		RenderingServer.directional_shadow_atlas_set_size(2048, true)
+	elif avg > 1.0 / 40.0:
+		Look.quality = 1
+	if Look.quality < 2:
+		_life_on = _life_on and Look.quality >= 1
+		print("Grafik: Qualität %d (%.1f ms je Bild)" % [Look.quality, avg * 1000.0])
 
 
 func focus_place(n: Vector3i) -> void:
@@ -735,6 +1178,7 @@ func _mark_touched() -> void:
 
 
 func _press(pos: Vector2) -> void:
+	rig.poke()
 	_mark_touched()
 	# Tutorial: der erste Zug spielt sich selbst. Tippen startet ihn sofort.
 	if Game.tutorial() and Game.tutorial_step == 0:
@@ -845,6 +1289,7 @@ func _raycast(screen_pos: Vector2) -> Dictionary:
 # =============================================================================
 
 func _begin_twist(drag: Vector2) -> void:
+	_night_flush()
 	_still_clear()
 	var f: FieldData = Game.state.fields[_hit_field]
 	var cam := rig.cam
@@ -1072,10 +1517,31 @@ func _show_preview(q: int) -> void:
 	for i in pv.get("war", []):
 		war[int(i)] = true
 	var card_field := int(pv.get("card_field", -1)) if int(pv.get("card", -1)) >= 0 else -1
+	# Neue Tage (GDPD_BALANCE_2.md 4.6): wer wird satt (grün), wer verliert die Versorgung (rot); Feuer, Krieg, Flut
+	var sup: Dictionary = pv.get("supply", {})
+	var gain := {}
+	var loss := {}
+	for i in sup.get("satt_new", []):
+		gain[int(i)] = true
+	for i in sup.get("satt_lost", []):
+		loss[int(i)] = true
+	for i in sup.get("fire_risk", []):
+		danger[int(i)] = true
+	if bool(sup.get("war_risk", false)):
+		for i in arranged.church_touch8():
+			war[int(i)] = true
+	var flood_faces: Array = sup.get("flood_risk", [])
+	if not flood_faces.is_empty():
+		for g in arranged.fields:
+			var fd: FieldData = g
+			if flood_faces.has(arranged.face_index(fd)) and [FieldData.EMPTY, FieldData.MEADOW, FieldData.FIELD, FieldData.HUT].has(fd.kind) \
+					and bool(arranged.field_state8(fd).get("wet", false)):
+				danger[fd.id] = true
 	for f in Game.state.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null:
 			continue
+		v.set_supply(1 if gain.has(f.id) else (-1 if loss.has(f.id) else 0))
 		if mids.has(f.id):
 			v.set_preview(str(mids[f.id]), Color("#d99a00"))
 		elif danger.has(f.id):
@@ -1099,6 +1565,7 @@ func _clear_preview() -> void:
 		(views[fid] as FieldView).set_highlight(false)
 		(views[fid] as FieldView).set_danger(false)
 		(views[fid] as FieldView).set_badge("")
+		(views[fid] as FieldView).set_supply(0)
 	refresh_all()
 	preview_changed.emit({})
 
@@ -1140,12 +1607,16 @@ func _finish_twist() -> void:
 		(views[fid] as FieldView).set_highlight(false)
 		(views[fid] as FieldView).set_danger(false)
 		(views[fid] as FieldView).set_badge("")
+		(views[fid] as FieldView).set_supply(0)
 	preview_changed.emit({})
 	var gift := _tw_gift
 	_tw_gift = false
 	if turns != 0:
 		if gift and Game.state != null and not Game.busy:
 			Game.state.gift_twists += 1      # die Vorführung von Tag 1 kostet keine Drehung
+		_slice_same = _slice_last == Vector2i(_tw_axis, _tw_layer)
+		_slice_last = Vector2i(_tw_axis, _tw_layer)
+		_slice_noted = true
 		Game.play_turn(_tw_axis, _tw_layer, turns, _tw_row)
 	else:
 		animating = false
@@ -1327,6 +1798,12 @@ var round_no := 0               # jede ausgewertete Runde (auch Regen, der kein 
 func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	round_no += 1
 	animating = true
+	# Dieselbe Scheibe wie im Zug davor (hin und her)? Werkzeuge und Warten zählen als anderer Zug.
+	var same_slice := _slice_noted and _slice_same
+	if not _slice_noted:
+		_slice_last = Vector2i(-9, -9)
+	_slice_noted = false
+	_night_flush()
 	_still_clear()
 	_clear_hint()
 	clear_choice()
@@ -1460,7 +1937,7 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	if late_any:
 		await get_tree().create_timer(0.25).timeout
 	# Stille Reihen: drei gleiche, die nicht wachsen – leuchten kurz mit Abzeichen, die Oberfläche sagt warum
-	_still_fx(events, int(result.get("grew", 0)) > 0)
+	_still_fx(events, int(result.get("grew", 0)) > 0, same_slice)
 	# Glaube pro Drehung von fertigen Feldern
 	for e in events:
 		if str(e["type"]) == "income":
@@ -1468,7 +1945,57 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	# Fehlversuch zählen
 	for e in events:
 		if str(e["type"]) == "miss":
-			miss_shown.emit(int(e["field"]), int(e["count"]), str(e.get("why", "")))
+			var why := str(e.get("why", ""))
+			if same_slice and ["", "water", "other"].has(why):
+				why = "slice"       # hin und her: sagen, dass das nichts bringt (statt „Wasser wächst nie“)
+			miss_shown.emit(int(e["field"]), int(e["count"]), why)
+	# Neue Tage (GDPD_BALANCE_2.md 7): Gedeihen, Hunger, Krieg und Flut am Feld zeigen (die Art wechselt danach)
+	var fx8 := false
+	for e in events:
+		var t8 := str(e["type"])
+		if t8 == "war_start":
+			await _war_start_fx(e)
+		elif t8 == "war_end":
+			hold_mood("", 2.0)
+			for i in _war_churches:
+				var cv: FieldView = views.get(int(i))
+				if cv != null:
+					cv.pulse_light(Color("#fff3c4"), 0.8)
+					_sparks(cv.global_position + cv.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 6)
+			_war_churches = []
+	for e in events:
+		var fv8: FieldView = views.get(int(e.get("field", -1)))
+		if fv8 == null:
+			continue
+		match str(e["type"]):
+			"bolt":
+				await _bolt_fx([int(e["field"])])
+			"ignite":
+				fv8.pulse_light(Color("#ff8a3d"), 0.7)
+				_sparks(fv8.global_position + fv8.world_normal() * 0.15, fv8.global_position + fv8.world_normal() * 0.8, Color("#ff9a3d"), 6)
+				fx8 = true
+			"rain_out", "bolt_cancel":
+				fv8.set_wet(1.0, 4.0)
+				fv8.pulse_light(Color("#bfe3ff"), 0.6)
+				_sparks(fv8.global_position + fv8.world_normal() * 0.2, fv8.global_position + fv8.world_normal() * 0.9, Color("#e8eef2"), 4)
+			"satt_lost":
+				fv8.pulse_light(Color("#c9a6a0"), 0.6)
+			"thrive":
+				fv8.burst(Color("#ffd75e"))
+				fx8 = true
+			"satt_new":
+				fv8.pulse_light(Color("#ffe3a0"), 0.7)
+			"starve":
+				_dust(fv8)
+				fx8 = true
+			"war_hit":
+				fv8.war_fx(1.1)
+				fx8 = true
+			"flood":
+				fv8.flood(1.2)
+				fx8 = true
+	if fx8:
+		await get_tree().create_timer(0.5).timeout
 	# Katastrophe
 	for e in events:
 		if str(e["type"]) == "disaster":
@@ -1495,14 +2022,14 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 
 ## Abzeichen über den Feldern einer stillen Reihe (warum sie nicht wächst).
 const STILL_BADGE = {"rest": "lock", "diag": "close", "water": "water", "finished": "check", "standing": "check",
-	"spent": "check", "repeat": "undo", "other": "wait"}
+	"spent": "check", "repeat": "undo", "other": "wait", "people": "person", "done": "goal", "stone": "stone", "slice": "undo"}
 
 
 ## Stille Reihen zeigen (GameState._still_rows). Blockiert nicht: Die Felder leuchten kurz mit Abzeichen, dann ist
 ## es von selbst weg (oder mit dem nächsten Zug). Wasser nur, wenn sonst nichts gewachsen ist und keine andere Reihe
 ## etwas sagt, und dann nur eine Reihe (sonst stünde es nach fast jeder Drehung überall). Die Oberfläche bekommt jede
 ## gezeigte Reihe als still_shown.
-func _still_fx(events: Array, grew: bool) -> void:
+func _still_fx(events: Array, grew: bool, same_slice: bool = false) -> void:
 	var miss := false
 	var other := false
 	var water: Array = []
@@ -1517,7 +2044,7 @@ func _still_fx(events: Array, grew: bool) -> void:
 				other = true
 	# Wasser nur, wenn sonst nichts zu sehen ist – und nur eine Reihe (am liebsten die gewischte)
 	var water_pick: Dictionary = {}
-	if not grew and not other and not water.is_empty():
+	if not grew and not other and not water.is_empty() and not same_slice:
 		water_pick = water[0]
 		var swiped := {}
 		for i in Game.state.last_row:
@@ -1593,6 +2120,8 @@ func _war_fx(e: Dictionary) -> void:
 	if not bool(field_screen(int(ids[0]))["visible"]):
 		focus_field(int(ids[0]))
 		await get_tree().create_timer(0.45).timeout
+	hold_mood("krieg", 0.6)
+	get_tree().create_timer(3.2).timeout.connect(hold_mood.bind("", 2.0))
 	for i in ids:
 		var v: FieldView = views.get(int(i))
 		if v != null:
@@ -1607,6 +2136,40 @@ func _war_fx(e: Dictionary) -> void:
 		if v != null:
 			v.refresh(Game.state.fields[int(i)])
 	await get_tree().create_timer(0.9).timeout
+
+
+## Krieg beginnt (neue Tage): Kamera zu den Kirchen, rote Stimmung, Schwerter, die Front leuchtet rot.
+var _war_churches: Array = []
+
+
+func _war_start_fx(e: Dictionary) -> void:
+	var ch: Array = e.get("churches", [])
+	var fr: Array = e.get("front", [])
+	_war_churches = ch.duplicate()
+	if ch.is_empty():
+		return
+	if not bool(field_screen(int(ch[0]))["visible"]):
+		focus_field(int(ch[0]))
+		await get_tree().create_timer(0.45).timeout
+	hold_mood("krieg", 0.6)
+	for i in ch:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_badge("swords")
+			v.set_danger(true)
+			_sparks(v.global_position + v.world_normal() * 0.3, Vector3.ZERO, Color("#e5483c"), 6)
+	for i in fr:
+		var fv: FieldView = views.get(int(i))
+		if fv != null:
+			fv.pulse_light(Color("#ff6a4a"), 0.7)
+	rig.shake(0.6)
+	_buzz(35)
+	await get_tree().create_timer(0.8).timeout
+	for i in ch:
+		var v: FieldView = views.get(int(i))
+		if v != null:
+			v.set_badge("")
+			v.set_danger(false)
 
 
 ## Smog: graue Wolken über der Industrie, Wälder welken, Tiere fliehen.
@@ -1647,6 +2210,20 @@ func _punish_fx(kind: String, bd: Dictionary, events: Array) -> void:
 		focus_field(fid)
 		await get_tree().create_timer(0.45).timeout
 	punish_shown.emit(kind, fid, cost)
+	var meteor := false
+	for e in events:
+		if str(e["type"]) == "meteor" and int(e.get("field", -1)) == fid:
+			meteor = true
+	if kind == "strike" and meteor:
+		# Meteor (Tag 6–7): glühender Brocken, Einschlag, Krater bleibt
+		await _meteor_fx(fid)
+		var mv: FieldView = views.get(fid)
+		if mv != null:
+			mv.set_crater(true)
+			_dust(mv)
+		_buzz(40)
+		await get_tree().create_timer(0.5).timeout
+		return
 	if kind == "strike":
 		var v: FieldView = views.get(fid)
 		if v != null:
@@ -1659,6 +2236,7 @@ func _punish_fx(kind: String, bd: Dictionary, events: Array) -> void:
 		cube_root.add_child(flash)
 		if v != null:
 			flash.global_position = v.global_position + v.world_normal() * 1.4
+		flash_screen(0.4)
 		var ft := create_tween()
 		ft.tween_property(flash, "light_energy", 0.0, 0.5)
 		ft.tween_callback(flash.queue_free)
@@ -1685,10 +2263,13 @@ func _merge_fx(e: Dictionary) -> void:
 		var v: FieldView = views.get(int(o))
 		if v != null:
 			v.set_highlight(true)
+			v.pulse_light(Color("#ffd9a0"), 0.5)
 			if Balance.OTHERS_DROP > 0 or bool(e.get("consume", false)):
 				v.vanish(target.global_position, dur)
+				_dust(v)
 			_sparks(v.global_position + v.world_normal() * 0.3, target.global_position + target.world_normal() * 0.35, Color("#ffd23f"), 5)
 	target.set_highlight(true)
+	target.pulse_light(Color("#ffd9a0"), 0.5)
 	await get_tree().create_timer(dur).timeout
 	for o in others:
 		var v: FieldView = views.get(int(o))
@@ -1703,6 +2284,8 @@ func _merge_fx(e: Dictionary) -> void:
 				ov.burst(Color("#ffd23f"))
 	_sparks(target.global_position + target.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 10)
 	rig.shake(0.25 + 0.15 * int(e["combo"]))
+	rig.punch(0.03 + 0.008 * mini(int(e["combo"]), 4))
+	_wind_kick = 2.0
 	merged.emit(int(e["field"]), int(e["points"]), int(e["combo"]), int(e.get("stage", 0)))
 	await get_tree().create_timer(0.12).timeout
 
@@ -1772,9 +2355,15 @@ func _face_fx(e: Dictionary) -> void:
 
 ## Funken: fliegen von a nach b (oder bei b == ZERO in alle Richtungen nach außen).
 func _sparks(a: Vector3, b: Vector3, color: Color, count: int) -> void:
-	var m := Models.mat(color, 0.3, 3.0)
+	# helle Farben: leuchtende Funken (additiv); dunkle: kleine Rauchflocken
+	var glow := color.get_luminance() > 0.45
 	for k in count:
-		var spark := Models.sphere(cube_root, 0.025, color, a, m)
+		var spark := MeshInstance3D.new()
+		spark.mesh = Look.quad(0.11 if glow else 0.16)
+		spark.material_override = Look.mote(color) if glow else Look.smoke(Color(color, 0.7))
+		spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cube_root.add_child(spark)
+		spark.global_position = a
 		var to := b
 		if b == Vector3.ZERO:
 			var out := (a - Vector3.ZERO).normalized()
@@ -1785,6 +2374,46 @@ func _sparks(a: Vector3, b: Vector3, color: Color, count: int) -> void:
 		tw.tween_property(spark, "global_position", to, randf_range(0.3, 0.5)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.parallel().tween_property(spark, "scale", Vector3.ZERO, 0.5).set_ease(Tween.EASE_IN)
 		tw.tween_callback(spark.queue_free)
+
+
+## Staub, Blätter oder Erdklumpen steigen aus einem Feld, dessen Inhalt gerade verschmilzt.
+func _dust(v: FieldView) -> void:
+	var k := v.get_kind()
+	var col := Color("#8d7a5e")
+	if FieldView.NATURE_KINDS.has(k):
+		col = Color("#6d8a3a") if k != FieldView.K_MEADOW else Color("#d8d2b8")
+	elif k == FieldView.K_EMPTY or k == FieldView.K_FIELD:
+		col = Color("#6e5238")
+	elif k >= FieldView.K_HUT and k != FieldView.K_WATER:
+		col = Color("#a39d92")
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.amount = 16
+	p.lifetime = 0.7
+	p.explosiveness = 0.85
+	p.mesh = Look.quad(1.0)
+	p.material_override = Look.dust()
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(0.28, 0.04, 0.28)
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 40.0
+	p.initial_velocity_min = 0.5
+	p.initial_velocity_max = 1.1
+	p.gravity = Vector3(0, -2.2, 0)
+	p.damping_min = 0.6
+	p.damping_max = 1.2
+	p.scale_amount_min = 0.025
+	p.scale_amount_max = 0.05
+	p.color = col
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 1))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	p.color_ramp = fade
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	v.add_child(p)
+	p.position = Vector3(0, FieldView.TOP + 0.05, 0)
+	p.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(p.queue_free)
 
 
 ## Meteorit: fällt glühend vom Himmel und schlägt ein. Das Feld wird wieder Erde.
@@ -1798,8 +2427,21 @@ func _meteor_fx(fid: int) -> void:
 	var rock := Node3D.new()
 	cube_root.add_child(rock)
 	rock.global_position = start
-	Models.sphere(rock, 0.2, Color("#7a6250"), Vector3.ZERO, Models.mat(Color("#7a6250"), 0.8), 0.9)
-	Models.sphere(rock, 0.27, Color(1.0, 0.55, 0.15, 0.4), Vector3.ZERO, Models.mat(Color(1.0, 0.55, 0.15, 0.4), 0.5, 2.5))
+	# Felsbrocken (Modell) mit Glut-Hülle und Flammen
+	for pv in Models.get_model("boulder", 2):
+		var part: Array = pv
+		var rm := MeshInstance3D.new()
+		rm.mesh = part[0]
+		rm.material_override = Models.material(String(part[1]))
+		rm.scale = Vector3.ONE * 2.6
+		rm.position = Vector3(0, -0.08, 0)
+		rock.add_child(rm)
+	var glow := MeshInstance3D.new()
+	glow.mesh = Look.quad(0.9)
+	glow.material_override = Look.mote(Color(1.0, 0.5, 0.15, 0.9))
+	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rock.add_child(glow)
+	Models.flame(rock, Vector3(0, 0.05, 0), 3.0, 3, 0.4)
 	var tw := create_tween()
 	tw.tween_property(rock, "global_position", target, 0.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	var trail_t := 0.0
@@ -1847,18 +2489,38 @@ func _bolt_fx(ids: Array) -> void:
 		var seg := 6
 		for k in seg:
 			var a := top.lerp(bottom, float(k) / seg) + Vector3(randf_range(-0.08, 0.08), randf_range(-0.08, 0.08), randf_range(-0.08, 0.08))
-			var spark := Models.sphere(cube_root, 0.045, Color("#fff3a0"), a, Models.mat(Color("#fff3a0"), 0.2, 4.0))
+			var spark := MeshInstance3D.new()
+			spark.mesh = Look.quad(0.22)
+			spark.material_override = Look.mote(Color("#fff6c8"))
+			spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			cube_root.add_child(spark)
+			spark.global_position = a
 			var tw := spark.create_tween()
 			tw.tween_interval(0.25)
 			tw.tween_property(spark, "scale", Vector3.ZERO, 0.2)
 			tw.tween_callback(spark.queue_free)
 		v.burst(Color("#ffd23f"))
 		_sparks(bottom, Vector3.ZERO, Color("#ffe066"), 8)
+	flash_screen(0.35)
 	rig.shake(0.7)
 	var ft := create_tween()
 	ft.tween_property(flash, "light_energy", 0.0, 0.5)
 	ft.tween_callback(flash.queue_free)
 	await get_tree().create_timer(0.6).timeout
+
+
+## Bildblitz (Blitz, Gewitter): kurz heller über der Welt und im Himmel, nie über der Oberfläche.
+func flash_screen(amount: float) -> void:
+	if _post_mat == null:
+		return
+	var tw := create_tween()
+	tw.tween_method(_set_flash, amount, 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _set_flash(v: float) -> void:
+	_post_mat.set_shader_parameter("flash", v)
+	if _backdrop_mat != null:
+		_backdrop_mat.set_shader_parameter("flash", v * 0.6)
 
 
 ## Welche Reihe trifft der Blitz? Die durch das Feld, die auf dem Bildschirm am ehesten waagrecht liegt.
@@ -1893,31 +2555,60 @@ func _rain_fx(ids: Array) -> void:
 		return
 	var n := v.world_normal()
 	var above := v.global_position + n * 1.1
+	hold_mood("regen", 0.6)
+	# Wolke aus weichen Rauschflocken (statt Kugeln), zieht heran
 	var cloud := Node3D.new()
 	cube_root.add_child(cloud)
 	cloud.global_position = above + rig.global_transform.basis.x * 1.5
-	var cm := Models.mat(Color("#eef3fa"), 0.9)
-	for k in 5:
-		Models.sphere(cloud, randf_range(0.16, 0.24), Color("#eef3fa"), Vector3(randf_range(-0.25, 0.25), randf_range(-0.05, 0.08), randf_range(-0.25, 0.25)), cm)
+	for k in 7:
+		var off := Vector3(randf_range(-0.38, 0.38), randf_range(-0.06, 0.1), randf_range(-0.38, 0.38))
+		var shade := randf_range(0.66, 0.8)
+		Look.smoke_puff(cloud, randf_range(0.55, 0.8), Color(shade, shade + 0.02, shade + 0.05, 0.92), off)
 	var tw := create_tween()
 	tw.tween_property(cloud, "global_position", above, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	await tw.finished
-	var t := 0.0
-	while t < 0.8:
-		for i in ids:
-			var w: FieldView = views.get(int(i))
-			if w == null:
-				continue
-			var top := w.global_position + w.world_normal() * 0.9
-			_sparks(top + Vector3(randf_range(-0.2, 0.2), 0.0, randf_range(-0.2, 0.2)), w.global_position + w.world_normal() * 0.1, Color("#5cb8ff"), 1)
-		await get_tree().create_timer(0.08).timeout
-		t += 0.08
+	# Regenstriche (Partikel, fallen entlang der Normalen), der Boden wird nass, kleine Spritzer
+	var drops: Array = []
+	for i in ids:
+		var w: FieldView = views.get(int(i))
+		if w == null:
+			continue
+		drops.append(_rain_drops(w))
+		w.set_wet(1.0, 3.0)
+	await get_tree().create_timer(0.8).timeout
+	for d in drops:
+		(d as CPUParticles3D).emitting = false
 	for i in ids:
 		var w: FieldView = views.get(int(i))
 		if w != null:
 			w.burst(Color("#8fd162"))
 	var out := create_tween()
-	out.tween_property(cloud, "scale", Vector3.ONE * 0.05, 0.35).set_ease(Tween.EASE_IN)
+	out.tween_property(cloud, "scale", Vector3.ONE * 0.05, 0.45).set_ease(Tween.EASE_IN)
 	out.tween_callback(cloud.queue_free)
+	for d in drops:
+		get_tree().create_timer(0.8).timeout.connect((d as Node).queue_free)
+	get_tree().create_timer(0.6).timeout.connect(hold_mood.bind("", 2.0))
+
+
+## Regenstriche über einem Feld: gestreckte Kreuz-Quads, fallen zur Kachel (lokal: -y).
+func _rain_drops(w: FieldView) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.amount = 40
+	p.lifetime = 0.42
+	p.mesh = Look.streak_mesh()
+	p.material_override = Look.rain_mat()
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(0.36, 0.02, 0.36)
+	p.direction = Vector3(0, -1, 0)
+	p.spread = 3.0
+	p.initial_velocity_min = 2.0
+	p.initial_velocity_max = 2.4
+	p.gravity = Vector3(0, -1.0, 0)
+	p.local_coords = true
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	w.add_child(p)
+	p.position = Vector3(0, 0.95, 0)
+	p.emitting = true
+	return p
 
 

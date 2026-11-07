@@ -17,6 +17,16 @@ var _anim_dur := 0.85
 var _shake := 0.0
 var _tilt := Vector2.ZERO       # leichtes Neigen durch Schwenken des Handys
 var _g_base := Vector3.ZERO
+var key: DirectionalLight3D     # Sonne (die einzige Lampe mit Schatten)
+var fill: DirectionalLight3D    # kühles Himmelslicht von der anderen Seite
+var drift_enabled := true       # Leerlauf-Drift (World schaltet sie in Tour und Tutorial ab)
+var _still_t := 0.0             # so lange gab es keine Kamera-Eingabe
+var _drift := Vector2.ZERO      # aktuelle Drift (Grad), weich ein- und ausgeblendet
+var _drift_w := 0.0
+var _drift_t := 0.0
+var _shake_t := 0.0
+var _punch := 1.0               # kurzer Zoom-Stoß beim Verschmelzen (Faktor auf den Abstand)
+var _punch_tw: Tween
 
 
 func _ready() -> void:
@@ -26,23 +36,25 @@ func _ready() -> void:
 	cam.far = 100.0
 	add_child(cam)
 	cam.current = true
-	# Licht hängt an der Kamera: jede Seite sieht gleich schön aus
-	var key := DirectionalLight3D.new()
-	key.rotation_degrees = Vector3(-42, -35, 0)
-	key.light_color = Color("#fff3df")
-	key.light_energy = 0.78
+	# Licht hängt an der Kamera: jede Seite sieht gleich schön aus. Werte nach GDPD_GRAFIK.md 4 (die Stimmung
+	# in World.set_mood überblendet Farbe, Energie und Richtung).
+	key = DirectionalLight3D.new()
+	key.rotation_degrees = Vector3(-36, -48, 0)
+	key.light_color = Color("#ffe2b8")
+	key.light_energy = 1.25
 	key.shadow_enabled = true
-	key.shadow_blur = 1.5
+	key.shadow_blur = 1.2
 	# ruhiger Schatten: eine einzige, enge Schattenkarte und genug Abstand gegen Flimmern
 	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	key.directional_shadow_max_distance = 16.0
-	key.shadow_bias = 0.06
-	key.shadow_normal_bias = 1.8
+	key.directional_shadow_max_distance = 24.0
+	key.shadow_bias = 0.03
+	key.shadow_normal_bias = 1.2
+	key.shadow_opacity = 0.85
 	add_child(key)
-	var fill := DirectionalLight3D.new()
-	fill.rotation_degrees = Vector3(-15, 150, 0)
-	fill.light_color = Color("#cfe0ff")
-	fill.light_energy = 0.18
+	fill = DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-20, 140, 0)
+	fill.light_color = Color("#a9c2e8")
+	fill.light_energy = 0.55
 	add_child(fill)
 	basis = start_basis()
 	_fit()
@@ -68,9 +80,15 @@ func _fit() -> void:
 func _apply() -> void:
 	var off := Vector3.ZERO
 	if _shake > 0.0:
-		off = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * _shake * 0.08
-	var tb := Basis(Vector3.UP, _tilt.x) * Basis(Vector3.RIGHT, _tilt.y)
-	cam.transform = Transform3D(tb, tb * (Vector3(0, 0, _dist * zoom_factor) + off))
+		# weiches Schütteln: glattes Rauschen statt Zufall je Bild, Stärke trauma²
+		var tr := _shake * _shake
+		off = Vector3(_wobble(_shake_t, 0.0), _wobble(_shake_t, 1.7), 0) * tr * 0.11
+	var tb := Basis(Vector3.UP, _tilt.x + deg_to_rad(_drift.x)) * Basis(Vector3.RIGHT, _tilt.y + deg_to_rad(_drift.y))
+	cam.transform = Transform3D(tb, tb * (Vector3(0, 0, _dist * zoom_factor * _punch * (1.0 - 0.015 * _drift_w * (0.5 + 0.5 * sin(_drift_t * 0.31)))) + off))
+
+
+static func _wobble(t: float, seed_off: float) -> float:
+	return sin(t * 37.0 + seed_off) * 0.55 + sin(t * 23.0 + seed_off * 2.3) * 0.3 + sin(t * 51.0 + seed_off * 0.7) * 0.15
 
 
 func _process(delta: float) -> void:
@@ -81,9 +99,42 @@ func _process(delta: float) -> void:
 		_rotate_by(_vel * delta)
 		_vel = _vel * exp(-delta * 3.2)
 	if _shake > 0.0:
-		_shake = maxf(0.0, _shake - delta * 2.5)
+		_shake = maxf(0.0, _shake - delta * 1.8)
+		_shake_t += delta
 	_update_tilt(delta)
+	_update_drift(delta)
 	_apply()
+
+
+## Leerlauf-Drift: Nach 4 s ohne Berührung schwebt die Kamera ganz langsam (±2°, Lissajous), dazu ein leichtes
+## „Atmen“ des Abstands. Jede Eingabe (poke) stoppt sie sofort. In Tour und Tutorial ist sie aus.
+func _update_drift(delta: float) -> void:
+	_still_t += delta
+	var want := 1.0 if drift_enabled and _still_t > 4.0 and _anim_t >= 1.0 and _vel.length() < 0.5 else 0.0
+	_drift_w = move_toward(_drift_w, want, delta * (0.35 if want > 0.0 else 4.0))
+	if _drift_w > 0.0:
+		_drift_t += delta
+	_drift = Vector2(sin(_drift_t * 0.27) * 2.0, sin(_drift_t * 0.19 + 1.1) * 1.3) * _drift_w
+
+
+## Eingabe am Würfel: Drift sofort aus (und erst nach 4 s Ruhe wieder an).
+func poke() -> void:
+	_still_t = 0.0
+	if _drift_w > 0.0:
+		# die Drift in die Ruhelage übernehmen: kein Sprung unter dem Finger
+		basis = (basis * Basis(Vector3.UP, deg_to_rad(_drift.x)) * Basis(Vector3.RIGHT, deg_to_rad(_drift.y))).orthonormalized()
+		_drift = Vector2.ZERO
+		_drift_w = 0.0
+		_apply()
+
+
+## Kurzer Zoom-Stoß (Verschmelzen): 1,0 -> 1-amount in 0,12 s, dann federnd zurück.
+func punch(amount: float = 0.035) -> void:
+	if _punch_tw != null and _punch_tw.is_valid():
+		_punch_tw.kill()
+	_punch_tw = create_tween()
+	_punch_tw.tween_property(self, "_punch", 1.0 - amount, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_punch_tw.tween_property(self, "_punch", 1.0, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 ## Handy schwenken neigt den Würfel ein wenig. Die Ruhelage passt sich langsam an, wie man das Handy hält.
@@ -105,6 +156,7 @@ func _rotate_by(px: Vector2) -> void:
 
 ## Ziehen: dreht sofort mit, merkt sich die Geschwindigkeit für den Nachschwung.
 func orbit(rel: Vector2, delta: float) -> void:
+	poke()
 	_anim_t = 1.0
 	_rotate_by(rel)
 	if delta > 0.0:
@@ -113,6 +165,7 @@ func orbit(rel: Vector2, delta: float) -> void:
 
 ## Um die Blickachse drehen (zwei Finger drehen).
 func roll(angle: float) -> void:
+	poke()
 	_anim_t = 1.0
 	basis = (basis * Basis(Vector3.BACK, -angle)).orthonormalized()
 
@@ -126,12 +179,13 @@ func stop() -> void:
 
 
 func zoom(factor: float) -> void:
+	poke()
 	zoom_factor = clampf(zoom_factor * factor, 0.6, 1.6)
 	_apply()
 
 
 func shake(amount: float) -> void:
-	_shake = maxf(_shake, amount)
+	_shake = clampf(maxf(_shake, amount), 0.0, 1.6)
 
 
 ## Weich so drehen, dass die Stelle mit Normale n gut sichtbar ist (leicht schräg von oben).

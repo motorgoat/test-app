@@ -18,43 +18,48 @@ const PACK_TITLE := "Die Schöpfung in 7 Tagen"
 const BOARDS_PATH := "res://data/days_schoepfung.json"
 const PACKS_DIR := "res://data/packs"
 ## Ein Zeichen je Art im Brett-Text (Index = Art): E Erde, w Wiese, W Wald, A Acker, g Großer Wald, T Tiere, H Hütte,
-## h Haus, D Dorf, S Stadt, K Kirche, G Großstadt, I Industrie, M Metropole, P Paradies, o Wasser.
-const CODE := "EwWAgTHhDSKGIMPo"
+## h Haus, D Dorf, S Stadt, K Kirche, G Großstadt, I Industrie, M Metropole, P Paradies, o Wasser, R Stein.
+const CODE := "EwWAgTHhDSKGIMPoR"
 
-const _L1 = [FieldData.EMPTY, FieldData.MEADOW]
-const _L2 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST]
-const _L3 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST, FieldData.BIGFOREST, FieldData.ANIMALS]
-const _L4 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST, FieldData.BIGFOREST, FieldData.ANIMALS,
-	FieldData.HUT, FieldData.HOUSE, FieldData.VILLAGE]
-const _L5 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST, FieldData.BIGFOREST, FieldData.ANIMALS,
-	FieldData.HUT, FieldData.HOUSE, FieldData.VILLAGE, FieldData.FIELD]
-const _L6 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST, FieldData.BIGFOREST, FieldData.ANIMALS,
-	FieldData.HUT, FieldData.HOUSE, FieldData.VILLAGE, FieldData.FIELD, FieldData.TOWN, FieldData.CHURCH]
-const _L7 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FOREST, FieldData.BIGFOREST, FieldData.ANIMALS,
-	FieldData.HUT, FieldData.HOUSE, FieldData.VILLAGE, FieldData.FIELD, FieldData.TOWN, FieldData.CHURCH,
-	FieldData.BIGCITY, FieldData.INDUSTRY]
-const _ALL_WISHES = ["wald", "tiere", "acker", "regen"]
+const E := FieldData.EMPTY
+const W := FieldData.MEADOW
+const F := FieldData.FOREST
+const A := FieldData.FIELD
+const T := FieldData.ANIMALS
+const H := FieldData.HUT
+const D := FieldData.VILLAGE
+const S := FieldData.TOWN
+const K := FieldData.CHURCH
+const I := FieldData.INDUSTRY
+const R := FieldData.STONE
 
-## Was an allen Tagen gilt (jeder Tag überschreibt davon, was er braucht). Immer aus: Herzen, Diagonalen,
-## Einfach-Gruppen, Nachwachsen, Blitz, Monsun, Flut, Zeitalter, „Vollendet“.
+## Was an allen Tagen gilt (GDPD_BALANCE_2.md 5.2; jeder Tag überschreibt davon, was er braucht). Die neuen Regeln
+## (Erschaffen + Gedeihen) schaltet "rows" ein: nur diese Arten bilden heute zählende Reihen, next8 sagt, was daraus
+## wird, top die höchste Menschen-Stufe, die heute durch Gedeihen entsteht. Keine Herzen, keine Diagonalen, keine
+## Wünsche, keine Waage, kein „3 Fehlversuche → Feuer“; „Jede Reihe wächst nur einmal“ (once) gilt immer.
 const BASE = {
-	"choices": [], "fire": true, "rain_start": 0, "rain_every": 0, "gift": false,
+	"choices": [], "fire": false, "rain_start": 1, "rain_every": 6, "gift": false,
 	"wishes": false, "wish_types": [], "wish_from": 2, "wish_every": 3,
 	"scale": false, "income": false, "war": false, "no_war": false, "smog": false, "strike": false,
 	"goal_kinds": [], "goal_green": false, "rule_line": "", "rule_icon": "swords", "coach": [], "coach_demo": "",
-	"onboard_hint": false,
+	"onboard_hint": false, "once": true,
+	"rows": [], "next8": {E: W, W: F, F: T, T: H}, "consume": true, "top": -1,
+	"needs": {H: ["food"], D: ["food", "work"], S: ["food", "work", "faith"]},
+	"lightning": 0, "lightning_from": 2, "war8": false, "meteor": false, "smog8": false, "flood8": false,
+	"rain_acker": false, "rain_kinds": [W, F], "grow_after": 2, "shrink_after": 4, "flood_at": 5, "overnight": [],
 }
 
-## Die 7 Tage (Abschnitt 2.2 und 2.3). goal_type: "make" (goal_kinds wachsen goal_target-mal), "wishes",
-## "faith" (+ goal_green: die Waage muss dabei grün sein). stars = [★★★ bis, ★★ bis] (Drehungen).
-## new: die neue Sache des Tages (Aufdecken auf der Ziel-Karte). icon: Symbol der Kachel in der Übersicht.
+## Die 7 Tage (GDPD_BALANCE_2.md 5): eine neue Sache je Tag, höchstens 3 Arten, die heute wachsen, und jeder Tag
+## etwas schwerer. goal: ["make", [Arten], n] (so oft wächst etwas zu dieser Art) oder ["satt", Art, n] (so viele
+## Felder dieser Art sind am Ende einer Drehung satt). stars = [★★★ bis, ★★ bis] (Drehungen). new: das Neue des Tages
+## (Aufdecken). overnight: [[von, zu], …] – so ist die Welt „über Nacht gewachsen“ (nur die Darstellung, 5.6).
+## unlocked: was es heute geben kann (Texte „… erst ab Tag n“).
 const DAYS = [
 	{"title": "Land", "icon": "meadow",
 		"intro": "Mach aus Erde Wiesen!",
-		"goal_type": "make", "goal_kinds": [FieldData.MEADOW], "goal_target": 8, "goal_icon": "meadow",
-		"goal_text": "Lass 8 Wiesen wachsen", "limit": 15, "stars": [5, 8],
+		"goal": ["make", [W], 8], "goal_icon": "meadow", "goal_text": "Lass 8 Wiesen wachsen", "limit": 15, "stars": [4, 6],
 		"rule_line": "Nur gerade Reihen · Wasser wächst nie", "rule_icon": "info",
-		"unlocked": _L1, "fire": false, "onboard_hint": true,
+		"rows": [E], "rain_start": 0, "rain_every": 0, "unlocked": [E, W], "onboard_hint": true,
 		"new": {"key": "drehen", "icon": "meadow", "title": "Neu: Drehen", "text": "Bring 3 gleiche in eine Reihe."},
 		"tutorial": {"axis": 0, "layer": 1, "turns": 1},
 		"coach": ["Bring 3 gleiche in eine Reihe.", "Super! Eine Wiese.",
@@ -63,54 +68,52 @@ const DAYS = [
 		"coach_demo": "Schau: 3 gleiche in eine Reihe."},
 	{"title": "Pflanzen", "icon": "rain",
 		"intro": "Heute wachsen Pflanzen.",
-		"goal_type": "make", "goal_kinds": [FieldData.FOREST], "goal_target": 5, "goal_icon": "smallforest",
-		"goal_text": "Lass 5 Wälder wachsen", "limit": 15, "stars": [5, 9],
-		"unlocked": _L2, "rain_start": 1, "rain_every": 6, "gift": true, "onboard_hint": true,
+		"goal": ["make", [F], 5], "goal_icon": "smallforest", "goal_text": "Lass 5 Wälder wachsen", "limit": 14, "stars": [5, 7],
+		"rows": [E, W], "rain_start": 1, "rain_every": 6, "rain_kinds": [W, F], "unlocked": [E, W, F], "onboard_hint": true,
+		"overnight": [[E, W]], "overnight_line": "Erde wird Wiese",
 		"new": {"key": "regen", "icon": "rain", "title": "Neu: Regen", "text": "Tipp Regen, dann eine Wiese."},
-		"coach": ["Heute wächst Wald!",
-			"Wächst nichts, brennt es. Regen löscht."],
+		"coach": ["Heute wächst Wald!", "Regen macht Wald."],
 		"coach_tool": "Tipp Regen, dann eine Wiese."},
 	{"title": "Tiere", "icon": "animals",
 		"intro": "Heute kommen Tiere.",
-		"goal_type": "make", "goal_kinds": [FieldData.ANIMALS], "goal_target": 3, "goal_icon": "animals",
-		"goal_text": "Erschaffe 3 Tiere", "limit": 12, "stars": [7, 10],
-		"unlocked": _L3, "rain_start": 1, "rain_every": 6, "gift": true,
-		"new": {"key": "leben", "icon": "animals", "title": "Neu: Leben", "text": "Großer Wald bringt Tiere."},
-		"coach": ["Großer Wald bringt Tiere."]},
+		"goal": ["make", [T], 4], "goal_icon": "animals", "goal_text": "Erschaffe 4 Tiere", "limit": 8, "stars": [4, 6],
+		"rows": [W, F], "rain_start": 1, "rain_every": 4, "rain_kinds": [F], "lightning": 2, "lightning_from": 1,
+		"unlocked": [W, F, T], "overnight": [[E, W]], "overnight_line": "Erde wird Wiese",
+		"new": {"key": "blitz", "icon": "lightning", "title": "Neu: Blitz", "text": "Regen löscht Feuer."},
+		"coach": ["Blitz kommt! Regen schützt."]},
 	{"title": "Menschen", "icon": "hut",
 		"intro": "Heute kommen Menschen.",
-		"goal_type": "make", "goal_kinds": [FieldData.HUT], "goal_target": 4, "goal_icon": "hut",
-		"goal_text": "Baue 4 Hütten", "limit": 14, "stars": [8, 11],
-		"unlocked": _L4, "rain_start": 1, "rain_every": 6, "gift": true,
-		"wishes": true, "wish_types": ["wald", "tiere", "regen"], "wish_from": 2, "wish_every": 3,
-		"new": {"key": "menschen", "icon": "hut", "title": "Neu: Menschen", "text": "Aus Tieren werden Hütten."},
-		"coach": ["Aus Tieren werden Hütten.", "Erfüll Wünsche, dann wächst ihr Haus."]},
-	{"title": "Nahrung", "icon": "field",
-		"intro": "Die Menschen haben Hunger.",
-		"goal_type": "wishes", "goal_target": 3, "goal_icon": "wish",
-		"goal_text": "Erfülle 3 Wünsche", "limit": 18, "stars": [10, 14],
-		"unlocked": _L5, "choices": [FieldData.MEADOW], "rain_start": 1, "rain_every": 6, "gift": true,
-		"wishes": true, "wish_types": _ALL_WISHES, "wish_from": 1, "wish_every": 3, "scale": true, "scale_visible": false,
-		"new": {"key": "wahl", "icon": "field", "title": "Neu: Du entscheidest!", "text": "Wald oder Acker? Du wählst."},
-		"coach": ["Wald oder Acker? Du wählst."]},
+		"goal": ["satt", H, 3], "goal_icon": "hut", "goal_text": "Versorge 3 Hütten", "limit": 14, "stars": [6, 9],
+		"rows": [W, F, T], "top": H, "rain_start": 1, "rain_every": 5, "rain_kinds": [F], "lightning": 4, "lightning_from": 3,
+		"unlocked": [W, F, T, H], "overnight": [[W, F]], "overnight_line": "Wiesen werden Wald",
+		"new": {"key": "menschen", "icon": "hut", "title": "Neu: Menschen", "text": "Menschen brauchen Nahrung."},
+		"coach": ["Tiere neben die Hütte."]},
+	{"title": "Arbeit", "icon": "village",
+		"intro": "Die Menschen wollen arbeiten.",
+		"goal": ["satt", D, 3], "goal_icon": "village", "goal_text": "Mach 3 Dörfer satt", "limit": 13, "stars": [4, 7],
+		"rows": [F, T], "top": D, "rain_start": 1, "rain_every": 5, "rain_kinds": [F], "rain_acker": true,
+		"lightning": 4, "lightning_from": 3, "unlocked": [W, F, A, T, H, D, R],
+		"overnight": [[T, H]], "overnight_line": "Tiere werden Hütten",
+		"new": {"key": "arbeit", "icon": "village", "title": "Neu: Arbeit", "text": "Dorf braucht Nahrung und Arbeit."},
+		"coach": ["Wald oder Stein gibt Arbeit.", "Satt? Dann wächst es.", "Regen neben Hütten: Acker."]},
 	{"title": "Glaube", "icon": "church",
 		"intro": "Die Menschen beten zu dir.",
-		"goal_type": "faith", "goal_target": 150, "goal_icon": "faith",
-		"goal_text": "Sammle 150 Glauben", "rule_line": "Kein Krieg!", "limit": 13, "stars": [8, 11],
-		"unlocked": _L6, "choices": [FieldData.MEADOW, FieldData.VILLAGE], "rain_start": 1, "rain_every": 6, "gift": true,
-		"wishes": true, "wish_types": _ALL_WISHES, "wish_from": 2, "wish_every": 3, "scale": true, "scale_visible": false,
-		"income": true, "war": true, "no_war": true,
-		"new": {"key": "glaube", "icon": "church", "title": "Neu: Glaube", "text": "Kirchen geben Glauben."},
-		"coach": ["Zwei Kirchen nebeneinander: Krieg!"]},
-	{"title": "Ruhe", "icon": "balance",
-		"intro": "Halte die Welt im Gleichgewicht.",
-		"goal_type": "faith", "goal_target": 250, "goal_green": true, "goal_icon": "faith",
-		"goal_text": "250 Glauben, Waage grün", "limit": 13, "stars": [9, 11],
-		"unlocked": _L7, "choices": [FieldData.MEADOW, FieldData.VILLAGE, FieldData.TOWN], "rain_start": 1, "rain_every": 6,
-		"gift": true, "wishes": true, "wish_types": _ALL_WISHES, "wish_from": 2, "wish_every": 3, "scale": true,
-		"income": true, "war": true, "smog": true, "strike": true,
-		"new": {"key": "industrie", "icon": "industry", "title": "Neu: Industrie", "text": "Gibt Glauben, macht Smog."},
-		"coach": ["Halte die Waage im Grünen."]},
+		"goal": ["satt", S, 3], "goal_icon": "town", "goal_text": "Mach 3 Städte satt", "limit": 14, "stars": [4, 7],
+		"rule_line": "Kirche an Kirche: Krieg!",
+		"rows": [T], "top": S, "rain_start": 1, "rain_every": 5, "rain_kinds": [F], "rain_acker": true,
+		"war8": true, "meteor": true, "unlocked": [W, F, A, T, H, D, S, K, R],
+		"overnight": [[H, D]], "overnight_line": "Hütten werden Dörfer",
+		"new": {"key": "glaube", "icon": "church", "title": "Neu: Glaube", "text": "Kirche an Kirche: Krieg!"},
+		"coach": ["Stadt braucht eine Kirche.", "Meteor bereit."]},
+	{"title": "Gleichgewicht", "icon": "balance",
+		"intro": "Schütze jetzt die Natur.",
+		"goal": ["satt", S, 3], "goal_icon": "town", "goal_text": "Mach 3 Städte satt", "limit": 11, "stars": [4, 7],
+		"rule_line": "Zu viel Stadt: Flut!",
+		"rows": [T], "top": S, "rain_start": 1, "rain_every": 5, "rain_kinds": [F], "rain_acker": true,
+		"war8": true, "meteor": true, "smog8": true, "flood8": true, "unlocked": [W, F, A, T, H, D, S, K, I, R],
+		"overnight": [[D, S]], "overnight_line": "Dörfer werden Städte",
+		"new": {"key": "fabrik", "icon": "industry", "title": "Neu: Fabriken", "text": "Zu viel Stadt: Flut!"},
+		"coach": ["Fabrik weg vom Wald."]},
 ]
 
 ## Feste Sätze für die Oberfläche (einfaches Deutsch, du-Form). %d = Zahl.
@@ -185,6 +188,38 @@ const TEXT = {
 	"shield_coins": "+%d Münzen",
 	"test_next_day": "Nächster Tag (Test)",
 	"test_now": "Test: Jetzt ist %s.",
+	# GDPD_BALANCE_2.md 5.6, 6, 9
+	"overnight": "Über Nacht gewachsen",
+	"extra": "Extra: %s",
+	"build_on": "Bau weiter",
+	"extra_done": "Extra geschafft!",
+	"satt": "Satt!",
+	"satt_goal": "%s satt",
+	"spent_coach": "Diese Reihe ist schon gewachsen.",
+	"once_rule": "Jede Reihe wächst nur einmal.",
+	"consume": "3 Tiere · 1 Hütte",
+	"thrive_hut": "Hütte wird Dorf",
+	"thrive_village": "Dorf wird Stadt",
+	"starve_village": "Dorf schrumpft",
+	"starve_town": "Stadt schrumpft",
+	"bolt_warn": "Blitz kommt!",
+	"bolt": "Feuer!",
+	"bolt_cancel": "Regen schützt",
+	"ignite": "Feuer breitet sich aus",
+	"rain_out": "Gelöscht!",
+	"war_start": "Krieg droht!",
+	"war_start_line": "Trenn die Kirchen",
+	"war_hit": "Krieg!",
+	"war_end": "Frieden",
+	"meteor": "Meteor!",
+	"smog": "Smog!",
+	"flood_warn": "Das Meer steigt!",
+	"flood_warn_line": "Zu viel Stadt",
+	"flood": "Flut!",
+	"people_caps": "Keine Reihe",
+	"people_line": "Menschen wachsen durch Nachbarn",
+	"done_caps": "Heute keine Reihe",
+	"stone_caps": "Stein wächst nie",
 }
 
 static var _pools := {}        # Paket → {"days": {"1": [...], …}, "code": "…"}
@@ -252,6 +287,9 @@ static func config(n: int, pack: String = PACK_ID) -> Dictionary:
 		if str(g[0]) == "make":
 			c["goal_kinds"] = g[1]
 			c["goal_target"] = int(g[2])
+		elif str(g[0]) == "satt":
+			c["goal_kinds"] = [int(g[1])]
+			c["goal_target"] = int(g[2])
 		else:
 			c["goal_target"] = int(g[1])
 			c["goal_green"] = g.size() > 2 and str(g[2]) == "green"
@@ -262,6 +300,16 @@ static func config(n: int, pack: String = PACK_ID) -> Dictionary:
 	var nw: Dictionary = c.get("new", {})
 	if nw.has("text"):
 		nw["text"] = str(nw["text"]).replace("{strike}", str(Balance.STRIKE_COST))
+	if c.has("rows") and not (c["rows"] as Array).is_empty():
+		# Neue Regeln: welche Arten bilden an einem späteren Tag Reihen? (Sie ruhen heute: „… erst ab Tag n“.)
+		var later: Array = []
+		for j in range(n, days.size()):
+			for k in (days[j] as Dictionary).get("rows", []):
+				if not later.has(int(k)) and not (c["rows"] as Array).has(int(k)):
+					later.append(int(k))
+		c["later_rows"] = later
+	else:
+		c.erase("rows")           # ein Paket mit alten Tag-Regeln (ohne rows)
 	c["day"] = n
 	c["pack"] = pack
 	return c
@@ -289,9 +337,37 @@ static func goal_line(cfg: Dictionary) -> String:
 		return "Lass %d %s wachsen" % [n, FieldData.kind_plural(k) if n != 1 else FieldData.kind_name(k)]
 	if t == "wishes":
 		return "Erfülle %d Wünsche" % n
+	if t == "satt":
+		var sk: Array = cfg.get("goal_kinds", [])
+		var kk: int = int(sk[0]) if not sk.is_empty() else FieldData.HUT
+		return "Mach %d %s satt" % [n, FieldData.kind_plural(kk) if n != 1 else FieldData.kind_name(kk)]
 	if bool(cfg.get("goal_green", false)):
 		return "%d Glauben, Waage grün" % n
 	return "Sammle %d Glauben" % n
+
+
+## Weiterbauen: die Extra-Aufgabe mit n statt der Zahl der Aufgabe („Extra: Versorge 4 Hütten“).
+static func extra_line(cfg: Dictionary, n: int) -> String:
+	var txt := goal_line(cfg)
+	var rx := RegEx.new()
+	rx.compile("\\d+")
+	var m := rx.search(txt)
+	if m != null:
+		txt = txt.substr(0, m.get_start()) + str(n) + txt.substr(m.get_end())
+	return str(TEXT["extra"]) % txt
+
+
+## „Über Nacht gewachsen“ (5.6): Felder dieses Bretts, die über Nacht aus einer niedrigeren Art gewachsen sind.
+## [{"field", "from", "kind"}]. Leer an Tag 1 und ohne overnight-Liste.
+static func overnight_changes(cfg: Dictionary, kinds: Array) -> Array:
+	var out: Array = []
+	var pairs: Array = cfg.get("overnight", [])
+	for i in kinds.size():
+		for pr in pairs:
+			if int((pr as Array)[1]) == int(kinds[i]):
+				out.append({"field": i, "from": int((pr as Array)[0]), "kind": int(kinds[i])})
+				break
+	return out
 
 
 static func limit_line(twists: int) -> String:

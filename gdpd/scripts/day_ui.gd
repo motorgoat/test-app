@@ -93,8 +93,15 @@ class WeekDot extends Control:
 
 
 ## Was an jedem Tag neu dazukommt und im Spiel an seinen Platz fliegt: [Symbol, Titel, Ziel].
-const REVEAL = {2: ["rain", "Neu: Regen", "rain"], 3: ["animals", "Neu: Leben", "chip"], 4: ["hut", "Neu: Menschen", "chip"],
-	5: ["field", "Neu: Du entscheidest!", "chip"], 6: ["church", "Neu: Glaube", "chip"], 7: ["strike", "Neu: Gewitter", "strike"]}
+const REVEAL = {2: ["rain", "Neu: Regen", "rain"], 3: ["lightning", "Neu: Blitz", "chip"], 4: ["hut", "Neu: Menschen", "chip"],
+	5: ["village", "Neu: Arbeit", "chip"], 6: ["meteor", "Neu: Glaube", "strike"], 7: ["industry", "Neu: Fabriken", "chip"]}
+## Pillen der neuen Tage (GDPD_BALANCE_2.md 7): Ereignis → [Rang, Symbol, Kopfzeile-Text-Schlüssel, Satz-Schlüssel].
+const PILL8 = {"war_start": [9, "swords", "war_start", "war_start_line"], "flood_warn": [8, "flood", "flood_warn", "flood_warn_line"],
+	"bolt_warn": [7, "lightning", "bolt_warn", ""], "bolt": [7, "fire", "bolt", ""], "war_hit": [6, "swords", "war_hit", ""],
+	"flood": [6, "flood", "flood", ""], "meteor": [6, "meteor", "meteor", ""], "ignite": [5, "fire", "ignite", ""],
+	"thrive": [5, "up", "", ""], "starve": [5, "hunger", "", ""], "consume": [4, "hut", "consume", ""],
+	"rain_out": [4, "rain", "rain_out", ""], "bolt_cancel": [4, "rain", "bolt_cancel", ""], "war_end": [4, "check", "war_end", ""],
+	"smog": [3, "smog", "smog", ""], "satt_new": [2, "check", "satt", ""], "extra": [10, "star", "extra_done", ""]}
 ## Wo die erste Hinweis-Zeile eines Tages hinzeigt ("" = in der Spur unter der Kopfzeile).
 const COACH_AT = {2: "rain"}
 const TILE_W := 129.0
@@ -102,6 +109,10 @@ const TILE_H := 150.0
 const WEEK_LETTERS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 var ui: GameUI
+var chip_needs: HBoxContainer      # Bedürfnis-Symbole im Ziel-Chip (neue Tage)
+var _needs_shown := ""
+var _satt_said := false            # „Satt!“ nur beim ersten Mal je Versuch
+var _smog_said := false
 
 # --- Übersicht (Startseite: Charakter, Serie, Heute-Karte, Woche, die 7 Tage) ---
 var overview: Control
@@ -409,6 +420,12 @@ func _build_chip() -> void:
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.custom_minimum_size = Vector2(96, 0)
 	h.add_child(v)
+	# Was verbunden werden muss (Gedeihen-Tage): kleine Symbole der Bedürfnisse der Ziel-Art (🍞 🔨 🙏)
+	chip_needs = ui._hbox(2)
+	chip_needs.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip_needs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip_needs.visible = false
+	h.add_child(chip_needs)
 	chip_caps = ui._caps("Wiesen")
 	chip_caps.clip_text = true           # nie breiter als CHIP_CAPS_MAX (sonst schiebt der Chip die Kopfzeile aus dem Bild)
 	v.add_child(chip_caps)
@@ -1436,6 +1453,8 @@ func _on_day_started(info: Dictionary) -> void:
 		return
 	hide_overview()
 	_info = info
+	_satt_said = false
+	_smog_said = false
 	var n := int(info["day"])
 	# Neues fliegt erst nach „Los!“ an seinen Platz (beim ersten Besuch)
 	_hold = {}
@@ -1567,11 +1586,17 @@ func _on_go() -> void:
 		ui.world.focus_place(Vector3i(0, 1, 0))
 		return
 	var delay := 0.35
+	var on: Dictionary = _info.get("overnight", {})
+	if not on.is_empty():
+		# „Über Nacht gewachsen“ (GDPD_BALANCE_2.md 5.6): kurz oben, blockiert nichts (die Welle zeigt die World)
+		ui._show_banner("still", str(on.get("caps", "")), str(on.get("line", "")), "up")
+		ui.world.overnight_wave()
+		delay += 1.8
 	if REVEAL.has(n) and not Game.coach_seen.has("day_rev_%d" % n):
 		Game.coach_seen["day_rev_%d" % n] = true
 		Game.save_settings()
-		get_tree().create_timer(0.35).timeout.connect(_reveal_fly.bind(n, _end_gen))
-		delay = 2.3
+		get_tree().create_timer(delay).timeout.connect(_reveal_fly.bind(n, _end_gen))
+		delay += 1.95
 	if not Game.coach_seen.has("day_coach_%d" % n):
 		get_tree().create_timer(delay).timeout.connect(_first_coach.bind(n, _end_gen))
 
@@ -1691,14 +1716,20 @@ func refresh_hud() -> void:
 	ring.visible = not building
 	ring_caps.visible = not building
 	grow_box.visible = building
+	_fill_needs(st)
 	if building:
 		# Weiterbauen: Haken, „Weiterbauen“, wie viel seit dem Sieg gewachsen ist – keine Drehungs-Grenze
 		chip_caps.text = str(Days.TEXT["build"])
+		if int(st.get("extra_max", 0)) > 0:
+			# Neue Tage: die Aufgabe bleibt sichtbar – als Extra-Aufgabe („Extra: Versorge 4 Hütten“), danach „Bau weiter“
+			chip_caps.text = str(st.get("extra_text", Days.TEXT["build"]))
 		chip_caps.add_theme_color_override("font_color", Style.LEAF_DEEP)
 		_fit_caps()
 		ui._set_tile(chip_tile, "check", Style.LEAF_TINT)
 		var tg := int(st.get("target", 0))
 		chip_num.text = "%d/%d" % [tg, tg] if tg > 0 else "✓"
+		if int(st.get("extra_max", 0)) > int(st.get("extra_level", 0)):
+			chip_num.text = "%d/%d" % [mini(int(st.get("progress", 0)), int(st.get("extra_target", 0))), int(st.get("extra_target", 0))]
 		var g := int(st.get("growth", 0))
 		if grow_num.text != str(g) and grow_num.text != "":
 			ui._number_pop(grow_num, Style.LEAF_DEEP, Style.LEAF_DEEP)
@@ -1761,7 +1792,73 @@ func _goal_noun(gs: GameState) -> String:
 		return FieldData.kind_plural(k) if gs.goal_target() != 1 else FieldData.kind_name(k)
 	if t == "wishes":
 		return "Wünsche"
+	if t == "satt":
+		var sk := gs.goal_kinds()
+		var kk := int(sk[0]) if not sk.is_empty() else FieldData.HUT
+		return str(Days.TEXT["satt_goal"]) % (FieldData.kind_plural(kk) if gs.goal_target() != 1 else FieldData.kind_name(kk))
 	return "Glaube"
+
+
+## Ziel-Chip der Gedeihen-Tage: die Bedürfnisse der Ziel-Art als kleine Symbole (was man verbinden muss).
+func _fill_needs(st: Dictionary) -> void:
+	var icons: Array = st.get("need_icons", [])
+	var key := ",".join(PackedStringArray(icons))
+	chip_needs.visible = not icons.is_empty()
+	if key == _needs_shown:
+		return
+	_needs_shown = key
+	for c in chip_needs.get_children():
+		c.queue_free()
+	for n in icons:
+		var ic := ui._icon(str(n), 26)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip_needs.add_child(ic)
+
+
+## Neue Tage: eine kurze Pille für das wichtigste Ereignis der Runde (Krieg droht, Meer steigt, Blitz kommt …).
+func _pill8(result: Dictionary) -> void:
+	if not Game.in_day() or not Game.state.v8:
+		return
+	var best: Dictionary = {}
+	var rank := -1
+	for e0 in result.get("events", []):
+		var e: Dictionary = e0
+		var t := str(e.get("type", ""))
+		if not PILL8.has(t):
+			continue
+		if t == "flood_warn" and not bool(e.get("new", true)):
+			continue
+		if t == "satt_new" and _satt_said:
+			continue
+		if t == "smog" and _smog_said:
+			continue
+		if t == "thrive" and not bool(e.get("first", true)):
+			continue
+		var r := int((PILL8[t] as Array)[0])
+		if r > rank:
+			rank = r
+			best = e
+	if best.is_empty():
+		return
+	var tt := str(best["type"])
+	var p: Array = PILL8[tt]
+	var caps := str(Days.TEXT.get(str(p[2]), "")) if str(p[2]) != "" else ""
+	var line := str(Days.TEXT.get(str(p[3]), "")) if str(p[3]) != "" else ""
+	if tt == "thrive":
+		caps = str(Days.TEXT["thrive_hut"] if int(best.get("from", 0)) == FieldData.HUT else Days.TEXT["thrive_village"])
+	elif tt == "starve":
+		caps = str(Days.TEXT["starve_village"] if int(best.get("from", 0)) == FieldData.VILLAGE else Days.TEXT["starve_town"])
+	elif tt == "extra":
+		line = str(Game.state.day_status().get("extra_text", ""))
+	elif tt == "satt_new":
+		_satt_said = true
+	elif tt == "smog":
+		_smog_said = true
+	if line == "":
+		line = caps
+		caps = ""
+	var kind := "war" if ["war_start", "war_hit", "bolt", "ignite", "flood", "flood_warn", "starve", "smog"].has(tt) else "still"
+	ui._show_banner(kind, caps, line, str(p[1]))
 
 
 func _goal_icon(info: Dictionary) -> String:
@@ -1837,6 +1934,7 @@ func _on_move_done(kind: String) -> void:
 func _on_round(result: Dictionary, _before: Dictionary) -> void:
 	if lane.visible and _lane_until != INF:
 		_hide_lane()
+	_pill8(result)
 	# Der Charakter lobt ab und zu (höchstens alle 10 s, jede 4. Runde mit Wachstum; nie im Tutorial)
 	var grew := false
 	for e0 in result.get("events", []):

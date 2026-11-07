@@ -8,7 +8,7 @@ extends RefCounted
 #   Hütte → Haus → Dorf → Stadt | Kirche ★, Stadt → Großstadt | Industrie ★, Großstadt → Metropole ★. Wasser: nie.
 #   ★ = fertig: wächst nicht mehr, bildet keine Reihe, bringt jede Drehung Glauben.
 static var MAX_STAGE := 15                # höchste Art-Nummer (alter Name, Oberfläche)
-static var KIND_COUNT := 16
+static var KIND_COUNT := 17
 # Glaube fürs Wachsen nach Stufe (tier) der Art vor dem Wachsen, × Kombo.
 static var GROW_FAITH := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75, 100]
 static var MERGE_POINTS := GROW_FAITH     # alter Name

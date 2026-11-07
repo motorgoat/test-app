@@ -58,7 +58,8 @@ var tapped := -1              # angetipptes Feld eines Werkzeugs: wächst beim V
 var standing := {}            # Reihen, die zu Beginn dieses Zugs schon dastanden: zählen nicht
 var broken := {}              # Reihen, die die letzte Drehung aufgelöst hat: sofort zurückdrehen zählt nicht
 var _broke_now := {}
-var spent := {}               # Einfach: Reihen, die als ganze Gruppe zusammen gewachsen sind (zählen nie wieder)
+var spent := {}               # Reihen (3 Felder + Art vor dem Wachsen), die schon gewachsen sind: zählen nie wieder
+var once := true              # GDPD_BALANCE_2.md 2: „Jede Reihe wächst nur einmal“ (alle Modi). false = altes Verhalten
 var lives: int = 3            # Herzen
 var max_lives: int = 3
 var hearts := true
@@ -135,6 +136,22 @@ var _eq0: Dictionary = {}     # vor dem Zug: alle Dreier aus gleichen Feldern (j
 var _still_told: Dictionary = {}   # in diesem Zug schon gemeldete stille Reihen
 var _still_calm := false      # dieser Zug hat eine ruhende Reihe gebildet: das ist kein Fehlversuch
 
+# --- Die 7 Tage nach GDPD_BALANCE_2.md (Erschaffen + Gedeihen; Tag-Konfiguration mit "rows") -------------------
+var v8 := false               # dieser Tag läuft nach den neuen Regeln (Days.config hat "rows")
+var rows8: Dictionary = {}    # Art → true: bildet heute eine zählende Reihe
+var next8: Dictionary = {}    # Art → nächste Art einer Reihe (Erde → Wiese → Wald → Tiere → Hütte)
+var later8: Dictionary = {}   # Art → true: bildet an einem späteren Tag Reihen (ruht heute)
+var top8 := -1                # höchste Menschen-Art, die heute durch Gedeihen entstehen darf (-1: keine)
+var needs8: Dictionary = {}   # Menschen-Art → ["food", "work", "faith"]
+var consume8 := true          # 3 Tiere → 1 Hütte, die anderen beiden werden Wiese
+var bolt := -1                # gewarntes Blitz-Feld (schlägt am Ende der nächsten Drehung ein), -1 = keins
+var war_on := false           # Krieg läuft (Kirche an Kirche)
+var front: Dictionary = {}    # Feld-ID → true: Kriegsfront (nie satt, fällt jede Drehung eine Stufe)
+var flood_warn: Dictionary = {}   # Seite (Index in FACE_NORMALS) → true: gewarnt (Flut, wenn sie es bleibt)
+var extra_level := 0          # Weiterbauen: so viele Extra-Aufgaben sind geschafft
+var _satt0: Dictionary = {}   # zu Beginn des Zugs satt (für satt_new / satt_lost)
+var rain_kinds8: Array = []   # Arten, die Regen heute machen kann (Wiese aus Erde, Wald aus Wiese)
+
 ## Alter Name für faith.
 var score: int:
 	get:
@@ -167,6 +184,8 @@ func setup_day(cfg: Dictionary, kinds: Array, seed_value: int = 1, extra_twists:
 	_apply_day_rules(cfg, seed_value, extra_twists)
 	for i in mini(kinds.size(), fields.size()):
 		(fields[i] as FieldData).kind = int(kinds[i])
+	for f in fields:
+		f.maxlvl = FieldData.level8(f.kind)
 	ever = {}
 	for f in fields:
 		ever[f.kind] = true
@@ -229,6 +248,20 @@ func _reset(seed_value: int, endless_mode: bool, lvl: int, with_hearts: bool) ->
 	_pre_gain = 0
 	day = {}
 	day_no = 0
+	once = true
+	v8 = false
+	rows8 = {}
+	next8 = {}
+	later8 = {}
+	top8 = -1
+	needs8 = {}
+	consume8 = true
+	bolt = -1
+	war_on = false
+	front = {}
+	flood_warn = {}
+	extra_level = 0
+	_satt0 = {}
 	made = []
 	for k in FieldData.KIND_COUNT:
 		made.append(0)
@@ -292,6 +325,10 @@ func _apply_free_rules() -> void:
 func _apply_day_rules(cfg: Dictionary, seed_value: int, extra_twists: int) -> void:
 	day = cfg.duplicate(true)
 	day_no = int(cfg.get("day", 0))
+	var gk: Array = []
+	for k in cfg.get("goal_kinds", []):
+		gk.append(int(k))
+	day["goal_kinds"] = gk
 	unlocked = {}
 	for k in cfg.get("unlocked", []):
 		unlocked[int(k)] = true
@@ -321,12 +358,20 @@ func _apply_day_rules(cfg: Dictionary, seed_value: int, extra_twists: int) -> vo
 	day_limit = int(cfg.get("limit", 15)) + maxi(0, extra_twists)
 	use_lcg = true
 	lcg = (seed_value * 7919 + 17) & 0x7fffffff
+	once = bool(cfg.get("once", true))
+	v8 = cfg.has("rows")
+	if v8:
+		_apply_rules8(cfg)
 	_rebuild_rules()
 
 
 ## Welche Art bildet heute eine Reihe? (Nicht Wasser, nicht fertig, und ihre nächste Art ist freigeschaltet.)
 func _rebuild_rules() -> void:
 	_row_ok = []
+	if v8:
+		for k in FieldData.KIND_COUNT:
+			_row_ok.append(rows8.has(k) and next8.has(k))
+		return
 	for k in FieldData.KIND_COUNT:
 		var ok := FieldData.can_row(k)
 		if ok:
@@ -436,6 +481,21 @@ func clone() -> GameState:
 	gs.broken = broken.duplicate()
 	gs._broke_now = _broke_now.duplicate()
 	gs.spent = spent.duplicate()
+	gs.once = once
+	gs.v8 = v8
+	gs.rows8 = rows8              # nur gelesen
+	gs.next8 = next8              # nur gelesen
+	gs.later8 = later8            # nur gelesen
+	gs.top8 = top8
+	gs.needs8 = needs8            # nur gelesen
+	gs.consume8 = consume8
+	gs.rain_kinds8 = rain_kinds8      # nur gelesen
+	gs.bolt = bolt
+	gs.war_on = war_on
+	gs.front = front.duplicate()
+	gs.flood_warn = flood_warn.duplicate()
+	gs.extra_level = extra_level
+	gs._satt0 = _satt0.duplicate()
 	gs.lives = lives
 	gs.max_lives = max_lives
 	gs.hearts = hearts
@@ -827,6 +887,9 @@ func tool_unlocked(kind: String) -> bool:
 	if not day.is_empty():
 		if kind == "rain":
 			return int(day.get("rain_start", 0)) > 0 or rain_every > 0
+		if v8:
+			# Die 7 Tage: Meteor (Tag 6–7) liegt auf dem Platz des Gewitters
+			return (kind == "strike" or kind == "meteor") and bool(day.get("meteor", false))
 		if kind == "strike":
 			return sys_strike
 		return false
@@ -880,7 +943,7 @@ static func line_key(line: Array) -> int:
 		var t3 := a
 		a = b
 		b = t3
-	return ((a * 64 + b) * 64 + c) * 16 + (line[0] as FieldData).kind
+	return ((a * 64 + b) * 64 + c) * 32 + (line[0] as FieldData).kind
 
 
 ## Vor der ersten Änderung eines Zugs: was steht schon da (zählt nicht), welche Kirchen gehören zusammen.
@@ -909,6 +972,10 @@ func _open_turn() -> void:
 	_goal0 = goal_progress()
 	_still_told = {}
 	_still_calm = false
+	if v8:
+		_satt0 = {}
+		for i in satt_ids():
+			_satt0[int(i)] = true
 
 
 func _line_keys() -> Dictionary:
@@ -975,7 +1042,7 @@ func _still_rows(ev: Array, focus: Dictionary, changed: Dictionary, late: bool) 
 			_still_calm = true
 		var e := {"type": "still", "why": why, "kind": k, "fields": [f0.id, f1.id, f2.id], "diag": diag, "late": late}
 		if why == "rest":
-			e["next"] = int(FieldData.NEXT[k])
+			e["next"] = int(NEXT8.get(k, -1)) if v8 else int(FieldData.NEXT[k])
 		ev.append(e)
 
 
@@ -987,8 +1054,15 @@ func _still_why(k: int, diag: bool, key: int) -> String:
 		return "standing" if can_row(k) and diag_ok else ""
 	if FieldData.finished(k):
 		return "finished"
+	if k == FieldData.STONE:
+		return "stone"
 	if not FieldData.can_row(k):
 		return "water"
+	if v8 and not can_row(k):
+		# Die 7 Tage: ruht bis zu einem späteren Tag, Menschen wachsen durch Nachbarn, sonst heute keine Reihe mehr
+		if later8.has(k):
+			return "rest"
+		return "people" if FieldData.level8(k) >= 0 else "done"
 	if not diag_ok:
 		return "diag"
 	if not can_row(k):
@@ -1136,6 +1210,8 @@ func options_of(k: int) -> Array:
 
 ## Nächste Art unter den heutigen Regeln (option: 0/1 bei einer Wahl). Ruht die Art, bleibt sie, wie sie ist.
 func next_of(k: int, option: int = 0) -> int:
+	if v8:
+		return int(next8.get(k, k)) if can_row(k) else k
 	if is_choice(k):
 		return FieldData.next_kind(k, option)
 	if not FieldData.valid(k):
@@ -1146,6 +1222,8 @@ func next_of(k: int, option: int = 0) -> int:
 
 ## Erklärung für das lange Drücken auf ein Feld dieser Art (heutige Regeln).
 func kind_help(k: int) -> String:
+	if v8:
+		return kind_help8(k)
 	var c := clampi(k, 0, FieldData.KIND_COUNT - 1)
 	var txt := str(FieldData.KIND_HELP[c])
 	if FieldData.KIND_HELP_NO_CHOICE.has(c) and not is_choice(c):
@@ -1165,6 +1243,8 @@ func _grow_to(f: FieldData, nk: int) -> void:
 ## Die nächste Art für ein Feld der Art k, das gerade wächst. Bei einer Wahl: Die erste Wahl des Zugs wird
 ## die Karte (card); für sie gilt answers, sonst (und für jede andere Wahl) die Gewohnheit will.
 func grown(k: int, fid: int = -1) -> int:
+	if v8:
+		return next_of(k)
 	if not is_choice(k):
 		return next_of(k)
 	if card < 0:
@@ -1213,6 +1293,8 @@ func resolve_faces(ev: Array, locked: Dictionary) -> int:
 			if (g as FieldData).p == nn:
 				center = (g as FieldData).id
 		var nk := grown(k, center)
+		if once:
+			_spend_face(face)
 		var ids: Array = []
 		for g in face:
 			var h: FieldData = g
@@ -1226,6 +1308,24 @@ func resolve_faces(ev: Array, locked: Dictionary) -> int:
 		_grew += 1
 		ev.append({"type": "face", "field": center, "fields": ids, "points": pts, "stage": nk, "kind": nk, "from": k})
 	return total
+
+
+## Jede Reihe wächst nur einmal: alle Reihen einer Seite, die als Ganzes wächst, sind verbraucht (vor dem Wachsen).
+func _spend_face(face: Array) -> void:
+	if not _cache_ready:
+		_build_cache()
+	var on := {}
+	for g in face:
+		on[(g as FieldData).id] = true
+	var i := 0
+	var n := _LINES.size()
+	while i < n:
+		var f0: FieldData = _index[_LINES[i]]
+		var f1: FieldData = _index[_LINES[i + 1]]
+		var f2: FieldData = _index[_LINES[i + 2]]
+		if on.has(f0.id) and on.has(f1.id) and on.has(f2.id):
+			spent[line_key([f0, f1, f2])] = true
+		i += 4
 
 
 ## Lässt Reihen aus drei gleichen Feldern wachsen, in denen sich gerade etwas verändert hat, dann Kettenreaktionen.
@@ -1255,6 +1355,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 						rids.append((g as FieldData).id)
 					ev.append({"type": "repeat", "fields": rids, "spent": spent.has(lk) and not broken.has(lk)})
 				continue
+			if pass_i > 0 and once and spent.has(line_key(ln)):
+				continue        # auch eine Kettenreaktion bildet eine schon gewachsene Reihe nicht noch einmal
 			found.append(ln)
 		if found.is_empty():
 			break
@@ -1295,6 +1397,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 							if not in_grp.has(gd.id) and not done.has(gd.id):
 								in_grp[gd.id] = true
 								grp.append(gd)
+				if once:
+					spent[line_key(line)] = true
 				var gpts: int = int(Balance.GROW_FAITH[FieldData.tier(k0)]) * combo * maxi(grp.size(), 3) / 3
 				total += gpts
 				_grew += 1
@@ -1321,6 +1425,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 			var pts: int = int(Balance.GROW_FAITH[FieldData.tier(k0)]) * combo
 			total += pts
 			_grew += 1
+			if once:
+				spent[line_key(line)] = true      # vor dem Wachsen: der Schlüssel trägt die alte Art
 			_grow_to(mid, grown(k0, mid.id))
 			mid.burning = false
 			focus[mid.id] = true
@@ -1329,9 +1435,28 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 			var other_ids: Array = []
 			for g in rest:
 				other_ids.append((g as FieldData).id)
-			ev.append({"type": "merge", "field": mid.id, "others": other_ids, "points": pts, "combo": combo, "stage": mid.kind, "kind": mid.kind, "from": k0, "late": late})
+			var eaten: Array = []
+			if v8 and FieldData.level8(mid.kind) >= 0:
+				# Gedeihen beginnt: Die neue Hütte ist hungrig; 3 Tiere → 1 Hütte, die anderen beiden werden Wiese
+				mid.maxlvl = maxi(mid.maxlvl, FieldData.level8(mid.kind))
+				mid.fed = 0
+				mid.hungry = 0
+				if consume8:
+					for g in rest:
+						var og: FieldData = g
+						if og.kind == k0:
+							og.kind = FieldData.MEADOW
+							og.burning = false
+							locked[og.id] = true
+							done[og.id] = true
+							touched[og.id] = true
+							eaten.append(og.id)
+				locked[mid.id] = true
+			ev.append({"type": "merge", "field": mid.id, "others": other_ids, "points": pts, "combo": combo, "stage": mid.kind, "kind": mid.kind, "from": k0, "late": late, "consume": not eaten.is_empty(), "eaten": eaten})
+			if not eaten.is_empty():
+				ev.append({"type": "consume", "field": mid.id, "others": eaten, "from": k0, "kind": mid.kind, "left": FieldData.MEADOW})
 	# Einfach: Reihen, deren drei Felder alle gerade zusammen gewachsen sind, zählen nie wieder.
-	if not done.is_empty():
+	if easy and not done.is_empty():
 		for ln in lines():
 			var all_done := true
 			for g in ln:
@@ -1348,6 +1473,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 ## Gibt {"events", "gain" (Glaube durchs Wachsen), "faith" (Änderung), "income", "loss", "grew", "card",
 ##       "bonus_gained", "new_age", "w", "zone", "completed"} zurück.
 func end_round(ans: Dictionary = {}) -> Dictionary:
+	if v8:
+		return _end_round8(ans)
 	_open_turn()
 	answers = ans.duplicate()
 	var twist := _rotated
@@ -1408,13 +1535,12 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 				if f.kind != FieldData.EMPTY or f.fresh > 0:
 					continue
 				var nat := _count_neighbors(f, "nature")
-				if nat >= Balance.REGROW_NEIGHBORS:
+				if nat >= Balance.REGROW_NEIGHBORS and not _regrow_closes_row(f):
 					grow.append([nat, f.id])
 			grow.sort_custom(func(x, y): return int(x[0]) > int(y[0]) or (int(x[0]) == int(y[0]) and int(x[1]) < int(y[1])))
 			for item in grow.slice(0, Balance.REGROW_PER_TWIST):
 				var rf: FieldData = fields[int(item[1])]
 				rf.kind = FieldData.MEADOW
-				dirty[rf.id] = true
 				stats["regrow"] = int(stats["regrow"]) + 1
 				ev.append({"type": "regrow", "field": rf.id})
 	# 5. Rauch verzieht sich
@@ -1500,6 +1626,16 @@ func end_round(ans: Dictionary = {}) -> Dictionary:
 		got["rain"] = int(got["rain"]) + 1
 		ev.append({"type": "gift", "tool": "rain"})
 	return _close_turn(ev, growth, faith - faith_before, income, loss, wish_gain + _pre_gain, got, age_before)
+
+
+## „Nachwachsen schließt keine Reihe“ (GDPD_BALANCE_2.md 3): Würde diese Erde als Wiese eine Reihe aus 3 Wiesen
+## vollenden (gerade, oder schräg, wo Schräge zählen), wächst sie nicht nach.
+func _regrow_closes_row(f: FieldData) -> bool:
+	var was := f.kind
+	f.kind = FieldData.MEADOW
+	var hit := not lines({f.id: true}).is_empty()
+	f.kind = was
+	return hit
 
 
 ## Warum ist in diesem Zug nichts gewachsen? repeat (zurückgedreht), spent (schon zusammen gewachsen),
@@ -1628,9 +1764,11 @@ func resolve_now(ans: Dictionary = {}) -> Dictionary:
 	tapped = -1
 	var faith_before := faith
 	var wish_gain := _pre_gain
-	var got := _progress(gain + wish_gain, corners)
+	var got := _progress(0 if v8 else gain + wish_gain, corners)
 	_drop_dead_wishes(ev)
 	_check_complete(ev)
+	if v8:
+		_round_tail8(ev)
 	_check_day(ev, false)
 	var res := _close_turn(ev, gain, faith - faith_before, 0, 0, wish_gain, got, age_before)
 	turn -= 1          # Regen ist kein Zug
@@ -2030,7 +2168,7 @@ func play(action: Dictionary, ans: Dictionary = {}) -> Dictionary:
 	var stages := {}
 	for i in hit:
 		stages[int(i)] = (fields[int(i)] as FieldData).kind
-	var res := resolve_now(ans) if t == "rain" else end_round(ans)
+	var res := resolve_now(ans) if (t == "rain" or (v8 and (t == "meteor" or t == "strike"))) else end_round(ans)
 	res["bonus"] = {"kind": t, "field": fid, "fields": hit, "stages": stages}
 	return res
 
@@ -2057,22 +2195,27 @@ func rain_targets() -> Dictionary:
 		return out
 	var useful := rain_spots()
 	for f in fields:
-		if f.burning:
+		if f.burning or (v8 and f.id == bolt):
 			out[f.id] = "fire"
 		elif useful.has(f.id):
 			out[f.id] = "useful"
-		elif rain_grows(f.kind):
+		elif (rain_to8(f) >= 0) if v8 else rain_grows(f.kind):
 			out[f.id] = "grow"
 	return out
 
 
 ## Lässt Regen diese Art heute wachsen? (Erde → Wiese → Wald → Großer Wald, nur wenn das Ergebnis freigeschaltet ist.)
 func rain_grows(k: int) -> bool:
+	if v8:
+		var rk: Array = rain_kinds8
+		return (k == FieldData.EMPTY and rk.has(FieldData.MEADOW)) or (k == FieldData.MEADOW and (rk.has(FieldData.FOREST) or bool(day.get("rain_acker", false))))
 	return RAIN_NEXT.has(k) and unlocked.has(int(RAIN_NEXT[k]))
 
 
 ## Geht Regen auf dieses Feld? (Brennt es, löscht er; sonst muss es wachsen können.)
 func rain_ok(f: FieldData) -> bool:
+	if v8:
+		return f.burning or f.id == bolt or rain_to8(f) >= 0
 	return f.burning or rain_grows(f.kind)
 
 
@@ -2087,13 +2230,16 @@ func rain_spots() -> Dictionary:
 	if rain <= 0:
 		return out
 	for f in fields:
-		if f.burning:
+		if f.burning or (v8 and f.id == bolt):
 			out[f.id] = "fire"
 			continue
-		if not rain_grows(f.kind):
+		if v8:
+			if rain_to8(f) < 0:
+				continue
+		elif not rain_grows(f.kind):
 			continue
 		var was: int = f.kind
-		f.kind = int(RAIN_NEXT[was])
+		f.kind = rain_to8(f) if v8 else int(RAIN_NEXT[was])
 		var hit := false
 		for ln in lines({f.id: true}):
 			var lk := line_key(ln)
@@ -2107,6 +2253,8 @@ func rain_spots() -> Dictionary:
 
 ## "" = geht, sonst der Grund, warum nicht (einfaches Deutsch).
 func can_bonus(kind: String, f: FieldData) -> String:
+	if v8:
+		return _can_bonus8(kind, f)
 	if kind == "rain":
 		if rain <= 0:
 			return "Nächster Regen in %d Drehungen." % maxi(1, next_rain - twists)
@@ -2165,6 +2313,9 @@ func apply_bonus(kind: String, f: FieldData, row: Array = [], ans: Dictionary = 
 	_remember_before()
 	_open_turn()
 	answers = ans.duplicate()
+	if v8:
+		_apply_bonus8(kind, f)
+		return
 	tapped = f.id
 	if kind == "rain":
 		rain -= 1
@@ -2272,6 +2423,13 @@ func goal_progress() -> int:
 		return int(stats.get("wish_ok", 0))
 	if t == "faith":
 		return faith
+	if t == "satt":
+		var n := 0
+		var gk := goal_kinds()
+		for f in fields:
+			if gk.has(f.kind) and satt(f):
+				n += 1
+		return n
 	return 0
 
 
@@ -2307,6 +2465,9 @@ func start_free_build() -> void:
 	day_free_build = true
 	no_war = false
 	build_made0 = total_made()
+	extra_level = 0
+	while extra_level < extra_max() and goal_progress() >= extra_target():
+		extra_level += 1          # schon beim Sieg übertroffen: die nächste Extra-Aufgabe liegt darüber
 
 
 ## So oft ist bisher etwas gewachsen (alle Arten zusammen).
@@ -2346,7 +2507,11 @@ func day_status() -> Dictionary:
 	return {"day": day_no, "type": goal_type(), "kinds": goal_kinds(), "target": goal_target(),
 		"progress": goal_progress(), "met": goal_met(), "green": balance_green(), "need_green": goal_green(),
 		"twists": used_twists(), "limit": day_limit, "left": twists_left(), "won": day_won, "lost": day_lost,
-		"won_at": day_won_at, "stars": stars(), "no_war": no_war, "free_build": day_free_build, "growth": build_growth()}
+		"won_at": day_won_at, "stars": stars(), "no_war": no_war, "free_build": day_free_build, "growth": build_growth(),
+		"v8": v8, "extra_level": extra_level, "extra_max": extra_max(), "extra_target": extra_target(),
+		"extra_text": Days.extra_line(day, extra_target()) if extra_level < extra_max() else str(Days.TEXT.get("build_on", "Bau weiter")),
+		"needs": goal_needs(), "need_icons": goal_need_icons(), "bolt": bolt, "war_on": war_on, "front": front.keys(),
+		"flood_warn": flood_warn.keys(), "faith": faith, "rain": rain}
 
 
 ## Nach jedem Zug (end_round) und jedem Regen (resolve_now): Fortschritt melden, gewonnen oder gescheitert?
@@ -2529,6 +2694,8 @@ func _day_option(action: Dictionary, w: Array) -> Dictionary:
 func best_day_action(twist_only: bool = false) -> Dictionary:
 	if not is_day() or is_over():
 		return {}
+	if v8:
+		return _best_day_action8(twist_only)
 	var w := goal_weights()
 	var now_v := goal_value(self, w)
 	var p0 := goal_progress()
@@ -2595,3 +2762,904 @@ func best_action() -> Dictionary:
 	if not b.is_empty():
 		b["type"] = "twist"
 	return b
+
+
+# =============================================================================
+# Die 7 Tage nach GDPD_BALANCE_2.md: Erschaffen (Reihen) und Gedeihen (Nachbarn)
+# „Zuerst schützt du die Menschen vor der Natur, später die Natur vor den Menschen.“
+# Port von rules8.gd (gegen das Python-Modell engine8.py geprüft). Ablauf einer Drehung (4.5):
+#   1 Reihen (once, 3 Tiere → 1 Hütte)  2 Drehungen +1, Rauch −1  3 Feuer  4 Blitz  5 Smog  6 Flut  7 Krieg
+#   9 Gedeihen (satt / wachsen / Hunger / schrumpfen)  10 Glaube  11 Regen  12 Ziel
+# =============================================================================
+
+## Quellen der Bedürfnisse (4.1): ein Nachbar dieser Art erfüllt das Bedürfnis (wird nicht verbraucht).
+const SOURCES8 = {"food": [FieldData.ANIMALS, FieldData.FIELD], "work": [FieldData.FOREST, FieldData.STONE, FieldData.INDUSTRY],
+	"faith": [FieldData.CHURCH], "water": [FieldData.WATER]}
+## Bedürfnisse je Menschen-Art (Hütte 🍞, Dorf 🍞🔨, Stadt 🍞🔨🙏).
+const NEEDS8 = {FieldData.HUT: ["food"], FieldData.VILLAGE: ["food", "work"], FieldData.TOWN: ["food", "work", "faith"]}
+const PEOPLE8 = [FieldData.HUT, FieldData.VILLAGE, FieldData.TOWN]
+## Nächste Art einer Reihe an den Tagen (welche davon heute zählen, sagt "rows").
+const NEXT8 = {FieldData.EMPTY: FieldData.MEADOW, FieldData.MEADOW: FieldData.FOREST, FieldData.FOREST: FieldData.ANIMALS,
+	FieldData.ANIMALS: FieldData.HUT}
+## Was brennen kann → was danach übrig ist.
+const FLAMMABLE8 = {FieldData.FOREST: FieldData.MEADOW, FieldData.ANIMALS: FieldData.MEADOW, FieldData.HUT: FieldData.MEADOW,
+	FieldData.VILLAGE: FieldData.HUT}
+const BOLT_KINDS8 = [FieldData.FOREST, FieldData.ANIMALS]
+const WAR_DOWN8 = {FieldData.TOWN: FieldData.VILLAGE, FieldData.VILLAGE: FieldData.HUT, FieldData.HUT: FieldData.MEADOW}
+const SMOG_DOWN8 = {FieldData.ANIMALS: FieldData.FOREST, FieldData.FOREST: FieldData.MEADOW, FieldData.MEADOW: FieldData.EMPTY}
+const SMOG_RANK8 = {FieldData.ANIMALS: 3, FieldData.FOREST: 2, FieldData.MEADOW: 1}
+const LOW8 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FIELD, FieldData.HUT]
+const CITY_W8 = {FieldData.VILLAGE: 1, FieldData.TOWN: 2, FieldData.INDUSTRY: 2}
+const FRESH8 := 2                 # verbrannte Felder fangen so viele Feuer-Schritte kein Feuer
+const RAIN_MAX8 := 3
+const METEOR_COST := 12
+## Bedürfnisse für die Oberfläche: Symbol, Name, Pille, wenn es fehlt.
+const NEED_ICON = {"food": "hunger", "work": "trade", "faith": "faith", "water": "water"}
+const NEED_NAME = {"food": "Nahrung", "work": "Arbeit", "faith": "Glaube", "water": "Wasser"}
+const NEED_PILL = {"food": "Hunger", "work": "Keine Arbeit", "faith": "Zweifel", "water": "Durst"}
+## Ereignisse, nach denen eine Drehung nicht „Nichts gewachsen“ heißt (es ist ja etwas passiert).
+const _EV8_NOTE = ["thrive", "starve", "satt_new", "satt_lost", "bolt_warn", "bolt", "ignite", "burn", "war_start",
+	"war_hit", "war_end", "flood", "flood_warn", "polluted", "goal", "consume"]
+
+
+func _apply_rules8(cfg: Dictionary) -> void:
+	rows8 = {}
+	for k in cfg.get("rows", []):
+		rows8[int(k)] = true
+	next8 = {}
+	var nx: Dictionary = cfg.get("next8", NEXT8)
+	for key in nx:
+		next8[int(str(key))] = int(nx[key])
+	later8 = {}
+	for k in cfg.get("later_rows", []):
+		later8[int(k)] = true
+	top8 = int(cfg.get("top", -1))
+	needs8 = {}
+	var nd: Dictionary = cfg.get("needs", NEEDS8)
+	for key in nd:
+		needs8[int(str(key))] = (nd[key] as Array).duplicate()
+	consume8 = bool(cfg.get("consume", true))
+	rain_kinds8 = []
+	for k in cfg.get("rain_kinds", []):
+		rain_kinds8.append(int(k))
+	no_fire = true                # keine „3 Fehlversuche → Feuer“ mehr; Feuer kommt vom Blitz (ab Tag 3)
+	sys_wishes = false
+	sys_scale = false
+	sys_income = false
+	sys_war = false
+	no_war = false
+	sys_smog = false
+	sys_strike = false
+	sys_gift = false
+	choices_on = {}
+	bolt = -1
+	war_on = false
+	front = {}
+	flood_warn = {}
+	extra_level = 0
+
+
+func people8(k: int) -> bool:
+	return FieldData.level8(k) >= 0
+
+
+## Bedürfnisse einer Art heute ([] wenn keine Menschen).
+func need_list(k: int) -> Array:
+	return needs8.get(k, [])
+
+
+## Was hat ein Menschen-Feld, was fehlt ihm? {"met": [...], "missing": [...]} (Namen: food, work, faith, water).
+func need_state(f: FieldData) -> Dictionary:
+	var have := {}
+	for g in neighbors(f):
+		have[(g as FieldData).kind] = true
+	var met: Array = []
+	var miss: Array = []
+	for n in need_list(f.kind):
+		var ok := false
+		for s in SOURCES8[str(n)]:
+			if have.has(int(s)):
+				ok = true
+		if ok:
+			met.append(str(n))
+		else:
+			miss.append(str(n))
+	return {"met": met, "missing": miss}
+
+
+## Satt: alle Bedürfnisse erfüllt, brennt nicht, steht nicht an der Kriegsfront.
+func satt(f: FieldData) -> bool:
+	if not v8 or not people8(f.kind) or not needs8.has(f.kind):
+		return false
+	if f.burning or front.has(f.id):
+		return false
+	return (need_state(f)["missing"] as Array).is_empty()
+
+
+func satt_ids() -> Array:
+	var out: Array = []
+	for f in fields:
+		if satt(f):
+			out.append(f.id)
+	return out
+
+
+## Zustand eines Felds für Anzeige und Felder-Ansicht: {"people", "satt", "met", "missing", "fed", "hungry", "grow_after",
+## "shrink_after", "burning", "fresh", "front", "bolt", "wet"}.
+func field_state8(f: FieldData) -> Dictionary:
+	var ns := need_state(f) if people8(f.kind) else {"met": [], "missing": []}
+	return {"people": people8(f.kind), "satt": satt(f), "met": ns["met"], "missing": ns["missing"], "fed": f.fed,
+		"hungry": f.hungry, "grow_after": int(day.get("grow_after", 2)), "shrink_after": int(day.get("shrink_after", 4)),
+		"burning": f.burning, "fresh": f.fresh, "front": front.has(f.id), "bolt": f.id == bolt, "wet": _wet8(f)}
+
+
+func _wet8(f: FieldData) -> bool:
+	for g in neighbors(f):
+		if (g as FieldData).kind == FieldData.WATER:
+			return true
+	return false
+
+
+func face_index(f: FieldData) -> int:
+	return FACE_NORMALS.find(f.n)
+
+
+## Stadt-Gewicht einer Seite (Dorf 1, Stadt 2, Industrie 2): ab flood_at (5) steigt das Meer.
+func city_weight8(fc: int) -> int:
+	var w := 0
+	for g in face_fields(FACE_NORMALS[fc]):
+		w += int(CITY_W8.get((g as FieldData).kind, 0))
+	return w
+
+
+## Kirchen, die eine andere Kirche berühren (Krieg).
+func church_touch8() -> Array:
+	var out: Array = []
+	for f in fields:
+		if f.kind != FieldData.CHURCH:
+			continue
+		for g in neighbors(f):
+			if (g as FieldData).kind == FieldData.CHURCH and not out.has(f.id):
+				out.append(f.id)
+	return out
+
+
+func _next_people8(k: int) -> int:
+	var i := PEOPLE8.find(k)
+	if i < 0 or i + 1 >= PEOPLE8.size():
+		return -1
+	var nk: int = PEOPLE8[i + 1]
+	if top8 < 0 or PEOPLE8.find(nk) > PEOPLE8.find(top8):
+		return -1
+	return nk
+
+
+## Gedeihen (4.3): satt → nach grow_after Runden die nächste Stufe; hungrig → nach shrink_after Runden eine zurück.
+func _thrive8(ev: Array) -> void:
+	var G := int(day.get("grow_after", 2))
+	var H := int(day.get("shrink_after", 4))
+	for f in fields:
+		var k: int = f.kind
+		if not people8(k):
+			f.fed = 0
+			f.hungry = 0
+			continue
+		if satt(f):
+			f.hungry = 0
+			f.fed += 1
+			var nk := _next_people8(k)
+			if nk >= 0 and f.fed >= G:
+				f.kind = nk
+				f.fed = 0
+				var first: bool = FieldData.level8(nk) > f.maxlvl
+				if first:
+					f.maxlvl = FieldData.level8(nk)
+					made[nk] = int(made[nk]) + 1
+				ev.append({"type": "thrive", "field": f.id, "from": k, "kind": nk, "first": first})
+		else:
+			f.fed = 0
+			f.hungry += 1
+			if f.hungry >= H and PEOPLE8.find(k) > 0:
+				var lk: int = PEOPLE8[PEOPLE8.find(k) - 1]
+				f.kind = lk
+				f.hungry = 0
+				ev.append({"type": "starve", "field": f.id, "from": k, "kind": lk})
+
+
+func _fire_step8(ev: Array) -> void:
+	var old: Array = []
+	for f in fields:
+		if f.burning:
+			old.append(f)
+	var nw := {}
+	for f in old:
+		for g in neighbors(f):
+			var h: FieldData = g
+			if FLAMMABLE8.has(h.kind) and not h.burning and h.fresh == 0 and not _wet8(h):
+				nw[h.id] = true
+	for f in old:
+		var fd: FieldData = f
+		var k := fd.kind
+		fd.kind = int(FLAMMABLE8.get(k, k))
+		fd.burning = false
+		fd.fresh = FRESH8 + 1
+		fd.fed = 0
+		fd.hungry = 0
+		stats["fires"] = int(stats["fires"]) + 1
+		ev.append({"type": "burn", "field": fd.id, "from": k, "kind": fd.kind})
+	var ks: Array = nw.keys()
+	ks.sort()
+	for i in ks:
+		(fields[int(i)] as FieldData).burning = true
+		ev.append({"type": "ignite", "field": int(i)})
+
+
+func _lightning_step8(ev: Array) -> void:
+	if bolt >= 0:
+		var bf: FieldData = fields[bolt]
+		bolt = -1
+		if BOLT_KINDS8.has(bf.kind) and not bf.burning and bf.fresh == 0:
+			bf.burning = true
+			stats["bolts"] = int(stats["bolts"]) + 1
+			ev.append({"type": "bolt", "field": bf.id})
+		else:
+			ev.append({"type": "bolt_miss", "field": bf.id})
+	var every := int(day.get("lightning", 0))
+	var from := int(day.get("lightning_from", 2))
+	if every > 0 and twists >= from and (twists - from) % every == 0:
+		var best: Array = []
+		var top_n := -1
+		for f in fields:
+			if BOLT_KINDS8.has(f.kind) and not f.burning and f.fresh == 0:
+				var n := 0
+				for g in neighbors(f):
+					if FLAMMABLE8.has((g as FieldData).kind):
+						n += 1
+				if n > top_n:
+					top_n = n
+					best = [f.id]
+				elif n == top_n:
+					best.append(f.id)
+		if not best.is_empty():
+			bolt = int(best[_rand(best.size())])
+			ev.append({"type": "bolt_warn", "field": bolt})
+
+
+func _smog_step8(ev: Array) -> void:
+	var hits: Array = []
+	for f in fields:
+		if f.kind != FieldData.INDUSTRY:
+			continue
+		var best: FieldData = null
+		var bt := -1
+		for g in neighbors(f):
+			var h: FieldData = g
+			if SMOG_RANK8.has(h.kind) and int(SMOG_RANK8[h.kind]) > bt:
+				bt = int(SMOG_RANK8[h.kind])
+				best = h
+		if best != null:
+			var k0 := best.kind
+			best.kind = int(SMOG_DOWN8[k0])
+			best.burning = false
+			hits.append(best.id)
+			stats["withered"] = int(stats["withered"]) + 1
+			ev.append({"type": "polluted", "field": best.id, "by": f.id, "industry": f.id, "from": k0, "kind": best.kind})
+	if not hits.is_empty():
+		stats["smog"] = int(stats["smog"]) + 1
+		ev.append({"type": "smog", "w": balance(), "fields": hits})
+
+
+func _flood_step8(ev: Array) -> void:
+	var at := int(day.get("flood_at", 5))
+	var over := {}
+	for fc in 6:
+		if city_weight8(fc) >= at:
+			over[fc] = true
+	for fc in 6:
+		if not over.has(fc) or not flood_warn.has(fc):
+			continue
+		var hit: Array = []
+		for g in face_fields(FACE_NORMALS[fc]):
+			var h: FieldData = g
+			if LOW8.has(h.kind) and _wet8(h):
+				hit.append(h)
+		for g in hit:
+			var h2: FieldData = g
+			var k := h2.kind
+			h2.kind = FieldData.WATER
+			h2.burning = false
+			h2.fed = 0
+			h2.hungry = 0
+			stats["floods"] = int(stats["floods"]) + 1
+			ev.append({"type": "flood", "face": fc, "field": h2.id, "from": k, "kind": FieldData.WATER})
+	var was := flood_warn
+	flood_warn = over
+	for fc in 6:
+		if over.has(fc):
+			ev.append({"type": "flood_warn", "face": fc, "new": not was.has(fc), "weight": city_weight8(fc)})
+
+
+func _war_step8(ev: Array) -> void:
+	var ch := church_touch8()
+	if ch.is_empty():
+		if war_on:
+			ev.append({"type": "war_end"})
+		war_on = false
+		front = {}
+		return
+	var base := {}
+	for i in ch:
+		for g in neighbors(fields[int(i)]):
+			if people8((g as FieldData).kind):
+				base[(g as FieldData).id] = true
+	if not war_on:
+		war_on = true
+		front = base
+		stats["wars"] = int(stats["wars"]) + 1
+		var fr: Array = base.keys()
+		fr.sort()
+		ev.append({"type": "war_start", "churches": ch, "front": fr})
+		return
+	var hit: Array = []
+	for i in front:
+		if people8((fields[int(i)] as FieldData).kind):
+			hit.append(int(i))
+	hit.sort()
+	for i in hit:
+		var f: FieldData = fields[i]
+		var k := f.kind
+		f.kind = int(WAR_DOWN8[k])
+		f.fed = 0
+		f.hungry = 0
+		ev.append({"type": "war_hit", "field": f.id, "from": k, "kind": f.kind})
+	var grow := base.duplicate()
+	for i in front:
+		for g in neighbors(fields[int(i)]):
+			if people8((g as FieldData).kind):
+				grow[(g as FieldData).id] = true
+	var nf := {}
+	for i in front:
+		if people8((fields[int(i)] as FieldData).kind):
+			nf[int(i)] = true
+	for i in grow:
+		if people8((fields[int(i)] as FieldData).kind):
+			nf[int(i)] = true
+	front = nf
+
+
+## Eine Runde der neuen Tage (Ablauf 4.5). Glaube gibt es hier nur für Menschen neben einer Kirche (Meteor).
+func _end_round8(ans: Dictionary) -> Dictionary:
+	_open_turn()
+	answers = ans.duplicate()
+	var twist := _rotated
+	var ev: Array = _pre_ev.duplicate(true)
+	_pre_ev = []
+	var age_before := age()
+	var gain := resolve_merges(ev)
+	moved = {}
+	tapped = -1
+	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
+	var faith_before := faith
+	var income := 0
+	if twist:
+		twists += 1
+		for f in fields:
+			if f.fresh > 0:
+				f.fresh -= 1
+		_fire_step8(ev)
+		if int(day.get("lightning", 0)) > 0:
+			_lightning_step8(ev)
+		if bool(day.get("smog8", false)):
+			_smog_step8(ev)
+		if bool(day.get("flood8", false)):
+			_flood_step8(ev)
+		if bool(day.get("war8", false)):
+			_war_step8(ev)
+		_thrive8(ev)
+		if bool(day.get("meteor", false)):
+			for f in fields:
+				if not people8(f.kind):
+					continue
+				for g in neighbors(f):
+					if (g as FieldData).kind == FieldData.CHURCH:
+						income += 1
+						break
+			if income > 0:
+				faith += income
+				faith_earned += income
+				stats["income"] = int(stats["income"]) + income
+				ev.append({"type": "income", "faith": income})
+		if rain_every > 0 and twists % rain_every == 0 and rain < RAIN_MAX8:
+			rain += 1
+			got["rain"] = 1
+		if rain_every > 0:
+			next_rain = (twists / rain_every + 1) * rain_every
+	broken = _broke_now if _rotated else {}
+	_broke_now = {}
+	_rotated = false
+	for f in fields:
+		ever[f.kind] = true
+	_round_tail8(ev)
+	_check_day(ev, false)
+	if twist and _grew == 0:
+		var note := false
+		for e in ev:
+			if _EV8_NOTE.has(str(e["type"])):
+				note = true
+		if not note:
+			var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
+			ev.append({"type": "miss", "count": 0, "field": mid_id, "why": _miss_why(ev), "counted": false})
+	return _close_turn(ev, gain, faith - faith_before, income, 0, 0, got, age_before)
+
+
+## Nach jeder Runde und jedem Werkzeug: wer ist neu satt, wer nicht mehr; Extra-Aufgaben im Weiterbauen.
+func _round_tail8(ev: Array) -> void:
+	var now := {}
+	for i in satt_ids():
+		now[int(i)] = true
+	for i in now:
+		if not _satt0.has(i):
+			ev.append({"type": "satt_new", "field": int(i), "kind": (fields[int(i)] as FieldData).kind})
+	for i in _satt0:
+		if not now.has(i):
+			var f: FieldData = fields[int(i)]
+			var miss: Array = need_state(f)["missing"] if people8(f.kind) else []
+			ev.append({"type": "satt_lost", "field": int(i), "kind": f.kind, "missing": miss,
+				"burning": f.burning, "front": front.has(f.id)})
+	_satt0 = now
+	if day_free_build:
+		while extra_level < extra_max() and goal_progress() >= extra_target():
+			extra_level += 1
+			ev.append({"type": "extra", "level": extra_level, "target": goal_target() + extra_level, "max": extra_max(),
+				"done": extra_level >= extra_max(), "text": Days.extra_line(day, goal_target() + extra_level)})
+
+
+## Weiterbauen: so viele Extra-Aufgaben gibt es (Tage 1–3: drei, Tage 4–7: eine; freies Spiel/alte Tage: keine).
+func extra_max() -> int:
+	if not v8:
+		return 0
+	return int(day.get("extras", 3 if day_no <= 3 else 1))
+
+
+## Ziel der nächsten Extra-Aufgabe (Aufgabe + 1, + 2, + 3).
+func extra_target() -> int:
+	return goal_target() + extra_level + 1
+
+
+## Bedürfnisse der Ziel-Art (Gedeihen-Tage), sonst [].
+func goal_needs() -> Array:
+	if not v8 or goal_type() != "satt" or goal_kinds().is_empty():
+		return []
+	return need_list(int(goal_kinds()[0])).duplicate()
+
+
+func goal_need_icons() -> Array:
+	var out: Array = []
+	for n in goal_needs():
+		out.append(str(NEED_ICON.get(str(n), "info")))
+	return out
+
+
+## Was Regen aus diesem Feld macht (-1: nichts): Erde → Wiese (Tag 2), Wiese → Acker neben Menschen (rain_acker),
+## sonst Wiese → Wald.
+func rain_to8(f: FieldData) -> int:
+	var rk: Array = rain_kinds8
+	if f.kind == FieldData.EMPTY and rk.has(FieldData.MEADOW):
+		return FieldData.MEADOW
+	if f.kind == FieldData.MEADOW:
+		if bool(day.get("rain_acker", false)):
+			for g in neighbors(f):
+				if people8((g as FieldData).kind):
+					return FieldData.FIELD
+		if rk.has(FieldData.FOREST):
+			return FieldData.FOREST
+	return -1
+
+
+func meteor_ok(f: FieldData) -> bool:
+	return v8 and bool(day.get("meteor", false)) and faith >= METEOR_COST and f.kind != FieldData.WATER
+
+
+func _can_bonus8(kind: String, f: FieldData) -> String:
+	if kind == "rain":
+		if rain <= 0:
+			return "Nächster Regen in %d Drehungen." % maxi(1, next_rain - twists) if rain_every > 0 else "Kein Regen mehr."
+		if not rain_ok(f):
+			var on: Array = []
+			var rk: Array = rain_kinds8
+			if rk.has(FieldData.MEADOW):
+				on.append("Erde")
+			if rk.has(FieldData.FOREST) or bool(day.get("rain_acker", false)):
+				on.append("Wiese")
+			if int(day.get("lightning", 0)) > 0:
+				on.append("Blitz")
+			on.append("Feuer")
+			return "Nur auf %s." % (", ".join(PackedStringArray(on.slice(0, on.size() - 1))) + " oder " + str(on[on.size() - 1]))
+		return ""
+	if kind == "meteor" or kind == "strike":
+		if not bool(day.get("meteor", false)):
+			return "Heute gibt es keinen Meteor."
+		if faith < METEOR_COST:
+			return "Dafür brauchst du %d Glauben." % METEOR_COST
+		if f.kind == FieldData.WATER:
+			return "Nicht auf Wasser."
+		return ""
+	return "Heute nicht."
+
+
+## Regen und Meteor an den neuen Tagen (danach resolve_now: Regen kann eine Reihe fertig machen).
+func _apply_bonus8(kind: String, f: FieldData) -> void:
+	if kind == "rain":
+		rain -= 1
+		stats["rains"] = int(stats["rains"]) + 1
+		if f.id == bolt and not f.burning:
+			bolt = -1
+			_pre_ev.append({"type": "bolt_cancel", "field": f.id})
+		elif f.burning:
+			for g in face_fields(f.n):
+				var h: FieldData = g
+				if h.burning:
+					h.burning = false
+					_pre_ev.append({"type": "rain_out", "field": h.id})
+		else:
+			var nk := rain_to8(f)
+			if nk >= 0:
+				tapped = f.id
+				_grow_to(f, nk)
+				moved[f.id] = true
+				_pre_ev.append({"type": "rain", "field": f.id, "kind": nk})
+		return
+	if kind == "meteor" or kind == "strike":
+		faith -= METEOR_COST
+		stats["strikes"] = int(stats["strikes"]) + 1
+		var k := f.kind
+		f.kind = FieldData.EMPTY
+		f.burning = false
+		f.fed = 0
+		f.hungry = 0
+		f.fresh = 0
+		front.erase(f.id)
+		_pre_ev.append({"type": "meteor", "field": f.id, "from": k, "kind": FieldData.EMPTY, "cost": METEOR_COST})
+		if kind == "strike":
+			# Für die Werkzeug-Wirkung der Oberfläche (Platz des Gewitters)
+			_pre_ev.append({"type": "strike", "field": f.id, "hit": [{"field": f.id, "from": k, "kind": FieldData.EMPTY}],
+				"cost": METEOR_COST, "faith": -METEOR_COST, "meteor": true})
+
+
+## Langes Drücken auf ein Feld an den neuen Tagen: was es heute tut (kurz).
+func kind_help8(k: int) -> String:
+	var name := FieldData.kind_name(k)
+	if can_row(k):
+		var txt := "%s. 3 in einer Reihe: %s." % [name, FieldData.kind_name(next_of(k))]
+		var gives := _gives8(k)
+		return txt + (" " + gives if gives != "" else "")
+	if people8(k):
+		var ns: Array = []
+		for n in need_list(k):
+			ns.append(str(NEED_NAME.get(str(n), n)))
+		if ns.is_empty():
+			return "%s. Hier wohnen Menschen." % name
+		var last := str(ns.pop_back())
+		var list := last if ns.is_empty() else ", ".join(PackedStringArray(ns)) + " und " + last
+		return "%s. Braucht %s." % [name, list]
+	var g := _gives8(k)
+	if k == FieldData.CHURCH:
+		return "Kirche. Gibt Glaube. Nie neben Kirche!"
+	if k == FieldData.INDUSTRY:
+		return "Fabrik. Gibt Arbeit, macht Smog."
+	if k == FieldData.WATER:
+		return "Wasser. Schützt vor Feuer."
+	if g != "":
+		return "%s. %s" % [name, g]
+	if later8.has(k):
+		return "%s. %s" % [name, FieldData.REST_HELP]
+	return "%s." % name
+
+
+func _gives8(k: int) -> String:
+	if top8 < 0:
+		return ""
+	if SOURCES8["food"].has(k):
+		return "Gibt Nahrung." if k == FieldData.FIELD else "Geben Nahrung." if k == FieldData.ANIMALS else ""
+	if SOURCES8["work"].has(k) and needs8.has(FieldData.VILLAGE) and top8 >= FieldData.VILLAGE:
+		return "Gibt Arbeit."
+	return ""
+
+
+## Vorschau beim Ziehen einer Scheibe (Vertrag 4.6): der Stand nach der Drehung, vor der Auswertung.
+## {"satt_new", "satt_lost" (IDs), "need_met", "need_lost" ({ID: [Bedürfnisse]}), "rows" ([[a, b, c, Art]] die zählen),
+##  "war_risk" (Kirchen würden sich berühren), "flood_risk" (Seiten mit Gewicht ≥ flood_at), "fire_risk" (IDs)}
+func preview8(axis: int, layer: int, turns: int) -> Dictionary:
+	var t := clone()
+	t.moved = {}
+	t._turn_open = true
+	t._broke_now = {}
+	t.apply_rotation(axis, layer, turns)
+	var before := {}
+	for i in satt_ids():
+		before[int(i)] = true
+	var after := {}
+	for i in t.satt_ids():
+		after[int(i)] = true
+	var sn: Array = []
+	var sl: Array = []
+	for i in after:
+		if not before.has(i):
+			sn.append(int(i))
+	for i in before:
+		if not after.has(i):
+			sl.append(int(i))
+	sn.sort()
+	sl.sort()
+	var met := {}
+	var lost := {}
+	for f in t.fields:
+		if not people8(f.kind):
+			continue
+		var a: Array = t.need_state(f)["met"]
+		var b: Array = need_state(fields[f.id])["met"] if (fields[f.id] as FieldData).kind == f.kind else []
+		var gained: Array = []
+		var gone: Array = []
+		for n in a:
+			if not b.has(n):
+				gained.append(n)
+		for n in b:
+			if not a.has(n):
+				gone.append(n)
+		if not gained.is_empty():
+			met[f.id] = gained
+		if not gone.is_empty():
+			lost[f.id] = gone
+	var rws: Array = []
+	for ln in t.lines(t.moved):
+		if t.counts(ln):
+			rws.append([(ln[0] as FieldData).id, (ln[1] as FieldData).id, (ln[2] as FieldData).id, (ln[0] as FieldData).kind])
+	var fr: Array = []
+	if bool(day.get("flood8", false)):
+		for fc in 6:
+			if t.city_weight8(fc) >= int(day.get("flood_at", 5)):
+				fr.append(fc)
+	var fire: Array = []
+	for f in t.fields:
+		if not f.burning:
+			continue
+		for g in t.neighbors(f):
+			var h: FieldData = g
+			if FLAMMABLE8.has(h.kind) and not h.burning and h.fresh == 0 and not t._wet8(h) and not fire.has(h.id):
+				fire.append(h.id)
+	fire.sort()
+	return {"satt_new": sn, "satt_lost": sl, "need_met": met, "need_lost": lost, "rows": rws,
+		"war_risk": bool(day.get("war8", false)) and not t.church_touch8().is_empty(), "flood_risk": fr, "fire_risk": fire}
+
+
+# --- Tipp an den neuen Tagen (wie der Bot „good“ des Modells, bot8.py) ---------------------------------------
+
+const _LADDER8 = {1: 6.0, 2: 2.5, 3: 1.0, 4: 0.4}
+
+
+func _chain_dist8() -> Dictionary:
+	var dist := {}
+	for k in goal_kinds():
+		dist[int(k)] = 0
+	var changed := true
+	while changed:
+		changed = false
+		for k in FieldData.KIND_COUNT:
+			if not can_row(k):
+				continue
+			var nx := next_of(k)
+			if dist.has(nx) and not goal_kinds().has(k) and (not dist.has(k) or int(dist[k]) > int(dist[nx]) + 1):
+				dist[k] = int(dist[nx]) + 1
+				changed = true
+	return dist
+
+
+func _row_weights8() -> Array:
+	var w: Array = []
+	for k in FieldData.KIND_COUNT:
+		w.append(0.0)
+	if goal_type() == "make":
+		var d := _chain_dist8()
+		for k in d:
+			if int(d[k]) > 0:
+				w[int(k)] = float(_LADDER8.get(int(d[k]), 0.1))
+	else:
+		for k in rows8:
+			w[int(k)] = 0.3
+		var gk := int(goal_kinds()[0]) if not goal_kinds().is_empty() else FieldData.HUT
+		if rows8.has(FieldData.ANIMALS):
+			w[FieldData.ANIMALS] = 1.5 if gk == FieldData.HUT else 0.6
+		if rows8.has(FieldData.FOREST):
+			w[FieldData.FOREST] = 0.6
+	return w
+
+
+func _pairs8(w: Array) -> float:
+	if not _cache_ready:
+		_build_cache()
+	var v := 0.0
+	var i := 0
+	var n := _LINES.size()
+	while i < n:
+		if _LINES[i + 3] == 0:
+			var a: int = (_index[_LINES[i]] as FieldData).kind
+			var b: int = (_index[_LINES[i + 1]] as FieldData).kind
+			var c: int = (_index[_LINES[i + 2]] as FieldData).kind
+			if a == b and c != a:
+				v += float(w[a])
+			elif a == c and b != a:
+				v += float(w[a])
+			elif b == c and a != b:
+				v += float(w[b])
+		i += 4
+	return v
+
+
+func _people_value8() -> float:
+	var tk := int(goal_kinds()[0]) if not goal_kinds().is_empty() else FieldData.HUT
+	var tl := FieldData.level8(tk)
+	var G := int(day.get("grow_after", 2))
+	var v := 0.0
+	for f in fields:
+		var k: int = f.kind
+		if not people8(k):
+			continue
+		var miss: Array = need_state(f)["missing"]
+		var lv := FieldData.level8(k)
+		var ok: bool = miss.is_empty() and not f.burning and not front.has(f.id)
+		if k == tk:
+			v += 30.0 if ok else float(8 - 6 * miss.size())
+			v -= 3.0 * float(f.hungry)
+		elif lv < tl:
+			v += 6.0 + 4.0 * float(lv)
+			if ok:
+				v += 6.0 + 5.0 * float(mini(f.fed, G))
+				var nk: int = PEOPLE8[lv + 1]
+				var ks := {}
+				for g in neighbors(f):
+					ks[(g as FieldData).kind] = true
+				for nn in need_list(nk):
+					for s in SOURCES8[str(nn)]:
+						if ks.has(int(s)):
+							v += 4.0
+							break
+			else:
+				v -= 3.0 * float(miss.size())
+		else:
+			v += 10.0
+		if f.burning:
+			v -= 25.0
+		if front.has(f.id):
+			v -= 20.0
+	return v
+
+
+func _danger_value8() -> float:
+	var v := 0.0
+	for f in fields:
+		if not f.burning:
+			continue
+		v -= 6.0
+		for g in neighbors(f):
+			var h: FieldData = g
+			if FLAMMABLE8.has(h.kind) and not h.burning and not _wet8(h) and h.fresh == 0:
+				v -= 5.0 + (12.0 if people8(h.kind) else 0.0)
+	if bolt >= 0 and BOLT_KINDS8.has((fields[bolt] as FieldData).kind):
+		v -= 4.0
+		for g in neighbors(fields[bolt]):
+			var h2: FieldData = g
+			if FLAMMABLE8.has(h2.kind) and not _wet8(h2):
+				v -= 3.0 + (6.0 if people8(h2.kind) else 0.0)
+	if bool(day.get("war8", false)):
+		if war_on:
+			v -= 30.0
+		v -= 15.0 * float(church_touch8().size())
+	if bool(day.get("flood8", false)):
+		var fa := int(day.get("flood_at", 5))
+		for fc in 6:
+			var cw := city_weight8(fc)
+			if cw >= fa:
+				var low := 0
+				for g in face_fields(FACE_NORMALS[fc]):
+					if LOW8.has((g as FieldData).kind) and _wet8(g):
+						low += 1
+				v -= 25.0 + 10.0 * float(low)
+			elif cw == fa - 1:
+				v -= 3.0
+	if bool(day.get("smog8", false)):
+		for f in fields:
+			if f.kind == FieldData.INDUSTRY:
+				for g in neighbors(f):
+					if SMOG_RANK8.has((g as FieldData).kind):
+						v -= 4.0
+	return v
+
+
+## Wert des Stands für das Ziel des Tages (bot8.state_value).
+func value8() -> float:
+	if day_won and not day_free_build:
+		return 1e6 - 1000.0 * float(twists)
+	var v := 0.0
+	var p := goal_progress()
+	if goal_type() == "make":
+		v += 100.0 * float(p)
+		var d := _chain_dist8()
+		for f in fields:
+			var dk := int(d.get(f.kind, -1))
+			if dk > 0:
+				v += 3.0 * float(_LADDER8.get(dk, 0.1))
+	else:
+		v += 100.0 * float(p) + _people_value8()
+		var gk := int(goal_kinds()[0]) if not goal_kinds().is_empty() else FieldData.HUT
+		if gk == FieldData.HUT or rows8.has(FieldData.ANIMALS):
+			v += 1.5 * float(count(FieldData.ANIMALS))
+	v += _danger_value8()
+	if bool(day.get("meteor", false)):
+		v += 0.3 * float(mini(faith, METEOR_COST))
+	return v + _pairs8(_row_weights8())
+
+
+## Der Tipp an den neuen Tagen: erst Werkzeuge (Regen, Meteor auf Kirche/Fabrik), wenn sie klar helfen, dann die
+## beste Drehung (alle 27, die besten 4 mit einem Blick auf die nächste Drehung).
+## Meteor heißt hier "strike" (Platz des Gewitters in der Oberfläche).
+func _best_day_action8(twist_only: bool) -> Dictionary:
+	var p0 := goal_progress()
+	if not twist_only:
+		var base := value8()
+		var best_t := {}
+		var best_tv := -INF
+		if rain > 0:
+			for f in fields:
+				if not rain_ok(f):
+					continue
+				var st: GameState = simulate({"type": "rain", "field": f.id})["state"]
+				var v := st.value8()
+				if v > best_tv:
+					best_tv = v
+					best_t = {"type": "rain", "field": f.id, "value": v, "progress": st.goal_progress()}
+		if bool(day.get("meteor", false)) and faith >= METEOR_COST:
+			for f in fields:
+				if f.kind != FieldData.CHURCH and f.kind != FieldData.INDUSTRY:
+					continue
+				var st2: GameState = simulate({"type": "strike", "field": f.id})["state"]
+				var v2 := st2.value8()
+				if v2 > best_tv:
+					best_tv = v2
+					best_t = {"type": "strike", "field": f.id, "value": v2, "progress": st2.goal_progress()}
+		var need := 6.0 if rain <= 1 else 3.0
+		if not best_t.is_empty() and best_tv > base + need:
+			best_t["choice"] = -1
+			best_t["card"] = -1
+			best_t["steps"] = 1
+			best_t["points"] = 0
+			return best_t
+	var scored: Array = []
+	for m in MOVES:
+		var st3: GameState = simulate({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})["state"]
+		scored.append([st3.value8(), m, st3])
+	scored.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
+	var pick: Array = scored[0]
+	var first: GameState = pick[2]
+	if not (first.day_won and not first.day_free_build):
+		var best_v := -INF
+		for i in mini(6, scored.size()):
+			var c: Array = scored[i]
+			var s1: GameState = c[2]
+			var v1 := float(c[0])
+			var v := 0.0
+			if s1.is_over():
+				v = v1 if s1.day_won else v1 - 1e5
+			else:
+				var v2b := -INF
+				for m2 in MOVES:
+					var s2: GameState = s1.simulate({"type": "twist", "axis": int(m2[0]), "layer": int(m2[1]), "turns": int(m2[2])})["state"]
+					v2b = maxf(v2b, s2.value8())
+				v = 0.4 * v1 + 0.6 * v2b
+			if v > best_v:
+				best_v = v
+				pick = c
+	var pm: Array = pick[1]
+	var ps: GameState = pick[2]
+	return {"type": "twist", "axis": int(pm[0]), "layer": int(pm[1]), "turns": int(pm[2]), "choice": -1, "card": -1,
+		"value": float(pick[0]), "steps": 1 if ps.goal_progress() > p0 or ps.day_won else 2, "points": 0,
+		"progress": ps.goal_progress()}

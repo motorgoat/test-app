@@ -1,17 +1,24 @@
-// Miniatur-Look: oben und unten weich unscharf, leichte Vignette, etwas mehr Farbe.
+// Nachbearbeitung über der 3D-Welt (unter der Oberfläche): Tilt-Shift (Unschärfe nach Bildgröße),
+// Farbstimmung (warme Lichter, kühle Schatten), leichte S-Kurve, Sättigung, Vignette, Bildblitz.
+// Wirkt nie auf die Oberfläche (eigene CanvasLayer-Ebene 0, GDPD_GRAFIK.md 7.4).
 shader_type canvas_item;
 render_mode unshaded;
 
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
 uniform float focus_y = 0.47;
-uniform float focus_half = 0.18;
-uniform float blur_px = 3.0;
-uniform float vignette = 0.32;
-uniform float saturation = 1.08;
+uniform float focus_half = 0.16;
+uniform float blur_px = 7.0;        // World setzt ≈ 0,0065 × Bildbreite
+uniform float vignette = 0.3;
+uniform float saturation = 1.04;
+uniform float contrast = 1.03;
+uniform float exposure = 1.0;
+uniform vec3 warm = vec3(1.04, 1.0, 0.93);
+uniform vec3 cool = vec3(0.93, 0.98, 1.06);
+uniform float flash = 0.0;
 
 void fragment() {
 	float d = abs(SCREEN_UV.y - focus_y);
-	float k = smoothstep(focus_half, focus_half + 0.3, d);
+	float k = smoothstep(focus_half, focus_half + 0.28, d);
 	vec2 o = SCREEN_PIXEL_SIZE * blur_px * k;
 	vec3 c = texture(screen_tex, SCREEN_UV).rgb * 0.2;
 	c += texture(screen_tex, SCREEN_UV + vec2(o.x, 0.0)).rgb * 0.1;
@@ -22,9 +29,14 @@ void fragment() {
 	c += texture(screen_tex, SCREEN_UV - o * 1.6).rgb * 0.1;
 	c += texture(screen_tex, SCREEN_UV + vec2(o.x, -o.y) * 1.6).rgb * 0.1;
 	c += texture(screen_tex, SCREEN_UV + vec2(-o.x, o.y) * 1.6).rgb * 0.1;
+	c *= exposure;
 	float l = dot(c, vec3(0.299, 0.587, 0.114));
+	c = mix(c * cool, c * warm, smoothstep(0.15, 0.75, l));
+	c = (c - 0.5) * contrast + 0.5;
+	l = dot(c, vec3(0.299, 0.587, 0.114));
 	c = mix(vec3(l), c, saturation);
 	vec2 v = SCREEN_UV - 0.5;
 	c *= 1.0 - vignette * dot(v, v) * 1.4;
-	COLOR = vec4(c, 1.0);
+	c += vec3(0.9, 0.92, 1.0) * flash;
+	COLOR = vec4(clamp(c, 0.0, 1.0), 1.0);
 }

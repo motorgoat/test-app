@@ -1042,6 +1042,7 @@ func _build_help() -> void:
 	inner.add_child(_help_rows["task"])
 	inner.add_child(_help_row("round", Style.SURFACE_2, "Drehen", "Wisch über eine Reihe."))
 	inner.add_child(_help_row("up", Style.LEAF_TINT, "Wachsen", "Bring 3 gleiche in eine Reihe."))
+	inner.add_child(_help_row("check", Style.LEAF_TINT, "Nur einmal", str(Days.TEXT["once_rule"])))
 	# Was wächst woraus (an den Tagen: nur, was heute schon wachsen kann), als Bildreihe
 	var tree := _help_row("up", Style.LEAF_TINT, "Was wächst woraus", "")
 	inner.add_child(tree)
@@ -2532,7 +2533,7 @@ func _tooltip_for(key: String) -> Dictionary:
 			if gs != null:
 				body += " Gerade: %s." % str(GameState.ZONE_NAME.get(gs.zone(), ""))
 		"strike", "flood":
-			var cost := Balance.STRIKE_COST if key == "strike" else Balance.FLOOD_COST
+			var cost := strike_cost() if key == "strike" else Balance.FLOOD_COST
 			if gs != null and gs.faith < cost:
 				body += " Du hast %d." % gs.faith
 		"undo":
@@ -2788,7 +2789,15 @@ func refresh() -> void:
 	_pulse(hearts_row, lives == 1 and not Game.over)
 	for i in hearts.size():
 		(hearts[i] as Control).visible = i < maxi(gs.max_lives, 1)
-	_set_cost_badge(strike_btn, Balance.STRIKE_COST, gs.faith >= Balance.STRIKE_COST)
+	_set_cost_badge(strike_btn, strike_cost(), gs.faith >= strike_cost())
+	# Neue Tage 6–7: der Gewitter-Platz ist der Meteor
+	var slab: Label = strike_btn.get_meta("label", null)
+	if slab != null:
+		slab.text = "Meteor" if _meteor_day() else "Gewitter"
+	var sicon := "meteor" if _meteor_day() else "strike"
+	if strike_btn.get_meta("icon_name", "strike") != sicon:
+		strike_btn.set_meta("icon_name", sicon)
+		strike_btn.icon = Style.icon(sicon)
 	_set_cost_badge(flood_btn, Balance.FLOOD_COST, gs.faith >= Balance.FLOOD_COST)
 	_update_buttons()
 	if day_ui != null:
@@ -2917,7 +2926,7 @@ func _on_bonus_pressed(kind: String) -> void:
 	var gs := Game.state
 	if kind == "strike" or kind == "flood":
 		# Strafen kosten Glauben (keine Münzen): Reicht er nicht, sagt eine Meldung, wie viel man braucht
-		var cost := Balance.STRIKE_COST if kind == "strike" else Balance.FLOOD_COST
+		var cost := strike_cost() if kind == "strike" else Balance.FLOOD_COST
 		if gs.faith < cost and bonus_mode != kind:
 			_shake(_slot_btn(kind))
 			_on_message("Dafür brauchst du %d Glauben." % cost, "info")
@@ -3014,8 +3023,8 @@ func _set_bonus_mode(kind: String) -> void:
 		mode_hint.text = "Alle 9 Felder dort wachsen."
 	elif kind == "strike":
 		_set_tile(mode_tile, "strike", PUNISH_TINT)
-		mode_label.text = "Tipp ein Feld zum Strafen."
-		mode_hint.text = "Industrie wird Erde. %d Glauben." % Balance.STRIKE_COST
+		mode_label.text = "Tipp ein Feld zum Strafen." if not _meteor_day() else "Tipp ein Feld: Meteor."
+		mode_hint.text = "Industrie wird Erde. %d Glauben." % Balance.STRIKE_COST if not _meteor_day() else "Wird Erde. %d Glauben." % strike_cost()
 	elif kind == "flood":
 		_set_tile(mode_tile, "flood", Style.WATER_TINT)
 		mode_label.text = "Tippe auf eine Seite mit Stadt."
@@ -3749,9 +3758,9 @@ func _punish_pick(kind: String, fid: int) -> void:
 	world.set_pick(gs.bonus_fields(kind, f))
 	world.nudge(fid)
 	if kind == "strike":
-		var to := "Erde" if f.kind == FieldData.INDUSTRY else FieldData.kind_name(FieldData.down(f.kind))
-		mode_label.text = "Noch einmal tippen: Gewitter!"
-		mode_hint.text = "%s wird %s. Kostet %d Glauben." % [FieldData.kind_name(f.kind), to, Balance.STRIKE_COST]
+		var to := "Erde" if f.kind == FieldData.INDUSTRY or _meteor_day() else FieldData.kind_name(FieldData.down(f.kind))
+		mode_label.text = "Noch einmal tippen: Gewitter!" if not _meteor_day() else "Noch einmal tippen: Meteor!"
+		mode_hint.text = "%s wird %s. Kostet %d Glauben." % [FieldData.kind_name(f.kind), to, strike_cost()]
 	else:
 		mode_label.text = "Noch einmal tippen: Flut!"
 		mode_hint.text = "Wäscht diese Seite. %d Glauben." % Balance.FLOOD_COST
@@ -3935,6 +3944,8 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 func _miss_text(why: String) -> Array:
 	if why == "repeat":
 		return ["Zurückgedreht", "Dreh eine andere Scheibe"]
+	if why == "slice":
+		return ["Hin und her", "Dreh eine andere Scheibe"]
 	if why == "spent":
 		return ["Schon gewachsen", "Bring ein anderes Feld rein"]
 	if why == "standing":
@@ -3947,7 +3958,24 @@ func _miss_text(why: String) -> Array:
 		return ["Schräg", _diag_text()]
 	if why == "water":
 		return ["Wasser wächst nie", "Bring 3 gleiche in eine Reihe"]
+	# Die neuen Tage (GDPD_BALANCE_2.md): Menschen wachsen durch Nachbarn, Stein nie, manche Art heute nicht mehr
+	if why == "people":
+		return [str(Days.TEXT["people_caps"]), str(Days.TEXT["people_line"])]
+	if why == "stone":
+		return [str(Days.TEXT["stone_caps"]), "Bring 3 gleiche in eine Reihe"]
+	if why == "done":
+		var gl := Days.goal_line(Game.state.day) if Game.state != null and Game.state.is_day() else "Bring 3 gleiche in eine Reihe"
+		return [str(Days.TEXT["done_caps"]), gl]
 	return ["", "Nichts gewachsen"]
+
+
+## Gewitter-Platz: an den neuen Tagen 6–7 ist das der Meteor (kostet GameState.METEOR_COST Glauben).
+func _meteor_day() -> bool:
+	return Game.state != null and Game.state.v8 and bool(Game.state.day.get("meteor", false))
+
+
+func strike_cost() -> int:
+	return GameState.METEOR_COST if _meteor_day() else Balance.STRIKE_COST
 
 
 ## Ruht die Art k: Was wächst heute stattdessen? „Mach lieber neue Wälder aus Wiesen“ (sonst „Morgen wächst hier mehr.“).
@@ -3955,7 +3983,7 @@ func _rest_action(k: int) -> String:
 	var gs := Game.state
 	if gs != null:
 		for p in FieldData.KIND_COUNT:
-			if int(FieldData.NEXT[p]) == k and gs.can_row(p):
+			if gs.can_row(p) and (gs.next_of(p) == k if gs.v8 else int(FieldData.NEXT[p]) == k):
 				return "Mach neue %s aus %s" % [FieldData.kind_plural(k), FieldData.kind_plural(p)]
 	return str(Days.TEXT["rest"])
 
@@ -4045,8 +4073,8 @@ func _on_miss(_fid: int, count: int, why: String = "") -> void:
 		var mt := _miss_text(why)
 		_show_banner("miss", str(mt[0]), str(mt[1]), "fire_off")
 		Style.haptic(Style.HAPTIC_TAP)
-	elif why == "repeat":
-		_on_message("Zurückgedreht zählt nicht.", "info")       # gleich brennt es: sagen, warum
+	elif why == "repeat" or why == "slice":
+		_on_message("Dreh eine andere Scheibe.", "info")       # gleich brennt es: sagen, warum
 	elif why == "spent" or why == "standing":
 		_on_message("Diese Reihe zählt nur einmal.", "info")
 	elif why == "diag":
@@ -5115,7 +5143,8 @@ func _on_income(amount: int) -> void:
 
 func _on_punish(kind: String, fid: int, cost: int) -> void:
 	_bubble(fid, "-%d" % cost, "faith", PUNISH_DEEP)
-	_show_banner("punish", "-%d Glauben" % cost, "Gewitter!" if kind == "strike" else "Flut!", "strike" if kind == "strike" else "flood")
+	var what := ("Meteor!" if _meteor_day() else "Gewitter!") if kind == "strike" else "Flut!"
+	_show_banner("punish", "-%d Glauben" % cost, what, ("meteor" if _meteor_day() else "strike") if kind == "strike" else "flood")
 	Style.haptic(Style.HAPTIC_FIRE)
 
 

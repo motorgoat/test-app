@@ -1,5 +1,5 @@
 extends SceneTree
-## Modell-Test: baut jede Art (kind 0..15, 15 = Wasser) und jeden Zustand einmal als FieldView und lässt ein paar Frames laufen.
+## Modell-Test: baut jede Art (kind 0..16, 15 = Wasser, 16 = Stein) und jeden Zustand einmal als FieldView und lässt ein paar Frames laufen.
 ##   godot --headless --script res://tests/test_models.gd
 ## Mit Bild (echtes GL, z. B. unter xvfb-run):
 ##   godot --rendering-driver opengl3 --resolution 1500x1100 --script res://tests/test_models.gd -- --sheet=/pfad/models.png
@@ -37,6 +37,22 @@ func _initialize() -> void:
 	specs.append({"kind": FieldView.K_BIGFOREST, "fx": "wither", "label": "Welken"})
 	specs.append({"kind": FieldView.K_HUT, "fx": "wish", "burning": true, "label": "Feuer+Herz"})
 	specs.append({"kind": FieldView.K_EMPTY, "fresh": 2, "label": "Erde frisch"})
+	# Teil B (GDPD_GRAFIK.md 9): welke Natur, Feuer, Krater, Zustände der neuen Tage, Flucht, Rückseite
+	for k in [FieldView.K_MEADOW, FieldView.K_ANIMALS, FieldView.K_FIELD, FieldView.K_PARADISE]:
+		specs.append({"kind": k, "fresh": 2, "label": "%s welk" % FieldView.KIND_KEY[k]})
+	specs.append({"kind": FieldView.K_FOREST, "burning": true, "label": "Wald brennt"})
+	specs.append({"kind": FieldView.K_VILLAGE, "burning": true, "label": "Dorf brennt"})
+	specs.append({"kind": FieldView.K_EMPTY, "crater": true, "label": "Krater"})
+	specs.append({"kind": FieldView.K_VILLAGE, "st8": {"people": true, "met": ["food", "work"], "missing": [], "satt": true, "fed": 1,
+		"hungry": 0, "shrink_after": 4}, "label": "Dorf satt"})
+	specs.append({"kind": FieldView.K_HUT, "st8": {"people": true, "met": [], "missing": ["food"], "satt": false, "fed": 0,
+		"hungry": 3, "shrink_after": 4}, "label": "Hütte hungrig"})
+	specs.append({"kind": FieldView.K_TOWN, "st8": {"people": true, "met": ["food"], "missing": ["work", "faith"], "front": true},
+		"label": "Front"})
+	specs.append({"kind": FieldView.K_FOREST, "st8": {"bolt": true}, "label": "Blitz droht"})
+	specs.append({"kind": FieldView.K_MEADOW, "st8": {"flood_risk": true}, "label": "Flut droht"})
+	specs.append({"kind": FieldView.K_ANIMALS, "alarm": true, "label": "Tiere fliehen"})
+	specs.append({"kind": FieldView.K_STONE, "detail": -1.0, "label": "Rückseite"})
 	for i in specs.size():
 		var sp: Dictionary = specs[i]
 		var v := FieldView.new()
@@ -57,6 +73,16 @@ func _initialize() -> void:
 			v.set_polluted(true)
 			if not v.is_polluted():
 				_fail("polluted")
+		if sp.get("crater", false):
+			v.set_crater(true)
+		if sp.has("st8"):
+			v.apply_state8(sp["st8"])
+		if sp.get("alarm", false):
+			v.set_alarm(true)
+		if sp.has("detail"):
+			v.set_detail(float(sp["detail"]))
+			if v.get_detail() != 0:
+				_fail("Rückseite nicht ausgeblendet")
 		var wish: String = sp.get("wish", "")
 		if wish != "":
 			v.set_wish(wish, int(sp.get("left", -1)))
@@ -85,13 +111,48 @@ func _initialize() -> void:
 	for k in FieldView.KIND_COUNT:
 		if not ResourceLoader.exists("res://icons/%s.svg" % FieldView.KIND_ICON[k]):
 			_fail("Symbol fehlt: " + FieldView.KIND_ICON[k])
-	if FieldView.KIND_COUNT != FieldData.KIND_COUNT or FieldView.KIND_ICON[FieldData.WATER] != "water":
+	if FieldView.KIND_ICON[FieldData.WATER] != "water":
 		_fail("Wasser fehlt in FieldView")
+	if FieldView.KIND_COUNT != FieldData.KIND_COUNT:
+		_fail("FieldView und FieldData haben verschieden viele Arten")
+	if FieldView.KIND_ICON[FieldData.STONE] != "stone":
+		_fail("Stein fehlt in FieldView")
+	# Vorschau beim Drehen (neue Tage): grün = wird satt, rot = verliert die Versorgung
+	pv.set_supply(1)
+	var sup_ok := pv.supply_mode() == 1
+	pv.set_supply(-1)
+	sup_ok = sup_ok and pv.supply_mode() == -1
+	pv.set_supply(0)
+	if not sup_ok or pv.supply_mode() != 0:
+		_fail("Versorgungs-Vorschau")
 	# Die 7 Tage: Wasser, Schloss, leerer Stern, Tage, Ziel
 	for n in ["wish", "wish_bubble", "wish_count", "strike", "field", "animals", "paradise", "swords", "heart",
-			"water", "lock", "star_empty", "days", "goal"]:
+			"water", "lock", "star_empty", "days", "goal", "meteor", "stone", "person", "up", "down", "need_bg"]:
 		if Style.icon(n) == null:
 			_fail("Symbol lädt nicht: " + n)
+	# Alle Modelle und Figuren (Teil B): nicht leer, Vertexfarben und Animations-Teile vorhanden
+	for nm in ["oak", "beech", "young", "dead", "birch", "spruce", "pine", "blossom", "bush", "bush_dry", "rock", "boulder", "stump",
+			"log", "cabin", "house", "townhouse", "block", "glass_tower", "church", "factory", "well", "stall", "woodpile", "fence",
+			"scarecrow", "cart", "trough", "quarry", "crater", "ruin", "tent"]:
+		for vr in 4:
+			var parts := Models.get_model(String(nm), vr)
+			if parts.is_empty():
+				_fail("Modell leer: %s/%d" % [nm, vr])
+			for part_v in parts:
+				var arr := Models.arrays_of((part_v as Array)[0])
+				if arr.is_empty() or (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty() or (arr[Mesh.ARRAY_COLOR] as PackedColorArray).size() != (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size():
+					_fail("Modell ohne Daten/Farben: %s/%d" % [nm, vr])
+	for cr in ["sheep", "cow", "deer", "hare", "duck", "person"]:
+		for vr in 6:
+			var arr := Models.arrays_of(Models.creature_mesh(String(cr), vr))
+			var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+			var parts_seen := {}
+			for t in uv:
+				parts_seen[int(roundf(t.x))] = true
+			if cr != "duck" and not (parts_seen.has(1) and parts_seen.has(2)):
+				_fail("Figur ohne Beine: %s/%d" % [cr, vr])
+			if cr != "duck" and cr != "person" and not parts_seen.has(3):
+				_fail("Tier ohne Kopf: %s/%d" % [cr, vr])
 	print("Modelle gebaut: %d Ansichten" % _views.size())
 	_test_character()
 
@@ -328,10 +389,28 @@ func _process(delta: float) -> bool:
 		_shot += 1
 	if _frames >= 200:
 		# nach den Effekten: der Kirchen-Inhalt muss wieder normal groß sein
+		var agents := 0
 		for e in _views:
 			var v: FieldView = e[0]
+			var sp: Dictionary = e[1]
 			if v.get_kind() < 0:
 				_fail("kind nicht gesetzt")
+			if not v.is_baked():
+				_fail("nicht gebacken: %s" % sp.get("label", FieldView.KIND_KEY[v.get_kind()]))
+			agents += v.agent_count()
+			if sp.get("alarm", false):
+				for st in v.agent_states():
+					if st != "flee" and st != "gone":
+						_fail("Tier flieht nicht: " + String(st))
+		for k in [FieldView.K_ANIMALS, FieldView.K_HUT, FieldView.K_VILLAGE, FieldView.K_TOWN, FieldView.K_CHURCH]:
+			var found := false
+			for e in _views:
+				var v: FieldView = e[0]
+				if v.get_kind() == k and v.agent_count() > 0:
+					found = true
+			if not found:
+				_fail("keine Tiere/Menschen: " + FieldView.KIND_KEY[k])
+		print("Agenten: %d" % agents)
 		if not _char_done:
 			_fail("Charakter-Test abgebrochen")
 		if _errors == 0:

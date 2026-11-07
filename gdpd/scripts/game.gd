@@ -34,6 +34,12 @@ signal daily_changed
 signal streak_changed(info: Dictionary)
 ## Weiterbauen hat begonnen (oder geht weiter): info = day_info().
 signal build_started(info: Dictionary)
+## „Über Nacht gewachsen“ (GDPD_BALANCE_2.md 5.6): beim ersten Start eines Tages ≥ 2 (nicht bei „Nochmal“, nicht in der
+## Welt des Tages, nicht im Weiterbauen). info = {"type": "overnight", "day", "changes": [{"field", "from", "kind"}],
+## "caps": „Über Nacht gewachsen“, "line" („Erde wird Wiese“)}. Nur Darstellung: Die Regeln starten vom Pool-Brett.
+signal overnight_growth(info: Dictionary)
+## Weiterbauen: eine Extra-Aufgabe ist geschafft ({"type": "extra", "level", "target", "max", "done", "text"}).
+signal extra_done(info: Dictionary)
 ## Ein neuer Erinnerungs-Plan (ReminderPlan.plan, schon mit echter Uhrzeit): das Plugin plant ihn ein.
 ## Hört niemand zu (PC, CI), schreibt Game die Zeilen „REMINDER …“ ins Protokoll.
 signal reminders_planned(plan: Array)
@@ -116,6 +122,8 @@ var debug_day_offset := 0        # „Nächster Tag (Test)“: so viele ganze Ta
 var debug_open_all := false      # Tour: alle 7 Tage offen (nur in Test-Versionen)
 var session_start := -1          # Ortszeit, zu der diese Sitzung begann (Uhrzeit der Erinnerung)
 var wdt_key := -1                # dieser Versuch ist die Welt des Tages dieses Spieltags (-1 = ein Tag 1 … 7)
+var overnight: Dictionary = {}   # „Über Nacht gewachsen“ dieses Versuchs (overnight_growth), {} = keins
+var _retrying := false           # retry_day läuft gerade (kein „Über Nacht gewachsen“)
 var build_state: GameState = null   # Weiterbauen: die Welt, in der gerade weitergebaut wird (nur im Speicher, 2.4)
 var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner), "key" (Spieltag)}
 ## Die heute geschaffte Welt (der heutige Tag / die Welt des Tages): „Weiterbauen“ auf der Heute-Karte bringt sie
@@ -273,6 +281,8 @@ func preview(axis: int, layer: int, turns: int, row: Array = []) -> Dictionary:
 		"card": sim.card,         # Art der Wahl, die kommen würde (-1: keine) → „?“ über card_field
 		"card_field": sim.card_field,
 		"war": war,               # Kirchen, die Krieg führen würden (gekreuzte Schwerter)
+		# Neue Tage (GDPD_BALANCE_2.md 4.6): wer wird satt, wer verliert es, Krieg/Flut/Feuer-Gefahr nach der Drehung
+		"supply": state.preview8(axis, layer, turns) if state.v8 and turns != 0 else {},
 	}
 
 
@@ -377,6 +387,10 @@ func finish_round(result: Dictionary) -> void:
 	if state.is_day():
 		if state.day_free_build:
 			_build_coins()
+			for e in result["events"]:
+				if str(e["type"]) == "extra":
+					message.emit(str(Days.TEXT["extra_done"]), "good")
+					extra_done.emit((e as Dictionary).duplicate())
 		if moved_goal:
 			day_progress.emit(state.day_status())
 		if state.is_over() and not over:
@@ -638,7 +652,17 @@ func start_day(n: int, board_index: int = -1) -> bool:
 	var idx := board_index if board_index >= 0 else int(day_next_board[n - 1])
 	_board_explicit = board_index >= 0
 	wdt_key = -1
-	_start_attempt(n, Days.config(n), Days.board(n, idx), day_mercy(n))
+	var b := Days.board(n, idx)
+	var cfg := Days.config(n)
+	overnight = {}
+	if n >= 2 and not _retrying and not b.is_empty():
+		var ch := Days.overnight_changes(cfg, b["kinds"])
+		if not ch.is_empty():
+			overnight = {"type": "overnight", "day": n, "changes": ch, "caps": str(Days.TEXT["overnight"]),
+				"line": str(cfg.get("overnight_line", ""))}
+	_start_attempt(n, cfg, b, day_mercy(n))
+	if not overnight.is_empty():
+		overnight_growth.emit(overnight.duplicate(true))
 	return true
 
 
@@ -653,6 +677,7 @@ func start_daily_world() -> bool:
 		return false
 	_board_explicit = true
 	wdt_key = k
+	overnight = {}
 	_start_attempt(int(cfg["day"]), cfg, Daily.wdt_board(k), Daily.wdt_mercy(daily, k))
 	return true
 
@@ -701,7 +726,10 @@ func _start_attempt(n: int, cfg: Dictionary, b: Dictionary, mercy: int) -> void:
 func retry_day() -> bool:
 	if wdt_key >= 0:
 		return start_daily_world()
-	return start_day(maxi(1, day_no))
+	_retrying = true
+	var ok := start_day(maxi(1, day_no))
+	_retrying = false
+	return ok
 
 
 ## Nach einem Sieg: der nächste Tag (false, wenn es keinen gibt – dann ist die Welt vollendet).
@@ -836,7 +864,7 @@ func day_info() -> Dictionary:
 		"best_twists": 0 if wdt else int(day_best[n - 1]), "board": int(day_board.get("index", 0)),
 		"tutorial": (cfg.get("tutorial", {}) as Dictionary).duplicate() if int(day_board.get("index", -1)) == 0 and n == 1 and not wdt else {},
 		"first_visit": false if wdt else (int(day_stars[n - 1]) == 0 and int(day_fails[n - 1]) == 0),
-		"status": state.day_status()}
+		"status": state.day_status(), "overnight": overnight.duplicate(true), "v8": state.v8}
 
 
 ## Ende eines Versuchs: Sterne, Freischalten, Gnade, nächstes Brett, speichern, Signal.
