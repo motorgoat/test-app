@@ -189,6 +189,141 @@ static func rounded_box_mesh(size: Vector3, radius: float, steps: int = 3) -> Me
 	return mesh
 
 
+## Feld-Platte (nahtlos): Oberseite reicht an den Fugen genau bis an den Nachbarn (±0,5 plus 0,002 Überlappung),
+## an Würfelkanten (outer: 1 = -z, 2 = +x, 4 = +z, 8 = -x) bis 0,56 und biegt dort als Viertel einer abgerundeten
+## Würfelkante nach unten (Gehrung auf 45°: die Platte der Nachbarseite schließt lückenlos an).
+## Koordinaten wie FieldView: y = 0 liegt 0,47 über der Würfelstein-Mitte, Oberseite bei top.
+## UV = flache Lage (x, z) vor dem Biegen (die Nachbarseite sieht an der Kante dieselben Werte), UV2.x = 1 Oberseite.
+## Fugen-Wände (Erdschichten) gibt es nur an den Fugen; dort sieht man sie beim Drehen.
+const SLAB_TOP := 0.09
+const SLAB_BASE := 0.47          # Abstand der Feld-Ebene (y = 0) von der Würfelstein-Mitte
+const SLAB_EDGE := 0.56          # Würfelkante (flach)
+const SLAB_R := 0.034            # Rundung der Würfelkante
+const SLAB_SEAM := 0.502         # Fuge (leicht überlappend: keine Haarrisse)
+
+
+static func slab_mesh(outer: int) -> Mesh:
+	var key := "slab|%d" % outer
+	if _meshes.has(key):
+		return _meshes[key]
+	var on := (outer & 1) != 0
+	var oe := (outer & 2) != 0
+	var os := (outer & 4) != 0
+	var ow := (outer & 8) != 0
+	var xs := _slab_samples(ow, oe)
+	var zs := _slab_samples(on, os)
+	var h := SLAB_EDGE - SLAB_R
+	var lo := Vector3(-h if ow else -100.0, -100.0, -h if on else -100.0)
+	var hi := Vector3(h if oe else 100.0, SLAB_TOP - SLAB_R, h if os else 100.0)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pos: Array = []
+	var nrm: Array = []
+	for i in xs.size():
+		var prow: Array = []
+		var nrow: Array = []
+		for j in zs.size():
+			var flat := Vector3(float(xs[i]), SLAB_TOP, float(zs[j]))
+			var q := flat.clamp(lo, hi)
+			var d := flat - q
+			var nv := d.normalized()
+			prow.append(q + nv * SLAB_R)
+			nrow.append(nv)
+		pos.append(prow)
+		nrm.append(nrow)
+	for i in xs.size() - 1:
+		for j in zs.size() - 1:
+			var a: Vector3 = pos[i][j]
+			var b: Vector3 = pos[i + 1][j]
+			var c: Vector3 = pos[i + 1][j + 1]
+			var dd: Vector3 = pos[i][j + 1]
+			var fa := Vector2(float(xs[i]), float(zs[j]))
+			var fb := Vector2(float(xs[i + 1]), float(zs[j]))
+			var fc := Vector2(float(xs[i + 1]), float(zs[j + 1]))
+			var fd := Vector2(float(xs[i]), float(zs[j + 1]))
+			_slab_tri(st, [a, b, c], [nrm[i][j], nrm[i + 1][j], nrm[i + 1][j + 1]], [fa, fb, fc], 1.0, Vector3.UP)
+			_slab_tri(st, [a, c, dd], [nrm[i][j], nrm[i + 1][j + 1], nrm[i][j + 1]], [fa, fc, fd], 1.0, Vector3.UP)
+	# Fugen-Wände: vom Rand der Oberseite senkrecht hinunter bis in den Würfelstein (an Würfelkanten auf Gehrung)
+	var bottom := -0.03
+	var miter := bottom + SLAB_BASE
+	var last_i := xs.size() - 1
+	var last_j := zs.size() - 1
+	var sides := [[not on, 0, Vector3(0, 0, -1)], [not oe, 1, Vector3(1, 0, 0)], [not os, 2, Vector3(0, 0, 1)], [not ow, 3, Vector3(-1, 0, 0)]]
+	for sd in sides:
+		if not bool(sd[0]):
+			continue
+		var side: int = sd[1]
+		var out_n: Vector3 = sd[2]
+		var edge_top: Array = []
+		var edge_flat: Array = []
+		if side == 0 or side == 2:
+			var jj := 0 if side == 0 else last_j
+			for i in xs.size():
+				edge_top.append(pos[i][jj])
+				edge_flat.append(Vector2(float(xs[i]), float(zs[jj])))
+		else:
+			var ii := last_i if side == 1 else 0
+			for j in zs.size():
+				edge_top.append(pos[ii][j])
+				edge_flat.append(Vector2(float(xs[ii]), float(zs[j])))
+		for k in edge_top.size() - 1:
+			var t0: Vector3 = edge_top[k]
+			var t1: Vector3 = edge_top[k + 1]
+			var b0 := Vector3(t0.x, bottom, t0.z)
+			var b1 := Vector3(t1.x, bottom, t1.z)
+			if side == 0 or side == 2:
+				b0.x = clampf(b0.x, -miter if ow else -9.0, miter if oe else 9.0)
+				b1.x = clampf(b1.x, -miter if ow else -9.0, miter if oe else 9.0)
+			else:
+				b0.z = clampf(b0.z, -miter if on else -9.0, miter if os else 9.0)
+				b1.z = clampf(b1.z, -miter if on else -9.0, miter if os else 9.0)
+			var f0: Vector2 = edge_flat[k]
+			var f1: Vector2 = edge_flat[k + 1]
+			_slab_tri(st, [t0, t1, b1], [out_n, out_n, out_n], [f0, f1, f1], 0.0, out_n)
+			_slab_tri(st, [t0, b1, b0], [out_n, out_n, out_n], [f0, f1, f0], 0.0, out_n)
+	var arrays := st.commit_to_arrays()
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_meshes[key] = mesh
+	_arrays[mesh.get_instance_id()] = arrays
+	return mesh
+
+
+static func _slab_samples(out_lo: bool, out_hi: bool) -> Array:
+	var h := SLAB_EDGE - SLAB_R
+	var out: Array = []
+	if out_lo:
+		for k in range(4, 0, -1):
+			out.append(-h - SLAB_R * float(k) / 4.0)
+		out.append(-h)
+	else:
+		out.append(-SLAB_SEAM)
+	for v in [-0.3, -0.1, 0.1, 0.3]:
+		out.append(v)
+	if out_hi:
+		out.append(h)
+		for k in range(1, 5):
+			out.append(h + SLAB_R * float(k) / 4.0)
+	else:
+		out.append(SLAB_SEAM)
+	return out
+
+
+static func _slab_tri(st: SurfaceTool, p: Array, n: Array, f: Array, top: float, out_n: Vector3) -> void:
+	var a: Vector3 = p[0]
+	var b: Vector3 = p[1]
+	var c: Vector3 = p[2]
+	var cross := (b - a).cross(c - a)
+	if cross.length_squared() < 1e-14:
+		return
+	var order := [0, 2, 1] if cross.dot(out_n if top < 0.5 else (n[0] as Vector3) + (n[1] as Vector3) + (n[2] as Vector3)) > 0.0 else [0, 1, 2]
+	for k in order:
+		st.set_normal(n[k])
+		st.set_uv(f[k])
+		st.set_uv2(Vector2(top, 0.0))
+		st.add_vertex(p[k])
+
+
 static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3,
 		na: Vector3, nb: Vector3, nc: Vector3, nd: Vector3, out_n: Vector3) -> void:
 	_tri(st, a, b, c, na, nb, nc, out_n)
