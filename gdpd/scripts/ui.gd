@@ -947,16 +947,13 @@ func _build_tip() -> void:
 	root.add_child(tip_card)
 
 
-## Beim Drehen: ganz oben, über die ganze Breite, leicht rot. Dorthin ziehen und loslassen = abbrechen.
+## Beim Drehen: unten, etwas über dem Rand (wo sonst die Leiste ist), leicht rot. Dorthin ziehen und loslassen = abbrechen.
 func _build_cancel_strip() -> void:
 	cancel_strip = PanelContainer.new()
-	cancel_strip.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	cancel_strip.offset_top = 0.0
-	cancel_strip.offset_bottom = _insets.x + 92.0
+	_place_cancel_strip()
 	var s := Style.box(Color(Style.FIRE_TINT, 0.97), 0, 24, 0)
-	s.corner_radius_bottom_left = 28
-	s.corner_radius_bottom_right = 28
-	s.content_margin_top = _insets.x + 8.0
+	s.set_corner_radius_all(36)
+	s.content_margin_top = 8
 	s.content_margin_bottom = 8
 	s.shadow_color = Color(Style.FIRE, 0.18)
 	s.shadow_size = 18
@@ -974,6 +971,15 @@ func _build_cancel_strip() -> void:
 	h.add_child(cancel_label)
 	cancel_strip.visible = false
 	root.add_child(cancel_strip)
+
+
+## Unten über die Breite des Inhalts, so hoch wie die Leiste und auf ihrer Höhe (nicht am Rand klebend).
+func _place_cancel_strip() -> void:
+	cancel_strip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	cancel_strip.offset_left = Style.MARGIN
+	cancel_strip.offset_right = -Style.MARGIN
+	cancel_strip.offset_bottom = -(_insets.y + Style.BOTTOM_GAP + 12.0)
+	cancel_strip.offset_top = cancel_strip.offset_bottom - maxf(Style.DOCK_H, 84.0)
 
 
 # --- Dialoge ------------------------------------------------------------------
@@ -3663,7 +3669,7 @@ func _on_twist_state(on: bool) -> void:
 	_twisting = on
 	_on_cancel_hover(false)
 	_calm_since = _time
-	var h := _insets.x + 92.0
+	var h := maxf(Style.DOCK_H, 84.0)
 	if not on:
 		_demo_until = 0.0     # Vorführung vorbei (oder abgebrochen): die nächste echte Drehung zeigt den Streifen
 	if on and (_time < _demo_until or (Game.tutorial() and Game.tutorial_step == 0)):
@@ -3678,10 +3684,10 @@ func _on_twist_state(on: bool) -> void:
 		_close_sheet()
 		if toast.visible:
 			_toast_until = minf(_toast_until, _time)     # Spur frei machen für die Vorschau
-		cancel_strip.position = Vector2.ZERO
-		_appear(cancel_strip, Vector2(0, -h * 0.6), Style.DUR_IN)
+		_place_cancel_strip()
+		_appear(cancel_strip, Vector2(0, h * 0.6), Style.DUR_IN)
 	else:
-		_disappear(cancel_strip, Vector2(0, -h * 0.5), Style.DUR_OUT)
+		_disappear(cancel_strip, Vector2(0, h * 0.5), Style.DUR_OUT)
 
 
 func _on_cancel_hover(on: bool) -> void:
