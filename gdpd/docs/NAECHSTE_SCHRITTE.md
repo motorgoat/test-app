@@ -72,3 +72,11 @@
 - Den eigenen Gott leichter finden: Antippen des Gottes in der Übersicht öffnet ihn (ansehen, ändern, Art zu reden).
 - Den Abbrechen-Bereich beim Drehen („zum Abbrechen hierher ziehen und loslassen“) mehr ins Zentrum rücken:
   nicht ganz oben am Rand, sondern gut erreichbar näher an der Mitte, etwas kompakter.
+
+## Erdgeschichte (Vorschlag an Philipp, 7. November 2026)
+- Neuer Ablauf in etwa 14 Kapiteln (eins pro Tag): Glühende Erde → Ursuppe → Algen → erste Pflanzen → Wälder →
+  Fische/Landgang → Tiere → Nahrungskette → Meteor → Menschen → Ackerbau → Glaube → Städte/Industrie → Gleichgewicht.
+- Gefahren sind Folgen, kein fester Takt (Blitz nur bei trockenem Wald ohne Wasser daneben).
+- Arten klar unterscheidbar (Tiere nicht wie Wiese).
+- Wasser ist am Anfang tot: keine Fische, kein Grün, keine Lebenszeichen im Wasser, bis im Spiel Leben entsteht
+  (erst Einzeller, später Algen und Fische). Das Wasser verändert sein Aussehen mit dem Zeitalter.
