@@ -80,3 +80,7 @@
 - Arten klar unterscheidbar (Tiere nicht wie Wiese).
 - Wasser ist am Anfang tot: keine Fische, kein Grün, keine Lebenszeichen im Wasser, bis im Spiel Leben entsteht
   (erst Einzeller, später Algen und Fische). Das Wasser verändert sein Aussehen mit dem Zeitalter.
+- Kein Drehungs-Limit mehr in den Kapiteln: Schritte werden gezählt, nicht beschränkt. Man kommt immer weiter
+  (auch mit 16 Schritten). Je weniger Schritte, desto mehr Punkte (und Sterne).
+- Punkte sind die Währung: Davon kauft man Sachen im Laden (z. B. Wunder wie Regen/Meteor, Serien-Schutz,
+  Teile und Skins für den eigenen Gott, Themes). Münzen und Punkte zu einer Währung zusammenlegen.
