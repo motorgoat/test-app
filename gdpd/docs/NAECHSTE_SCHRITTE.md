@@ -90,3 +90,11 @@
 ## Ton (Wunsch von Philipp)
 - Keine nervige Musik. Später passende, dezente Sound-Effekte: Drehen mit Einrasten, Wachsen, Wasser, Wind,
   Tiere, Regen, Blitz, Feuer, Krieg, Flut; ruhige Natur-Atmosphäre statt Dauer-Musik. Getrennt abschaltbar.
+
+## Zusammenwachsen (Wunsch von Philipp)
+- Gleiche Felder, die nebeneinander liegen, wachsen sichtbar zusammen, solange sie sich berühren:
+  ein durchgehender Wald, ein großes Feld, ein See, eine zusammenhängende Herde/Stadt (auch über Würfelkanten).
+  Werden sie auseinandergedreht, trennen sie sich wieder.
+- Zusammenhängende Gruppen bringen mehr: z. B. 2 erntereife Äcker nebeneinander = doppelter Ertrag
+  (Gruppengröße als Multiplikator, Obergrenze per Bot-Test festlegen). Gilt sinngemäß für Nahrung, Arbeit, Glaube.
+- Einbau im Erdgeschichte-Umbau; die Optik baut auf den nahtlosen Übergängen auf.
