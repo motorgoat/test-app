@@ -86,3 +86,7 @@
   Teile und Skins für den eigenen Gott, Themes). Münzen und Punkte zu einer Währung zusammenlegen.
 - Behoben (field_view.set_detail): Pflanzen verschwanden beim Schwenken oder wenn sie über eine Kante gedreht wurden,
   weil der Inhalt schräg abgewandter Felder zu früh ausgeblendet wurde. Jetzt erst bei fast ganz abgewandten Feldern.
+
+## Ton (Wunsch von Philipp)
+- Keine nervige Musik. Später passende, dezente Sound-Effekte: Drehen mit Einrasten, Wachsen, Wasser, Wind,
+  Tiere, Regen, Blitz, Feuer, Krieg, Flut; ruhige Natur-Atmosphäre statt Dauer-Musik. Getrennt abschaltbar.
