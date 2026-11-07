@@ -787,8 +787,10 @@ static func _append_mesh(a: Array, mesh: Mesh, xf: Transform3D, iseed: float = 0
 # =============================================================================
 
 ## dot = Feld-Normale · Richtung zur Kamera. Rückseiten: Inhalt aus; flach: Agenten ruhen.
+## Erst ab -0.8 ausblenden: Bäume und Häuser auf schräg abgewandten Seiten ragen noch über die Würfelkante
+## (sonst verschwinden Pflanzen beim Schwenken oder wenn eine Scheibe sie über die Kante dreht).
 func set_detail(dot: float) -> void:
-	var lvl := 2 if dot > 0.3 else (1 if dot > -0.22 else 0)
+	var lvl := 2 if dot > 0.3 else (1 if dot > -0.8 else 0)
 	if lvl == _detail:
 		return
 	_detail = lvl

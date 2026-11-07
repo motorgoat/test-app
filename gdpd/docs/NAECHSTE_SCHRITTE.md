@@ -84,3 +84,5 @@
   (auch mit 16 Schritten). Je weniger Schritte, desto mehr Punkte (und Sterne).
 - Punkte sind die Währung: Davon kauft man Sachen im Laden (z. B. Wunder wie Regen/Meteor, Serien-Schutz,
   Teile und Skins für den eigenen Gott, Themes). Münzen und Punkte zu einer Währung zusammenlegen.
+- Behoben (field_view.set_detail): Pflanzen verschwanden beim Schwenken oder wenn sie über eine Kante gedreht wurden,
+  weil der Inhalt schräg abgewandter Felder zu früh ausgeblendet wurde. Jetzt erst bei fast ganz abgewandten Feldern.
