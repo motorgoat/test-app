@@ -367,7 +367,7 @@ Reihenfolge nach Nutzen pro Aufwand. Jeder Schritt muss einzeln funktionieren un
 | A9 | **Umgebungsleben**: Wolkenschatten (im Boden-Shader), Pollen, Vögel (MultiMesh + Shader), Rauch-Billboards | `world.gd`, `shaders/smoke.gdshader`, `shaders/birds.gdshader` | |
 | A10 | **Kamera**: Leerlauf-Drift, weiches Schütteln, Punch-in, Fokus bei ★ | `camera_rig.gd`, `world.gd::_merge_fx` | Drift aus bei Tour/Tutorial (Tour bleibt deterministisch) |
 | A11 | **Spiel-FX** neu (6.3): Lichtpuls, Staub/Blätter, gestaffeltes Wachsen, Regen mit Strichen und Spritzern, Smog, Blitz-Bildblitz | `world.gd` (`_merge_fx`, `_rain_fx`, `_smog_fx`, `_bolt_fx`), `field_view.gd` (`burst`, `set_kind`) | |
-| A12 | **Hinweise im Raum** als Lichtrand (7.3) | `field_view.gd` (`_glow`, `_hint`, `_target`, `_danger`) | Tour `CHECK`-Zeilen zu Zielen und Hinweisen unverändert grün |
+| A12 | **Hinweise im Raum** als Lichtrand (7.3) | `field_view.gd` (`set_mark`, Lichtrand im Boden-Shader, Abschnitt 16) | Tour `CHECK`-Zeilen zu Zielen und Hinweisen unverändert grün |
 | A13 | **Qualitätsstufen** Hoch/Mittel/Niedrig, automatisch nach Bildzeit der ersten 3 s, im Menü änderbar | `look.gd`, `world.gd`, `ui.gd` (Menüpunkt) | Niedrig: kein Post-Blur, Schatten 2048, keine Pollen/Vögel, Rauch halbiert |
 
 Hinweise für `gl_compatibility` (Godot 4.3), im Prototyp ausprobiert oder bekannt:
@@ -598,3 +598,19 @@ Leistung (Rev. 9):
 - Der Tipp rechnet verteilt über mehrere Bilder (höchstens 6 ms je Bild, `Game.search_hint`), der Knopf pulsiert solange. Nie auf einem zweiten Thread: Godot 4.3 liest `const`-Tabellen nicht threadsicher (Absturz/Hänger in der Bonusrunde).
 
 Offen: MultiMesh je Tierart (Instanz-Daten statt eines Materials je Figur), Messung am echten Handy.
+
+## 16. Nahtlos: Felder gehen ineinander über (Rev. 10, 7. November 2026)
+
+Rückmeldung: Wasser passt an den Ecken nicht zusammen, Rahmen und Lücken zwischen den Feldern, Licht vom Hintergrund
+blitzt durch, Bäume ragen über die Kanten. Regel jetzt: **Eine Seite des Würfels ist eine Landschaft, keine Kacheln.**
+
+| Thema | Lösung | Wo |
+|---|---|---|
+| Platten | Jede Kachel reicht bis an den Nachbarn (±0,502, leicht überlappend), an Würfelkanten biegt sie als abgerundete Kante um (Gehrung 45°). Keine Rahmen, keine Fugen, kein Hintergrund-Licht (auch beim Drehen nicht: darunter liegt der Würfelkörper) | `models.gd::slab_mesh` |
+| Nachbarn | `World._update_seams` gibt jedem Feld seine 8 Nachbarn (auch über die Würfelkante), nach jeder Drehung und jedem Artwechsel. Beim Start einer Drehung gilt die laufende Fuge als neutral (−2): Ufer schließen sich, kein Übergang zu Feldern, die gleich wegdrehen | `world.gd`, `field_view.gd::set_neighbors` |
+| Übergang | Weiche, unregelmäßige Mischung zum Boden der Nachbarn (Höhen-Mischen); an der Fuge zeigen beide Seiten genau denselben Wert. Gleiche Art zählt als „selbst“: Pflaster, Kiesel, Blumen und Furchen laufen über gleiche Felder durch (Acker nur bei gleicher Furchenrichtung) | `ground.gdshader`, `look.gd::apply_neighbors` |
+| Rauschen | Innen kachel-eigen mit Versatz je Feld (keine zwei Felder gleich), im Randband in Würfel-Koordinaten (`cb_*`, triplanar): ohne Spiegelung, keine Rosetten, an der Würfelkante sehen beide Seiten denselben Punkt | `ground.gdshader::tri_fbm` |
+| Zustände | Verwelkt, Smog, Nässe und Markierung der Nachbarn (`nb_fx`) werden wie die Farben gemischt: kein harter Kasten um frische oder nasse Felder. Änderungen gehen sofort an die Nachbarn (`_push_fx`) | `field_view.gd` |
+| Wasser | Abstandsfeld über die Nachbarn: Kerne, Brücken, Füllungen, runde Innen- und Außenecken; Felder, die sich nur über Eck berühren, verbindet eine Meerenge über die gemeinsame Ecke (auch die beiden Landfelder tragen ihr Stück). Wellen in Koordinaten der Würfelseite, auf der Deckseite einer drehenden Scheibe laufen sie mit (kein Sprung). Glitzern nur, wo sich die Sonne spiegelt; auf der gebogenen Kante matt; Eigenton bleibt auch in warmem Licht | `look.gd::water_boxes`, `water_segs`, `ground.gdshader` |
+| Markierungen | Hinweis, Gefahr, Ziel, Auswahl, Vorschau, Satt, Still, Front, Flut als Lichtrand **im Boden** (`mark_c`, Vorrang je Art); gleich markierte Nachbarn zeigen an ihrer Fuge keinen Rand – eine Reihe leuchtet als Ganzes | `field_view.gd::MARKS`, `set_mark` |
+| Überstand | Seiten, die von der Kamera wegkippen, zeigen ihren Inhalt flacher (`set_squash`, 42–100 % Höhe, Fuß bleibt am Boden); hohe Teile rücken an Würfelkanten etwas nach innen | `world.gd::_process`, `field_view.gd::_keep_inside` |

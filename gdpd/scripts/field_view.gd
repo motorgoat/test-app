@@ -1861,12 +1861,12 @@ func _b_field(rng: RandomNumberGenerator) -> void:
 	var fp := Vector3(0.12, 0, 0.3 * side) if dir == 0 else Vector3(0.3 * side, 0, 0.12)
 	_item("fence", 0, fp, 0.0 if dir == 0 else PI * 0.5, 1.0, 0.0, true)
 	if _variant % 2 == 0:
-		_item("scarecrow", 0, Vector3(0.1, 0, -0.022) if dir == 0 else Vector3(-0.022, 0, 0.1), rng.randf() * TAU, 1.0, 0.0, true)
+		_item("scarecrow", 0, Vector3(0.1, 0, -0.045) if dir == 0 else Vector3(-0.045, 0, 0.1), rng.randf() * TAU, 1.0, 0.0, true)
 	else:
 		_item("cart", 0, Vector3(-0.27, 0, -0.3 * side) if dir == 0 else Vector3(-0.3 * side, 0, -0.27), 0.0 if dir == 0 else PI * 0.5,
 			1.0, 0.0, true)
 	# Bauer zwischen den Reihen
-	for z in [-0.107, 0.064, 0.236]:
+	for z in [-0.134, 0.045, 0.223]:      # in den Furchen (zwischen den Dämmen, siehe Models.crops)
 		var zz: float = z
 		_spots.append(Vector3(rng.randf_range(-0.2, 0.2), 0, zz) if dir == 0 else Vector3(zz, 0, rng.randf_range(-0.2, 0.2)))
 	if not _wither:

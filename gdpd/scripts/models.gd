@@ -1646,7 +1646,7 @@ static func crops(key: String, stage: int, dir: int, dry: bool) -> Array:
 		return _models["crops|" + key]
 	var g := MB.new()
 	for k in range(-3, 4):
-		var z := (0.03 + 0.12 * float(k)) / 1.4
+		var z := (0.125 * float(k)) / 1.4      # Dämme: cos(2π·8·u) im Boden-Shader (u in Feld-Koordinaten)
 		var n := 26 if stage == 2 else (15 if stage == 1 else 20)
 		for i in n:
 			var x := -0.29 + 0.58 * (float(i) + 0.5) / float(n) + 0.004 * sin(float(k * 13 + i * 7))
