@@ -98,3 +98,9 @@
 - Zusammenhängende Gruppen bringen mehr: z. B. 2 erntereife Äcker nebeneinander = doppelter Ertrag
   (Gruppengröße als Multiplikator, Obergrenze per Bot-Test festlegen). Gilt sinngemäß für Nahrung, Arbeit, Glaube.
 - Einbau im Erdgeschichte-Umbau; die Optik baut auf den nahtlosen Übergängen auf.
+
+## Ziel-Fortschritt zählt Verluste ab (Wunsch von Philipp)
+- Brennen Tiere (oder andere Ziel-Felder) ab, werden überflutet, im Krieg zerstört oder verhungern, geht der
+  Fortschritt oben wieder zurück. Derzeit zählt „make“ nur, wie oft etwas entstanden ist, und geht nie zurück.
+- Umsetzung im Erdgeschichte-Umbau: Fortschritt = entstanden − verloren (Verlust = Ziel-Feld fällt durch eine Gefahr
+  auf eine niedrigere Art). Weiterentwickeln zur nächsten Stufe zählt nicht als Verlust. Kurzer Hinweis „−1 Tier“.
