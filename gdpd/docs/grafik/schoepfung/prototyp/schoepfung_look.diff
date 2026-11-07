@@ -1,0 +1,391 @@
+--- a/scripts/look.gd	2026-11-07 10:55:25.341924773 +0000
++++ b/scripts/look.gd	2026-11-07 11:46:38.602226175 +0000
+@@ -119,8 +119,32 @@
+ ]
+ 
+ 
++## PROTOTYP Schöpfung: Zeitalter (0 = heute/Akt 3+, 1 = Glut, 2 = Ursuppe). Überschreibt Bodenwerte je Art.
++static var era := 0
++const LAVA_KIND := 16          # Prototyp: Stein steht für Lava
++const ERA_GROUND := {
++	1: {0: {"a": "#2c2c2d", "b": "#3c3b3a", "acc": "#626058", "amt": 0.9, "mc": 0.7},          # Basalt-Fels
++		16: {"a": "#231d1a", "b": "#2e2622", "acc": "#3a302a", "amt": 0.3, "mc": 0.9},         # Lava-Kruste
++		15: {"a": "#4a4540", "b": "#5a524a", "acc": "#6a625a", "amt": 0.4, "mc": 0.45}},       # Ufer: dunkler Sand
++	2: {0: {"a": "#4d4741", "b": "#5f574e", "acc": "#7a7066", "amt": 0.8, "mc": 0.6},
++		16: {"a": "#231d1a", "b": "#2e2622", "acc": "#3a302a", "amt": 0.3, "mc": 0.9},
++		15: {"a": "#6b6152", "b": "#7d725f", "acc": "#8a806e", "amt": 0.3, "mc": 0.45}},
++}
++## Wasser je Zeitalter: tief, flach, Leben (0 tot … 1 Algen), Algenfarbe
++const ERA_WATER := {
++	0: {"deep": "#12383f", "shallow": "#3d7f72", "life": 1.0},
++	1: {"deep": "#2a3438", "shallow": "#5a625c", "life": 0.0},
++	2: {"deep": "#26302a", "shallow": "#55604c", "life": 0.35},
++	3: {"deep": "#173a33", "shallow": "#4c7a4a", "life": 1.0},
++}
++static var water_era := 0
++
++
+ static func ground_params(kind: int) -> Dictionary:
+-	return GROUND[clampi(kind, 0, GROUND.size() - 1)]
++	var k := clampi(kind, 0, GROUND.size() - 1)
++	if ERA_GROUND.has(era) and (ERA_GROUND[era] as Dictionary).has(k):
++		return ERA_GROUND[era][k]
++	return GROUND[k]
+ 
+ 
+ ## Neues Boden-Material (je Feld eines: Puls, Nässe und Verwelken sind je Feld verschieden).
+@@ -272,7 +296,7 @@
+ static func _nb_b(kind: int) -> Color:
+ 	var g: Dictionary = ground_params(kind)
+ 	var c := Color(str(g["b"]))
+-	c.a = 1.0 if kind == 15 else 0.0
++	c.a = 1.0 if kind == 15 else (3.0 if kind == LAVA_KIND and era > 0 else 0.0)
+ 	return c
+ 
+ 
+@@ -294,6 +318,11 @@
+ 	m.set_shader_parameter("path_c", Color(str(g.get("pc", "#8a7350"))))
+ 	m.set_shader_parameter("mix_c", float(g.get("mc", 0.5)))
+ 	m.set_shader_parameter("is_water", 1.0 if kind == 15 else 0.0)
++	m.set_shader_parameter("lava", 1.0 if kind == LAVA_KIND and era > 0 else 0.0)
++	var we: Dictionary = ERA_WATER[water_era]
++	m.set_shader_parameter("w_deep", Color(str(we["deep"])))
++	m.set_shader_parameter("w_shallow", Color(str(we["shallow"])))
++	m.set_shader_parameter("w_life", float(we["life"]))
+ 	m.set_shader_parameter("scorch", scorch)
+ 	m.set_shader_parameter("polluted", polluted)
+ 
+--- a/scripts/world.gd	2026-11-07 10:51:08.172110765 +0000
++++ b/scripts/world.gd	2026-11-07 11:45:48.478268310 +0000
+@@ -645,6 +645,22 @@
+ 		"top": Color("#7f95b8"), "mid": Color("#e6d8c6"), "low": Color("#f6d3a2"), "cloud": Color("#fff0dc"), "clouds": 1.0, "sunglow": 0.8,
+ 		"fog": 0.0, "fog_c": Color("#e0d2c0"), "warm": Vector3(1.08, 1.0, 0.88), "cool": Vector3(0.93, 0.96, 1.07), "sat": 1.08, "con": 1.04,
+ 		"vig": 0.3, "life": 1.0},
++	# PROTOTYP Schöpfung: Zeitalter-Stimmungen
++	"glut": {"sun": Vector3(-30, -44, 0), "sun_c": Color("#ffb383"), "sun_e": 0.95, "fill_c": Color("#c0705a"), "fill_e": 0.75,
++		"amb_c": Color("#9a7a78"), "amb_e": 0.95, "exp": 1.0, "glow": 0.9,
++		"top": Color("#1a1216"), "mid": Color("#4a2622"), "low": Color("#8a3a1e"), "cloud": Color("#3a2a2a"), "clouds": 1.5, "sunglow": 0.25,
++		"fog": 0.0, "fog_c": Color("#5a3a30"), "warm": Vector3(1.08, 0.97, 0.9), "cool": Vector3(0.95, 0.94, 1.02), "sat": 1.0, "con": 1.06,
++		"vig": 0.45, "life": 0.0, "lowglow": 0.55, "haze": 0.2, "stars": 0.0, "ash": 0.5},
++	"dunst": {"sun": Vector3(-40, -46, 0), "sun_c": Color("#e8c79a"), "sun_e": 0.85, "fill_c": Color("#9a9688"), "fill_e": 0.8,
++		"amb_c": Color("#9a9080"), "amb_e": 0.95, "exp": 0.98, "glow": 0.6,
++		"top": Color("#6a6458"), "mid": Color("#a89a80"), "low": Color("#c9b48e"), "cloud": Color("#b8ad98"), "clouds": 1.6, "sunglow": 0.35,
++		"fog": 0.006, "fog_c": Color("#a89a80"), "warm": Vector3(1.05, 1.0, 0.9), "cool": Vector3(0.97, 0.98, 1.0), "sat": 0.85, "con": 1.0,
++		"vig": 0.36, "life": 0.0, "lowglow": 0.0, "haze": 0.7, "stars": 0.0, "ash": 0.0},
++	"nacht": {"sun": Vector3(-34, -52, 0), "sun_c": Color("#9fb4e8"), "sun_e": 0.55, "fill_c": Color("#5a6a9a"), "fill_e": 0.62,
++		"amb_c": Color("#56658a"), "amb_e": 0.85, "exp": 1.0, "glow": 1.0,
++		"top": Color("#070b1a"), "mid": Color("#16203a"), "low": Color("#2a3352"), "cloud": Color("#3a4560"), "clouds": 0.6, "sunglow": 0.15,
++		"fog": 0.0, "fog_c": Color("#20283e"), "warm": Vector3(0.96, 0.98, 1.04), "cool": Vector3(0.92, 0.96, 1.1), "sat": 0.9, "con": 1.05,
++		"vig": 0.4, "life": 0.0, "lowglow": 0.0, "haze": 0.0, "stars": 1.0, "ash": 0.0},
+ }
+ 
+ var mood := ""                   # aktuelle Stimmung (Name)
+@@ -711,6 +727,10 @@
+ 		_backdrop_mat.set_shader_parameter("cloud_c", m["cloud"])
+ 		_backdrop_mat.set_shader_parameter("clouds", float(m["clouds"]))
+ 		_backdrop_mat.set_shader_parameter("sun_glow", float(m["sunglow"]))
++		_backdrop_mat.set_shader_parameter("low_glow", float(m.get("lowglow", 0.0)))
++		_backdrop_mat.set_shader_parameter("haze", float(m.get("haze", 0.0)))
++		_backdrop_mat.set_shader_parameter("stars", float(m.get("stars", 0.0)))
++		_backdrop_mat.set_shader_parameter("ash", float(m.get("ash", 0.0)))
+ 	if _post_mat != null:
+ 		_post_mat.set_shader_parameter("warm", m["warm"])
+ 		_post_mat.set_shader_parameter("cool", m["cool"])
+--- a/scripts/field_view.gd	2026-11-07 11:13:00.334332978 +0000
++++ b/scripts/field_view.gd	2026-11-07 11:52:02.636756315 +0000
+@@ -108,7 +108,11 @@
+ var _outer := 0                  # Würfelkanten (build)
+ var _nb: Array = []              # Nachbar-Arten (set_neighbors)
+ var _nb_key := ""
+-static var seams_dirty := true   # eine Art hat sich geändert: World rechnet die Nachbarn neu
++static var seams_dirty := true
++## PROTOTYP Schöpfung: Zusammenwachsen (Wald-Kronendach über Fugen gleicher Art)
++static var merge_on := true
++var _merge_mask := 0             # Bit 0: N gleich, 1: O gleich, 2: Ecke NO (N, O, NO gleich) – nur auf derselben Seite
++var _steam: Array = []   # eine Art hat sich geändert: World rechnet die Nachbarn neu
+ var _pulse_tw: Tween
+ var _wet_tw: Tween
+ 
+@@ -625,6 +629,8 @@
+ 		_nb_key = key
+ 		_nb = kinds.duplicate()
+ 		Look.apply_neighbors(_ground, maxi(_kind, 0), kinds, same)
++		_update_merge(kinds)
++		_update_steam(kinds)
+ 	var own := seam_fx()
+ 	for i in 8:
+ 		var nv: FieldView = nbv[i] if i < nbv.size() else null
+@@ -633,6 +639,53 @@
+ 	_ground.set_shader_parameter("nb_fx", _nb_fx)
+ 
+ 
++## PROTOTYP: Zusammenwachsen. Gleiche Waldfelder nebeneinander (gleiche Seite) teilen ein Kronendach: Bäume
++## stehen auf der Fuge (jede Fuge gehört dem Feld südlich/westlich davon: N- und O-Fuge, Ecke NO).
++func _update_merge(kinds: Array) -> void:
++	var mm := 0
++	if merge_on and (_kind == K_FOREST or _kind == K_BIGFOREST) and not _wither:
++		var nf := int(kinds[0]) == _kind and (_outer & 1) == 0
++		var ef := int(kinds[1]) == _kind and (_outer & 2) == 0
++		if nf:
++			mm |= 1
++		if ef:
++			mm |= 2
++		if nf and ef and int(kinds[4]) == _kind:
++			mm |= 4
++	if mm == _merge_mask:
++		return
++	_merge_mask = mm
++	_shown = ""
++	var keep := _time
++	set_kind(_kind, _fresh, _burning)
++	_bake_at = keep
++
++
++## PROTOTYP: Wasser neben Lava dampft (Urzeit).
++func _update_steam(kinds: Array) -> void:
++	for st in _steam:
++		if is_instance_valid(st):
++			(st as Node).queue_free()
++	_steam.clear()
++	if _kind != K_WATER or Look.era == 0:
++		return
++	for i in 4:
++		if int(kinds[i]) == Look.LAVA_KIND:
++			var o: Vector2 = Look.NB_OFF[i]
++			for k in 3:
++				var puff := Node3D.new()
++				puff.position = Vector3(o.x * 0.25 + (float(k) - 1.0) * 0.08 * absf(o.y), 0.02, o.y * 0.25 + (float(k) - 1.0) * 0.08 * absf(o.x))
++				_content.add_child(puff)
++				Look.smoke_puff(puff, 0.22, Color(0.9, 0.88, 0.86, 0.32))
++				puff.set_meta("base_y", 0.02)
++				puff.set_meta("base_x", puff.position.x)
++				puff.set_meta("rise", 0.2)
++				puff.set_meta("speed", 0.35)
++				puff.set_meta("phase", 0.33 * float(k) + 0.1 * float(i))
++				_smoke.append(puff)
++				_steam.append(puff)
++
++
+ ## Wer dieses Feld als Nachbarn hat (World._update_seams): Zustandswechsel gehen sofort dorthin.
+ func clear_back() -> void:
+ 	_back.clear()
+@@ -729,7 +782,7 @@
+ # =============================================================================
+ 
+ func _bake_key() -> String:
+-	return "%d|%d|%d|%d|%d" % [_kind, _variant, _rot, 1 if _wither else 0, 1 if _crater else 0]
++	return "%d|%d|%d|%d|%d|m%d|e%d" % [_kind, _variant, _rot, 1 if _wither else 0, 1 if _crater else 0, _merge_mask, Look.era]
+ 
+ 
+ func _bake() -> void:
+@@ -1789,6 +1842,12 @@
+ 		_puff(Vector3(0, 0.03, 0), 0.05, Color(0.35, 0.33, 0.32, 0.6), 0.2)
+ 		_cover(4, 0, true, 10)
+ 		return
++	if Look.era == 1:
++		for k in 2 + _variant % 2:
++			_item("rock", k + _variant, Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2)), rng.randf() * TAU,
++				rng.randf_range(0.8, 1.3), 0.05)
++		_cover(0, 0, true, 22, 0.4)
++		return
+ 	var nrock := 1 + _variant % 3
+ 	for k in nrock:
+ 		_item("rock", k + _variant, Vector3(rng.randf_range(-0.22, 0.22), 0, rng.randf_range(-0.22, 0.22)), rng.randf() * TAU,
+@@ -1835,6 +1894,8 @@
+ 		if _wither:
+ 			model = "dead" if k % 2 == 0 else "bush_dry"
+ 		var s := rng.randf_range(1.15, 1.4) if big else rng.randf_range(0.85, 1.05)
++		if _merge_mask != 0:
++			s *= 1.18          # Zusammenwachsen: dichteres, geschlossenes Kronendach
+ 		if model == "bush_dry":
+ 			s *= 1.4
+ 		_tree(model, k + _variant, p, rng, s)
+@@ -1842,6 +1903,30 @@
+ 		_item("log", _variant, Vector3(0.02, 0, 0.2), rng.randf() * TAU, 1.0, 0.04)
+ 		_item("stump", _variant, Vector3(-0.21, 0, 0.0), 0.0, 1.0, 0.025)
+ 		_item("bush_dry" if _wither else "bush", _variant + 1, Vector3(0.22, 0, 0.0), rng.randf() * TAU, 0.9, 0.04)
++	# Zusammenwachsen: Bäume auf den gemeinsamen Fugen (frei, nicht nach innen gerückt)
++	var e := 0.5 / CONTENT_SCALE
++	var seam: Array = []
++	if (_merge_mask & 1) != 0:
++		seam.append(Vector3(-0.12, 0, -e))
++		seam.append(Vector3(0.13, 0, -e + 0.02))
++	if (_merge_mask & 2) != 0:
++		seam.append(Vector3(e, 0, 0.1))
++		seam.append(Vector3(e - 0.02, 0, -0.14))
++	if (_merge_mask & 4) != 0:
++		seam.append(Vector3(e, 0, -e))
++	for k in seam.size():
++		var sp: Vector3 = seam[k] + Vector3(rng.randf_range(-0.02, 0.02), 0, rng.randf_range(-0.02, 0.02))
++		var sm: String = ["oak", "beech", "spruce", "oak", "pine"][(k + field_id) % 5]
++		if big:
++			sm = "spruce" if k % 2 == 0 else "oak"
++		var it := Node3D.new()
++		it.position = sp
++		it.rotation.y = rng.randf() * TAU
++		it.scale = Vector3.ONE * (rng.randf_range(1.15, 1.35) if big else rng.randf_range(0.95, 1.15))
++		_content.add_child(it)
++		it.set_meta("xf", it.transform)
++		_add_parts(it, Models.get_model(sm, k + _variant))
++		_items.append(it)
+ 	_cover(30 if big else 44, 0 if big or _wither else 3, _wither, 5, 0.9)
+ 	if not _wither and (big or _variant % 2 == 0):
+ 		_agent("deer", _variant, _R(Vector3(0.08, 0, 0.07) if big else Vector3(0.06, 0, -0.1)))
+@@ -2056,6 +2141,8 @@
+ 	for ix in 4:
+ 		for iz in 4:
+ 			_water_pts.append(Vector3(-0.18 + 0.12 * float(ix), 0.005, -0.18 + 0.12 * float(iz)))
++	if Look.water_era < 3:
++		return
+ 	if posmod(field_id, 5) == 0:
+ 		_agent("duck", 0, Vector3(-0.06, 0.005, 0.04))
+ 		_agent("duck", 1, Vector3(0.0, 0.005, 0.1))
+@@ -2065,6 +2152,13 @@
+ 
+ ## Stein: Felsen mit Abbaukante, geschnittene Blöcke, Schutt, manchmal ein Steinhauer.
+ func _b_stone(rng: RandomNumberGenerator) -> void:
++	if Look.era > 0:
++		# PROTOTYP Lava: nur ein paar erstarrte Brocken, Rauch und Glut (das Glühen malt der Boden)
++		for k in 2:
++			_item("rock", k + _variant + 3, Vector3(rng.randf_range(-0.18, 0.18), 0, rng.randf_range(-0.18, 0.18)), rng.randf() * TAU,
++				rng.randf_range(0.5, 0.8), 0.04)
++		_puff(Vector3(rng.randf_range(-0.1, 0.1), 0.04, rng.randf_range(-0.1, 0.1)), 0.05, Color(0.22, 0.2, 0.2, 0.6), 0.3, -1.0, 0.25)
++		return
+ 	_item("quarry", _variant, Vector3.ZERO, 0.0, 1.0, 0.0)
+ 	var qp := _R(Vector3(-0.1, 0, -0.12))
+ 	_obst.append(Vector3(qp.x, qp.z, 0.17))
+--- a/shaders/ground.gdshader	2026-11-07 11:11:29.335822766 +0000
++++ b/shaders/ground.gdshader	2026-11-07 11:52:02.637285637 +0000
+@@ -51,6 +51,12 @@
+ uniform float blend_w = 0.26;        // Breite des Übergangs je Seite
+ // Wasser
+ uniform float is_water = 0.0;
++// PROTOTYP Schöpfung: Lava (Kruste mit glühenden Rissen, fließt über Fugen weiter) und Leben im Wasser
++uniform float lava = 0.0;            // 1: dieses Feld ist Lava
++uniform vec3 lava_hot : source_color = vec3(1.0, 0.3, 0.04);
++uniform vec3 lava_core : source_color = vec3(1.0, 0.6, 0.16);
++uniform float lava_e = 1.25;          // Leuchtkraft (über 1: Glühen)
++uniform float w_life = 1.0;          // 0 tot, 0,35 Einzeller, 1 Algen
+ uniform float shore = 0.355;         // so weit reicht das Wasser zum Land hin (Zellen-Koordinaten)
+ uniform vec3 w_deep : source_color = vec3(0.07, 0.25, 0.30);
+ uniform vec3 w_shallow : source_color = vec3(0.24, 0.50, 0.47);
+@@ -224,6 +230,7 @@
+ 	// Übergang zu den Nachbarn: weiche Gewichte (an der Fuge je 1/2, an der Ecke je 1/4), unregelmäßig durch
+ 	// Höhen-Mischen (beide Seiten rechnen an der Fuge mit demselben Rauschen). Gleiche Art zählt als „selbst“.
+ 	vec3 col_top = top;
++	float lav = lava;
+ 	vec3 fx = vec3(scorch, polluted, wet);
+ 	if (nb_on > 0.5) {
+ 		// unregelmäßiger Innenrand: verschoben um Rauschen, an der Fuge selbst unverschoben (dort je 1/2)
+@@ -253,16 +260,18 @@
+ 		float bself = bs;
+ 		vec3 acc = vec3(0.0);
+ 		vec3 fxa = fx * bs;
++		float lva = 0.0;
+ 		float sum = bs;
+ 		for (int i = 0; i < 8; i++) {
+ 			float bi = max(sc[i] - mx + depth, 0.0);
+ 			if (bi > 0.0) {
+-				if (nb_b[i].a > 1.5) {
++				if (nb_b[i].a > 1.5 && nb_b[i].a < 2.5) {
+ 					bself += bi;
+ 				} else {
+ 					acc += approx(nb_a[i].rgb, nb_b[i].rgb, big, fine) * bi;
+ 				}
+ 				fxa += nb_fx[i].xyz * bi;
++				if (nb_b[i].a > 2.5) { lva += bi; }
+ 				sum += bi;
+ 			}
+ 		}
+@@ -272,6 +281,24 @@
+ 		vec3 own = mix(base, top, smoothstep(0.55, 0.98, share));
+ 		col_top = (acc + own * bself) / sum;
+ 		fx = fxa / sum;
++		lav = (lava * bself + lva) / sum;
++	}
++
++	vec3 lava_emi = vec3(0.0);
++	if (lav > 0.002) {
++		// Kruste in Platten (Zellen in Würfel-Koordinaten: laufen über Fugen weiter), Risse glühen, in der Mitte
++		// großer Lava-Flächen fließt flüssiges Gestein (Rauschen wandert langsam)
++		float lc = tri_cell(cp, tw, 0.55, vec2(0.21, 0.6), dpx, dpy);
++		float flow = tri_fbm(cp, tw, 0.9, vec2(TIME * 0.006, TIME * 0.004), dpx, dpy);
++		float crack = smoothstep(0.66, 0.8, lc + (flow - 0.5) * 0.25 + (fine - 0.5) * 0.12);
++		float pool = smoothstep(0.56, 0.7, flow) * smoothstep(0.75, 0.98, lav);
++		float heat = clamp(crack * smoothstep(0.25, 0.85, lav) + pool, 0.0, 1.0);
++		float flick = 0.85 + 0.15 * sin(TIME * 1.7 + flow * 12.0);
++		vec3 hot = mix(lava_hot, lava_core, pool * smoothstep(0.6, 0.8, flow));
++		// Albedo: verkohlte Kruste, Risse dunkelrot (Licht kommt aus der Emission)
++		col_top = mix(col_top, vec3(0.13, 0.1, 0.09) * (0.8 + 0.4 * fine), smoothstep(0.2, 0.7, lav) * 0.7);
++		col_top = mix(col_top, vec3(0.35, 0.08, 0.02), heat * 0.8);
++		lava_emi = hot * heat * lava_e * flick;
+ 	}
+ 
+ 	if (has_w) {
+@@ -296,6 +323,18 @@
+ 		float fn = texture(n_fbm, fc * 9.0 + vec2(t * 0.05, 0.0)).r;
+ 		float band = (1.0 - smoothstep(0.0, 0.022 + 0.012 * sin(t * 1.3 + fn * 6.0), -wd)) * smoothstep(0.38, 0.6, fn + 0.12);
+ 		wc = mix(wc, w_foam, band * inw * 0.6);
++		// Leben (Schöpfung): Einzeller als feine, langsam treibende Pünktchen (kaum sichtbar), Algen als grüne
++		// Matten im flachen Wasser. Tot (w_life 0): trüb, kein Grün, keine Pünktchen.
++		float cells = smoothstep(0.08, 0.3, w_life) * (1.0 - smoothstep(0.7, 1.0, w_life) * 0.6);
++		if (cells > 0.0) {
++			float dots = 1.0 - smoothstep(0.03, 0.09, texture(n_cell, fc * 6.0 + vec2(t * 0.006, -t * 0.004)).r);
++			wc = mix(wc, vec3(0.42, 0.62, 0.48), dots * cells * 0.35 * inw);
++			lava_emi += vec3(0.2, 0.55, 0.42) * dots * cells * 0.12 * inw * (0.7 + 0.3 * sin(t * 0.9 + h1 * 9.0));
++		}
++		float alg = smoothstep(0.6, 1.0, w_life) * (1.0 - smoothstep(0.02, 0.2, -wd)) * smoothstep(0.42, 0.62, big + (h1 - 0.5) * 0.3);
++		wc = mix(wc, vec3(0.27, 0.36, 0.14) * (0.85 + 0.3 * fine), alg * 0.75);
++		// Lava am Ufer: Wasser spiegelt die Glut, kocht am Rand
++		lava_emi += lava_hot * smoothstep(0.0, 0.25, lav) * inw * (1.0 - smoothstep(0.0, 0.2, -wd)) * 0.8;
+ 		// nasser Sand und Uferkante
+ 		vec3 land = col_top * mix(0.72, 1.0, smoothstep(0.0, 0.06, wd));
+ 		land *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.012, wd));
+@@ -368,5 +407,5 @@
+ 	// auf der gebogenen Würfelkante kein Spiegel-Glanz (sonst eine Perlenschnur aus Lichtpunkten)
+ 	ROUGHNESS = mix(mix(mix(0.95, 0.78, cobble), 0.32, fx.z), 0.13 + 0.27 * bend, water);
+ 	SPECULAR = mix(mix(0.3, 0.55, fx.z), 0.5 - 0.3 * bend, water);
+-	EMISSION = emi + pulse_c * pulse * (0.35 + 0.65 * smoothstep(0.3, 0.5, m)) * 0.9;
++	EMISSION = emi + lava_emi * topness + pulse_c * pulse * (0.35 + 0.65 * smoothstep(0.3, 0.5, m)) * 0.9;
+ }
+--- a/shaders/backdrop.gdshader	2026-11-07 00:31:19.764331289 +0000
++++ b/shaders/backdrop.gdshader	2026-11-07 11:43:17.851260202 +0000
+@@ -11,6 +11,12 @@
+ uniform float sun_glow = 0.35;
+ uniform vec2 sun_uv = vec2(0.22, 0.2);
+ uniform float flash = 0.0;
++// PROTOTYP Schöpfung: Glut von unten (Lava beleuchtet Wolken), Dunst (Uratmosphäre), Sterne (Nacht, Akt 4), Asche
++uniform vec3 glow_c : source_color = vec3(1.0, 0.35, 0.08);
++uniform float low_glow = 0.0;
++uniform float haze = 0.0;
++uniform float stars = 0.0;
++uniform float ash = 0.0;
+ void fragment() {
+ 	vec2 uv = UV;
+ 	float y = 1.0 - uv.y;
+@@ -27,6 +33,25 @@
+ 	heap *= smoothstep(0.15, 0.35, y) * (1.0 - smoothstep(0.75, 0.95, y));
+ 	vec3 cc = mix(cloud_c * 0.86, cloud_c, smoothstep(0.3, 0.9, n2));
+ 	c = mix(c, cc, clamp(cl * 0.4 + heap * 0.55, 0.0, 1.0) * clouds);
++	// Wolken der Urzeit: Unterseiten glühen rot (Lava), Dunst macht alles flach und dicht
++	float under = (1.0 - smoothstep(0.0, 0.55, y));
++	c = mix(c, mix(c, cloud_c * 0.8, 0.6), haze * (0.5 + 0.5 * n));
++	c += glow_c * low_glow * (under * 0.9 + (cl + heap) * under * 0.8) * (0.7 + 0.3 * n2);
++	// Sterne: feste Punkte (Gitter-Zufall), nur im oberen Himmel, leises Funkeln
++	if (stars > 0.0) {
++		vec2 g = uv * vec2(90.0, 46.0);
++		vec2 id = floor(g);
++		float r = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
++		vec2 f = fract(g) - vec2(fract(r * 7.3), fract(r * 3.1)) * 0.6 - 0.2;
++		float st = (1.0 - smoothstep(0.02, 0.08, length(f))) * step(0.86, r);
++		st *= 0.6 + 0.4 * sin(TIME * (1.0 + r * 3.0) + r * 40.0);
++		c += vec3(0.9, 0.93, 1.0) * st * stars * smoothstep(0.25, 0.7, y) * (1.0 - cl * 0.8);
++	}
++	// Asche: dunkle Schlieren, die langsam steigen
++	if (ash > 0.0) {
++		float a = texture(n_fbm, vec2(uv.x * 3.0, uv.y * 1.2 + TIME * 0.01)).r;
++		c = mix(c, c * 0.55, smoothstep(0.55, 0.8, a) * ash);
++	}
+ 	c += vec3(0.85, 0.88, 1.0) * flash;
+ 	ALBEDO = c;
+ }
