@@ -1839,6 +1839,26 @@ func debug_begin_twist(fid: int, drag: Vector2, amount: float) -> void:
 		_update_twist(_press_pos + _tw_screen_dir * _tw_px_per_quarter * amount)
 
 
+## Tour / Prüfung: Kamera fest auf eine Blickrichtung (z = von wo die Kamera schaut, y = oben im Bild).
+func debug_view(z: Vector3, up: Vector3, zoom: float = 1.0) -> void:
+	var zz := z.normalized()
+	var yy := (up - zz * zz.dot(up)).normalized()
+	rig.basis = Basis(yy.cross(zz).normalized(), yy, zz)
+	rig._anim_t = 1.0
+	rig._q_to = rig.quaternion
+	rig.stop()
+	rig.zoom_factor = zoom
+	rig._apply()
+
+
+## Tour / Prüfung: heller, greller Hintergrund statt Himmel (Lichtlücken zwischen den Feldern fallen sofort auf).
+func debug_bright_bg(on: bool, color: Color = Color(1.0, 0.0, 1.0)) -> void:
+	for c in rig.cam.get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).material_override == _backdrop_mat:
+			(c as MeshInstance3D).visible = not on
+	_env.background_color = color if on else Color("#d9dcd8")
+
+
 func debug_end_twist() -> void:
 	if _mode == "twist":
 		_finish_twist()

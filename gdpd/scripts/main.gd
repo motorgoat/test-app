@@ -74,6 +74,8 @@ func _shots(dir: String) -> void:
 		print("Tour: Tage fertig nach %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	if only == "" or only == "free":
 		await _free_tour(dir)
+	if only == "" or only == "free" or only == "seamless":
+		await _seamless_tour(dir)
 	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
 	print("Tour: %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	print("TOUR-DONE checks=%d failed=%d" % [_checks, _failed])
@@ -1410,6 +1412,80 @@ func _burn_tour(dir: String) -> void:
 	await _wait(1.4)
 	await _shot(dir, "19_ende")
 	_check(Game.over and gs.died(), "game_over", "herzen=%d" % gs.lives)
+
+
+# --- Nahtlos (GDPD_GRAFIK.md): Wasser fließt zusammen, Böden gehen ineinander über, keine Lichtlücken --------
+
+## Wasser als T/L wie im Feedback-Bild, dazu gemischtes Land; Nahaufnahmen von oben, schräg, streifend, mitten
+## in einer Drehung und vor grellem Hintergrund.
+func _seamless_tour(dir: String) -> void:
+	ui.debug_close_all()
+	Game.new_game(4242, 1, 1)
+	await _wait(1.0)
+	var gs := Game.state
+	var W := FieldData.WATER
+	var M := FieldData.MEADOW
+	var F := FieldData.FOREST
+	var A := FieldData.ANIMALS
+	var E := FieldData.EMPTY
+	var R := FieldData.FIELD
+	# Oben (y = 1), Zeile für Zeile von hinten (z = -1) nach vorn, Spalte x = -1 .. 1
+	var top := [[W, W, W], [F, W, F], [M, W, W]]
+	var front := [[A, W, R], [M, W, E], [F, M, A]]       # z = 1, Zeile y = 1 .. -1
+	var right := [[W, M, F], [W, A, M], [R, F, E]]       # x = 1, Zeile y = 1 .. -1, Spalte z = 1 .. -1
+	for f in gs.fields:
+		(f as FieldData).kind = M
+		(f as FieldData).fresh = 0
+		(f as FieldData).burning = false
+	for r in 3:
+		for c in 3:
+			_paint_at(Vector3i(c - 1, 1, r - 1), Vector3i(0, 1, 0), int(top[r][c]))
+			_paint_at(Vector3i(c - 1, 1 - r, 1), Vector3i(0, 0, 1), int(front[r][c]))
+			_paint_at(Vector3i(1, 1 - r, 1 - c), Vector3i(1, 0, 0), int(right[r][c]))
+	gs.wishes = []
+	Game.state_changed.emit()
+	ui.visible = false
+	await _wait(1.6)
+	world.debug_view(Vector3(0.12, 1.0, 0.16), Vector3(0, 0, -1), 0.62)
+	await _wait(0.8)
+	await _shot(dir, "30_nahtlos_wasser")
+	world.debug_view(Vector3(0.75, 0.95, 1.1), Vector3.UP, 0.7)
+	await _wait(0.8)
+	await _shot(dir, "30b_nahtlos_wasser_schraeg")
+	world.debug_view(Vector3(1.0, 0.55, 0.35), Vector3.UP, 0.62)
+	await _wait(0.8)
+	await _shot(dir, "31_nahtlos_uebergang")
+	world.debug_bright_bg(true)
+	world.debug_view(Vector3(1.0, 0.08, 0.04), Vector3.UP, 0.75)
+	await _wait(0.6)
+	await _shot(dir, "32_keine_luecken")
+	world.debug_view(Vector3(1.0, 1.0, 1.0), Vector3.UP, 0.75)
+	await _wait(0.6)
+	await _shot(dir, "32b_keine_luecken_ecke")
+	var probe := gs.field_at(Vector3i(1, 1, 1), Vector3i(0, 1, 0))
+	world.debug_begin_twist(probe.id, Vector2(1, 0.15), 0.5)
+	await _wait(0.8)
+	await _shot(dir, "32c_keine_luecken_drehung")
+	world.debug_end_twist()
+	for i in 60:
+		await _wait(0.05)
+		if not world.animating and not Game.busy:
+			break
+	world.debug_bright_bg(false)
+	await _wait(0.6)
+	world.debug_view(Vector3(0.12, 1.0, 0.16), Vector3(0, 0, -1), 0.62)
+	await _wait(0.8)
+	await _shot(dir, "33_nahtlos_nach_drehung")
+	ui.visible = true
+	ui.debug_close_all()
+
+
+func _paint_at(p: Vector3i, n: Vector3i, kind: int) -> void:
+	var f := Game.state.field_at(p, n)
+	if f != null:
+		f.kind = kind
+		f.fresh = 0
+		f.burning = false
 
 
 # =============================================================================
