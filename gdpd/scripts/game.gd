@@ -74,6 +74,8 @@ var tutorial_done := false
 var tutorial_step := -1    # Schritt im Tutorial, -1 = kein Tutorial
 var coach_seen := {}       # Hinweise, die schon einmal gezeigt wurden (und was schon aufgedeckt ist)
 var onboarding := false    # die ersten Minuten nach dem Tutorial: Tipp leuchtet gratis nach einer Pause
+var undoing := false       # während undo() new_game_started sendet: dasselbe Spiel läuft weiter (kein neuer Versuch)
+var hint_searches := 0     # laufende Tipp-Suchen (search_hint)
 var _onb_merges := 0
 var _onb_twists := 0
 var _tut_board := false    # das Spiel läuft auf dem Tutorial-Würfel
@@ -468,7 +470,10 @@ func undo() -> void:
 			today_build = state
 	pending_choice = {}
 	over = false
+	# Die Welt baut sich neu auf (new_game_started); die Oberfläche erkennt an undoing, dass der Tag weiterläuft
+	undoing = true
 	new_game_started.emit()
+	undoing = false
 	state_changed.emit()
 	message.emit("Zug zurückgenommen.", "info")
 
@@ -1244,6 +1249,7 @@ func continue_build() -> bool:
 	state.start_free_build()
 	over = false
 	busy = false
+	onboarding = false        # Weiterbauen braucht keinen Gratis-Tipp nach jeder Pause (Tag 1–2)
 	pending_choice = {}
 	undo_state = null
 	build_state = state
@@ -1286,12 +1292,44 @@ func resume_build() -> bool:
 	attempt_start = -1
 	over = false
 	busy = false
+	onboarding = false
 	pending_choice = {}
 	undo_state = null
 	new_game_started.emit()
 	state_changed.emit()
 	build_started.emit(day_info())
 	return true
+
+
+## Der Tipp an einem Tag auf einer Kopie des Stands, auf mehrere Bilder verteilt (je Bild höchstens HINT_BUDGET_USEC
+## Rechenzeit), damit das Spiel flüssig bleibt. Immer auf dem Haupt-Thread: Godot 4.3 liest const-Tabellen nicht
+## threadsicher (ein zweiter Thread führte zu Abstürzen und Hängern). Ändert sich der Stand inzwischen (Drehung,
+## Werkzeug, neues Spiel), bricht die Suche ab: {}. twist_only: nur Drehungen (wie best_move).
+## Ohne neue Regeln (oder außerhalb eines Tages) am Stück wie bisher.
+const HINT_BUDGET_USEC := 4000
+
+
+func search_hint(twist_only: bool = false) -> Dictionary:
+	var st0 := state
+	var tw0 := state.twists
+	var key0 := _hint_key()
+	var search := state.clone().day_search(twist_only)
+	if search == null:
+		if twist_only:
+			return state.best_move()
+		return state.best_action()
+	hint_searches += 1
+	while not search.step(HINT_BUDGET_USEC):
+		await get_tree().process_frame
+		if state != st0 or state.twists != tw0 or _hint_key() != key0:
+			hint_searches -= 1
+			return {}
+	hint_searches -= 1
+	return search.result
+
+
+func _hint_key() -> String:
+	return "%d|%d|%d" % [state.rain, state.faith, state.turn]
 
 
 ## Das laufende Weiterbauen endet (ein neuer Versuch, „Nochmal“, freies Spiel). Die heute geschaffte Welt bleibt.

@@ -165,8 +165,20 @@ func rebuild() -> void:
 	_mode = ""
 	var gs := Game.state
 	var by_pos := {}
-	var body_mesh := Models.rounded_box_mesh(Vector3(0.98, 0.98, 0.98), 0.05, 2)
+	# Würfelsteine füllen den Würfel fast ganz (die Felder schließen außen lückenlos an); innen ein runder Kern,
+	# der beim Drehen der mittleren Scheibe nirgends anstößt: Nirgends scheint Himmel durch.
+	var body_mesh := Models.rounded_box_mesh(Vector3(0.994, 0.994, 0.994), 0.02, 2)
 	var body_mat := Look.bedrock()
+	var core := MeshInstance3D.new()
+	var core_mesh := SphereMesh.new()
+	core_mesh.radius = 0.495
+	core_mesh.height = 0.99
+	core_mesh.radial_segments = 24
+	core_mesh.rings = 12
+	core.mesh = core_mesh
+	core.material_override = body_mat
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cube_root.add_child(core)
 	for x in [-1, 0, 1]:
 		for y in [-1, 0, 1]:
 			for z in [-1, 0, 1]:
@@ -187,10 +199,23 @@ func rebuild() -> void:
 		var cb: Node3D = by_pos[_cubie_key(f.p)]
 		var v := FieldView.new()
 		cb.add_child(v)
-		v.transform = Transform3D(_face_basis(f.n), Vector3(f.n) * 0.47)
-		v.build(f)
+		var fb := _face_basis(f.n)
+		v.transform = Transform3D(fb, Vector3(f.n) * 0.47)
+		v.build(f, _outer_mask(f.p, fb))
 		views[f.id] = v
 	refresh_all()
+
+
+## Seiten eines Felds an der Würfelkante (FieldView.build): dort liegt in dieser Richtung kein Würfelstein mehr.
+static func _outer_mask(p: Vector3i, b: Basis) -> int:
+	var m := 0
+	var dirs := [-b.z, b.x, b.z, -b.x]
+	for i in 4:
+		var d := Vector3i((dirs[i] as Vector3).round())
+		var q := p + d
+		if absi(q.x) > 1 or absi(q.y) > 1 or absi(q.z) > 1:
+			m |= 1 << i
+	return m
 
 
 static func _is_center_cubie(p: Vector3i) -> bool:
@@ -256,7 +281,7 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 			v.set_wish("")
 		else:
 			v.set_wish(str(GameState.WISH_ICON.get(str(w["type"]), "wish")), int(w["left"]))
-	_water_edges()
+	_update_seams()
 	_update_mood()
 
 
@@ -737,31 +762,86 @@ func hold_mood(name: String, dur: float = 0.8) -> void:
 
 
 ## Wasser: Schaum nur dort, wo kein Nachbarwasser auf derselben Seite liegt (Seen statt Pfützen).
-func _water_edges() -> void:
-	var water: Array = []
+## Nahtlos (GDPD_GRAFIK.md): jedem Feld seine 8 Nachbarn geben, wie sie gerade liegen – auf derselben Seite und
+## über die Würfelkante hinweg (dort liegt der Nachbar auf demselben Würfelstein oder dem daneben). Läuft nach jeder
+## Drehung und jedem Artwechsel (FieldView.seams_dirty). Rechnet nur mit der Lage der Ansichten, nicht mit den Regeln.
+func _update_seams() -> void:
+	FieldView.seams_dirty = false
+	var at := {}
+	var info := {}
 	for fid in views:
 		var v: FieldView = views[fid]
-		if v.get_kind() == FieldView.K_WATER:
-			water.append(v)
-	for vv in water:
-		var v: FieldView = vv
-		var mask := Vector4.ONE
-		for ww in water:
-			if ww == vv:
-				continue
-			var lp: Vector3 = v.to_local((ww as FieldView).global_position)
-			if absf(lp.y) > 0.2 or Vector2(lp.x, lp.z).length() > 1.2:
-				continue
-			if absf(lp.x) > absf(lp.z):
-				if lp.x > 0.0:
-					mask.y = 0.0
-				else:
-					mask.w = 0.0
-			elif lp.z > 0.0:
-				mask.z = 0.0
-			else:
-				mask.x = 0.0
-		v.set_water_edges(mask)
+		var t := cube_root.global_transform.affine_inverse() * v.global_transform
+		var n := Vector3i(t.basis.y.normalized().round())
+		var p := Vector3i((t.origin - Vector3(n) * 0.47).round())
+		at[_seam_key(p, n)] = v
+		info[fid] = [p, n, Vector3i(t.basis.x.normalized().round()), Vector3i(t.basis.z.normalized().round())]
+		var k := 0 if n.x != 0 else (1 if n.y != 0 else 2)
+		var k1 := (k + 1) % 3
+		var k2 := (k + 2) % 3
+		v.set_wave_frame(Vector4(t.basis.x[k1], t.basis.z[k1], t.basis.x[k2], t.basis.z[k2]), Vector2(t.origin[k1], t.origin[k2]))
+	var offs := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1)]
+	for fid in views:
+		var v: FieldView = views[fid]
+		var inf: Array = info[fid]
+		var p: Vector3i = inf[0]
+		var n: Vector3i = inf[1]
+		var ax: Vector3i = inf[2]
+		var az: Vector3i = inf[3]
+		var kinds: Array = []
+		for o in offs:
+			var off: Vector2i = o
+			var a := ax * off.x
+			var b := az * off.y
+			var a_in := off.x == 0 or _inside(p + a)
+			var b_in := off.y == 0 or _inside(p + b)
+			var key := -1
+			if a_in and b_in:
+				key = _seam_key(p + a + b, n)
+			elif not a_in and b_in:
+				key = _seam_key(p + b, a)          # über die Kante in Richtung a: Seite a, daneben in b
+			elif a_in and not b_in:
+				key = _seam_key(p + a, b)
+			var nv: FieldView = at.get(key) if key >= 0 else null
+			kinds.append(nv.get_kind() if nv != null else -1)
+		v.set_neighbors(kinds)
+
+
+static func _inside(q: Vector3i) -> bool:
+	return absi(q.x) <= 1 and absi(q.y) <= 1 and absi(q.z) <= 1
+
+
+static func _seam_key(p: Vector3i, n: Vector3i) -> int:
+	return _cubie_key(p) * 27 + (n.x + 1) + 3 * (n.y + 1) + 9 * (n.z + 1)
+
+
+## Prüfung (Tour): die Nachbarn eines Felds so, wie die Spielregeln sie nach der Drehung sehen (Lage aus GameState).
+## Ergebnis wie FieldView.debug_neighbors(): stimmt beides überein, ist die Nahtlos-Maske nach der Drehung aktuell.
+func debug_expected_neighbors(fid: int) -> Array:
+	var gs := Game.state
+	var f: FieldData = gs.fields[fid]
+	var v: FieldView = views[fid]
+	var t := cube_root.global_transform.affine_inverse() * v.global_transform
+	var ax := Vector3i(t.basis.x.normalized().round())
+	var az := Vector3i(t.basis.z.normalized().round())
+	var offs := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1)]
+	var out: Array = []
+	for o in offs:
+		var off: Vector2i = o
+		var a := ax * off.x
+		var b := az * off.y
+		var a_in := off.x == 0 or _inside(f.p + a)
+		var b_in := off.y == 0 or _inside(f.p + b)
+		var g: FieldData = null
+		if a_in and b_in:
+			g = gs.field_at(f.p + a + b, f.n)
+		elif not a_in and b_in:
+			g = gs.field_at(f.p + b, a)
+		elif a_in and not b_in:
+			g = gs.field_at(f.p + a, b)
+		var gv: FieldView = views.get(g.id) if g != null else null
+		out.append(gv.get_kind() if gv != null else -1)
+	return out
 
 
 ## Regensymbole auf den Feldern, wo Gießen etwas bringt (nur solange man den Regen gewählt hat).
@@ -922,6 +1002,9 @@ func _process(delta: float) -> void:
 		var ax := Vector3.ZERO
 		ax[_tw_axis] = 1.0
 		_pivot.basis = Basis(ax, _tw_display)
+	# Nahtlos: nach einem Artwechsel (Welle, Verschmelzen, Effekte) die Nachbarn neu verteilen – nicht mitten in einer Drehung
+	if FieldView.seams_dirty and _mode != "twist" and _pivot == null:
+		_update_seams()
 	var cam_pos := rig.cam.global_position
 	for fid in views:
 		var v: FieldView = views[fid]
@@ -1174,13 +1257,15 @@ func show_hint(move: Dictionary = {}) -> Dictionary:
 
 func _show_hint(move: Dictionary = {}) -> Dictionary:
 	_hinted = true
-	var best := move if not move.is_empty() else Game.state.best_move()
+	var best := move
 	# Tutorial: genau der vorgezeigte Zug leuchtet (derselbe in beiden Schritten, wie die Hand ihn zeigt)
 	if Game.tutorial() and Game.tutorial_step <= 1:
 		best = {"axis": 0, "layer": 1, "turns": 1, "points": 0, "steps": 1}
 	elif _day_guided():
 		var mv := Game.tutorial_move()
 		best = {"axis": int(mv["axis"]), "layer": int(mv["layer"]), "turns": int(mv["turns"]), "points": 0, "steps": 1}
+	elif best.is_empty():
+		best = Game.state.best_move()      # nur, wenn nichts anderes leuchtet (die Suche kostet ~190 Simulationen)
 	if best.is_empty():
 		return best
 	for cb in _slice_cubies(int(best["axis"]), int(best["layer"])):
@@ -1206,9 +1291,16 @@ func can_self_move() -> bool:
 
 
 ## Gratis-Tipp in der Eingewöhnung: nur, wenn eine Drehung sofort etwas wachsen lässt.
+## Die Suche ist auf mehrere Bilder verteilt (Game.search_hint): Das Bild steht dabei nie still.
 func _show_free_hint() -> void:
 	_hinted = true
-	var best := Game.state.best_move()
+	if Game.hint_searches > 0:
+		return          # der Tipp sucht gerade, sein Ergebnis leuchtet gleich
+	var gs := Game.state
+	var tw := gs.twists
+	var best: Dictionary = await Game.search_hint(true)
+	if Game.state != gs or gs.twists != tw or not _hinted or not _hint_views.is_empty() or _mode != "" or animating:
+		return
 	if best.is_empty() or int(best["steps"]) != 1:
 		return
 	for cb in _slice_cubies(int(best["axis"]), int(best["layer"])):
@@ -1701,6 +1793,8 @@ func _unparent_pivot(piv: Node3D, axis: int, turns: int) -> void:
 			p = GameState.rv(p, axis, d)
 		node.set_meta("pos", p)
 	piv.queue_free()
+	_pivot = null if _pivot == piv else _pivot
+	FieldView.seams_dirty = true
 
 
 ## Warten statt Drehen.

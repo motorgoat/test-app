@@ -16,7 +16,7 @@ extends Node3D
 ##   apply_state8(st) (Bedürfnisse, satt, Hunger, Kriegsfront, Blitz-Warnung, Flut-Gefahr) · set_alarm(on)
 ##   set_crater(on) · wish_anchor_world_pos() · wish_visible() · war_fx() · strike_fx() · wither_fx() · wish_fx()
 ##   plus: set_badge, set_preview, set_hint, set_target, set_highlight, set_danger, nudge, quake, flood, burn,
-##   vanish, burst, pulse_light, set_wet, set_water_edges.
+##   vanish, burst, pulse_light, set_wet, set_neighbors (nahtlose Übergänge, Wasser als ein See).
 
 const TILE := 0.9
 const TILE_H := 0.09
@@ -98,8 +98,10 @@ var _wish_left: Label3D
 var _wish_shown := false
 var _ground: ShaderMaterial      # Boden-Material dieses Felds (Look, GDPD_GRAFIK.md 3)
 var _water_mat: ShaderMaterial
-var _water_mask := Vector4.ONE
-var _water_surf: MeshInstance3D
+var _outer := 0                  # Würfelkanten (build)
+var _nb: Array = []              # Nachbar-Arten (set_neighbors)
+var _nb_key := ""
+static var seams_dirty := true   # eine Art hat sich geändert: World rechnet die Nachbarn neu
 var _pulse_tw: Tween
 var _wet_tw: Tween
 
@@ -136,11 +138,20 @@ var _supply_ring: MeshInstance3D
 var _supply_icon: Sprite3D
 
 
-func build(f: FieldData) -> void:
+## outer: Seiten dieses Felds an einer Würfelkante (1 = −z, 2 = +x, 4 = +z, 8 = −x). Dort biegt die Platte als
+## abgerundete Kante um und schließt an das Feld der Nachbarseite an; an den übrigen Seiten (Fugen) reicht sie
+## genau bis zum Nachbarfeld. So gibt es keine Rahmen und keine Lücken mehr (Nahtlos-Regel).
+func build(f: FieldData, outer: int = 0) -> void:
 	field_id = f.id
-	_tile = Models.rbox(self, Vector3(TILE, TILE_H, TILE), 0.012, Color.WHITE, Vector3(0, TILE_H * 0.5, 0))
+	_outer = outer
+	_tile = MeshInstance3D.new()
+	_tile.mesh = Models.slab_mesh(outer)
+	add_child(_tile)
 	_ground = Look.ground_material()
 	_tile.material_override = _ground
+	var ex := func(bit: int) -> float:
+		return Models.SLAB_EDGE if (outer & bit) != 0 else Models.SLAB_SEAM
+	_ground.set_shader_parameter("cell_ext", Vector4(ex.call(1), ex.call(2), ex.call(4), ex.call(8)))
 	_content = Node3D.new()
 	_content.position.y = TOP
 	_content.scale = Vector3.ONE * CONTENT_SCALE
@@ -471,6 +482,8 @@ func set_kind(kind: int, fresh: int = 0, burning: bool = false) -> void:
 		return
 	var first := _shown == ""
 	_shown = key
+	if kind != _kind:
+		seams_dirty = true
 	_kind = kind
 	_fresh = fresh
 	_burning = burning
@@ -577,36 +590,40 @@ static func _shader_set(v: float, m: ShaderMaterial, param: String) -> void:
 	m.set_shader_parameter(param, v)
 
 
-## Wasser: an welchen Seiten Ufer ist (x = -z, y = +x, z = +z, w = -x; 0 = Nachbarwasser, kein Schaum).
-## Zu Nachbarwasser hin reicht die Fläche bis an den Rand des Würfelsteins und deckt Sandrand und Fuge zu:
-## so fließen benachbarte Wasserfelder zu einem See zusammen statt wie einzelne Fliesen zu wirken.
-func set_water_edges(mask: Vector4) -> void:
-	var changed := mask != _water_mask
-	_water_mask = mask
-	if _water_mat != null:
-		_water_mat.set_shader_parameter("edge_mask", mask)
-		if changed and _kind == K_WATER:
-			_water_surface()
+## Nahtlos: die 8 Nachbarn dieses Felds, wie sie gerade zu sehen sind (Art je Nachbar, −1 = keiner; Reihenfolge
+## N −z, O +x, S +z, W −x, NO, SO, SW, NW im eigenen Koordinatensystem, über Würfelkanten hinweg). World rechnet sie
+## nach jeder Drehung und jedem Artwechsel neu. Der Boden geht am Rand in die Nachbarn über, Wasser fließt zusammen.
+func set_neighbors(kinds: Array) -> void:
+	var key := "%d|%s" % [_kind, str(kinds)]
+	if key == _nb_key:
+		return
+	_nb_key = key
+	_nb = kinds.duplicate()
+	Look.apply_neighbors(_ground, maxi(_kind, 0), kinds)
 
 
-const WATER_SHORE := 0.31                        # Ufer: so weit reicht das Wasser (Inhalts-Koordinaten), dahinter Sand
-const WATER_OPEN := 0.5 / CONTENT_SCALE + 0.004  # Nachbarwasser: bis an den Rand des Würfelsteins (deckt die Fuge)
+## Wellen in Koordinaten der Würfelseite (World, nach jeder Drehung): alle Wasserfelder einer Seite teilen ein Muster.
+func set_wave_frame(m: Vector4, o: Vector2) -> void:
+	_ground.set_shader_parameter("w_m", m)
+	_ground.set_shader_parameter("w_o", o)
 
 
-func _water_surface() -> void:
-	if _water_surf != null and is_instance_valid(_water_surf):
-		_water_surf.queue_free()
-	# Ausdehnung je Seite (N = -z, O = +x, S = +z, W = -x)
-	var en := WATER_SHORE if _water_mask.x > 0.5 else WATER_OPEN
-	var ee := WATER_SHORE if _water_mask.y > 0.5 else WATER_OPEN
-	var es := WATER_SHORE if _water_mask.z > 0.5 else WATER_OPEN
-	var ew := WATER_SHORE if _water_mask.w > 0.5 else WATER_OPEN
-	var center := Vector2((ee - ew) * 0.5, (es - en) * 0.5)
-	_water_mat.set_shader_parameter("ext", Vector4(en, ee, es, ew))
-	_water_mat.set_shader_parameter("center", center)
-	_water_surf = Models.rbox(_content, Vector3(ee + ew, 0.006, en + es), 0.01, Color.WHITE, Vector3(center.x, 0.002, center.y),
-		Vector3.ZERO, _water_mat)
-	_water_surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+## Prüfung (Tour): die zuletzt gesetzten Nachbarn.
+func debug_neighbors() -> Array:
+	return _nb.duplicate()
+
+
+## Prüfung (Tour): Wassermaske wie im Shader (je Nachbar 1 = Wasser).
+func debug_water_mask() -> Array:
+	var out: Array = []
+	for k in _nb:
+		out.append(1 if int(k) == K_WATER else 0)
+	return out
+
+
+## Würfelkanten dieses Felds (siehe build).
+func outer_mask() -> int:
+	return _outer
 
 
 ## Kleiner goldener Stern in der Kachelecke: dieses Feld ist fertig.
@@ -1511,12 +1528,45 @@ func _item(model: String, variant: int, pos: Vector3, yaw: float = 0.0, s: float
 	it.rotation.y = yaw + (0.0 if abs_pos else PI * 0.5 * float(_rot))
 	it.scale = Vector3.ONE * s
 	_content.add_child(it)
+	var parts := Models.get_model(model, variant)
+	_keep_inside(it, parts)
 	it.set_meta("xf", it.transform)
-	_add_parts(it, Models.get_model(model, variant))
+	_add_parts(it, parts)
 	_items.append(it)
 	if obst_r > 0.0:
 		_obst.append(Vector3(it.position.x, it.position.z, obst_r * s))
 	return it
+
+
+const INSIDE := 0.5 / CONTENT_SCALE - 0.012     # Inhalt bleibt auf der Platte (Inhalts-Koordinaten)
+
+
+## Nahtlos: Bäume und Häuser ragen nicht über den Feldrand (und damit nicht über die Würfelkante):
+## das Teil rückt nach innen und wird, falls es dann noch zu groß ist, etwas kleiner.
+func _keep_inside(it: Node3D, parts: Array) -> void:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var xf := it.transform
+	for pv in parts:
+		var bb: AABB = ((pv as Array)[0] as Mesh).get_aabb()
+		for c in 8:
+			var corner := bb.position + Vector3(bb.size.x * float(c & 1), bb.size.y * float((c >> 1) & 1), bb.size.z * float((c >> 2) & 1))
+			var w := xf * corner
+			lo = Vector2(minf(lo.x, w.x), minf(lo.y, w.z))
+			hi = Vector2(maxf(hi.x, w.x), maxf(hi.y, w.z))
+	if lo.x > hi.x:
+		return
+	var size := hi - lo
+	var fit := minf(1.0, minf(2.0 * INSIDE / maxf(size.x, 0.001), 2.0 * INSIDE / maxf(size.y, 0.001)))
+	if fit < 1.0:
+		var piv := Vector2(it.position.x, it.position.z)
+		lo = piv + (lo - piv) * fit
+		hi = piv + (hi - piv) * fit
+		it.scale *= fit
+	var shift := Vector2.ZERO
+	shift.x = maxf(0.0, -INSIDE - lo.x) - maxf(0.0, hi.x - INSIDE)
+	shift.y = maxf(0.0, -INSIDE - lo.y) - maxf(0.0, hi.y - INSIDE)
+	it.position += Vector3(shift.x, 0.0, shift.y)
 
 
 func _add_parts(it: Node3D, parts: Array) -> void:
@@ -1918,11 +1968,7 @@ func _b_paradise(rng: RandomNumberGenerator) -> void:
 
 ## Wasser: Wasser-Shader (Wellen, Ufer-Schaum), manchmal Enten.
 func _b_water(_rng: RandomNumberGenerator) -> void:
-	_water_mat = Look.water()
-	_water_mat.set_shader_parameter("half_size", 0.31)
-	_water_mat.set_shader_parameter("edge_mask", _water_mask)
-	_water_surf = null
-	_water_surface()
+	# Die Wasserfläche malt der Boden-Shader (is_water): so fließt sie nahtlos in benachbartes Wasser über.
 	for ix in 4:
 		for iz in 4:
 			_water_pts.append(Vector3(-0.18 + 0.12 * float(ix), 0.005, -0.18 + 0.12 * float(iz)))

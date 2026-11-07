@@ -102,8 +102,10 @@ func _init() -> void:
 	test_day_bots()
 	test_bot()
 	test_still_fuzz()
+	test_bonus_stress()
 	await process_frame          # das Autoload Game ist jetzt im Baum
 	test_self_move_guard()
+	await test_bonus_game()
 	print("")
 	print("%d Prüfungen, %d Fehler" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -3645,3 +3647,183 @@ func test_short_texts() -> void:
 			bad.append(tx)
 	check(bad.is_empty(), "Texte kurz (≤ 8 Wörter, „Bring 3 gleiche in eine Reihe“): %s" % str(bad))
 	check(str(Days.config(1)["new"]["text"]) == "Bring 3 gleiche in eine Reihe.", "Tag 1 erklärt die Regel allgemein")
+
+
+# =============================================================================
+# Weiterbauen hängt nie (Bericht „hat sich aufgehängt in der Bonusrunde“)
+# =============================================================================
+
+## Alle Tage und zwei Welten des Tages: nach dem Sieg Weiterbauen mit vielen Zufallszügen (Drehungen, dazwischen Regen
+## und Meteor, vorher wie beim Ziehen Vorschau, Chip-Stand und Regen-Ziele). Kein Schritt dauert 200 ms oder mehr, das
+## Spiel endet nie, insgesamt mindestens 3000 Drehungen in der Zeit. Dazu die Tipp-Suche in Schritten (wie im Spiel,
+## Game.search_hint): Jeder Schritt bleibt unter 200 ms, und sie findet genau, was die Suche am Stück findet.
+func test_bonus_stress() -> void:
+	var step_limit := 200000          # µs je Schritt
+	var time_budget := 240000         # ms für den ganzen Test
+	var want_twists := 3000
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711
+	var worlds: Array = []
+	for n in range(1, 8):
+		worlds.append({"cfg": Days.config(n), "board": Days.board(n, 1 + n % 3), "name": "Tag %d" % n})
+	for key in [20768, 20773]:
+		worlds.append({"cfg": Daily.wdt_config(key), "board": Daily.wdt_board(key), "name": "Welt des Tages %d" % key})
+	var per_world := ceili(float(want_twists) / float(worlds.size())) + 10
+	var t_all := Time.get_ticks_msec()
+	var twists := 0
+	var tools := 0
+	var worst := 0
+	var worst_what := ""
+	var ended := ""
+	var search_worst := 0
+	var search_same := true
+	var searches := 0
+	for wd in worlds:
+		var cfg: Dictionary = wd["cfg"]
+		var b: Dictionary = wd["board"]
+		var gs := GameState.new()
+		gs.setup_day(cfg, b["kinds"], int(b["seed"]), 0)
+		# Ein paar Züge, dann gilt der Tag als geschafft (wie nach dem Sieg) und Weiterbauen beginnt
+		for i in 4:
+			var m0: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+			gs.play({"type": "twist", "axis": int(m0[0]), "layer": int(m0[1]), "turns": int(m0[2])}, {})
+		gs.day_lost = ""
+		gs.day_won = true
+		gs.day_won_at = gs.used_twists()
+		gs.start_free_build()
+		var done := 0
+		while done < per_world and Time.get_ticks_msec() - t_all < time_budget:
+			var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+			var ax := int(m[0])
+			var ly := int(m[1])
+			var tu := int(m[2])
+			var t0 := Time.get_ticks_usec()
+			# Ziehen: die Vorschau (wie Game.preview), der Chip, die Regen-Ziele
+			var sim := gs.clone()
+			sim.apply_rotation(ax, ly, tu)
+			sim.end_round()
+			var _pv := gs.preview8(ax, ly, tu, sim)
+			var _st := gs.day_status()
+			var _rt := gs.rain_targets()
+			var dt := Time.get_ticks_usec() - t0
+			if dt > worst:
+				worst = dt
+				worst_what = "Vorschau"
+			var r := rng.randf()
+			var act := {"type": "twist", "axis": ax, "layer": ly, "turns": tu}
+			if r < 0.12 and gs.rain > 0:
+				var ids: Array = []
+				for f in gs.fields:
+					if gs.rain_ok(f) and gs.can_bonus("rain", f) == "":
+						ids.append(f.id)
+				if not ids.is_empty():
+					act = {"type": "rain", "field": int(ids[rng.randi_range(0, ids.size() - 1)])}
+			elif r < 0.2:
+				var fid := rng.randi_range(0, gs.fields.size() - 1)
+				if gs.can_bonus("strike", gs.fields[fid]) == "":
+					act = {"type": "strike", "field": fid}
+			t0 = Time.get_ticks_usec()
+			gs.play(act, {})
+			dt = Time.get_ticks_usec() - t0
+			if dt > worst:
+				worst = dt
+				worst_what = str(act["type"])
+			if str(act["type"]) == "twist":
+				twists += 1
+				done += 1
+			else:
+				tools += 1
+			if gs.is_over() or not gs.day_free_build:
+				ended = "%s nach %d Zügen" % [str(wd["name"]), done]
+				break
+			# Ab und zu der Tipp in Schritten (4 ms je Bild, wie Game.search_hint) gegen die Suche am Stück
+			if done % 150 == 75:
+				var only_twists := rng.randf() < 0.5
+				var search := gs.clone().day_search(only_twists)
+				var slices := 0
+				var fin := false
+				while search != null and not fin and slices < 100000:
+					t0 = Time.get_ticks_usec()
+					fin = search.step(GameScript.HINT_BUDGET_USEC)
+					search_worst = maxi(search_worst, Time.get_ticks_usec() - t0)
+					slices += 1
+				var whole := gs.clone()._best_day_action8(only_twists)
+				searches += 1
+				# Drehungen brauchen mehrere Schritte (27 + bis zu 6 × 27 Simulationen); ein klarer Regen ist schneller fertig
+				var sliced := slices > 1 or str(search.result.get("type", "")) != "twist"
+				search_same = search_same and fin and sliced and str(search.result) == str(whole)
+		if ended != "":
+			break
+	var secs := float(Time.get_ticks_msec() - t_all) / 1000.0
+	print("Weiterbauen-Stresstest: %d Drehungen, %d Werkzeuge, %d Suchen in %.1f s, langsamster Schritt %.1f ms (%s), Suche je Schritt höchstens %.1f ms" % [
+		twists, tools, searches, secs, float(worst) / 1000.0, worst_what, float(search_worst) / 1000.0])
+	check(ended == "", "Weiterbauen endet nie von selbst (%s)" % ended)
+	check(twists >= want_twists, "Weiterbauen: mindestens %d Zufallsdrehungen in der Zeit (%d in %.1f s)" % [want_twists, twists, secs])
+	check(worst < step_limit, "Weiterbauen: kein Schritt dauert 200 ms (langsamster %.1f ms: %s)" % [float(worst) / 1000.0, worst_what])
+	check(searches > 0 and search_same and search_worst < step_limit,
+		"Tipp in Schritten: jeder Schritt unter 200 ms (höchstens %.1f ms), mehrere Schritte, dasselbe Ergebnis wie am Stück" % (float(search_worst) / 1000.0))
+
+
+## Weiterbauen mit dem echten Game (Autoload): kein Gratis-Tipp nach jeder Pause, „Zurück“ ist kein neuer Versuch
+## (undoing), und die Tipp-Suche (search_hint) verteilt sich auf mehrere Bilder, kein Bild steht dabei 200 ms, sie
+## findet dasselbe wie die Suche am Stück und bricht ab, wenn der Spieler inzwischen dreht.
+func test_bonus_game() -> void:
+	var g: Node = root.get_node_or_null("Game")
+	if g == null:
+		check(false, "Autoload Game fehlt")
+		return
+	var path := "user://test_bonus.cfg"
+	var old_path: String = g.save_path
+	g.save_path = path
+	g._start_attempt(2, Days.config(2), Days.board(2, 1), 0)
+	var onb_day := bool(g.onboarding)
+	g.state.day_won = true
+	g.state.day_won_at = g.state.used_twists()
+	var built: bool = g.continue_build()
+	check(onb_day and built and not g.onboarding and g.state.day_free_build, "Tag 2: Gratis-Tipp am Tag, im Weiterbauen nicht mehr")
+	# „Zurück“ im Weiterbauen: new_game_started kommt mit undoing (die Oberfläche spielt weiter)
+	g.play_turn(0, 1, 1)
+	if g.has_choice():
+		g.choose(0)
+	g.busy = false
+	var seen := {"undoing": false}
+	var on_new := func() -> void:
+		seen["undoing"] = bool(g.undoing)
+	g.new_game_started.connect(on_new)
+	var could: bool = g.can_undo()
+	g.undo()
+	g.new_game_started.disconnect(on_new)
+	check(could and bool(seen["undoing"]) and not g.undoing and g.state.day_free_build and g.in_day(),
+		"Zurück im Weiterbauen: dasselbe Spiel läuft weiter (undoing nur während des Signals)")
+	# Die Tipp-Suche über mehrere Bilder
+	g.state.rain = 0
+	var gaps := {"last": 0, "max": 0, "frames": 0}
+	var tick := func() -> void:
+		var now := Time.get_ticks_usec()
+		if int(gaps["last"]) > 0:
+			gaps["max"] = maxi(int(gaps["max"]), now - int(gaps["last"]))
+		gaps["last"] = now
+		gaps["frames"] = int(gaps["frames"]) + 1
+	process_frame.connect(tick)
+	var whole: Dictionary = g.state.clone().best_action()
+	var act: Dictionary = await g.search_hint()
+	process_frame.disconnect(tick)
+	check(str(act) == str(whole) and int(gaps["frames"]) >= 2 and int(gaps["max"]) < 200000 and int(g.hint_searches) == 0,
+		"Tipp-Suche verteilt: %d Bilder, längstes %.1f ms, dasselbe Ergebnis wie am Stück" % [int(gaps["frames"]), float(int(gaps["max"])) / 1000.0])
+	# Dreht der Spieler während der Suche, bricht sie ab
+	var box := {"act": {"x": 1}, "done": false}
+	var run := func() -> void:
+		box["act"] = await g.search_hint()
+		box["done"] = true
+	run.call()
+	await process_frame
+	g.state.play({"type": "twist", "axis": 1, "layer": 0, "turns": 1}, {})
+	for i in 10:
+		if bool(box["done"]):
+			break
+		await process_frame
+	check(bool(box["done"]) and (box["act"] as Dictionary).is_empty() and int(g.hint_searches) == 0,
+		"Tipp-Suche bricht ab, wenn inzwischen gedreht wird")
+	g.save_path = old_path
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)

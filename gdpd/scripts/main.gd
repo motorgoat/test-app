@@ -637,6 +637,201 @@ func _days_tour(dir: String) -> void:
 	_check(wdt_card and gcw and Game.in_daily_world() and dui.gc_caps.text == dui.tc_caps.text and dui.gc_goal.text != "",
 		"daily_world", "heute=%s karte=%s ziel=%s" % [dui.tc_caps.text, dui.gc_caps.text, dui.gc_goal.text])
 	ui._close_modal(true)
+	await _bonus_round_tour(dir)
+
+
+# --- Weiterbauen bleibt bedienbar (Bericht „hat sich aufgehängt in der Bonusrunde“) ---------------------------------
+
+var _fw := {"on": false, "frames": 0, "max_proc": 0.0, "max_wall": 0, "last": 0, "slow": 0}
+
+
+## Misst jedes Bild: die Skriptzeit (Performance.TIME_PROCESS: Regeln, Tipp-Suche, Welt – ohne die langsame
+## Software-Grafik der Tour) und die echte Zeit zwischen zwei Bildern.
+func _frame_watch() -> void:
+	if not bool(_fw["on"]):
+		return
+	var now := Time.get_ticks_msec()
+	if int(_fw["last"]) > 0:
+		_fw["max_wall"] = maxi(int(_fw["max_wall"]), now - int(_fw["last"]))
+	_fw["last"] = now
+	var p := Performance.get_monitor(Performance.TIME_PROCESS)
+	_fw["max_proc"] = maxf(float(_fw["max_proc"]), p)
+	if p > 0.25:
+		_fw["slow"] = int(_fw["slow"]) + 1
+	_fw["frames"] = int(_fw["frames"]) + 1
+
+
+## Ein Feld, das das Werkzeug (Meteor) gerade treffen darf und auf dem Bildschirm frei liegt. {"fid", "pos"}
+func _tool_target(kind: String) -> Dictionary:
+	var mid := get_viewport().get_visible_rect().size * 0.5
+	var best := -1
+	var best_pos := Vector2.ZERO
+	var best_d := INF
+	for f in Game.state.fields:
+		var fd: FieldData = f
+		if Game.state.can_bonus(kind, fd) != "":
+			continue
+		var fs := world.field_screen(fd.id)
+		if not bool(fs["visible"]):
+			continue
+		var pos: Vector2 = fs["pos"]
+		if _under_ui(pos) or int((world._raycast(pos) as Dictionary).get("field", -1)) != fd.id:
+			continue
+		if pos.distance_to(mid) < best_d:
+			best_d = pos.distance_to(mid)
+			best = fd.id
+			best_pos = pos
+	return {"fid": best, "pos": best_pos}
+
+
+## Gerade frei für den Spieler: keine Runde, keine Animation, keine Karte, kein Werkzeug gewählt.
+func _input_free() -> bool:
+	return not Game.busy and not world.animating and world._mode == "" and not ui._blocked() and not ui.day_ui.blocking() \
+		and not ui.modal_bg.visible and ui._hint_job < 0
+
+
+## Tag 6 schaffen, „Weiterbauen“ (echte Eingabe), dann wie ein Spieler, der lange weiterbaut: 40 echte Wische,
+## Regen und Meteor über Dock und Feld, Tipp, eine lange Pause, Menü auf und zu, „Zurück“. Danach nimmt das Spiel
+## noch jede Eingabe an (Wisch, Werkzeug), und kein Bild hat lange gerechnet.
+func _bonus_round_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	var open0 := Game.debug_open_all
+	Game.debug_open_all = true
+	Game.start_day(6, 0)
+	await _until_shown(dui.goal_card, 4.0)
+	await _tap(dui.gc_go)
+	await _wait(4.4)
+	await _play_solution(Game.day_board["solution"], 99)
+	if not Game.state.day_won:
+		await _play_day(20)
+	var wc := await _until_shown(dui.win_card, 8.0)
+	await _wait(1.6)
+	var build_btn: Button = dui.wc_next if dui.wc_next.text == str(Days.TEXT["build"]) else (dui.wc_alt if dui.wc_alt.text == str(Days.TEXT["build"]) else null)
+	if wc and build_btn != null:
+		await _tap(build_btn)
+	elif wc:
+		ui._close_modal(true)
+		Game.continue_build()
+	await _wait(1.2)
+	if dui.ask_card.visible:
+		await _tap(dui.ask_no)
+		await _wait(0.8)
+	ui._coach_dismiss()
+	await _settle(6.0)
+	var building := Game.in_day() and Game.state.day_free_build and not Game.onboarding
+	var gs := Game.state
+	var tw0 := gs.twists
+	_fw = {"on": true, "frames": 0, "max_proc": 0.0, "max_wall": 0, "last": 0, "slow": 0}
+	if not get_tree().process_frame.is_connected(_frame_watch):
+		get_tree().process_frame.connect(_frame_watch)
+	var t0 := Time.get_ticks_msec()
+	# 40 echte Wische: meist zufällig, jeder vierte wie der Tipp
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 606
+	var swiped := 0
+	for i in 40:
+		var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+		if i % 4 == 3:
+			var act: Dictionary = await Game.search_hint(true)      # verteilt über mehrere Bilder, wie der Tipp
+			if not act.is_empty():
+				m = [int(act["axis"]), int(act["layer"]), int(act["turns"])]
+		if await _swipe_move(int(m[0]), int(m[1]), int(m[2])):
+			swiped += 1
+		await _settle(8.0)
+		if dui.ask_card.visible:
+			await _tap(dui.ask_no)
+			await _wait(0.6)
+		ui._coach_dismiss()
+	var twisted := gs.twists - tw0
+	await _shot(dir, "00y_weiterbauen_lange")
+	# Regen über das Dock auf ein leuchtendes Feld
+	Game.state.rain = maxi(Game.state.rain, 2)
+	Game.state_changed.emit()
+	await _wait(0.4)
+	var rain0 := Game.state.rain
+	await _tap(ui.rain_btn)
+	await _wait(0.5)
+	var rain_mode := ui.bonus_mode == "rain"
+	_fw["on"] = false                   # die Suche der Tour nach einem Ziel (54 Simulationen) zählt nicht mit
+	var rt := _rain_target()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_fw["on"] = true
+	if int(rt["fid"]) >= 0:
+		await _touch(rt["pos"])
+		await _wait(0.4)
+		await _settle(6.0)
+	var rained := Game.state.rain == rain0 - 1
+	ui._set_bonus_mode("")
+	# Meteor (12 Glauben) über das Dock auf ein Feld, das er treffen darf
+	Game.state.faith = maxi(Game.state.faith, GameState.METEOR_COST)
+	Game.state_changed.emit()
+	await _wait(0.4)
+	var faith0 := Game.state.faith
+	await _tap(ui.strike_btn)
+	await _wait(0.5)
+	var strike_mode := ui.bonus_mode == "strike"
+	var mt := _tool_target("strike")
+	if int(mt["fid"]) >= 0:
+		await _touch(mt["pos"])
+		await _wait(0.4)
+		await _settle(8.0)
+	var struck := Game.state.faith == faith0 - GameState.METEOR_COST
+	ui._set_bonus_mode("")
+	await _settle(4.0)
+	# Tipp (die Suche läuft verteilt über mehrere Bilder), dann eine lange Pause wie ein Spieler, der überlegt
+	await _tap(ui.hint_btn)
+	var hint_done := false
+	for i in 400:
+		await _wait(0.05)
+		if ui._hint_job < 0:
+			hint_done = true
+			break
+	await _wait(7.0)
+	# Menü auf und zu (echte Eingabe)
+	await _tap(ui.menu_b)
+	var menu_open := await _until_shown(ui.menu_card, 3.0)
+	await _wait(0.3)
+	await _tap(ui._menu_cont)
+	await _wait(1.0)
+	var menu_closed := not ui.modal_bg.visible and not dui.is_open()
+	# „Zurück“ (nimmt den letzten Zug zurück): danach darf nichts gesperrt bleiben
+	var m1: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+	await _swipe_move(int(m1[0]), int(m1[1]), int(m1[2]))
+	await _settle(8.0)
+	var undone := false
+	if Game.can_undo():
+		Game.undo()
+		undone = true
+	await _wait(1.0)
+	await _settle(6.0)
+	# Nimmt das Spiel noch Eingaben an? Ein echter Wisch dreht, Regen im Dock lässt sich wählen
+	var free_now := _input_free()
+	var tw1 := Game.state.twists
+	var m2: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+	await _swipe_move(int(m2[0]), int(m2[1]), int(m2[2]))
+	await _settle(8.0)
+	var accepted := Game.state.twists == tw1 + 1
+	Game.state.rain = maxi(Game.state.rain, 1)
+	Game.state_changed.emit()
+	await _wait(0.3)
+	await _tap(ui.rain_btn)
+	await _wait(0.4)
+	var tool_ok := ui.bonus_mode == "rain"
+	ui._set_bonus_mode("")
+	await _wait(0.3)
+	_fw["on"] = false
+	var secs := float(Time.get_ticks_msec() - t0) / 1000.0
+	var frames_ok := float(_fw["max_proc"]) < 0.25 and int(_fw["frames"]) > 0
+	await _shot(dir, "00y2_weiterbauen_bedienbar")
+	_check(building and swiped >= 38 and twisted >= 38 and rain_mode and rained and strike_mode and struck and hint_done and menu_open
+		and menu_closed and undone and free_now and accepted and tool_ok and frames_ok and Game.state.day_free_build and not Game.over,
+		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s meteor=%s/%s tipp=%s menue=%s/%s zurueck=%s frei=%s " +
+		"wisch_danach=%s werkzeug=%s bilder=%d skript_max=%.0fms langsam=%d bild_max=%dms zeit=%.0fs") % [str(building), swiped, twisted,
+		str(rain_mode), str(rained), str(strike_mode), str(struck), str(hint_done), str(menu_open), str(menu_closed), str(undone),
+		str(free_now), str(accepted), str(tool_ok), int(_fw["frames"]), float(_fw["max_proc"]) * 1000.0, int(_fw["slow"]),
+		int(_fw["max_wall"]), secs])
+	Game.debug_open_all = open0
 
 
 ## Erster Start: Der Ersteller kommt vor Tag 1. Vier Schritte mit echter Eingabe (Würfeln, Katzengott, Farbe,
@@ -1445,8 +1640,10 @@ func _seamless_tour(dir: String) -> void:
 	gs.wishes = []
 	Game.state_changed.emit()
 	ui.visible = false
+	world._hinted = true            # Nahaufnahmen ohne Hinweis-Leuchten
+	world._clear_hint()
 	await _wait(1.6)
-	world.debug_view(Vector3(0.12, 1.0, 0.16), Vector3(0, 0, -1), 0.62)
+	world.debug_view(Vector3(0.12, 1.0, 0.16), Vector3(0, 0, -1), 0.78)
 	await _wait(0.8)
 	await _shot(dir, "30_nahtlos_wasser")
 	world.debug_view(Vector3(0.75, 0.95, 1.1), Vector3.UP, 0.7)
@@ -1463,6 +1660,9 @@ func _seamless_tour(dir: String) -> void:
 	await _wait(0.6)
 	await _shot(dir, "32b_keine_luecken_ecke")
 	var probe := gs.field_at(Vector3i(1, 1, 1), Vector3i(0, 1, 0))
+	var pv: FieldView = world.views[probe.id]
+	var nb_before: Array = pv.debug_neighbors()
+	var ok_before := nb_before == world.debug_expected_neighbors(probe.id)
 	world.debug_begin_twist(probe.id, Vector2(1, 0.15), 0.5)
 	await _wait(0.8)
 	await _shot(dir, "32c_keine_luecken_drehung")
@@ -1471,9 +1671,30 @@ func _seamless_tour(dir: String) -> void:
 		await _wait(0.05)
 		if not world.animating and not Game.busy:
 			break
+	await _wait(0.3)
+	# eine echte Vierteldrehung der Scheibe x = 1 (mit dem Eck-Feld oben rechts vorn)
+	var turned := world.auto_twist(0, 1, 1)
+	for i in 120:
+		await _wait(0.05)
+		if not world.animating and not Game.busy:
+			break
+	await _wait(0.4)
 	world.debug_bright_bg(false)
 	await _wait(0.6)
-	world.debug_view(Vector3(0.12, 1.0, 0.16), Vector3(0, 0, -1), 0.62)
+	# Nahtlos: Nach der Drehung kennt jedes Feld seine neuen Nachbarn (Wasser-Maske, Übergänge)
+	var bad := 0
+	var water_open := 0
+	for fid in world.views:
+		var v: FieldView = world.views[fid]
+		if v.debug_neighbors() != world.debug_expected_neighbors(int(fid)):
+			bad += 1
+		if v.get_kind() == FieldView.K_WATER and v.debug_water_mask().has(1):
+			water_open += 1
+	var nb_after: Array = pv.debug_neighbors()
+	var outer_ok := pv.outer_mask() != 0
+	_check(turned and ok_before and bad == 0 and nb_after != nb_before and water_open >= 4 and outer_ok, "seamless",
+		"falsch=%d vorher=%s nachher=%s wasser_verbunden=%d" % [bad, str(nb_before), str(nb_after), water_open])
+	world.debug_view(Vector3(0.12, 1.0, 0.16), Vector3(0, 0, -1), 0.78)
 	await _wait(0.8)
 	await _shot(dir, "33_nahtlos_nach_drehung")
 	ui.visible = true

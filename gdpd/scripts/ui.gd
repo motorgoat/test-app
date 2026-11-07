@@ -3090,37 +3090,29 @@ func _on_hint_pressed() -> void:
 
 
 ## Tipp an einem Tag (gratis): die beste Aktion für das Ziel. Eine Drehung leuchtet; hilft Regen oder Gewitter
-## mehr, ist das Werkzeug gleich gewählt. Die Suche (bis zu ~190 Simulationen) läuft auf einer Kopie im Hintergrund
-## (WorkerThreadPool), solange pulsiert der Tipp-Knopf; dreht der Spieler inzwischen, verfällt das Ergebnis.
-var _hint_job := -1
-var _hint_act: Dictionary = {}
+## mehr, ist das Werkzeug gleich gewählt. Die Suche (bis zu ~190 Simulationen) läuft auf einer Kopie, verteilt auf
+## mehrere Bilder (Game.search_hint, immer auf dem Haupt-Thread), solange pulsiert der Tipp-Knopf; dreht der Spieler
+## inzwischen, bricht sie ab und das Ergebnis verfällt.
+var _hint_job := -1          # 1, solange eine Tipp-Suche läuft
 
 
 func _day_hint() -> void:
 	if _hint_job >= 0:
 		return
-	var sim := Game.state.clone()
 	var st0 := Game.state
 	var tw0 := Game.state.twists
 	var key0 := "%d|%d" % [Game.state.rain, Game.state.faith]
-	_hint_act = {}
-	_hint_job = WorkerThreadPool.add_task(_hint_search.bind(sim), false, "gdpd Tipp")
+	_hint_job = 1
 	var pulse := hint_btn.create_tween().set_loops()
 	pulse.tween_property(hint_btn, "modulate:a", 0.45, 0.3)
 	pulse.tween_property(hint_btn, "modulate:a", 1.0, 0.3)
-	while not WorkerThreadPool.is_task_completed(_hint_job):
-		await get_tree().process_frame
-	WorkerThreadPool.wait_for_task_completion(_hint_job)
+	var act: Dictionary = await Game.search_hint()
 	_hint_job = -1
 	pulse.kill()
 	hint_btn.modulate.a = 1.0
 	if Game.state != st0 or Game.state.twists != tw0 or "%d|%d" % [Game.state.rain, Game.state.faith] != key0 or not Game.in_day():
 		return
-	_day_hint_show(_hint_act)
-
-
-func _hint_search(sim: GameState) -> void:
-	_hint_act = sim.best_action()
+	_day_hint_show(act)
 
 
 func _day_hint_show(act: Dictionary) -> void:
@@ -3136,12 +3128,8 @@ func _day_hint_show(act: Dictionary) -> void:
 			world.nudge(int(act["field"]))
 		_on_message("Gieß ein leuchtendes Feld!" if t == "rain" else "Strafe eine Fabrik mit Gewitter!", "info")
 		return
-	var mv := Game.state.best_move()
-	if not mv.is_empty():
-		_hint_live = true
-		world.show_hint(mv)
-		_on_message("Dreh die leuchtende Reihe!", "info")
-		return
+	# Hier keine zweite Suche am Stück (sie hielte das Bild an): Die Suche gibt an einem laufenden Tag immer eine
+	# Drehung oder ein Werkzeug, leer ist sie nur, wenn nichts mehr geht.
 	_on_message("Kein guter Zug. Dreh einfach.", "info")
 
 

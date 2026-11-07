@@ -3618,66 +3618,136 @@ func value8() -> float:
 
 
 ## Der Tipp an den neuen Tagen: erst Werkzeuge (Regen, Meteor auf Kirche/Fabrik), wenn sie klar helfen, dann die
-## beste Drehung (alle 27, die besten 4 mit einem Blick auf die nächste Drehung).
-## Meteor heißt hier "strike" (Platz des Gewitters in der Oberfläche).
+## beste Drehung (alle 27, die besten 6 mit einem Blick auf die nächste Drehung).
+## Meteor heißt hier "strike" (Platz des Gewitters in der Oberfläche). Am Stück; dieselbe Suche in Schritten: day_search().
 func _best_day_action8(twist_only: bool) -> Dictionary:
-	var p0 := goal_progress()
-	if not twist_only:
-		var base := value8()
-		var best_t := {}
-		var best_tv := -INF
-		if rain > 0:
-			for f in fields:
-				if not rain_ok(f):
-					continue
-				var st: GameState = simulate({"type": "rain", "field": f.id})["state"]
+	var search := DaySearch8.new(self, twist_only)
+	search.step(-1)
+	return search.result
+
+
+## Die Tipp-Suche eines Tages in kleinen Schritten (für die Oberfläche: auf mehrere Bilder verteilt, Game.search_hint).
+## null, wenn der Tag nicht nach den neuen Regeln läuft (dann am Stück: best_day_action). Die Suche läuft nie auf
+## einem zweiten Thread: Godot 4.3 liest die const-Tabellen (MOVES, FieldData …) nicht threadsicher.
+func day_search(twist_only: bool = false) -> DaySearch8:
+	if not v8 or not is_day() or is_over():
+		return null
+	return DaySearch8.new(self, twist_only)
+
+
+## Genau _best_day_action8, aber in Einheiten von je einer Simulation: step(budget) rechnet, bis die Zeit (µs) um ist
+## (budget < 0: bis zum Ende), und gibt true zurück, wenn result fertig ist.
+class DaySearch8 extends RefCounted:
+	var gs: GameState
+	var done := false
+	var result: Dictionary = {}
+	var _phase := 0                # 0 Werkzeuge, 1 alle Drehungen, 2 Blick auf die nächste Drehung
+	var _p0 := 0
+	var _base := 0.0
+	var _tools: Array = []         # Werkzeug-Aktionen (Regen, Meteor), in der Reihenfolge der Felder
+	var _ti := 0
+	var _best_t: Dictionary = {}
+	var _best_tv := -INF
+	var _scored: Array = []        # [Wert, Drehung, Zustand danach]
+	var _mi := 0
+	var _pick: Array = []
+	var _best_v := -INF
+	var _ci := 0                   # Kandidat für den Blick voraus
+	var _m2 := 0
+	var _v2b := -INF
+
+	func _init(state: GameState, twist_only: bool) -> void:
+		gs = state
+		_p0 = gs.goal_progress()
+		_phase = 1 if twist_only else 0
+		if twist_only:
+			return
+		_base = gs.value8()
+		if gs.rain > 0:
+			for f in gs.fields:
+				if gs.rain_ok(f):
+					_tools.append({"type": "rain", "field": f.id})
+		if bool(gs.day.get("meteor", false)) and gs.faith >= GameState.METEOR_COST:
+			for f in gs.fields:
+				if f.kind == FieldData.CHURCH or f.kind == FieldData.INDUSTRY:
+					_tools.append({"type": "strike", "field": f.id})
+
+	func step(budget_usec: int = -1) -> bool:
+		var t0 := Time.get_ticks_usec()
+		while not done:
+			_unit()
+			if budget_usec >= 0 and Time.get_ticks_usec() - t0 >= budget_usec:
+				break
+		return done
+
+	## Höchstens eine Simulation.
+	func _unit() -> void:
+		if _phase == 0:
+			if _ti < _tools.size():
+				var a: Dictionary = _tools[_ti]
+				_ti += 1
+				var st: GameState = gs.simulate(a)["state"]
 				var v := st.value8()
-				if v > best_tv:
-					best_tv = v
-					best_t = {"type": "rain", "field": f.id, "value": v, "progress": st.goal_progress()}
-		if bool(day.get("meteor", false)) and faith >= METEOR_COST:
-			for f in fields:
-				if f.kind != FieldData.CHURCH and f.kind != FieldData.INDUSTRY:
-					continue
-				var st2: GameState = simulate({"type": "strike", "field": f.id})["state"]
-				var v2 := st2.value8()
-				if v2 > best_tv:
-					best_tv = v2
-					best_t = {"type": "strike", "field": f.id, "value": v2, "progress": st2.goal_progress()}
-		var need := 6.0 if rain <= 1 else 3.0
-		if not best_t.is_empty() and best_tv > base + need:
-			best_t["choice"] = -1
-			best_t["card"] = -1
-			best_t["steps"] = 1
-			best_t["points"] = 0
-			return best_t
-	var scored: Array = []
-	for m in MOVES:
-		var st3: GameState = simulate({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})["state"]
-		scored.append([st3.value8(), m, st3])
-	scored.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
-	var pick: Array = scored[0]
-	var first: GameState = pick[2]
-	if not (first.day_won and not first.day_free_build):
-		var best_v := -INF
-		for i in mini(6, scored.size()):
-			var c: Array = scored[i]
-			var s1: GameState = c[2]
-			var v1 := float(c[0])
-			var v := 0.0
-			if s1.is_over():
-				v = v1 if s1.day_won else v1 - 1e5
-			else:
-				var v2b := -INF
-				for m2 in MOVES:
-					var s2: GameState = s1.simulate({"type": "twist", "axis": int(m2[0]), "layer": int(m2[1]), "turns": int(m2[2])})["state"]
-					v2b = maxf(v2b, s2.value8())
-				v = 0.4 * v1 + 0.6 * v2b
-			if v > best_v:
-				best_v = v
-				pick = c
-	var pm: Array = pick[1]
-	var ps: GameState = pick[2]
-	return {"type": "twist", "axis": int(pm[0]), "layer": int(pm[1]), "turns": int(pm[2]), "choice": -1, "card": -1,
-		"value": float(pick[0]), "steps": 1 if ps.goal_progress() > p0 or ps.day_won else 2, "points": 0,
-		"progress": ps.goal_progress()}
+				if v > _best_tv:
+					_best_tv = v
+					_best_t = {"type": str(a["type"]), "field": int(a["field"]), "value": v, "progress": st.goal_progress()}
+				return
+			var need := 6.0 if gs.rain <= 1 else 3.0
+			if not _best_t.is_empty() and _best_tv > _base + need:
+				_best_t["choice"] = -1
+				_best_t["card"] = -1
+				_best_t["steps"] = 1
+				_best_t["points"] = 0
+				result = _best_t
+				done = true
+				return
+			_phase = 1
+			return
+		if _phase == 1:
+			if _mi < GameState.MOVES.size():
+				var m: Array = GameState.MOVES[_mi]
+				_mi += 1
+				var st3: GameState = gs.simulate({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})["state"]
+				_scored.append([st3.value8(), m, st3])
+				return
+			_scored.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
+			_pick = _scored[0]
+			var first: GameState = _pick[2]
+			if first.day_won and not first.day_free_build:
+				_finish()
+				return
+			_phase = 2
+			return
+		if _ci >= mini(6, _scored.size()):
+			_finish()
+			return
+		var c: Array = _scored[_ci]
+		var s1: GameState = c[2]
+		var v1 := float(c[0])
+		if s1.is_over():
+			_consider(c, v1 if s1.day_won else v1 - 1e5)
+			return
+		if _m2 < GameState.MOVES.size():
+			var m2: Array = GameState.MOVES[_m2]
+			_m2 += 1
+			var s2: GameState = s1.simulate({"type": "twist", "axis": int(m2[0]), "layer": int(m2[1]), "turns": int(m2[2])})["state"]
+			_v2b = maxf(_v2b, s2.value8())
+			return
+		_consider(c, 0.4 * v1 + 0.6 * _v2b)
+
+	## Ein Kandidat ist durchgerechnet: der nächste.
+	func _consider(c: Array, v: float) -> void:
+		if v > _best_v:
+			_best_v = v
+			_pick = c
+		_ci += 1
+		_m2 = 0
+		_v2b = -INF
+
+	func _finish() -> void:
+		var pm: Array = _pick[1]
+		var ps: GameState = _pick[2]
+		result = {"type": "twist", "axis": int(pm[0]), "layer": int(pm[1]), "turns": int(pm[2]), "choice": -1, "card": -1,
+			"value": float(_pick[0]), "steps": 1 if ps.goal_progress() > _p0 or ps.day_won else 2, "points": 0,
+			"progress": ps.goal_progress()}
+		done = true

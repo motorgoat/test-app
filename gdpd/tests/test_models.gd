@@ -125,6 +125,7 @@ func _initialize() -> void:
 	pv.set_supply(0)
 	if not sup_ok or pv.supply_mode() != 0:
 		_fail("Versorgungs-Vorschau")
+	_test_seamless(root)
 	# Die 7 Tage: Wasser, Schloss, leerer Stern, Tage, Ziel
 	for n in ["wish", "wish_bubble", "wish_count", "strike", "field", "animals", "paradise", "swords", "heart",
 			"water", "lock", "star_empty", "days", "goal", "meteor", "stone", "person", "up", "down", "need_bg"]:
@@ -155,6 +156,57 @@ func _initialize() -> void:
 				_fail("Tier ohne Kopf: %s/%d" % [cr, vr])
 	print("Modelle gebaut: %d Ansichten" % _views.size())
 	_test_character()
+
+
+# --- Nahtlos: Platten schließen lückenlos an, Wasser fließt zusammen, Inhalt bleibt auf der Platte -----------------
+
+func _test_seamless(root: Node3D) -> void:
+	# Fuge: Oberseite reicht genau bis zum Nachbarn (±0,502); Würfelkante: biegt um, Gehrung auf 45°
+	for outer in [0, 2, 6, 15]:
+		var arr := Models.arrays_of(Models.slab_mesh(outer))
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var uv2: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV2]
+		if verts.is_empty() or uv2.size() != verts.size():
+			_fail("Platte ohne Daten: %d" % outer)
+			continue
+		var max_x := -INF
+		var min_x := INF
+		for v in verts:
+			max_x = maxf(max_x, v.x)
+			min_x = minf(min_x, v.x)
+			# Gehrung: kein Punkt der Platte liegt jenseits der 45°-Ebene zur Nachbarseite
+			if (outer & 2) != 0 and v.x > v.y + Models.SLAB_BASE + 0.001:
+				_fail("Platte ragt über die Gehrung: %d %s" % [outer, v])
+				break
+		var want_max := Models.SLAB_EDGE - Models.SLAB_R * (1.0 - sqrt(0.5)) if (outer & 2) != 0 else Models.SLAB_SEAM
+		if absf(max_x - want_max) > 0.003 or absf(min_x + (want_max if outer == 15 else Models.SLAB_SEAM)) > 0.003:
+			_fail("Platte falsch breit: %d %.3f %.3f" % [outer, min_x, max_x])
+	# Wasser: Rechtecke je Nachbarmaske (allein: nur der Kern; ganz umgeben: Kerne, Brücken, Füllungen)
+	if Look.water_boxes([false, false, false, false, false, false, false, false]).size() != 1:
+		_fail("Wasser allein")
+	if Look.water_boxes([true, true, true, true, true, true, true, true]).size() != 25:
+		_fail("Wasser ganz umgeben")
+	# Innenecke: N und O Wasser, NO Land -> Kern, 2 Nachbarkerne, 2 Brücken, keine Füllung
+	if Look.water_boxes([true, true, false, false, false, false, false, false]).size() != 5:
+		_fail("Wasser Innenecke")
+	# Ansicht: Nachbarn setzen, Wassermaske lesen, Inhalt bleibt auf der Platte
+	var f := FieldData.new()
+	f.id = 7
+	var v := FieldView.new()
+	root.add_child(v)
+	v.position = Vector3(200, 0, 0)
+	v.build(f, 6)
+	v.set_kind(FieldView.K_WATER)
+	v.set_neighbors([FieldView.K_WATER, FieldView.K_MEADOW, -1, FieldView.K_WATER, FieldView.K_FOREST, -1, -1, FieldView.K_WATER])
+	if v.debug_water_mask() != [1, 0, 0, 1, 0, 0, 0, 1] or v.outer_mask() != 6:
+		_fail("Nachbarn/Wassermaske")
+	for k in [FieldView.K_BIGFOREST, FieldView.K_VILLAGE, FieldView.K_CHURCH, FieldView.K_HUT]:
+		v.set_kind(k)
+		for it in v._items:
+			var n := it as Node3D
+			if absf(n.position.x) > FieldView.INSIDE or absf(n.position.z) > FieldView.INSIDE:
+				_fail("Teil außerhalb der Platte: %d %s" % [k, n.position])
+	print("Nahtlos geprüft")
 
 
 # --- Eigener Charakter (GDPD_TAEGLICH_CHARAKTER.md 3, 4) -------------------------------------------------------

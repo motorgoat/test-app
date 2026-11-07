@@ -72,8 +72,8 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          # Die Tour braucht mit Software-Grafik gut 12 Minuten (mit Ersteller, Serie, Weiterbauen): genug Luft, damit sie nicht mittendrin abbricht
-          timeout 1500 xvfb-run -a -s "-screen 0 1100x2400x24" \
+          # Die Tour braucht mit Software-Grafik gut 15 Minuten (mit Ersteller, Serie, Weiterbauen, langer Bonusrunde): genug Luft, damit sie nicht mittendrin abbricht
+          timeout 1800 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
           ls -la ../shots
@@ -88,7 +88,7 @@ jobs:
                    streak_increments reminder_scheduled daily_world \
                    day2_rain_reveal day_help resting_row_feedback resting_row_rain no_farming spent_feedback help_once \
                    overnight_growth bolt_warn day_fail consume_hut extra_task thrive_preview war_preview meteor flood_warn \
-                   kinds_per_day task_chip world_complete free_play supply_preview look_life \
+                   kinds_per_day task_chip world_complete free_play supply_preview look_life bonus_round_responsive \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

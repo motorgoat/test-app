@@ -703,7 +703,8 @@ What changed after the review of the integrated build (rules, pools, readability
 | „Über Nacht gewachsen“ on every field of an unrelated board | „Neuer Morgen“, at most 4 fields | `test_overnight`, tour `overnight_growth` |
 | Extra chip cut off („EXTRA: LASS 11 WIESEN WACHS“) | short noun form „Extra: 11 Wiesen“ / „Extra: 4 Hütten satt“ | `test_extras`, tour `extra_task` |
 | „Satt!“ pill while the chip stayed 0/3 | pill only for the goal kind: „Dorf satt!“ | – |
-| Hint froze the phone (190–370 ms desktop) | search on a clone in `WorkerThreadPool`, the Tipp button pulses; a stale result is dropped | – |
+| Hint froze the phone (190–370 ms desktop) | search on a clone, spread over frames on the main thread (`GameState.day_search`, `Game.search_hint`, ≤ 4 ms per frame), the Tipp button pulses; a twist meanwhile cancels it | `test_bonus_stress`, `test_bonus_game` |
+| Bonus round froze or crashed („aufgehängt in der Bonusrunde“) | (1) the Tipp search ran on a `WorkerThreadPool` thread while the main thread ran rules code; Godot 4.3 reads `const` Arrays/Dictionaries (MOVES, FieldData tables) non-thread-safely → heap corruption, SIGSEGV, hangs. No rules code runs on a second thread any more. (2) Days 1–2 kept `Game.onboarding` in Weiterbauen: after every 6 s pause the free hint ran the full search (~190 simulations) in one frame. Weiterbauen ends the onboarding, and the free hint uses the spread search too. (3) „Zurück“ during a day left `day_ui._playing` false (every button only shook): `Game.undoing` keeps the day running | `test_bonus_stress` (3000+ random twists in Weiterbauen, every step < 200 ms), `test_bonus_game`, tour `bonus_round_responsive` |
 
 Re-run: `cd gdpd_sim/b3 && python3 export8b.py 3,5,6,7 pools9.json` (needs `engine8.py` with `FAITH_STEP`,
 `days8.py` of Rev. 9), then `python3 mk_test_cases.py gdpd/tests/data/xcheck8_cases.json` (187 cases, 3380 steps).

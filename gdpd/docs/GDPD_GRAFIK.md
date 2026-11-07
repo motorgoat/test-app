@@ -595,6 +595,6 @@ Leistung (Rev. 9):
 - Gebackene Meshes sind indiziert (jede Ecke einmal, Indizes mit Versatz) statt aufgefaltet: etwa ⅓ der Ecken.
 - Figuren: Parameter-Tabelle als Konstante (keine Arrays je Figur und Bild); Figuren-Schatten nur auf „hoch“.
 - `project.godot`: Schattenkarte am Handy 2048 mit weichem Filter 1 (`.mobile`).
-- Der Tipp rechnet im Hintergrund (`WorkerThreadPool`), der Knopf pulsiert solange.
+- Der Tipp rechnet verteilt über mehrere Bilder (höchstens 4 ms je Bild, `Game.search_hint`), der Knopf pulsiert solange. Nie auf einem zweiten Thread: Godot 4.3 liest `const`-Tabellen nicht threadsicher (Absturz/Hänger in der Bonusrunde).
 
 Offen: MultiMesh je Tierart (Instanz-Daten statt eines Materials je Figur), Messung am echten Handy.

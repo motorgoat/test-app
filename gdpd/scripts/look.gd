@@ -99,23 +99,23 @@ static func _shader(path: String) -> Shader:
 ## a/b: zwei Bodentöne nach großem Rauschen, acc: Kiesel/Streu, cob: Pflaster, fur: Furchen,
 ## spk: Tupfer (Blumen, Blüten), path: Trampelpfad, pc: Pfadfarbe
 const GROUND := [
-	{"a": "#64492f", "b": "#7a5a3d", "acc": "#958d80", "amt": 0.85},                                  # 0 Erde
-	{"a": "#5d8a2c", "b": "#7ea33e", "spk": "#ece6d2", "spk2": "#e0c04e", "samt": 0.55},           # 1 Wiese
-	{"a": "#3a4b20", "b": "#54482b", "acc": "#6e5a37", "amt": 0.35},                                 # 2 Wald
-	{"a": "#5a3e27", "b": "#73543a", "fur": 1.0},                                                     # 3 Acker
-	{"a": "#26321a", "b": "#353020", "acc": "#4a3d28", "amt": 0.25},                                 # 4 Großer Wald
-	{"a": "#8d9c4c", "b": "#aab06a", "acc": "#b9aa7c", "amt": 0.2},                                  # 5 Tiere (Weide)
-	{"a": "#5c7630", "b": "#76683f", "path": 0.8, "pc": "#8a7350"},                                  # 6 Hütte
-	{"a": "#678838", "b": "#7f9a45", "path": 0.6, "pc": "#a49a86", "spk": "#e8d9c6", "spk2": "#c98b7a", "samt": 0.25},  # 7 Haus
-	{"a": "#6a7d3a", "b": "#867b54", "path": 1.0, "pc": "#9c8a68", "acc": "#a39d92", "amt": 0.2},  # 8 Dorf
-	{"a": "#99938a", "b": "#a9a398", "cob": 1.0},                                                     # 9 Stadt
-	{"a": "#b3ab9b", "b": "#c2baaa", "acc": "#d8d2c5", "amt": 0.9},                                  # 10 Kirche (heller Kies)
-	{"a": "#6f6a63", "b": "#7d786f", "cob": 1.0},                                                     # 11 Großstadt
-	{"a": "#44413d", "b": "#524e48", "acc": "#6a665f", "amt": 0.25},                                 # 12 Industrie (Asphalt)
-	{"a": "#c4c0b7", "b": "#d0ccc3", "cob": 0.55, "cs": 1.3},                                        # 13 Metropole (Platz)
-	{"a": "#4a8c34", "b": "#69a748", "spk": "#f2c6d4", "spk2": "#fbf3e6", "samt": 0.9},            # 14 Paradies
-	{"a": "#a39170", "b": "#b8a782", "acc": "#c9bd9e", "amt": 0.4},                                  # 15 Wasser (Sand)
-	{"a": "#7a756c", "b": "#8f897e", "acc": "#aaa397", "amt": 1.0},                                  # 16 Stein (Schotter)
+	{"a": "#64492f", "b": "#7a5a3d", "acc": "#958d80", "amt": 0.85, "mc": 0.5},                                   # 0 Erde
+	{"a": "#4a7d27", "b": "#6c9a38", "spk": "#ece6d2", "spk2": "#e0c04e", "samt": 0.8, "mc": 0.3},              # 1 Wiese (satt, Blumen)
+	{"a": "#3a4b20", "b": "#54482b", "acc": "#6e5a37", "amt": 0.35, "mc": 0.78},                                  # 2 Wald
+	{"a": "#5a3e27", "b": "#73543a", "fur": 1.0, "mc": 0.6},                                                       # 3 Acker
+	{"a": "#26321a", "b": "#353020", "acc": "#4a3d28", "amt": 0.25, "mc": 0.88},                                  # 4 Großer Wald
+	{"a": "#a3a457", "b": "#c2b97c", "acc": "#8a7652", "amt": 0.55, "path": 0.55, "pc": "#94805c", "mc": 0.22},  # 5 Tiere (abgegraste Weide, Tritt)
+	{"a": "#5c7630", "b": "#76683f", "path": 0.8, "pc": "#8a7350", "mc": 0.5},                                   # 6 Hütte
+	{"a": "#678838", "b": "#7f9a45", "path": 0.6, "pc": "#a49a86", "spk": "#e8d9c6", "spk2": "#c98b7a", "samt": 0.25, "mc": 0.5},  # 7 Haus
+	{"a": "#6a7d3a", "b": "#867b54", "path": 1.0, "pc": "#9c8a68", "acc": "#a39d92", "amt": 0.2, "mc": 0.55},   # 8 Dorf
+	{"a": "#99938a", "b": "#a9a398", "cob": 1.0, "mc": 0.68},                                                      # 9 Stadt
+	{"a": "#b3ab9b", "b": "#c2baaa", "acc": "#d8d2c5", "amt": 0.9, "mc": 0.62},                                   # 10 Kirche (heller Kies)
+	{"a": "#6f6a63", "b": "#7d786f", "cob": 1.0, "mc": 0.72},                                                      # 11 Großstadt
+	{"a": "#44413d", "b": "#524e48", "acc": "#6a665f", "amt": 0.25, "mc": 0.74},                                  # 12 Industrie (Asphalt)
+	{"a": "#c4c0b7", "b": "#d0ccc3", "cob": 0.55, "cs": 1.3, "mc": 0.7},                                         # 13 Metropole (Platz)
+	{"a": "#4a8c34", "b": "#69a748", "spk": "#f2c6d4", "spk2": "#fbf3e6", "samt": 0.9, "mc": 0.3},             # 14 Paradies
+	{"a": "#a39170", "b": "#b8a782", "acc": "#c9bd9e", "amt": 0.4, "mc": 0.45},                                   # 15 Wasser (Ufer-Sand)
+	{"a": "#7a756c", "b": "#8f897e", "acc": "#aaa397", "amt": 1.0, "mc": 0.82},                                   # 16 Stein (Schotter)
 ]
 
 
@@ -129,7 +129,102 @@ static func ground_material() -> ShaderMaterial:
 	m.shader = _shader("res://shaders/ground.gdshader")
 	m.set_shader_parameter("n_fbm", fbm())
 	m.set_shader_parameter("n_cell", cell())
+	m.set_shader_parameter("w_sky", sky_color)
+	_water_mats.append(weakref(m))
 	return m
+
+
+## Nahtlos: Nachbarn (8 Arten, Reihenfolge N, O, S, W, NO, SO, SW, NW; −1 = keiner, z. B. Würfelecke) als
+## Shader-Werte: nb_a = Bodenton a + Mischwert, nb_b = Bodenton b + Wasser. Eine fehlende Diagonale (Würfelecke)
+## ist das Mittel aus der eigenen Art und den beiden Nachbarn daneben: alle drei Felder treffen sich dort gleich.
+static func apply_neighbors(m: ShaderMaterial, self_kind: int, kinds: Array) -> void:
+	var ca := PackedColorArray()
+	var cb := PackedColorArray()
+	ca.resize(8)
+	cb.resize(8)
+	for i in 8:
+		var k := int(kinds[i]) if i < kinds.size() else -1
+		if k >= 0:
+			ca[i] = _nb_a(k)
+			cb[i] = _nb_b(k)
+	for i in range(4, 8):
+		var k := int(kinds[i]) if i < kinds.size() else -1
+		if k >= 0:
+			continue
+		var o1 := i - 4                 # NO: N und O, SO: O und S, SW: S und W, NW: W und N
+		var o2 := (i - 3) % 4
+		var k1 := int(kinds[o1]) if o1 < kinds.size() and int(kinds[o1]) >= 0 else self_kind
+		var k2 := int(kinds[o2]) if o2 < kinds.size() and int(kinds[o2]) >= 0 else self_kind
+		var a := (_nb_a(self_kind) + _nb_a(k1) + _nb_a(k2)) / 3.0
+		var b := (_nb_b(self_kind) + _nb_b(k1) + _nb_b(k2)) / 3.0
+		b.a = 1.0 if self_kind == 15 and k1 == 15 and k2 == 15 else 0.0
+		ca[i] = a
+		cb[i] = b
+	m.set_shader_parameter("nb_a", ca)
+	m.set_shader_parameter("nb_b", cb)
+	m.set_shader_parameter("nb_on", 1.0)
+	if self_kind == 15:
+		var w: Array = []
+		for i in 8:
+			w.append(cb[i].a > 0.5)
+		var boxes := water_boxes(w)
+		m.set_shader_parameter("w_box", boxes)
+		m.set_shader_parameter("w_box_n", boxes.size())
+
+
+const WATER_SHORE := 0.355       # so weit reicht das Wasser zum Land hin (Zellen-Koordinaten, Feld = −0,5 … 0,5)
+const WATER_ROUND := 0.1         # Rundung der Außenecken
+
+
+## Wasser als Vereinigung von Rechtecken (Mitte xy, halbe Größe zw) in Zellen-Koordinaten des Felds: eigener Kern,
+## Kerne der Wasser-Nachbarn, Brücken zwischen benachbarten Wasserfeldern und Füllungen, wo vier Wasserfelder an
+## einer Ecke zusammenkommen. Der Shader rundet die Vereinigung (weiches Minimum): Innen- und Außenecken sind rund,
+## und zwei Wasserfelder rechnen an ihrer Fuge mit denselben Rechtecken – das Ufer läuft lückenlos weiter.
+## w: 8 Nachbarn (N, O, S, W, NO, SO, SW, NW) – true = Wasser.
+static func water_boxes(w: Array) -> PackedColorArray:
+	var s := WATER_SHORE - WATER_ROUND
+	var out := PackedColorArray()
+	var off := [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1)]
+	out.append(Color(0, 0, s, s))
+	for i in 8:
+		if bool(w[i]):
+			var o: Vector2 = off[i]
+			out.append(Color(o.x, o.y, s, s))
+	for i in 4:
+		if bool(w[i]):
+			var o: Vector2 = off[i]
+			out.append(Color(o.x * 0.5, o.y * 0.5, 0.5 if o.x != 0.0 else s, 0.5 if o.y != 0.0 else s))
+	# zwischen Nachbarn: (Orthogonal, Diagonal)
+	var pairs := [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0]]
+	for pr in pairs:
+		var a: int = pr[0]
+		var b: int = pr[1]
+		if bool(w[a]) and bool(w[b]):
+			var oa: Vector2 = off[a]
+			var ob: Vector2 = off[b]
+			var c := (oa + ob) * 0.5
+			var horiz := absf(oa.y - ob.y) < 0.01
+			out.append(Color(c.x, c.y, 0.5 if horiz else s, s if horiz else 0.5))
+	var corners := [[0, 4, 1], [1, 5, 2], [2, 6, 3], [3, 7, 0]]
+	for cr in corners:
+		if bool(w[cr[0]]) and bool(w[cr[1]]) and bool(w[cr[2]]):
+			var c2: Vector2 = off[cr[1]]
+			out.append(Color(c2.x * 0.5, c2.y * 0.5, 0.5, 0.5))
+	return out
+
+
+static func _nb_a(kind: int) -> Color:
+	var g: Dictionary = ground_params(kind)
+	var c := Color(str(g["a"]))
+	c.a = float(g.get("mc", 0.5))
+	return c
+
+
+static func _nb_b(kind: int) -> Color:
+	var g: Dictionary = ground_params(kind)
+	var c := Color(str(g["b"]))
+	c.a = 1.0 if kind == 15 else 0.0
+	return c
 
 
 ## Setzt die Werte einer Art auf ein Boden-Material. furrow_dir: 0 = Furchen quer zu z, 1 = quer zu x.
@@ -148,6 +243,8 @@ static func apply_ground(m: ShaderMaterial, kind: int, scorch: float, polluted: 
 	m.set_shader_parameter("speck_amt", float(g.get("samt", 0.0)))
 	m.set_shader_parameter("path_amt", float(g.get("path", 0.0)))
 	m.set_shader_parameter("path_c", Color(str(g.get("pc", "#8a7350"))))
+	m.set_shader_parameter("mix_c", float(g.get("mc", 0.5)))
+	m.set_shader_parameter("is_water", 1.0 if kind == 15 else 0.0)
 	m.set_shader_parameter("scorch", scorch)
 	m.set_shader_parameter("polluted", polluted)
 
@@ -178,6 +275,7 @@ static func set_sky(c: Color) -> void:
 		var m: ShaderMaterial = (w as WeakRef).get_ref()
 		if m != null:
 			m.set_shader_parameter("sky", c)
+			m.set_shader_parameter("w_sky", c)
 			keep.append(w)
 	_water_mats = keep
 

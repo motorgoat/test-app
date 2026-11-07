@@ -1437,7 +1437,9 @@ func _on_new_game() -> void:
 	_end_gen += 1
 	_hide_lane(true)
 	_hold = {}
-	_playing = false
+	# „Zurück“ (Game.undo) baut die Welt auch über new_game_started neu auf, der Tag läuft aber weiter: sonst bliebe
+	# blocking() für immer wahr und jeder Knopf würde nur wackeln
+	_playing = _playing and Game.undoing and Game.in_day() and not Game.over
 	_tut = 0
 	_demo_at = INF
 	_demo_done = false
