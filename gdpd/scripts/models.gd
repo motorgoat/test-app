@@ -776,13 +776,14 @@ static func _ico_mid(vs: Array, mid: Dictionary, a: int, b: int) -> int:
 const BARK := Color("#5e4a36")
 const BARK_D := Color("#45362a")
 const PLASTER := [Color("#e4d8c2"), Color("#d8c3a0"), Color("#ece5d8"), Color("#cdb79a")]
-const TILE_C := [Color("#8e5c4c"), Color("#9a705a"), Color("#7c5a50")]
+const TILE_C := [Color("#7d3e30"), Color("#8a4a36"), Color("#6f3c32")]
 const SLATE := Color("#7f7d80")
 const STONE_C := Color("#8f8a80")
 const STONE_L := Color("#a39d92")
 const TIMBER := Color("#4a3426")
 const GLASS_C := Color("#47525e")
-const LOGS := Color("#93704c")
+const LOGS := Color("#b08a5e")
+const LIT_C := Color("#f2cf86")          # ein helles (beleuchtetes) Fenster je Haus: Wohnhäuser lesen sich als bewohnt
 const BRICK := Color("#9a6450")
 const CONCRETE := Color("#8a857c")
 const SOOT := Color("#3a3735")
@@ -995,14 +996,15 @@ static func _log(p: Dictionary, seed: float) -> void:
 ## Blockhütte: Balkenwände, Schindeldach, Steinkamin, Tür, kleines Fenster.
 static func _cabin(p: Dictionary, variant: int) -> void:
 	var s: MB = p["solid"]
-	var w := 0.11
-	var d := 0.085
-	var wall_h := 0.058
+	# niedrig und breit (Grundriss ~1,3 : 1, Wand ≤ 0,6 × Tiefe): helles Holz unter dunklem, überstehendem Dach
+	var w := 0.125
+	var d := 0.096
+	var wall_h := 0.05
 	s.box(Vector3(0, 0.003, 0), Vector3(w + 0.012, 0.006, d + 0.012), Color("#6f6a62"))
 	var logs := 6
 	for i in logs:
 		var y := 0.006 + wall_h * (float(i) + 0.5) / float(logs)
-		var cc := LOGS if i % 2 == 0 else LOGS.darkened(0.14)
+		var cc := LOGS if i % 2 == 0 else LOGS.darkened(0.1)
 		s.box(Vector3(0, y, 0), Vector3(w, wall_h / float(logs) * 0.96, d), cc)
 		# Balkenköpfe an den Ecken
 		for cx_v in [-1.0, 1.0]:
@@ -1010,12 +1012,12 @@ static func _cabin(p: Dictionary, variant: int) -> void:
 			for cz_v in [-1.0, 1.0]:
 				var cz: float = cz_v
 				s.box(Vector3(cx * (w * 0.5 + 0.003), y, cz * (d * 0.5 + 0.003)), Vector3(0.008, wall_h / float(logs) * 0.9, 0.008), cc.lightened(0.08))
-	var roof := Color("#6e5e50") if variant % 2 == 0 else Color("#7a6852")
-	s.gable(Vector3(0, 0.006 + wall_h, 0), w, d, 0.05, 0.014, roof, LOGS.darkened(0.06))
+	var roof := Color("#5e3a2c") if variant % 2 == 0 else Color("#6b4430")
+	s.gable(Vector3(0, 0.006 + wall_h, 0), w, d, 0.042, 0.02, roof, LOGS.darkened(0.06))
 	# Tür und Fenster (vorne = +z)
 	s.box(Vector3(-0.02, 0.006 + 0.019, d * 0.5 + 0.001), Vector3(0.02, 0.036, 0.003), Color("#3a2a1e"))
-	s.push(Transform3D(Basis(), Vector3(0.025, 0.006 + 0.033, d * 0.5)))
-	s.window(Vector3.ZERO, 0.018, 0.016, Color("#8a6a48"), GLASS_C)
+	s.push(Transform3D(Basis(), Vector3(0.025, 0.006 + 0.03, d * 0.5)))
+	s.window(Vector3.ZERO, 0.02, 0.017, Color("#8a6a48"), LIT_C)
 	s.pop()
 	# Kamin aus Feldstein
 	s.box(Vector3(w * 0.32, 0.006 + wall_h + 0.03, -d * 0.18), Vector3(0.018, 0.075, 0.018), Color("#7d776c"), Color("#4a4540"))
@@ -1026,9 +1028,10 @@ static func _cabin(p: Dictionary, variant: int) -> void:
 ## Wohnhaus: Putz mit Fachwerk oder schlicht, Ziegeldach, Kamin, Fenster, Tür.
 static func _house(p: Dictionary, variant: int) -> void:
 	var s: MB = p["solid"]
-	var w := 0.12 + 0.015 * float(variant % 2)
-	var d := 0.085
-	var wall_h := 0.072
+	# niedrig und breit: von der Seite kein hoher Klotz, sondern ein Haus mit hellem Putz unter dunklem Ziegeldach
+	var w := 0.135 + 0.012 * float(variant % 2)
+	var d := 0.104
+	var wall_h := 0.058
 	var plaster: Color = PLASTER[variant % PLASTER.size()]
 	var roof: Color = TILE_C[variant % TILE_C.size()]
 	s.box(Vector3(0, 0.005, 0), Vector3(w + 0.008, 0.01, d + 0.008), Color("#77726a"))
@@ -1045,7 +1048,7 @@ static func _house(p: Dictionary, variant: int) -> void:
 			for k in 5:
 				var x := -w * 0.5 + w * float(k) / 4.0
 				s.box(Vector3(clampf(x, -w * 0.5 + 0.002, w * 0.5 - 0.002), 0.01 + wall_h * 0.5, zf), Vector3(0.004, wall_h, 0.0025), TIMBER)
-	s.gable(Vector3(0, 0.01 + wall_h, 0), w, d, 0.055, 0.012, roof, plaster)
+	s.gable(Vector3(0, 0.01 + wall_h, 0), w, d, 0.05, 0.02, roof, plaster)
 	# Fenster (zwei Reihen auf der Vorderseite, eines am Giebel)
 	s.push(Transform3D(Basis(), Vector3(0, 0, d * 0.5)))
 	for k in 2:
@@ -1057,7 +1060,7 @@ static func _house(p: Dictionary, variant: int) -> void:
 	s.pop()
 	s.push(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(w * 0.5, 0, 0)))
 	s.window(Vector3(0, 0.01 + wall_h + 0.016, 0), 0.012, 0.014, Color("#e8e2d6"), GLASS_C, false)
-	s.window(Vector3(0, 0.01 + wall_h * 0.5, 0), 0.014, 0.016, Color("#e8e2d6"), GLASS_C)
+	s.window(Vector3(0, 0.01 + wall_h * 0.5, 0), 0.016, 0.017, Color("#e8e2d6"), LIT_C)
 	s.pop()
 	s.box(Vector3(-w * 0.25, 0.01 + wall_h + 0.045, -0.012), Vector3(0.012, 0.04, 0.012), Color("#8a5a46"), Color("#3a2f2a"))
 

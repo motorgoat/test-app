@@ -49,8 +49,14 @@ const SMOKE_DARK := Color(0.42, 0.41, 0.42, 0.88)
 const CHIMNEY_C := Color(0.82, 0.81, 0.8, 0.55)
 const EDGE := 0.4                 # Fluchtpunkt außerhalb der Kachel (Inhalts-Koordinaten)
 const MAX_UNCACHED_BAKES := 2     # so viele neue Back-Vorgänge je Bild (der Rest wartet ein Bild)
+## Agenten: Schlüssel im Zustand und Shader-Parameter (Gehen, Grasen, Bücken).
+const AGENT_KEYS := ["w", "g", "b"]
+const AGENT_PARAMS := [&"walk", &"graze", &"bend"]
+const NEED_BG_PX := 0.0032        # Bedürfnis-Scheiben über Menschen-Feldern (Handy: gut lesbar)
+const BAKE_CACHE_MAX := 64        # so viele gebackene Anordnungen bleiben im Speicher (zuletzt benutzt zuerst behalten)
 
 static var _bake_cache: Dictionary = {}
+static var _bake_order: Array = []    # Schlüssel, am längsten unbenutzt zuerst (LRU)
 static var _bake_frame := -1
 static var _bakes_now := 0
 
@@ -62,6 +68,7 @@ var _sel: MeshInstance3D
 var _glow: MeshInstance3D
 var _glow_top: MeshInstance3D
 var _danger: MeshInstance3D
+var _still_rim: MeshInstance3D
 var _danger_top: MeshInstance3D
 var _hint: MeshInstance3D
 var _hint_mat: StandardMaterial3D
@@ -92,6 +99,7 @@ var _wish_shown := false
 var _ground: ShaderMaterial      # Boden-Material dieses Felds (Look, GDPD_GRAFIK.md 3)
 var _water_mat: ShaderMaterial
 var _water_mask := Vector4.ONE
+var _water_surf: MeshInstance3D
 var _pulse_tw: Tween
 var _wet_tw: Tween
 
@@ -232,7 +240,7 @@ func set_supply(mode: int) -> void:
 		_supply_ring = Models.rbox(self, Vector3(TILE + 0.1, 0.03, TILE + 0.1), 0.05, Color.WHITE, Vector3(0, 0.016, 0), Vector3.ZERO,
 			Look.rim(Color(0.35, 0.9, 0.45, 1.0), (TILE + 0.1) * 0.5, 0.0, 4.0, 0.42))
 		_supply_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_supply_icon = _sprite("up", 0.0024, 7)
+		_supply_icon = _sprite("up", 0.004, 7)
 		_supply_icon.position = Vector3(0, 0.98, 0)
 		add_child(_supply_icon)
 	if _supply_ring == null:
@@ -242,6 +250,12 @@ func set_supply(mode: int) -> void:
 	_supply_icon.texture = Style.icon("up" if mode > 0 else "down")
 	_supply_ring.visible = mode != 0
 	_supply_icon.visible = mode != 0 and _labels_on
+	if mode != 0:
+		# kurzer Hüpfer, damit man die Marke beim Drehen sieht
+		_supply_icon.scale = Vector3.ONE * 0.4
+		var tw := _supply_icon.create_tween()
+		tw.tween_property(_supply_icon, "scale", Vector3.ONE * 1.15, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(_supply_icon, "scale", Vector3.ONE, 0.1)
 
 
 func supply_mode() -> int:
@@ -295,6 +309,20 @@ func nudge() -> void:
 func set_highlight(on: bool) -> void:
 	_glow.visible = on
 	_glow_top.visible = on
+
+
+## Neutraler grauer Rand: diese Reihe wächst nicht (still: schon gewachsen, stand schon so, hin und her …).
+func set_still(on: bool) -> void:
+	if on and _still_rim == null:
+		_still_rim = Models.rbox(self, Vector3(TILE - 0.03, 0.014, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.006, 0), Vector3.ZERO,
+			Look.rim(Color(0.82, 0.84, 0.88, 0.7), (TILE - 0.03) * 0.5, 0.1, 0.0, 0.24, true))
+		_still_rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if _still_rim != null:
+		_still_rim.visible = on
+
+
+func is_still_marked() -> bool:
+	return _still_rim != null and _still_rim.visible
 
 
 ## Rotes Leuchten: hier würde gleich eine Katastrophe zuschlagen.
@@ -550,10 +578,35 @@ static func _shader_set(v: float, m: ShaderMaterial, param: String) -> void:
 
 
 ## Wasser: an welchen Seiten Ufer ist (x = -z, y = +x, z = +z, w = -x; 0 = Nachbarwasser, kein Schaum).
+## Zu Nachbarwasser hin reicht die Fläche bis an den Rand des Würfelsteins und deckt Sandrand und Fuge zu:
+## so fließen benachbarte Wasserfelder zu einem See zusammen statt wie einzelne Fliesen zu wirken.
 func set_water_edges(mask: Vector4) -> void:
+	var changed := mask != _water_mask
 	_water_mask = mask
 	if _water_mat != null:
 		_water_mat.set_shader_parameter("edge_mask", mask)
+		if changed and _kind == K_WATER:
+			_water_surface()
+
+
+const WATER_SHORE := 0.31                        # Ufer: so weit reicht das Wasser (Inhalts-Koordinaten), dahinter Sand
+const WATER_OPEN := 0.5 / CONTENT_SCALE + 0.004  # Nachbarwasser: bis an den Rand des Würfelsteins (deckt die Fuge)
+
+
+func _water_surface() -> void:
+	if _water_surf != null and is_instance_valid(_water_surf):
+		_water_surf.queue_free()
+	# Ausdehnung je Seite (N = -z, O = +x, S = +z, W = -x)
+	var en := WATER_SHORE if _water_mask.x > 0.5 else WATER_OPEN
+	var ee := WATER_SHORE if _water_mask.y > 0.5 else WATER_OPEN
+	var es := WATER_SHORE if _water_mask.z > 0.5 else WATER_OPEN
+	var ew := WATER_SHORE if _water_mask.w > 0.5 else WATER_OPEN
+	var center := Vector2((ee - ew) * 0.5, (es - en) * 0.5)
+	_water_mat.set_shader_parameter("ext", Vector4(en, ee, es, ew))
+	_water_mat.set_shader_parameter("center", center)
+	_water_surf = Models.rbox(_content, Vector3(ee + ew, 0.006, en + es), 0.01, Color.WHITE, Vector3(center.x, 0.002, center.y),
+		Vector3.ZERO, _water_mat)
+	_water_surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 ## Kleiner goldener Stern in der Kachelecke: dieses Feld ist fertig.
@@ -579,6 +632,8 @@ func _bake() -> void:
 	var groups: Array = []
 	if _bake_cache.has(key):
 		groups = _bake_cache[key]
+		_bake_order.erase(key)
+		_bake_order.append(key)
 	else:
 		var frame := Engine.get_process_frames()
 		if frame != _bake_frame:
@@ -588,7 +643,7 @@ func _bake() -> void:
 			return
 		_bakes_now += 1
 		groups = _merge_items()
-		_bake_cache[key] = groups
+		_cache_store(key, groups)
 	_bake_at = -1.0
 	for it in _items:
 		if is_instance_valid(it):
@@ -607,6 +662,26 @@ func _bake() -> void:
 		_content.add_child(mi)
 
 
+## So viele Anordnungen liegen im Back-Cache (Tests: nie mehr als BAKE_CACHE_MAX).
+static func bake_cache_size() -> int:
+	return _bake_cache.size()
+
+
+static func bake_cache_has(key: String) -> bool:
+	return _bake_cache.has(key)
+
+
+## Neu gebackene Anordnung merken. Begrenzt: was am längsten keiner benutzt hat, fällt heraus (Felder, die es gerade
+## zeigen, behalten ihr Mesh, es wird nur nicht mehr geteilt).
+static func _cache_store(key: String, groups: Array) -> void:
+	if _bake_cache.has(key):
+		_bake_order.erase(key)
+	_bake_cache[key] = groups
+	_bake_order.append(key)
+	while _bake_order.size() > BAKE_CACHE_MAX:
+		_bake_cache.erase(_bake_order.pop_front())
+
+
 ## true, wenn die statischen Teile schon zu wenigen Meshes gebacken sind (Tests).
 func is_baked() -> bool:
 	return _items.is_empty() and _bake_at < 0.0
@@ -615,11 +690,15 @@ func is_baked() -> bool:
 func _merge_items() -> Array:
 	var acc := {}
 	var order: Array = []
+	var item_no := 0
 	for itv in _items:
 		if not is_instance_valid(itv):
 			continue
 		var it: Node3D = itv
 		var base: Transform3D = it.get_meta("xf", it.transform)
+		# eigene Zufallszahl je Pflanze/Teil (UV2.x, 0,05 … 1): Laub-Shader streut damit Farbe und Wind-Phase stabil
+		item_no += 1
+		var iseed := 0.05 + 0.95 * fposmod(sin(float(item_no) * 12.9898 + float(field_id) * 78.233) * 43758.5453, 1.0)
 		for ch in it.get_children():
 			if not (ch is MeshInstance3D):
 				continue
@@ -628,9 +707,10 @@ func _merge_items() -> Array:
 			var shadow := mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			var gk := "%s|%d" % [mk, 1 if shadow else 0]
 			if not acc.has(gk):
-				acc[gk] = [PackedVector3Array(), PackedVector3Array(), PackedColorArray(), PackedVector2Array(), PackedVector2Array()]
+				acc[gk] = [PackedVector3Array(), PackedVector3Array(), PackedColorArray(), PackedVector2Array(), PackedVector2Array(),
+					PackedInt32Array()]
 				order.append([gk, mk, shadow])
-			_append_mesh(acc[gk], mi.mesh, base * mi.transform)
+			_append_mesh(acc[gk], mi.mesh, base * mi.transform, iseed)
 	var out: Array = []
 	for o in order:
 		var oo: Array = o
@@ -642,6 +722,7 @@ func _merge_items() -> Array:
 		arr[Mesh.ARRAY_COLOR] = a[2]
 		arr[Mesh.ARRAY_TEX_UV] = a[3]
 		arr[Mesh.ARRAY_TEX_UV2] = a[4]
+		arr[Mesh.ARRAY_INDEX] = a[5]
 		if (a[0] as PackedVector3Array).is_empty():
 			continue
 		var m := ArrayMesh.new()
@@ -650,7 +731,7 @@ func _merge_items() -> Array:
 	return out
 
 
-static func _append_mesh(a: Array, mesh: Mesh, xf: Transform3D) -> void:
+static func _append_mesh(a: Array, mesh: Mesh, xf: Transform3D, iseed: float = 0.0) -> void:
 	var src := Models.arrays_of(mesh)
 	if src.is_empty() or src[Mesh.ARRAY_VERTEX] == null:
 		return
@@ -681,18 +762,24 @@ static func _append_mesh(a: Array, mesh: Mesh, xf: Transform3D) -> void:
 	var cc: PackedColorArray = a[2]
 	var uu: PackedVector2Array = a[3]
 	var uu2: PackedVector2Array = a[4]
+	var ii: PackedInt32Array = a[5]
 	var white := Color(1, 1, 1, 0)
-	for i in si:
+	# indiziert: jede Ecke einmal, die Dreiecke als Indizes (+ Versatz der schon gesammelten Ecken)
+	var base := vv.size()
+	for i in sv.size():
 		vv.append(xf * sv[i])
 		nn.append((nb * sn[i]).normalized())
 		cc.append(sc[i] if has_c else white)
 		uu.append(su[i] if has_u else Vector2.ZERO)
-		uu2.append(su2[i] if has_u2 else Vector2.ZERO)
+		uu2.append(su2[i] if has_u2 else Vector2(iseed, 0.0))
+	for i in si:
+		ii.append(base + i)
 	a[0] = vv
 	a[1] = nn
 	a[2] = cc
 	a[3] = uu
 	a[4] = uu2
+	a[5] = ii
 
 
 # =============================================================================
@@ -773,17 +860,18 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 	for i in names.size():
 		var nm: Array = names[i]
 		var ok: bool = nm[1]
-		var bg := _sprite("need_bg", 0.0019, 5)
+		# Was fehlt, ist laut (rote Scheibe, helles Zeichen), was da ist, leise (halb durchsichtig); satt: gold
+		var bg := _sprite("need_bg", NEED_BG_PX, 5)
 		bg.offset = Vector2(x0 + gap * float(i), 0)
-		bg.modulate = Color("#ffd75e") if satt else (Color(1, 1, 1, 0.95) if ok else Color(0.25, 0.25, 0.28, 0.75))
+		bg.modulate = Color("#ffd75e") if satt else (Color(1, 1, 1, 0.55) if ok else Color("#e5483c"))
 		_needs.add_child(bg)
-		var ic := _sprite(String(GameState.NEED_ICON.get(nm[0], "info")), 0.00148, 6)
+		var ic := _sprite(String(GameState.NEED_ICON.get(nm[0], "info")), NEED_BG_PX / 1.2838, 6)
 		ic.offset = Vector2((x0 + gap * float(i)) * 1.2838, 0)
-		ic.modulate = Color.WHITE if ok else Color(0.7, 0.7, 0.72, 0.8)
+		ic.modulate = Color(0.45, 0.36, 0.18) if satt else (Color(0.5, 0.5, 0.52, 0.75) if ok else Color(1.22, 1.22, 1.22))
 		_needs.add_child(ic)
 		_need_icons.append([bg, ic, ok])
 	if satt and fed > 0:
-		var up := _sprite("up", 0.0016, 6)
+		var up := _sprite("up", NEED_BG_PX / 1.1875, 6)
 		up.offset = Vector2((x0 + gap * float(names.size())) * 1.1875, 0)
 		_needs.add_child(up)
 	_need_pulse = not satt and hungry >= shrink_after - 1 and hungry > 0
@@ -853,20 +941,27 @@ func _set_bolt(on: bool) -> void:
 		_bolt_node.visible = on and _detail > 0
 
 
-## Flut-Gefahr: der Boden wird nass, Pfützen stehen.
+## Flut-Gefahr: dieselbe Sprache wie die Kriegsfront, nur blau: pulsierender blauer Rand, ein durchscheinender
+## Wasserspiegel steigt immer wieder über das Feld, dazu das Flut-Zeichen und nasser Boden.
 func _set_flood_risk(on: bool) -> void:
 	if on and _flood_node == null:
 		_flood_node = Node3D.new()
-		_flood_node.position = Vector3(0, TOP + 0.003, 0)
 		add_child(_flood_node)
-		var pm := Models.mat(Color(0.24, 0.36, 0.4, 0.82), 0.06, 0.0, 0.25)
-		var rng := RandomNumberGenerator.new()
-		rng.seed = field_id * 31 + 5
-		for k in 5:
-			var pd := Models.cyl(_flood_node, 0.07, 0.07, 0.002, Color.WHITE,
-				Vector3(rng.randf_range(-0.32, 0.32), 0, rng.randf_range(-0.32, 0.32)), 14, Vector3.ZERO, pm)
-			pd.scale = Vector3(rng.randf_range(0.7, 1.6), 1.0, rng.randf_range(0.6, 1.2))
-			pd.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var rim := Models.rbox(_flood_node, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.004, 0), Vector3.ZERO,
+			Look.rim(Color(0.25, 0.55, 0.95, 0.85), (TILE - 0.03) * 0.5, 0.06, 4.0, 0.22, true))
+		rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var wm := Look.water()
+		wm.set_shader_parameter("half_size", 0.44)
+		wm.set_shader_parameter("edge_mask", Vector4.ZERO)
+		var slab := Models.rbox(_flood_node, Vector3(0.88, 0.02, 0.88), 0.01, Color.WHITE, Vector3(0, -0.04, 0), Vector3.ZERO, wm)
+		slab.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		slab.transparency = 0.35
+		var tw := slab.create_tween().set_loops()
+		tw.tween_property(slab, "position:y", TOP + 0.01, 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.tween_property(slab, "position:y", -0.04, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		var icon := _sprite("flood", 0.0022, 6)
+		icon.position = Vector3(0, 0.62, 0)
+		_flood_node.add_child(icon)
 	if _flood_node != null:
 		_flood_node.visible = on
 	if on:
@@ -1365,15 +1460,17 @@ func _update_agents(delta: float) -> void:
 		n.visible = sc > 0.01
 		var m: ShaderMaterial = a["m"]
 		var k := minf(1.0, delta * 5.0)
-		for pv in [["w", want_w, "walk"], ["g", want_g, "graze"], ["b", want_b, "bend"]]:
-			var pa: Array = pv
-			var cur := float(a[pa[0]])
-			var nv := lerpf(cur, float(pa[1]), k)
-			if absf(nv - cur) > 0.004 or (absf(nv - float(pa[1])) < 0.004 and cur != float(pa[1])):
-				if absf(nv - float(pa[1])) < 0.004:
-					nv = float(pa[1])
-				a[pa[0]] = nv
-				m.set_shader_parameter(String(pa[2]), nv)
+		# Gehen, Grasen, Bücken: nur bei Änderung an den Shader (keine Arrays je Bild)
+		for pj in 3:
+			var want: float = want_w if pj == 0 else (want_g if pj == 1 else want_b)
+			var ak: String = AGENT_KEYS[pj]
+			var cur := float(a[ak])
+			var nv := lerpf(cur, want, k)
+			if absf(nv - cur) > 0.004 or (absf(nv - want) < 0.004 and cur != want):
+				if absf(nv - want) < 0.004:
+					nv = want
+				a[ak] = nv
+				m.set_shader_parameter(AGENT_PARAMS[pj], nv)
 		var hop := float(a["hop"])
 		if hop > 0.0:
 			hop = maxf(0.0, hop - delta)
@@ -1822,8 +1919,8 @@ func _b_water(_rng: RandomNumberGenerator) -> void:
 	_water_mat = Look.water()
 	_water_mat.set_shader_parameter("half_size", 0.31)
 	_water_mat.set_shader_parameter("edge_mask", _water_mask)
-	var surf := Models.rbox(_content, Vector3(0.62, 0.006, 0.62), 0.01, Color.WHITE, Vector3(0, 0.002, 0), Vector3.ZERO, _water_mat)
-	surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_water_surf = null
+	_water_surface()
 	for ix in 4:
 		for iz in 4:
 			_water_pts.append(Vector3(-0.18 + 0.12 * float(ix), 0.005, -0.18 + 0.12 * float(iz)))

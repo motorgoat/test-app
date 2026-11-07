@@ -523,7 +523,7 @@ Teil B die Modelle neu baut.
 | A10 Kamera | Leerlauf-Drift (nach 4 s, wird beim Antippen in die Ruhelage übernommen, kein Sprung), weiches Schütteln (trauma²), Punch-in beim Verschmelzen. Drift aus bei Tour (`--shots`), Tutorial, Vorführung, Animation | `camera_rig.gd` (`poke()`, `punch()`) |
 | A11 Spiel-FX | Bodenpuls (`FieldView.pulse_light`), Lichtring (`ring.gdshader`), gestaffeltes Wachsen (`FieldView._grow_in`), Staub/Blätter beim Verschmelzen, Funken als leuchtende Punkte, Regen mit Rauschwolke, Strichen und nassem Boden (`set_wet`), Bildblitz bei Blitz und Gewitter, Rauch bei Krieg/Gewitter/Smog als Billboards | `world.gd`, `field_view.gd` |
 | A12 Hinweise | Auswahl, Hinweis, Ziel, Gefahr, Verschmelzen als weicher Rand: außen additiv (`rim.gdshader`), auf der Kachel gemischt (`rim_mix.gdshader`, sonst auf heller Wiese kaum sichtbar). Pulsieren im Shader statt in `_process` | `field_view.gd::build`, `set_target` |
-| A13 Qualität | automatisch nach den ersten 4 s (mittel: kein Pollen/Vögel; niedrig: kein Post-Blur, Schatten 2048). Die Tour bleibt auf hoch. **Offen:** Menüpunkt in `ui.gd` | `world.gd::_measure_quality`, `Look.quality` |
+| A13 Qualität | automatisch (Rev. 9: Median der Bildzeit 2–5 s nach dem Start **und nach jedem Tag-Start**; mittel: Schatten 2048 + weicher Filter niedrig, keine Figuren-Schatten, kein Pollen/Vögel; niedrig: zusätzlich keine Sonnen-Schatten, kein Glühen, keine Post-Unschärfe, kein MSAA; danach wird das Brett neu gebaut). Die Tour bleibt auf hoch. **Offen:** Menüpunkt in `ui.gd` | `world.gd::_measure_quality`, `apply_quality`, `Look.quality` |
 
 Offen aus Teil A: Kamera-Fokus bei ★-Arten, Tour-Prüfungen `CHECK perf`/`CHECK mood` (brauchen `main.gd` und die
 Liste in `.github/workflows/gdpd.yml`), Menüpunkt Qualität. Ob das Environment-Glühen in `gl_compatibility` am Handy
@@ -572,3 +572,29 @@ Figuren (Beine, Kopf), dass jedes Feld gebacken ist, dass es Tiere und Menschen 
 
 Offen aus Teil B: Kamera-Fokus bei ★-Arten und Tour-Prüfungen `CHECK perf`/`CHECK lod` (brauchen `main.gd`),
 Verbindungslinien Quelle → Menschen (6.2 in GDPD_BALANCE_2.md), Wasser-Ufer mit Schilf, Messung am Handy.
+
+---
+
+## 15. Rev. 9: Review der Grafik („dynamischer und schöner“, 7. November 2026)
+
+| Befund | Änderung | Wo |
+|---|---|---|
+| Wasser wie Badezimmer-Fliesen (jedes Feld ein Becken mit Sandrand, Fuge dazwischen) | Zu Nachbarwasser hin reicht die Fläche bis an den Rand des Würfelsteins und deckt Sandrand und Fuge zu; Sand, Flachwasser und Schaum nur an echten Ufern (`ext`/`center` im Shader). Seen statt Pfützen | `field_view.gd::_water_surface`, `water.gdshader` |
+| Laub flackert beim Drehen (Zufall aus `NODE_POSITION_WORLD`) | Zufall je Pflanze im gebackenen Mesh (`UV2.x`), sonst Raster im Objektraum; nie mehr aus der Weltlage | `foliage.gdshader`, `field_view.gd::_merge_items` |
+| Schattenseiten fast schwarz, Fugen wie schwarze Filmstreifen | Füll-Licht 0,55–0,60 → 0,78–0,85, Umgebung 0,83 → 0,92–0,97, Schatten-Deckkraft 0,85 → 0,7; Würfelkörper warmer, mittelheller Boden statt schwarzer Fels, kein feines Rauschen | `world.gd::MOODS`, `camera_rig.gd`, `bedrock.gdshader` |
+| Flut-Gefahr unsichtbar, Blitz am Rand | Flut wie die Kriegsfront, nur blau: pulsierender Rand, steigender Wasserspiegel, Flut-Zeichen. Kamera dreht zu Flut-Seite, Blitz-Feld, Hunger, Wachsen und neu Sattem, wenn es nicht im Bild ist | `field_view.gd::_set_flood_risk`, `world.gd::_focus_round8` |
+| Stille Reihen sahen nach Erfolg aus (Gold + grüner Haken unter „Schon gewachsen“) | neutraler grauer Rand (`set_still`), Schloss für „schon gewachsen“ / „stand schon so“; Haken nur für fertige Felder | `field_view.gd`, `world.gd::STILL_BADGE` |
+| Bedürfnis-Symbole ~2 mm, Fehlendes am blassesten | Scheiben 0,0032 (statt 0,0019); was fehlt: rot mit hellem Zeichen, was da ist: leise; Vorschau-Pfeil 0,004 mit kurzem Hüpfer | `field_view.gd::_set_needs`, `set_supply` |
+| Tilt-Shift macht die untere Reihe unscharf | Schärfe-Band aus den 8 projizierten Würfelecken (+ 0,03), Unschärfe 0,004 × Breite: nur Hintergrund und Überstehendes | `world.gd::_update_post` |
+| Häuser von der Seite wie rote Grabsteine | Hütte und Wohnhaus niedriger und breiter (Grundriss ~1,3 : 1), helles Holz/Putz unter dunklem, weit überstehendem Ziegeldach, ein helles Fenster | `models.gd::_cabin`, `_house`, `TILE_C`, `LOGS`, `LIT_C` |
+
+Leistung (Rev. 9):
+
+- Back-Cache begrenzt (LRU, 64 Anordnungen; vorher wuchs er auf 300+ und hielt >100 MB). `test_models` prüft die
+  Grenze.
+- Gebackene Meshes sind indiziert (jede Ecke einmal, Indizes mit Versatz) statt aufgefaltet: etwa ⅓ der Ecken.
+- Figuren: Parameter-Tabelle als Konstante (keine Arrays je Figur und Bild); Figuren-Schatten nur auf „hoch“.
+- `project.godot`: Schattenkarte am Handy 2048 mit weichem Filter 1 (`.mobile`).
+- Der Tipp rechnet im Hintergrund (`WorkerThreadPool`), der Knopf pulsiert solange.
+
+Offen: MultiMesh je Tierart (Instanz-Daten statt eines Materials je Figur), Messung am echten Handy.

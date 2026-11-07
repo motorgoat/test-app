@@ -7,23 +7,35 @@ Godot 4.3, GDScript, Renderer „Compatibility“. Hochformat, Handy zuerst; PC-
 
 ## Die Schöpfung in 7 Tagen
 
-So beginnt das Spiel: Jeder Tag ist ein Level mit **einer** Aufgabe (oben immer zu sehen, z. B. „Tiere 1/3“),
-begrenzten Drehungen und 1–3 Sternen (weniger Drehungen = mehr Sterne). Jeden Tag kommt genau **eine** neue Sache dazu.
+So beginnt das Spiel: Jeder Tag ist ein Level mit **einer** Aufgabe (oben immer zu sehen, z. B. „Hütten satt 1/3“
+mit den Symbolen dessen, was verbunden werden muss), begrenzten Drehungen und 1–3 Sternen (weniger Drehungen = mehr
+Sterne). Jeden Tag kommt genau **eine** neue Sache dazu. Leitsatz: *Zuerst schützt du die Menschen vor der Natur,
+später die Natur vor den Menschen.*
 
-| Tag | Titel | Aufgabe | Neu |
+Zwei Arten zu wachsen:
+- **Erschaffen:** Natur wächst durch „Bring 3 gleiche in eine Reihe“ (Erde → Wiese → Wald → Tiere; 3 Tiere → Hütte).
+  Jede Reihe wächst nur einmal: eine Scheibe hin und her bringt nichts.
+- **Gedeihen:** Menschen (Hütte → Dorf → Stadt) wachsen durch ihre **Nachbarn**. Über jedem Menschen-Feld stehen die
+  Bedürfnisse (🍞 Nahrung: Tiere, Acker · 🔨 Arbeit: Wald, Stein, Industrie · 🙏 Glaube: Kirche); was fehlt, ist rot.
+  Satt 2 Runden → wächst, 4 Runden Hunger → schrumpft. Beim Drehen zeigt die Vorschau, wer satt wird (grün) und wer
+  die Versorgung verliert (rot), und der Ziel-Chip zeigt „1→2/3“.
+
+| Tag | Titel | Aufgabe (Drehungen) | Neu |
 |---|---|---|---|
-| 1 | Land | Lass 8 Wiesen wachsen (15 Drehungen) | Drehen: drei gleiche in einer Reihe wachsen (Tutorial mit Hand) |
-| 2 | Pflanzen | Lass 5 Wälder wachsen | Regen (und Feuer, wenn lange nichts wächst) |
-| 3 | Tiere | Erschaffe 3 Tiere | Leben: Wald → großer Wald → Tiere |
-| 4 | Menschen | Baue 4 Hütten | Drei Tiere in einer Reihe bringen Menschen; sie haben Wünsche |
-| 5 | Nahrung | Erfülle 3 Wünsche | Die erste Wahl: Wiese → Wald oder Acker |
-| 6 | Glaube | Sammle 150 Glauben – kein Krieg! | Kirche und Glaube; zwei Kirchen treffen sich = Krieg |
-| 7 | Ruhe | 250 Glauben, Waage grün | Industrie (Smog), danach Gewitter; die Weltwaage |
+| 1 | Land | Lass 8 Wiesen wachsen (15) | Drehen: 3 gleiche in eine Reihe (Vorführung mit Hand) |
+| 2 | Pflanzen | Lass 5 Wälder wachsen (14) | Regen |
+| 3 | Tiere | Erschaffe 4 Tiere (10) | Blitz und Feuer (die Natur ist die Gefahr), Regen löscht |
+| 4 | Menschen | Versorge 3 Hütten (14) | 3 Tiere → Hütte, Nahrung von den Nachbarn |
+| 5 | Arbeit | Mach 3 Dörfer satt (13) | Arbeit (Wald, Stein), Regen neben Hütten macht Acker |
+| 6 | Glaube | Mach 3 Städte satt (12) | Kirche; Kirche an Kirche = Krieg, der sich ausbreitet; Meteor (selten, mit Glauben) |
+| 7 | Gleichgewicht | Mach 3 Städte satt (11) | Fabriken: Smog tötet Natur daneben, zu viel Stadt auf einer Seite → Flut |
 
-Schafft man einen Tag nicht (keine Drehungen mehr, Krieg), gibt es „Nochmal“ – ohne Strafe, mit einem neuen
-Brett und +2 Drehungen. Sterne und freie Tage werden gespeichert. Nach Tag 7: „Deine Welt ist vollendet!“ –
-dann ist das **freie Spiel** offen (Einfach, Mittel, Schwer, 40 Drehungen). Weitere Pakete (Insel, Wüste, Winter)
-kommen als Daten dazu. Spec: [`docs/GDPD_7_TAGE.md`](docs/GDPD_7_TAGE.md).
+Höchstens 3 Arten wachsen an einem Tag, und am Morgen liegen höchstens 1/2/2/3/5/6/6 verschiedene Arten (ohne Wasser)
+auf dem Brett. Schafft man einen Tag nicht, gibt es „Nochmal“ – ohne Strafe, mit einem neuen Brett und +2 Drehungen.
+Nach dem Sieg kann man weiterbauen („Extra: 4 Hütten satt“). Nach Tag 7: „Deine Welt ist vollendet!“ – dann ist das
+**freie Spiel** offen (Einfach, Mittel, Schwer, 40 Drehungen). Weitere Pakete (Insel, Wüste, Winter) kommen als
+Daten dazu. Regeln, Tabellen und Prüfungen: [`docs/GDPD_BALANCE_2.md`](docs/GDPD_BALANCE_2.md) (gilt vor der
+älteren Spec [`docs/GDPD_7_TAGE.md`](docs/GDPD_7_TAGE.md)); Grafik: [`docs/GDPD_GRAFIK.md`](docs/GDPD_GRAFIK.md).
 
 ## Täglich spielen und dein eigener Charakter
 
@@ -42,7 +54,7 @@ verworfen), seltener wenn man nicht kommt, nach einer Woche eine freundliche let
 In der Test-Version gibt es „Nächster Tag (Test)“ und „Erinnerung in 10 s“.
 Spec: [`docs/GDPD_TAEGLICH_CHARAKTER.md`](docs/GDPD_TAEGLICH_CHARAKTER.md).
 
-## Die Idee
+## Die Idee (freies Spiel)
 
 Die Welt ist ein Zauberwürfel und du bist ihr Gott. Die eine Regel bleibt:
 **Dreh drei gleiche Felder in eine neue Reihe – sie wachsen.**
@@ -59,7 +71,7 @@ viel Industrie verschmutzt die Natur; fehlt Natur, wünschen sich die Menschen W
 **Glaube** ist die wichtigste Zahl und bezahlt Wunder. Kippt die Welt, kannst du strafen –
 das kostet Glauben, rettet aber die Welt. Eine einzige Waage zeigt Natur ↔ Stadt/Industrie.
 
-## Die Regeln kurz
+## Die Regeln kurz (freies Spiel; die 7 Tage siehe oben)
 
 - **Drehen:** Wisch über eine Reihe. Kommen drei gleiche Felder in eine *neue* Reihe, wachsen sie
   (Wiese → Wald → großer Wald …, Acker → Hütte → Haus → Dorf …). In Einfach wächst die ganze Gruppe mit.

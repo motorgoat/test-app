@@ -3090,9 +3090,40 @@ func _on_hint_pressed() -> void:
 
 
 ## Tipp an einem Tag (gratis): die beste Aktion für das Ziel. Eine Drehung leuchtet; hilft Regen oder Gewitter
-## mehr, ist das Werkzeug gleich gewählt.
+## mehr, ist das Werkzeug gleich gewählt. Die Suche (bis zu ~190 Simulationen) läuft auf einer Kopie im Hintergrund
+## (WorkerThreadPool), solange pulsiert der Tipp-Knopf; dreht der Spieler inzwischen, verfällt das Ergebnis.
+var _hint_job := -1
+var _hint_act: Dictionary = {}
+
+
 func _day_hint() -> void:
-	var act := Game.state.best_action()
+	if _hint_job >= 0:
+		return
+	var sim := Game.state.clone()
+	var st0 := Game.state
+	var tw0 := Game.state.twists
+	var key0 := "%d|%d" % [Game.state.rain, Game.state.faith]
+	_hint_act = {}
+	_hint_job = WorkerThreadPool.add_task(_hint_search.bind(sim), false, "gdpd Tipp")
+	var pulse := hint_btn.create_tween().set_loops()
+	pulse.tween_property(hint_btn, "modulate:a", 0.45, 0.3)
+	pulse.tween_property(hint_btn, "modulate:a", 1.0, 0.3)
+	while not WorkerThreadPool.is_task_completed(_hint_job):
+		await get_tree().process_frame
+	WorkerThreadPool.wait_for_task_completion(_hint_job)
+	_hint_job = -1
+	pulse.kill()
+	hint_btn.modulate.a = 1.0
+	if Game.state != st0 or Game.state.twists != tw0 or "%d|%d" % [Game.state.rain, Game.state.faith] != key0 or not Game.in_day():
+		return
+	_day_hint_show(_hint_act)
+
+
+func _hint_search(sim: GameState) -> void:
+	_hint_act = sim.best_action()
+
+
+func _day_hint_show(act: Dictionary) -> void:
 	var t := str(act.get("type", ""))
 	if t == "twist":
 		_hint_live = true

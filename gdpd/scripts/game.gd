@@ -34,9 +34,9 @@ signal daily_changed
 signal streak_changed(info: Dictionary)
 ## Weiterbauen hat begonnen (oder geht weiter): info = day_info().
 signal build_started(info: Dictionary)
-## „Über Nacht gewachsen“ (GDPD_BALANCE_2.md 5.6): beim ersten Start eines Tages ≥ 2 (nicht bei „Nochmal“, nicht in der
+## „Neuer Morgen“ (GDPD_BALANCE_2.md 5.6): beim ersten Start eines Tages ≥ 2 (nicht bei „Nochmal“, nicht in der
 ## Welt des Tages, nicht im Weiterbauen). info = {"type": "overnight", "day", "changes": [{"field", "from", "kind"}],
-## "caps": „Über Nacht gewachsen“, "line" („Erde wird Wiese“)}. Nur Darstellung: Die Regeln starten vom Pool-Brett.
+## "caps": „Neuer Morgen“, "line" („Erde wird Wiese“)}. Nur Darstellung: Die Regeln starten vom Pool-Brett.
 signal overnight_growth(info: Dictionary)
 ## Weiterbauen: eine Extra-Aufgabe ist geschafft ({"type": "extra", "level", "target", "max", "done", "text"}).
 signal extra_done(info: Dictionary)
@@ -122,8 +122,8 @@ var debug_day_offset := 0        # „Nächster Tag (Test)“: so viele ganze Ta
 var debug_open_all := false      # Tour: alle 7 Tage offen (nur in Test-Versionen)
 var session_start := -1          # Ortszeit, zu der diese Sitzung begann (Uhrzeit der Erinnerung)
 var wdt_key := -1                # dieser Versuch ist die Welt des Tages dieses Spieltags (-1 = ein Tag 1 … 7)
-var overnight: Dictionary = {}   # „Über Nacht gewachsen“ dieses Versuchs (overnight_growth), {} = keins
-var _retrying := false           # retry_day läuft gerade (kein „Über Nacht gewachsen“)
+var overnight: Dictionary = {}   # „Neuer Morgen“ dieses Versuchs (overnight_growth), {} = keins
+var _retrying := false           # retry_day läuft gerade (kein „Neuer Morgen“)
 var build_state: GameState = null   # Weiterbauen: die Welt, in der gerade weitergebaut wird (nur im Speicher, 2.4)
 var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner), "key" (Spieltag)}
 ## Die heute geschaffte Welt (der heutige Tag / die Welt des Tages): „Weiterbauen“ auf der Heute-Karte bringt sie
@@ -282,7 +282,7 @@ func preview(axis: int, layer: int, turns: int, row: Array = []) -> Dictionary:
 		"card_field": sim.card_field,
 		"war": war,               # Kirchen, die Krieg führen würden (gekreuzte Schwerter)
 		# Neue Tage (GDPD_BALANCE_2.md 4.6): wer wird satt, wer verliert es, Krieg/Flut/Feuer-Gefahr nach der Drehung
-		"supply": state.preview8(axis, layer, turns) if state.v8 and turns != 0 else {},
+		"supply": state.preview8(axis, layer, turns, sim) if state.v8 and turns != 0 else {},
 	}
 
 

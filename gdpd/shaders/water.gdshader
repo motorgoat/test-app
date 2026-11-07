@@ -11,10 +11,13 @@ uniform vec3 foam_c : source_color = vec3(0.86, 0.89, 0.87);
 uniform float half_size = 0.3;
 uniform float wave = 0.55;
 uniform vec4 edge_mask = vec4(1.0);
+// Ausdehnung je Seite (N/O/S/W) und Mitte der Fläche in Feld-Koordinaten (FieldView); ext.x = 0: alte, mittige Fläche
+uniform vec4 ext = vec4(0.0);
+uniform vec2 center = vec2(0.0);
 varying vec3 lp;
 void vertex() { lp = VERTEX; }
 void fragment() {
-	vec2 uv = lp.xz;
+	vec2 uv = lp.xz + center;
 	float t = TIME;
 	vec2 u1 = uv * 3.0 + vec2(t * 0.035, t * 0.021);
 	vec2 u2 = uv * 4.7 - vec2(t * 0.027, -t * 0.031);
@@ -26,11 +29,11 @@ void fragment() {
 	vec3 nrm_v = normalize(NORMAL + (VIEW_MATRIX * MODEL_MATRIX * vec4(dn, 0.0)).xyz);
 	NORMAL = nrm_v;
 	// Abstand zum Ufer: nur Seiten mit Ufer zählen
-	vec2 q = uv / half_size;
-	float dn_ = edge_mask.x > 0.5 ? -q.y : -1.0;
-	float de_ = edge_mask.y > 0.5 ? q.x : -1.0;
-	float ds_ = edge_mask.z > 0.5 ? q.y : -1.0;
-	float dw_ = edge_mask.w > 0.5 ? -q.x : -1.0;
+	vec4 ex = ext.x > 0.0 ? ext : vec4(half_size);
+	float dn_ = edge_mask.x > 0.5 ? -uv.y / ex.x : -1.0;
+	float de_ = edge_mask.y > 0.5 ? uv.x / ex.y : -1.0;
+	float ds_ = edge_mask.z > 0.5 ? uv.y / ex.z : -1.0;
+	float dw_ = edge_mask.w > 0.5 ? -uv.x / ex.w : -1.0;
 	float edge = clamp(max(max(dn_, ds_), max(de_, dw_)), 0.0, 1.0);
 	vec3 col = mix(deep, shallow, smoothstep(0.25, 1.0, edge));
 	col *= 0.92 + 0.16 * h0 * 0.5;

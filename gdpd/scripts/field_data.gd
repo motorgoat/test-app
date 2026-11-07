@@ -108,6 +108,9 @@ var burning := false              # brennt: fällt am nächsten Rundenende eine 
 var fed: int = 0
 var hungry: int = 0
 var maxlvl: int = -1
+## Glaube (7.3): höchste Stufe, für die dieses Feld schon Glauben gebracht hat (-1: noch nie). Ein Feld zahlt nur für eine
+## NEUE Stufe neben einer Kirche, Hin-und-her-Drehen bringt keinen Glauben.
+var flvl: int = -1
 ## Alter Name für kind (Oberfläche aus dem Würfelspiel). Neu: kind benutzen.
 var stage: int:
 	get:
@@ -127,6 +130,7 @@ func copy() -> FieldData:
 	f.fed = fed
 	f.hungry = hungry
 	f.maxlvl = maxlvl
+	f.flvl = flvl
 	return f
 
 

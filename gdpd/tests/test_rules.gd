@@ -2072,16 +2072,58 @@ func test_preview8() -> void:
 	var gs := GameState.new()
 	gs.setup_day(Days.config(5), b["kinds"], int(b["seed"]), 0)
 	var s0 := sig(gs)
-	var p := gs.preview8(1, 0, -1)
-	check((p["satt_new"] as Array).has(10) and sig(gs) == s0, "Tag 5 Brett 0: preview8(1, 0, −1) zeigt Feld 10 als satt, der Stand bleibt (%s)" % str(p["satt_new"]))
+	# eine Drehung, die jemanden satt macht: die Vorschau zeigt genau, wer nach der Auswertung neu satt ist
+	var found: Array = []
+	for m in GameState.MOVES:
+		var p := gs.preview8(int(m[0]), int(m[1]), int(m[2]))
+		if not (p["satt_new"] as Array).is_empty():
+			found = [m, p]
+			break
+	check(not found.is_empty() and sig(gs) == s0, "Tag 5 Brett 0: eine Drehung macht jemanden satt (Vorschau), der Stand bleibt")
+	# Vorschau = Ergebnis (auch nach 3 Tiere → Hütte, Krieg, Wachsen): über alle Drehungen der ersten Bretter der Tage 4–7
+	var miss_new := 0
+	var miss_lost := 0
+	var n_moves := 0
+	for n in range(4, 8):
+		for i in 3:
+			var bb := Days.board(n, i)
+			var g := GameState.new()
+			g.setup_day(Days.config(n), bb["kinds"], int(bb["seed"]), 0)
+			for m in GameState.MOVES:
+				var p := g.preview8(int(m[0]), int(m[1]), int(m[2]))
+				var sim := g.clone()
+				var r := twist(sim, int(m[0]), int(m[1]), int(m[2]))
+				var got_new: Array = []
+				var got_lost: Array = []
+				for e in r["events"]:
+					if str(e["type"]) == "satt_new":
+						got_new.append(int(e["field"]))
+					elif str(e["type"]) == "satt_lost" and FieldData.level8((sim.fields[int(e["field"])] as FieldData).kind) <= FieldData.level8((g.fields[int(e["field"])] as FieldData).kind):
+						got_lost.append(int(e["field"]))
+				got_new.sort()
+				got_lost.sort()
+				n_moves += 1
+				if got_new != (p["satt_new"] as Array):
+					miss_new += 1
+				if got_lost != (p["satt_lost"] as Array):
+					miss_lost += 1
+	check(miss_new == 0 and miss_lost == 0, "Vorschau satt/verliert = was die Drehung wirklich macht (%d Drehungen, %d/%d abweichend)" % [n_moves, miss_new, miss_lost])
 	var b6 := Days.board(6, 0)
 	var g6 := GameState.new()
 	g6.setup_day(Days.config(6), b6["kinds"], int(b6["seed"]), 0)
-	check(bool(g6.preview8(0, -1, 1)["war_risk"]) and bool(g6.preview8(0, 0, -1)["war_risk"]), "Tag 6 Brett 0: [0, −1, 1] und [0, 0, −1] würden Krieg bringen")
+	var war_moves := 0
+	for m in GameState.MOVES:
+		if bool(g6.preview8(int(m[0]), int(m[1]), int(m[2]))["war_risk"]):
+			war_moves += 1
+	check(war_moves >= 1, "Tag 6 Brett 0: mindestens eine Drehung würde Krieg bringen (%d)" % war_moves)
 	var b7 := Days.board(7, 0)
 	var g7 := GameState.new()
 	g7.setup_day(Days.config(7), b7["kinds"], int(b7["seed"]), 0)
-	check(g7.city_weight8(3) == 7, "Tag 7 Brett 0: Seite 3 hat Gewicht 7 (%d)" % g7.city_weight8(3))
+	var flood_moves := 0
+	for m in GameState.MOVES:
+		if not (g7.preview8(int(m[0]), int(m[1]), int(m[2]))["flood_risk"] as Array).is_empty():
+			flood_moves += 1
+	check(flood_moves >= 1, "Tag 7 Brett 0: mindestens eine Drehung bringt eine Seite mit zu viel Stadt (%d)" % flood_moves)
 
 
 ## Weiterbauen nach dem Sieg: die Extra-Aufgabe (Aufgabe + 1 …), Tage 1–3 drei, Tage 4–7 eine.
@@ -2091,8 +2133,8 @@ func test_extras() -> void:
 	gs.day_won_at = 6
 	gs.start_free_build()
 	var st := gs.day_status()
-	check(str(st["extra_text"]) == "Extra: Versorge 4 Hütten" and int(st["extra_max"]) == 1 and int(st["extra_target"]) == 4,
-		"Tag 4 im Weiterbauen: „Extra: Versorge 4 Hütten“ (%s)" % str(st["extra_text"]))
+	check(str(st["extra_text"]) == "Extra: 4 Hütten satt" and int(st["extra_max"]) == 1 and int(st["extra_target"]) == 4,
+		"Tag 4 im Weiterbauen: „Extra: 4 Hütten satt“ (%s)" % str(st["extra_text"]))
 	var spots := [[-1, -1], [1, -1], [-1, 1], [1, 1]]
 	for sp in spots:
 		top(gs, int(sp[0]), int(sp[1])).kind = HUT
@@ -2102,10 +2144,10 @@ func test_extras() -> void:
 	check(gs.goal_progress() == 4 and _has_event(r, "extra") and gs.extra_level == 1 and str(gs.day_status()["extra_text"]) == "Bau weiter",
 		"vier Hütten satt: Extra geschafft, dann „Bau weiter“")
 	check(day_state(2).extra_max() == 3 and empty_state().extra_max() == 0, "Tage 1–3: drei Extras; freies Spiel keine")
-	check(Days.extra_line(Days.config(1), 9) == "Extra: Lass 9 Wiesen wachsen", "Extra-Text Tag 1")
+	check(Days.extra_line(Days.config(1), 9) == "Extra: 9 Wiesen", "Extra-Text Tag 1 (kurz für den Chip)")
 
 
-## Über Nacht gewachsen (5.6): welche Felder des Bretts aus der niedrigeren Art kommen.
+## Neuer Morgen (5.6): ein paar Felder des Bretts (höchstens Days.OVERNIGHT_MAX) wachsen aus der niedrigeren Art herauf.
 func test_overnight() -> void:
 	check(Days.overnight_changes(Days.config(1), Days.board(1, 0)["kinds"]).is_empty(), "Tag 1: nichts über Nacht")
 	for n in range(2, 8):
@@ -2117,11 +2159,11 @@ func test_overnight() -> void:
 		for k in ks:
 			if int(k) == int(pair[1]):
 				want += 1
-		var ok := ch.size() == want and want > 0
+		var ok := ch.size() == mini(want, Days.OVERNIGHT_MAX) and want > 0
 		for c in ch:
 			if int((c as Dictionary)["from"]) != int(pair[0]) or int(ks[int((c as Dictionary)["field"])]) != int(pair[1]):
 				ok = false
-		check(ok and str(cfg.get("overnight_line", "")) != "", "Tag %d: %d Felder über Nacht gewachsen (%s)" % [n, ch.size(), str(cfg.get("overnight_line", ""))])
+		check(ok and str(cfg.get("overnight_line", "")) != "", "Tag %d: %d Felder wachsen am neuen Morgen (%s)" % [n, ch.size(), str(cfg.get("overnight_line", ""))])
 
 
 ## Arten, die auf diesem Brett heute wachsen können: Reihen-Arten mit ≥ 3 Feldern und Menschen unter der heutigen Stufe.
@@ -2240,8 +2282,8 @@ func test_day_table() -> void:
 		r.sort()
 		rows.append(r)
 		tops.append(int(c["top"]))
-	check(limits == [15, 14, 8, 14, 13, 14, 11], "Drehungen je Tag (%s)" % str(limits))
-	check(stars == [[4, 6], [5, 7], [4, 6], [6, 9], [4, 7], [4, 7], [4, 7]], "Sterne je Tag (%s)" % str(stars))
+	check(limits == [15, 14, 10, 14, 13, 12, 11], "Drehungen je Tag (%s)" % str(limits))
+	check(stars == [[4, 6], [5, 7], [4, 6], [6, 9], [4, 7], [4, 6], [4, 6]], "Sterne je Tag (%s)" % str(stars))
 	check(goals == [["make", [MEADOW], 8], ["make", [FOREST], 5], ["make", [ANIMALS], 4], ["satt", [HUT], 3], ["satt", [VILLAGE], 3],
 		["satt", [TOWN], 3], ["satt", [TOWN], 3]], "Ziele je Tag (%s)" % str(goals))
 	check(lines == ["Lass 8 Wiesen wachsen", "Lass 5 Wälder wachsen", "Erschaffe 4 Tiere", "Versorge 3 Hütten", "Mach 3 Dörfer satt",
@@ -2274,9 +2316,9 @@ func test_day_table() -> void:
 func test_day_boards() -> void:
 	var comp := {
 		1: {E: 22}, 2: {MEADOW: 10, E: 16}, 3: {MEADOW: 18, FOREST: 7}, 4: {FOREST: 10, ANIMALS: 13, MEADOW: 2},
-		5: {HUT: 4, FOREST: 4, ANIMALS: 3, FIELD: 2, STONE: 2, MEADOW: 6},
-		6: {VILLAGE: 6, HUT: 3, CHURCH: 3, FOREST: 7, ANIMALS: 5, FIELD: 4, STONE: 3, MEADOW: 3},
-		7: {TOWN: 3, VILLAGE: 5, CHURCH: 3, INDUSTRY: 1, FOREST: 8, ANIMALS: 4, FIELD: 4, STONE: 3, MEADOW: 3},
+		5: {HUT: 5, FOREST: 7, ANIMALS: 5, STONE: 3, MEADOW: 7},
+		6: {VILLAGE: 8, CHURCH: 3, FOREST: 7, ANIMALS: 5, FIELD: 4, STONE: 3},
+		7: {TOWN: 5, CHURCH: 3, INDUSTRY: 2, FOREST: 9, ANIMALS: 5, FIELD: 4},
 	}
 	var bad_len := 0
 	var bad_comp := 0
@@ -2287,10 +2329,13 @@ func test_day_boards() -> void:
 	var one_twist := 0
 	var max_kinds: Array = []
 	var bad_kinds := 0
+	var max_vis: Array = []
+	var bad_vis := 0
 	for n in range(1, 8):
 		var cfg := Days.config(n)
 		check(Days.pool_size(n) == 20, "Tag %d: 20 Bretter im Pool" % n)
 		var mk := 0
+		var mv := 0
 		for i in Days.pool_size(n):
 			var b := Days.board(n, i)
 			var ks: Array = b["kinds"]
@@ -2326,7 +2371,13 @@ func test_day_boards() -> void:
 			mk = maxi(mk, gk.size())
 			if gk.size() > 3:
 				bad_kinds += 1
+			# sichtbare Arten (ohne Wasser): nicht zu viele verschiedene Felder auf einmal (GDPD_BALANCE_2.md 5.1)
+			var vis := Days.visible_kinds(ks)
+			mv = maxi(mv, vis)
+			if vis > int(Days.VISIBLE_MAX[n]):
+				bad_vis += 1
 		max_kinds.append(mk)
+		max_vis.append(mv)
 	check(bad_len == 0, "Bretter: 54 Zeichen")
 	check(bad_comp == 0, "Bretter: Zusammensetzung wie in der Spec (%d falsch)" % bad_comp)
 	check(bad_ready == 0, "Bretter: keine fertige Reihe einer Art, die heute wächst (%d)" % bad_ready)
@@ -2334,7 +2385,8 @@ func test_day_boards() -> void:
 	check(bad_satt == 0, "Bretter: am Morgen ist niemand satt (%d)" % bad_satt)
 	check(pre_solved == 0, "Bretter: kein Fortschritt bei Drehung 0")
 	check(one_twist == 0, "Bretter: keine einzelne Drehung gewinnt (%d)" % one_twist)
-	check(bad_kinds == 0 and max_kinds == [1, 2, 2, 2, 3, 3, 2], "höchstens 3 Arten wachsen heute (je Tag höchstens %s)" % str(max_kinds))
+	check(bad_kinds == 0 and max_kinds == [1, 2, 2, 2, 3, 2, 1], "höchstens 3 Arten wachsen heute (je Tag höchstens %s)" % str(max_kinds))
+	check(bad_vis == 0, "sichtbare Arten je Brett (ohne Wasser) höchstens %s (je Tag höchstens %s)" % [str(Days.VISIBLE_MAX.values()), str(max_vis)])
 
 
 ## Die Lösungen aus dem Python-Modell spielen sich hier genauso (der Abgleich Modell ↔ GDScript).
@@ -2509,7 +2561,27 @@ func test_day_toggles() -> void:
 	top(g6, 1, 0).kind = HUT
 	top(g6, -1, 0).kind = VILLAGE
 	var r6 := twist(g6, 1, -1, 1)
-	check(int(r6["income"]) == 2 and g6.faith == 2, "Tag 6: +1 Glaube je Menschen-Feld neben einer Kirche (%d)" % g6.faith)
+	check(int(r6["income"]) == 2 * GameState.FAITH_STEP and g6.faith == 2 * GameState.FAITH_STEP,
+		"Tag 6: +%d Glaube je Menschen-Feld, das neu neben einer Kirche steht (%d)" % [GameState.FAITH_STEP, g6.faith])
+	var r6b := twist(g6, 1, -1, -1)
+	var r6c := twist(g6, 1, -1, 1)
+	check(int(r6b["income"]) == 0 and int(r6c["income"]) == 0 and g6.faith == 2 * GameState.FAITH_STEP,
+		"Tag 6: hin und her bringt keinen Glauben mehr (dieselbe Stufe zahlt nur einmal)")
+	# Meteor-Farmen: auf keinem Tag-6-Brett reicht eine Scheibe hin und her in 6 Drehungen für einen Meteor
+	var farm_meteor := 0
+	for i in Days.pool_size(6):
+		var b6 := Days.board(6, i)
+		for m in GameState.MOVES:
+			var gf := GameState.new()
+			gf.setup_day(Days.config(6), b6["kinds"], int(b6["seed"]), 0)
+			for t in 6:
+				var tt: int = int(m[2]) if t % 2 == 0 else (-int(m[2]) if absi(int(m[2])) == 1 else 2)
+				twist(gf, int(m[0]), int(m[1]), tt)
+				if gf.is_over():
+					break
+			if gf.faith >= GameState.METEOR_COST:
+				farm_meteor += 1
+	check(farm_meteor == 0, "Tag 6: hin und her erspielt in 6 Drehungen keinen Meteor (%d Fälle)" % farm_meteor)
 	var g5i := day_state(5)
 	top(g5i, 0, 0).kind = CHURCH
 	top(g5i, 1, 0).kind = HUT
@@ -2557,14 +2629,14 @@ func test_day_save() -> void:
 	check(g.next_day() and g.day_no == 2 and g.state.day_limit == 14, "Weiter zu Tag 2")
 	check(nights.size() == 1 and str(nights[0]["type"]) == "overnight" and not (nights[0]["changes"] as Array).is_empty()
 		and str(nights[0]["line"]) == "Erde wird Wiese" and not (g.day_info()["overnight"] as Dictionary).is_empty(),
-		"Tag 2 startet mit „Über Nacht gewachsen“ (overnight-Ereignis, %d Felder)" % ((nights[0]["changes"] as Array).size() if not nights.is_empty() else 0))
+		"Tag 2 startet mit „Neuer Morgen“ (overnight-Ereignis, %d Felder)" % ((nights[0]["changes"] as Array).size() if not nights.is_empty() else 0))
 	g.state.twists = g.state.day_limit - 1
 	g.state.rain = 0
 	var res: Dictionary = g.state.play({"type": "twist", "axis": 1, "layer": 1, "turns": 2}, {})
 	g.finish_round(res)
 	check(lost.size() == 1 and str(lost[0]["why"]) == "twists" and int(lost[0]["mercy_next"]) == 2 and int(g.day_fails[1]) == 1, "Tag 2 gescheitert: +2 Drehungen beim nächsten Versuch (%s)" % str(lost))
 	check(g.retry_day() and g.state.day_limit == 16 and int(g.day_board["index"]) == 1, "Nochmal: nächstes Brett, 16 Drehungen")
-	check(nights.size() == 1 and (g.day_info()["overnight"] as Dictionary).is_empty(), "„Nochmal“: kein „Über Nacht gewachsen“")
+	check(nights.size() == 1 and (g.day_info()["overnight"] as Dictionary).is_empty(), "„Nochmal“: kein „Neuer Morgen“")
 	_replay_in_game(g)
 	check(won.size() == 2 and int(g.day_fails[1]) == 0 and g.next_new_day() == 3 and not g.day_unlocked(3), "Sieg setzt die Gnade zurück, Tag 3 erst morgen")
 	# Rundreise: speichern → laden

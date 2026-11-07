@@ -411,6 +411,15 @@ func _process(delta: float) -> bool:
 			if not found:
 				_fail("keine Tiere/Menschen: " + FieldView.KIND_KEY[k])
 		print("Agenten: %d" % agents)
+		# Back-Cache begrenzt (alle Arten × Varianten × Drehungen × Zustände würden sonst 300+ Meshes halten)
+		if FieldView.bake_cache_size() > FieldView.BAKE_CACHE_MAX:
+			_fail("Back-Cache zu groß: %d" % FieldView.bake_cache_size())
+		for ci in 300:
+			FieldView._cache_store("probe|%d" % ci, [])
+		if FieldView.bake_cache_size() != FieldView.BAKE_CACHE_MAX or not FieldView.bake_cache_has("probe|299") or FieldView.bake_cache_has("probe|0"):
+			_fail("Back-Cache LRU: %d Einträge" % FieldView.bake_cache_size())
+		else:
+			print("Back-Cache: höchstens %d Einträge" % FieldView.BAKE_CACHE_MAX)
 		if not _char_done:
 			_fail("Charakter-Test abgebrochen")
 		if _errors == 0:

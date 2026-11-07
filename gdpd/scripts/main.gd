@@ -253,7 +253,7 @@ func _days_tour(dir: String) -> void:
 	# Weiterbauen: kein Drehungs-Limit, kein Scheitern – die Welt wächst weiter (3 echte Drehungen)
 	var gs1 := Game.state
 	var g0 := gs1.build_growth()
-	# Die Aufgabe bleibt sichtbar: als Extra-Aufgabe („Extra: Lass 9 Wiesen wachsen“, GDPD_BALANCE_2.md 6.3)
+	# Die Aufgabe bleibt sichtbar: als Extra-Aufgabe („Extra: 9 Wiesen“, GDPD_BALANCE_2.md 6.3)
 	var chip_build := dui.chip.visible and dui.grow_box.visible and not dui.ring.visible \
 		and dui.chip_caps.text == Days.extra_line(Game.state.day, Game.state.extra_target())
 	for i in 3:
@@ -356,14 +356,16 @@ func _days_tour(dir: String) -> void:
 	Game.round_resolved.connect(_on_tour_round)
 	await _no_farming_check(dir)
 	var kinds_log: Array = []
+	var vis_log: Array = []           # [Tag, verschiedene Arten ohne Wasser] (nicht zu viele auf einmal)
 	var chip_log: Array = []
-	# 6. Tag 3 (neuer Tag aus der Übersicht): „Über Nacht gewachsen“ (Erde wird Wiese), dann die Blitz-Warnung
+	# 6. Tag 3 (neuer Tag aus der Übersicht): „Neuer Morgen“ (Erde wird Wiese), dann die Blitz-Warnung
 	var night3: Array = []
 	var night_cb := func(info): night3.append(info)
 	Game.overnight_growth.connect(night_cb)
 	Game.start_day(3, 0)
 	Game.overnight_growth.disconnect(night_cb)
 	kinds_log.append(_growable(Game.state))
+	vis_log.append([Game.day_no, Days.visible_kinds(_kinds_of(Game.state))])
 	await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.9)
 	await _shot(dir, "00i_tag3_ziel")
@@ -384,23 +386,35 @@ func _days_tour(dir: String) -> void:
 		var cfid := int((c as Dictionary)["field"])
 		if (world.views[cfid] as FieldView).get_kind() != (Game.state.fields[cfid] as FieldData).kind:
 			wave_ok = false
-	_check(night_pill and wave_ok and ch3.size() == Game.state.count(FieldData.MEADOW) and not ch3.is_empty() and int((ch3[0] as Dictionary)["from"]) == FieldData.EMPTY,
+	_check(night_pill and wave_ok and ch3.size() == mini(Days.OVERNIGHT_MAX, Game.state.count(FieldData.MEADOW)) and not ch3.is_empty() and int((ch3[0] as Dictionary)["from"]) == FieldData.EMPTY,
 		"overnight_growth", "pille=%s welle=%d/%d wiesen=%d" % [str(night_pill), world.night_waved, ch3.size(), Game.state.count(FieldData.MEADOW)])
 	chip_log.append(_chip_ok(3))
 	world.focus_place(Vector3i(0, 1, 0))
 	_round_types = {}
 	await _swipe_move(0, 1, 1)
 	await _settle(8.0)
-	var warn3 := Game.state.bolt == 47 and (Game.state.fields[47] as FieldData).kind == FieldData.FOREST
+	var bolt3 := Game.state.bolt
+	var warn3 := bolt3 >= 0 and GameState.BOLT_KINDS8.has((Game.state.fields[bolt3] as FieldData).kind)
 	var warn_pill := _seen_type("bolt_warn")
 	await _shot(dir, "00i3_tag3_blitz")
+	# die nächste Drehung, nach der der Blitz wirklich einschlägt (das Feld bleibt Wald/Tiere)
+	var bm := [1, -1, 1]
+	for m in GameState.MOVES:
+		var r3: Dictionary = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))
+		var hit := false
+		for e in (r3.get("result", {}) as Dictionary).get("events", []):
+			if str((e as Dictionary).get("type", "")) == "bolt":
+				hit = true
+		if hit:
+			bm = m
+			break
 	_round_types = {}
-	await _swipe_move(1, -1, 1)
+	await _swipe_move(int(bm[0]), int(bm[1]), int(bm[2]))
 	await _settle(8.0)
-	var burns3 := (Game.state.fields[47] as FieldData).burning or _seen_type("bolt")
+	var burns3 := (bolt3 >= 0 and (Game.state.fields[bolt3] as FieldData).burning) or _seen_type("bolt")
 	await _shot(dir, "00i4_tag3_feuer")
-	_check(warn3 and warn_pill and burns3, "bolt_warn", "blitz=%d warnung=%s brennt=%s" % [Game.state.bolt, str(warn_pill), str(burns3)])
-	# … dann bringt die letzte Drehung nichts → gescheitert, „Nochmal“ mit +2 Drehungen (ohne „Über Nacht“)
+	_check(warn3 and warn_pill and burns3, "bolt_warn", "blitz=%d warnung=%s brennt=%s" % [bolt3, str(warn_pill), str(burns3)])
+	# … dann bringt die letzte Drehung nichts → gescheitert, „Nochmal“ mit +2 Drehungen (ohne „Neuer Morgen“)
 	Game.state.day_limit = Game.state.twists + 1      # nur noch eine Drehung
 	Game.state_changed.emit()
 	await _wait(0.4)
@@ -423,6 +437,7 @@ func _days_tour(dir: String) -> void:
 	# die Hütte ist satt (neben anderen Tieren). Dann die ganze Lösung: geschafft → Weiterbauen mit der Extra-Aufgabe
 	Game.start_day(4, 0)
 	kinds_log.append(_growable(Game.state))
+	vis_log.append([Game.day_no, Days.visible_kinds(_kinds_of(Game.state))])
 	await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00k_tag4_ziel")
@@ -457,24 +472,29 @@ func _days_tour(dir: String) -> void:
 	await _wait(0.6)
 	await _shot(dir, "00k3_tag4_extra")
 	var extra_txt := dui.chip_caps.text
-	_check(won4 and wc4 and Game.in_day() and Game.day_no == 4 and Game.state.day_free_build and Game.state.twists_left() == -1 and extra_txt == "Extra: Versorge 4 Hütten"
+	_check(won4 and wc4 and Game.in_day() and Game.day_no == 4 and Game.state.day_free_build and Game.state.twists_left() == -1 and extra_txt == "Extra: 4 Hütten satt"
 		and dui.chip.visible, "extra_task", "gewonnen=%s knopf=%s chip=%s" % [str(won4), dui.wc_next.text, extra_txt])
-	# 8. Tag 5 Brett 0: Arbeit. Beim Ziehen von [1, 0, −1] zeigt die Vorschau Feld 10 als satt; nach dem Loslassen ist es satt
+	# 8. Tag 5 Brett 0: Arbeit. Beim Ziehen einer Drehung zeigt die Vorschau ein Feld als satt (grüner Rand, Chip „0→1“);
+	# nach dem Loslassen ist es satt
 	Game.start_day(5, 0)
 	kinds_log.append(_growable(Game.state))
+	vis_log.append([Game.day_no, Days.visible_kinds(_kinds_of(Game.state))])
 	await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00l_tag5_ziel")
 	await _tap(dui.gc_go)
 	await _wait(4.4)
 	chip_log.append(_chip_ok(5))
-	var pv: Dictionary = Game.preview(1, 0, -1)
+	var sm := await _pick_supply_move()
+	var mv5: Array = sm.get("move", [1, 0, -1])
+	var f10 := int(sm.get("field", -1))
+	var pv: Dictionary = Game.preview(int(mv5[0]), int(mv5[1]), int(mv5[2]))
 	var sup: Dictionary = pv.get("supply", {})
-	var pre10 := (sup.get("satt_new", []) as Array).has(10)
+	var pre10 := f10 >= 0 and (sup.get("satt_new", []) as Array).has(f10)
 	_round_types = {}
-	# Echte Eingabe: Finger zieht die Scheibe und bleibt liegen → Feld 10 bekommt den grünen Rand (wird satt)
-	var held := await _drag_hold(1, 0, -1)
-	var mark10 := (world.views[10] as FieldView).supply_mode() == 1
+	# Echte Eingabe: Finger zieht die Scheibe und bleibt liegen → das Feld bekommt den grünen Rand (wird satt)
+	var held := await _drag_hold(int(mv5[0]), int(mv5[1]), int(mv5[2]))
+	var mark10 := f10 >= 0 and (world.views[f10] as FieldView).supply_mode() == 1
 	var marks := 0
 	for fid in world.views:
 		if (world.views[fid] as FieldView).supply_mode() != 0:
@@ -487,33 +507,41 @@ func _days_tour(dir: String) -> void:
 		if (world.views[fid] as FieldView).supply_mode() != 0:
 			marks_gone = false
 	_check(held and mark10 and marks == (sup.get("satt_new", []) as Array).size() + (sup.get("satt_lost", []) as Array).size() and marks_gone,
-		"supply_preview", "gehalten=%s feld10=%s marken=%d weg=%s" % [str(held), str(mark10), marks, str(marks_gone)])
+		"supply_preview", "gehalten=%s feld%d=%s marken=%d weg=%s zug=%s" % [str(held), f10, str(mark10), marks, str(marks_gone), str(mv5)])
 	await _shot(dir, "00l2_tag5_satt")
-	_check(pre10 and Game.state.satt(Game.state.fields[10]) and _seen_type("satt_new"), "thrive_preview",
-		"vorschau=%s satt=%s" % [str(sup.get("satt_new", [])), str(Game.state.satt(Game.state.fields[10]))])
-	# 9. Tag 6 Brett 0: Glaube. [0, −1, 1] würde zwei Kirchen zusammenbringen (Vorschau: Schwerter) → „Krieg droht!“;
+	_check(pre10 and Game.state.satt(Game.state.fields[f10]) and _seen_type("satt_new"), "thrive_preview",
+		"vorschau=%s satt=%s" % [str(sup.get("satt_new", [])), str(Game.state.satt(Game.state.fields[f10]) if f10 >= 0 else false)])
+	# 9. Tag 6 Brett 0: Glaube. Eine Drehung würde zwei Kirchen zusammenbringen (Vorschau: Schwerter) → „Krieg droht!“;
 	# ein Meteor (12 Glauben, Platz des Gewitters) auf eine der Kirchen trennt sie
 	Game.start_day(6, 0)
 	kinds_log.append(_growable(Game.state))
+	vis_log.append([Game.day_no, Days.visible_kinds(_kinds_of(Game.state))])
 	await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00m_tag6_ziel")
 	await _tap(dui.gc_go)
 	await _wait(4.4)
 	chip_log.append(_chip_ok(6))
-	var pv6: Dictionary = Game.preview(0, -1, 1).get("supply", {})
-	var pv6b: Dictionary = Game.preview(0, 0, -1).get("supply", {})
+	var wm6 := [0, -1, 1]
+	var war_moves := 0
+	for m in GameState.MOVES:
+		if bool((Game.preview(int(m[0]), int(m[1]), int(m[2])).get("supply", {}) as Dictionary).get("war_risk", false)):
+			if war_moves == 0:
+				wm6 = m
+			war_moves += 1
+	var pv6: Dictionary = Game.preview(int(wm6[0]), int(wm6[1]), int(wm6[2])).get("supply", {})
 	_round_types = {}
-	await _swipe_move(0, -1, 1)
+	await _swipe_move(int(wm6[0]), int(wm6[1]), int(wm6[2]))
+	await _shot_on_banner(dir, "00n_tag6_krieg", str(Days.TEXT["war_start"]), 8.0)      # die Pille „Krieg droht!“
 	await _settle(8.0)
 	var war_pill := _seen_type("war_start")
 	var ch6a: Array = Game.state.church_touch8()
 	if not ch6a.is_empty():
 		world.focus_field(int(ch6a[0]))      # die Front zeigen (roter Rand, Rauch, fliehende Menschen)
-		await _wait(1.0)
-	await _shot(dir, "00n_tag6_krieg")
-	_check(bool(pv6.get("war_risk", false)) and bool(pv6b.get("war_risk", false)) and Game.state.war_on and war_pill and Game.state.day_lost == "",
-		"war_preview", "vorschau=%s krieg=%s" % [str(pv6.get("war_risk", false)), str(Game.state.war_on)])
+		await _wait(1.2)
+	await _shot(dir, "00n2_tag6_front")
+	_check(bool(pv6.get("war_risk", false)) and war_moves >= 1 and Game.state.war_on and war_pill and Game.state.day_lost == "",
+		"war_preview", "vorschau=%s züge=%d krieg=%s" % [str(pv6.get("war_risk", false)), war_moves, str(Game.state.war_on)])
 	var ch6: Array = Game.state.church_touch8()
 	Game.state.faith = GameState.METEOR_COST
 	Game.state_changed.emit()
@@ -526,9 +554,10 @@ func _days_tour(dir: String) -> void:
 	await _shot(dir, "00o_tag6_meteor")
 	_check(strike_on and met_ok and Game.state.church_touch8().is_empty() and Game.state.faith == 0, "meteor",
 		"knopf=%s kirchen=%s" % [str(strike_on), str(Game.state.church_touch8())])
-	# 10. Tag 7 Brett 0: Seite 3 voller Städte (Gewicht 7) → nach Drehung 1 „Das Meer steigt!“
+	# 10. Tag 7 Brett 0: eine Drehung bringt zu viel Stadt auf eine Seite → „Das Meer steigt!“
 	Game.start_day(7, 0)
 	kinds_log.append(_growable(Game.state))
+	vis_log.append([Game.day_no, Days.visible_kinds(_kinds_of(Game.state))])
 	await _until_shown(dui.goal_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00p_tag7_ziel")
@@ -536,22 +565,31 @@ func _days_tour(dir: String) -> void:
 	await _wait(4.4)
 	chip_log.append(_chip_ok(7))
 	await _look_shots(dir)
-	var w7 := Game.state.city_weight8(3)
 	var fm := [0, -1, 1]
+	var fc7 := -1
 	for m in GameState.MOVES:
 		var st7: GameState = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))["state"]
-		if st7.flood_warn.has(3):
+		if not st7.flood_warn.is_empty():
 			fm = m
+			fc7 = int(st7.flood_warn.keys()[0])
 			break
 	_round_types = {}
 	await _swipe_move(int(fm[0]), int(fm[1]), int(fm[2]))
+	await _shot_on_banner(dir, "00q_tag7_flut", str(Days.TEXT["flood_warn"]), 8.0)      # die Pille „Das Meer steigt!“
 	await _settle(8.0)
 	var flood_pill := _seen_type("flood_warn")
-	world.focus_place(GameState.FACE_NORMALS[3])      # die Seite, an der das Meer steigt
-	await _wait(1.0)
-	await _shot(dir, "00q_tag7_flut")
-	_check(w7 == 7 and Game.state.flood_warn.has(3) and flood_pill, "flood_warn", "gewicht=%d warnung=%s" % [w7, str(Game.state.flood_warn.keys())])
-	_check(kinds_log.size() == 5 and _max_size(kinds_log) <= 3, "kinds_per_day", "arten=%s" % str(kinds_log))
+	if fc7 >= 0:
+		world.focus_place(GameState.FACE_NORMALS[fc7])      # die Seite, an der das Meer steigt
+	await _wait(1.2)
+	await _shot(dir, "00q2_tag7_flut_seite")
+	var w7 := Game.state.city_weight8(fc7) if fc7 >= 0 else 0
+	_check(fc7 >= 0 and w7 >= int(Game.state.day.get("flood_at", 5)) and Game.state.flood_warn.has(fc7) and flood_pill, "flood_warn",
+		"seite=%d gewicht=%d warnung=%s" % [fc7, w7, str(Game.state.flood_warn.keys())])
+	var vis_ok := vis_log.size() == 5
+	for vl in vis_log:
+		if int((vl as Array)[1]) > int(Days.VISIBLE_MAX[int((vl as Array)[0])]):
+			vis_ok = false
+	_check(kinds_log.size() == 5 and _max_size(kinds_log) <= 3 and vis_ok, "kinds_per_day", "arten=%s sichtbar=%s" % [str(kinds_log), str(vis_log)])
 	_check(chip_log.size() == 5 and not chip_log.has(false), "task_chip", "chips=%s" % str(chip_log))
 	# 11. Tag 7 schaffen (seine Lösung, echte Eingabe): Die Welt ist vollendet, das freie Spiel geht auf
 	Game.start_day(7, 0)
@@ -1622,7 +1660,7 @@ func _resting_row_check(dir: String) -> void:
 			pill = true
 			pill_text = ui.banner_caps.text + " / " + ui.banner_text.text
 		var v: FieldView = world.views.get(third.id)
-		if v != null and v._badge_name == "lock" and v._glow.visible:
+		if v != null and v._badge_name == "lock" and v.is_still_marked():
 			badge = true
 		if pill and badge:
 			break
@@ -1768,6 +1806,20 @@ func _wait(sec: float) -> void:
 	await get_tree().create_timer(sec).timeout
 
 
+## Bild, sobald die Pille mit diesem Text (Kopfzeile oder Satz) zu sehen ist; sonst nach sec Sekunden trotzdem.
+## Die Wartezeit ist echte Zeit (Software-Grafik schafft nur 2–3 Bilder je Sekunde: jedes _wait dauert mindestens ein Bild).
+func _shot_on_banner(dir: String, shot_name: String, want: String, sec: float) -> bool:
+	var t0 := Time.get_ticks_msec()
+	while float(Time.get_ticks_msec() - t0) < sec * 1000.0:
+		if ui.banner.visible and (ui.banner_caps.text == want or ui.banner_text.text == want):
+			await _wait(0.35)
+			await _shot(dir, shot_name)
+			return true
+		await _wait(0.05)
+	await _shot(dir, shot_name)
+	return false
+
+
 func _shot(dir: String, shot_name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
@@ -1847,6 +1899,29 @@ func _max_size(lists: Array) -> int:
 	for l in lists:
 		m = maxi(m, (l as Array).size())
 	return m
+
+
+func _kinds_of(gs: GameState) -> Array:
+	var out: Array = []
+	for f in gs.fields:
+		out.append((f as FieldData).kind)
+	return out
+
+
+## Tag 5: eine Drehung, die jemanden satt macht und deren Scheibe im Bild zu ziehen ist (Kamera auf das Feld).
+## {"move": [a, l, t], "field": ID} oder {}.
+func _pick_supply_move() -> Dictionary:
+	for m in GameState.MOVES:
+		var sup: Dictionary = Game.preview(int(m[0]), int(m[1]), int(m[2])).get("supply", {})
+		var sn: Array = sup.get("satt_new", [])
+		if sn.is_empty():
+			continue
+		var fid := int(sn[0])
+		world.focus_field(fid)
+		await _wait(1.2)
+		if not _swipe_candidate(int(m[0]), int(m[1]), int(m[2])).is_empty() and bool(world.field_screen(fid)["visible"]):
+			return {"move": m, "field": fid}
+	return {}
 
 
 ## Ziel-Chip sichtbar; ab Tag 4 mit den Symbolen dessen, was verbunden werden muss.
@@ -1944,6 +2019,7 @@ func _drag_release() -> void:
 ## Prüft nebenbei, dass Tiere und Menschen leben (Agenten auf ihren Feldern).
 func _look_shots(dir: String) -> void:
 	ui._coach_dismiss()
+	ui.day_ui._hide_lane(true)
 	world.focus_place(Vector3i(0, 1, 0))
 	await _wait(1.0)
 	await _shot(dir, "20_look_start")
@@ -1951,8 +2027,8 @@ func _look_shots(dir: String) -> void:
 	var life := {}
 	var used_faces := {}
 	for spec in [["21_look_wasser", [FieldData.WATER]], ["22_look_wald", [FieldData.FOREST, FieldData.BIGFOREST]],
-			["23_look_dorf", [FieldData.VILLAGE]], ["24_look_tiere", [FieldData.ANIMALS]],
-			["25_look_menschen", [FieldData.TOWN, FieldData.HUT]]]:
+			["23_look_dorf", [FieldData.VILLAGE, FieldData.TOWN]], ["24_look_tiere", [FieldData.ANIMALS]],
+			["25_look_menschen", [FieldData.TOWN, FieldData.HUT, FieldData.VILLAGE]]]:
 		var sp: Array = spec
 		var fid := _field_of(sp[1] as Array, used_faces)
 		if fid < 0:

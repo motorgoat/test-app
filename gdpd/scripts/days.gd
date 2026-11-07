@@ -52,7 +52,8 @@ const BASE = {
 ## Die 7 Tage (GDPD_BALANCE_2.md 5): eine neue Sache je Tag, höchstens 3 Arten, die heute wachsen, und jeder Tag
 ## etwas schwerer. goal: ["make", [Arten], n] (so oft wächst etwas zu dieser Art) oder ["satt", Art, n] (so viele
 ## Felder dieser Art sind am Ende einer Drehung satt). stars = [★★★ bis, ★★ bis] (Drehungen). new: das Neue des Tages
-## (Aufdecken). overnight: [[von, zu], …] – so ist die Welt „über Nacht gewachsen“ (nur die Darstellung, 5.6).
+## (Aufdecken). overnight: [[von, zu], …] – „Neuer Morgen“: ein paar Felder der neuen Welt wachsen sichtbar aus der
+## niedrigeren Art herauf (nur die Darstellung, 5.6; die Welt jedes Tages ist ein neues Pool-Brett).
 ## unlocked: was es heute geben kann (Texte „… erst ab Tag n“).
 const DAYS = [
 	{"title": "Land", "icon": "meadow",
@@ -76,7 +77,7 @@ const DAYS = [
 		"coach_tool": "Tipp Regen, dann eine Wiese."},
 	{"title": "Tiere", "icon": "animals",
 		"intro": "Heute kommen Tiere.",
-		"goal": ["make", [T], 4], "goal_icon": "animals", "goal_text": "Erschaffe 4 Tiere", "limit": 8, "stars": [4, 6],
+		"goal": ["make", [T], 4], "goal_icon": "animals", "goal_text": "Erschaffe 4 Tiere", "limit": 10, "stars": [4, 6],
 		"rows": [W, F], "rain_start": 1, "rain_every": 4, "rain_kinds": [F], "lightning": 2, "lightning_from": 1,
 		"unlocked": [W, F, T], "overnight": [[E, W]], "overnight_line": "Erde wird Wiese",
 		"new": {"key": "blitz", "icon": "lightning", "title": "Neu: Blitz", "text": "Regen löscht Feuer."},
@@ -98,7 +99,7 @@ const DAYS = [
 		"coach": ["Wald oder Stein gibt Arbeit.", "Satt? Dann wächst es.", "Regen neben Hütten: Acker."]},
 	{"title": "Glaube", "icon": "church",
 		"intro": "Die Menschen beten zu dir.",
-		"goal": ["satt", S, 3], "goal_icon": "town", "goal_text": "Mach 3 Städte satt", "limit": 14, "stars": [4, 7],
+		"goal": ["satt", S, 3], "goal_icon": "town", "goal_text": "Mach 3 Städte satt", "limit": 12, "stars": [4, 6],
 		"rule_line": "Kirche an Kirche: Krieg!",
 		"rows": [T], "top": S, "rain_start": 1, "rain_every": 5, "rain_kinds": [F], "rain_acker": true,
 		"war8": true, "meteor": true, "unlocked": [W, F, A, T, H, D, S, K, R],
@@ -107,7 +108,7 @@ const DAYS = [
 		"coach": ["Stadt braucht eine Kirche.", "Meteor bereit."]},
 	{"title": "Gleichgewicht", "icon": "balance",
 		"intro": "Schütze jetzt die Natur.",
-		"goal": ["satt", S, 3], "goal_icon": "town", "goal_text": "Mach 3 Städte satt", "limit": 11, "stars": [4, 7],
+		"goal": ["satt", S, 3], "goal_icon": "town", "goal_text": "Mach 3 Städte satt", "limit": 11, "stars": [4, 6],
 		"rule_line": "Zu viel Stadt: Flut!",
 		"rows": [T], "top": S, "rain_start": 1, "rain_every": 5, "rain_kinds": [F], "rain_acker": true,
 		"war8": true, "meteor": true, "smog8": true, "flood8": true, "unlocked": [W, F, A, T, H, D, S, K, I, R],
@@ -189,7 +190,7 @@ const TEXT = {
 	"test_next_day": "Nächster Tag (Test)",
 	"test_now": "Test: Jetzt ist %s.",
 	# GDPD_BALANCE_2.md 5.6, 6, 9
-	"overnight": "Über Nacht gewachsen",
+	"overnight": "Neuer Morgen",
 	"extra": "Extra: %s",
 	"build_on": "Bau weiter",
 	"extra_done": "Extra geschafft!",
@@ -346,8 +347,15 @@ static func goal_line(cfg: Dictionary) -> String:
 	return "Sammle %d Glauben" % n
 
 
-## Weiterbauen: die Extra-Aufgabe mit n statt der Zahl der Aufgabe („Extra: Versorge 4 Hütten“).
+## Weiterbauen: die Extra-Aufgabe mit n statt der Zahl der Aufgabe, kurz für den Chip („Extra: 11 Wiesen“,
+## „Extra: 4 Hütten satt“).
 static func extra_line(cfg: Dictionary, n: int) -> String:
+	var t := str(cfg.get("goal_type", ""))
+	var ks: Array = cfg.get("goal_kinds", [])
+	if (t == "make" or t == "satt") and not ks.is_empty():
+		var k := int(ks[0])
+		var noun := FieldData.kind_plural(k) if n != 1 else FieldData.kind_name(k)
+		return str(TEXT["extra"]) % ("%d %s%s" % [n, noun, " satt" if t == "satt" else ""])
 	var txt := goal_line(cfg)
 	var rx := RegEx.new()
 	rx.compile("\\d+")
@@ -357,16 +365,36 @@ static func extra_line(cfg: Dictionary, n: int) -> String:
 	return str(TEXT["extra"]) % txt
 
 
-## „Über Nacht gewachsen“ (5.6): Felder dieses Bretts, die über Nacht aus einer niedrigeren Art gewachsen sind.
-## [{"field", "from", "kind"}]. Leer an Tag 1 und ohne overnight-Liste.
+## „Neuer Morgen“ (5.6): höchstens OVERNIGHT_MAX Felder dieses Bretts wachsen sichtbar aus der niedrigeren Art herauf
+## (gleichmäßig über die passenden Felder verteilt). [{"field", "from", "kind"}]. Leer an Tag 1 und ohne overnight-Liste.
+const OVERNIGHT_MAX := 4
+## Höchstens so viele verschiedene Arten (ohne Wasser) liegen am Morgen auf einem Pool-Brett (Tag → Zahl,
+## GDPD_BALANCE_2.md 5.1): nicht zu viele verschiedene Felder auf einmal.
+const VISIBLE_MAX := {1: 1, 2: 2, 3: 2, 4: 3, 5: 5, 6: 6, 7: 6}
+
+
+## Verschiedene Arten (ohne Wasser) auf einem Brett.
+static func visible_kinds(kinds: Array) -> int:
+	var seen := {}
+	for k in kinds:
+		if int(k) != FieldData.WATER:
+			seen[int(k)] = true
+	return seen.size()
+
+
 static func overnight_changes(cfg: Dictionary, kinds: Array) -> Array:
-	var out: Array = []
+	var all: Array = []
 	var pairs: Array = cfg.get("overnight", [])
 	for i in kinds.size():
 		for pr in pairs:
 			if int((pr as Array)[1]) == int(kinds[i]):
-				out.append({"field": i, "from": int((pr as Array)[0]), "kind": int(kinds[i])})
+				all.append({"field": i, "from": int((pr as Array)[0]), "kind": int(kinds[i])})
 				break
+	if all.size() <= OVERNIGHT_MAX:
+		return all
+	var out: Array = []
+	for j in OVERNIGHT_MAX:
+		out.append(all[int(float(j) * float(all.size()) / float(OVERNIGHT_MAX))])
 	return out
 
 

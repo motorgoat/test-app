@@ -186,6 +186,9 @@ func setup_day(cfg: Dictionary, kinds: Array, seed_value: int = 1, extra_twists:
 		(fields[i] as FieldData).kind = int(kinds[i])
 	for f in fields:
 		f.maxlvl = FieldData.level8(f.kind)
+	# Glaube (7.3): wer am Morgen schon neben einer Kirche steht, zahlt erst für die nächste Stufe
+	for f in fields:
+		f.flvl = FieldData.level8(f.kind) if people8(f.kind) and _next_to8(f, FieldData.CHURCH) else -1
 	ever = {}
 	for f in fields:
 		ever[f.kind] = true
@@ -2793,6 +2796,8 @@ const CITY_W8 = {FieldData.VILLAGE: 1, FieldData.TOWN: 2, FieldData.INDUSTRY: 2}
 const FRESH8 := 2                 # verbrannte Felder fangen so viele Feuer-Schritte kein Feuer
 const RAIN_MAX8 := 3
 const METEOR_COST := 12
+## Glaube je neuer Stufe neben einer Kirche (ein gutes Spiel bringt etwa einen Meteor, Hin und her keinen).
+const FAITH_STEP := 3
 ## Bedürfnisse für die Oberfläche: Symbol, Name, Pille, wenn es fehlt.
 const NEED_ICON = {"food": "hunger", "work": "trade", "faith": "faith", "water": "water"}
 const NEED_NAME = {"food": "Nahrung", "work": "Arbeit", "faith": "Glaube", "water": "Wasser"}
@@ -2837,6 +2842,13 @@ func _apply_rules8(cfg: Dictionary) -> void:
 	front = {}
 	flood_warn = {}
 	extra_level = 0
+
+
+func _next_to8(f: FieldData, k: int) -> bool:
+	for g in neighbors(f):
+		if (g as FieldData).kind == k:
+			return true
+	return false
 
 
 func people8(k: int) -> bool:
@@ -3157,13 +3169,12 @@ func _end_round8(ans: Dictionary) -> Dictionary:
 			_war_step8(ev)
 		_thrive8(ev)
 		if bool(day.get("meteor", false)):
+			# nur eine NEUE Stufe neben einer Kirche bringt Glauben (zum ersten Mal Glaube oder gewachsen), je FAITH_STEP
 			for f in fields:
-				if not people8(f.kind):
+				if not people8(f.kind) or FieldData.level8(f.kind) <= f.flvl or not _next_to8(f, FieldData.CHURCH):
 					continue
-				for g in neighbors(f):
-					if (g as FieldData).kind == FieldData.CHURCH:
-						income += 1
-						break
+				f.flvl = FieldData.level8(f.kind)
+				income += FAITH_STEP
 			if income > 0:
 				faith += income
 				faith_earned += income
@@ -3369,17 +3380,24 @@ func _gives8(k: int) -> String:
 ## Vorschau beim Ziehen einer Scheibe (Vertrag 4.6): der Stand nach der Drehung, vor der Auswertung.
 ## {"satt_new", "satt_lost" (IDs), "need_met", "need_lost" ({ID: [Bedürfnisse]}), "rows" ([[a, b, c, Art]] die zählen),
 ##  "war_risk" (Kirchen würden sich berühren), "flood_risk" (Seiten mit Gewicht ≥ flood_at), "fire_risk" (IDs)}
-func preview8(axis: int, layer: int, turns: int) -> Dictionary:
+## satt_new/satt_lost kommen aus dem Stand NACH der Auswertung (post: dieselbe Drehung samt end_round, z. B. aus
+## Game.preview; ohne post rechnet preview8 sie selbst): so zählen Verschmelzen (3 Tiere → Hütte), Krieg und Wachsen mit.
+## Wer durch Wachsen eine Stufe höher kommt (und dort noch etwas braucht), verliert nichts.
+func preview8(axis: int, layer: int, turns: int, post: GameState = null) -> Dictionary:
 	var t := clone()
 	t.moved = {}
 	t._turn_open = true
 	t._broke_now = {}
 	t.apply_rotation(axis, layer, turns)
+	if post == null:
+		post = clone()
+		post.apply_rotation(axis, layer, turns)
+		post.end_round()
 	var before := {}
 	for i in satt_ids():
 		before[int(i)] = true
 	var after := {}
-	for i in t.satt_ids():
+	for i in post.satt_ids():
 		after[int(i)] = true
 	var sn: Array = []
 	var sl: Array = []
@@ -3387,7 +3405,7 @@ func preview8(axis: int, layer: int, turns: int) -> Dictionary:
 		if not before.has(i):
 			sn.append(int(i))
 	for i in before:
-		if not after.has(i):
+		if not after.has(i) and FieldData.level8((post.fields[int(i)] as FieldData).kind) <= FieldData.level8((fields[int(i)] as FieldData).kind):
 			sl.append(int(i))
 	sn.sort()
 	sl.sort()

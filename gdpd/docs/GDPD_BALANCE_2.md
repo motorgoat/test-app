@@ -246,9 +246,14 @@ twist with churches still touching: every front field falls one level (Stadt →
 `war_hit`), then the front spreads to all people next to it. Front fields are never satt. When no churches touch at
 the end of a twist: `war_end` („Frieden“), front cleared. Churches themselves are never damaged.
 
-**Meteor (days 6–7):** Glaube: +1 per people field next to a Kirche at the end of every twist. With **12 Glauben** a
+**Meteor (days 6–7):** Glaube (Rev. 9, anti-farming): a people field pays **+3 Glauben once per level** – when it
+stands next to a Kirche at the end of a twist with a level it has not been paid for yet (first time faith, or it grew
+Hütte → Dorf → Stadt). Fields already next to a church in the morning pay only after they grow (`flvl` per field,
+`FieldData.flvl` / `engine8.flvl`). Twisting one slice back and forth therefore brings nothing (before: +1 per people
+field next to a church on **every** twist, a meteor after a median of 6 back-and-forth twists). With **12 Glauben** a
 Meteor can be thrown (tool, no twist) on any non-Wasser field: it becomes Erde (crater). On a church it usually ends
-the war at the end of the next twist. One Meteor costs all the Glaube of 2–4 twists, so it is rare.
+the war at the end of the next twist. A good game earns about one meteor (good bot, faith at the win: day 6 9–15,
+day 7 3–12); back and forth on any slice never reaches 12 within 40 twists on any day-6/7 pool board.
 
 **Smog (day 7):** at the end of every twist, every Industrie lets its best nature neighbour fall one step
 (Tiere → Wald → Wiese → Erde; ties: neighbour order). Event `smog`.
@@ -270,8 +275,13 @@ round (they can form one with a later twist). Rain and Meteor are no twist: no r
 
 ### 4.6 Preview while twisting (contract)
 
-While the finger drags a slice (before release), the game computes the state **after the rotation, before the
-round** (`clone`, `apply_rotation`, no `end_round`) and compares supply:
+While the finger drags a slice (before release), the game computes the state after the rotation and compares
+supply. Rev. 9: `satt_new` / `satt_lost` come from the state **after the whole round** (the same clone
+`Game.preview` resolves: merges, 3 Tiere → Hütte, war hits, thriving), so a hut made satt by the twist is marked and a
+field that loses food because its Tiere move into a new hut is marked red; a field that grows a level and then lacks
+the next need is not a loss. The need-icon diff (`need_met`, `need_lost`) stays rotation-only. `test_preview8` checks
+preview = real events for every move on boards 0–2 of days 4–7. While dragging, the goal chip shows the change as a
+ghost value („1→2/3“ green, „2→1/3“ red), also when the field is out of view:
 
 ```
 preview(move) -> {
@@ -301,12 +311,20 @@ checks (cheap enough per drag frame; cache per move).
 | 2 Pflanzen | Wald, Regen | Wiese 10, Erde 16 | Erde, Wiese | Wald | Erde → Wiese |
 | 3 Tiere | **Blitz, Feuer** (nature is danger) | Wiese 18, Wald 7 | Wiese, Wald | Tiere | Erde → Wiese |
 | 4 Menschen | 3 Tiere → Hütte; 🍞 Nahrung | Wald 10, Tiere 13, Wiese 2 | Wald, Tiere (Wiese from consume) | Hütte | Wiesen → Wald |
-| 5 Arbeit | 🔨 Arbeit, Stein, Acker; Hütte → Dorf | Hütte 4, Wald 4, Tiere 3, Acker 2, Stein 2, Wiese 6 | Wald, Tiere, Hütte | Dorf | Tiere → Hütten |
-| 6 Glaube | 🙏 Kirche, **Krieg**, Meteor; Dorf → Stadt | Dorf 6, Hütte 3, Kirche 3, Wald 7, Tiere 5, Acker 4, Stein 3, Wiese 3 | Tiere, Hütte, Dorf | Stadt | Hütten → Dörfer |
-| 7 Gleichgewicht | **Smog, Flut** (people are danger) | Stadt 3, Dorf 5, Kirche 3, Industrie 1, Wald 8, Tiere 4, Acker 4, Stein 3, Wiese 3 | Tiere, Dorf | Stadt | Dörfer → Städte |
+| 5 Arbeit | 🔨 Arbeit, Stein, Acker (by rain); Hütte → Dorf | Hütte 5, Wald 7, Tiere 5, Stein 3, Wiese 7 | Wald, Tiere, Hütte | Dorf | Tiere → Hütten |
+| 6 Glaube | 🙏 Kirche, **Krieg**, Meteor; Dorf → Stadt | Dorf 8, Kirche 3, Wald 7, Tiere 5, Acker 4, Stein 3 | Tiere, Dorf | Stadt | Hütten → Dörfer |
+| 7 Gleichgewicht | **Smog, Flut** (people are danger) | Stadt 5, Kirche 3, Industrie 2, Wald 9, Tiere 5, Acker 4 | Tiere | Stadt | Dörfer → Städte |
 
 „Growable“ = a row kind with ≥ 3 fields on the board, or a people level below today's top. Checked on all 140 pool
-boards: max growable kinds at start = 1, 2, 2, 2, 3, 3, 2 (before: 1, 2, 4, 5, 7, 8, 9).
+boards: max growable kinds at start = 1, 2, 2, 2, 3, 2, 1 (before Rev. 8: 1, 2, 4, 5, 7, 8, 9).
+
+**Visible kinds (Rev. 9):** the user's complaint was about *different fields on screen*, not only growing ones. The
+pool boards now show at most **1, 2, 2, 3, 5, 6, 6 kinds besides Wasser** (`Days.VISIBLE_MAX`, checked in
+`test_day_boards` and in the tour check `kinds_per_day`; before: 1, 2, 2, 3, 6, 8, 9). Leftover lower kinds became
+their overnight upgrade (day 6: the 3 Hütten are Dörfer, day 7: the 5 Dörfer are Städte), inert Wiesen are gone from
+days 6–7 (day 5 keeps 7 Wiesen: rain next to huts makes the Acker), day 5 gets its Acker from rain instead of the
+start board, day 7 lost Stein (Wald and Industrie give Arbeit). Wasser fell from 61 % to 50 % of the fields on day 5
+(and 44–48 % on days 6–7), so people fields dominate the later faces.
 
 ### 5.2 Day table (config)
 
@@ -314,11 +332,14 @@ boards: max growable kinds at start = 1, 2, 2, 2, 3, 3, 2 (before: 1, 2, 4, 5, 7
 |---|---|---|---|---|---|---|---|
 | 1 | Lass 8 Wiesen wachsen | 15 | 4 | 6 | Erde | – | no rain |
 | 2 | Lass 5 Wälder wachsen | 14 | 5 | 7 | Erde, Wiese | – | Regen start 1, +1 every 6; rain makes Wiese/Wald |
-| 3 | Erschaffe 4 Tiere | 8 | 4 | 6 | Wiese, Wald | – | Regen 1, every 4; Blitz E 2, F 1 |
+| 3 | Erschaffe 4 Tiere | 10 | 4 | 6 | Wiese, Wald | – | Regen 1, every 4; Blitz E 2, F 1 |
 | 4 | Versorge 3 Hütten | 14 | 6 | 9 | Wiese, Wald, Tiere | Hütte | Regen 1, every 5; Blitz E 4, F 3; needs Hütte 🍞 |
 | 5 | Mach 3 Dörfer satt | 13 | 4 | 7 | Wald, Tiere | Dorf | as 4 + rain Acker; needs Hütte 🍞, Dorf 🍞🔨 |
-| 6 | Mach 3 Städte satt | 14 | 4 | 7 | Tiere | Stadt | Regen 1, every 5, rain Acker; Krieg; Meteor; + Stadt 🍞🔨🙏 |
-| 7 | Mach 3 Städte satt | 11 | 4 | 7 | Tiere | Stadt | as 6 + Smog + Flut |
+| 6 | Mach 3 Städte satt | 12 | 4 | 6 | Tiere | Stadt | Regen 1, every 5, rain Acker; Krieg; Meteor; + Stadt 🍞🔨🙏 |
+| 7 | Mach 3 Städte satt | 11 | 4 | 6 | Tiere | Stadt | as 6 + Smog + Flut |
+
+Rev. 9: day 3 had only 8 twists (a spike: the hint never got ★★★, the weak bot 0/6 against 4/6 on day 2); now 10.
+Day 6 was easier than day 5 (hint ★★★ 2/6 against 0/6); now 12 twists and ★★ ≤ 6, day 7 ★★ ≤ 6 too.
 
 Config keys (new, per day, in `Days`): `rows`, `next8`, `consume`, `top`, `needs`, `lightning`, `lightning_from`,
 `war8`, `meteor`, `smog8`, `flood8`, `rain_acker`, `rain_kinds`, `grow_after` (2), `shrink_after` (4),
@@ -327,10 +348,10 @@ Config keys (new, per day, in `Days`): `rows`, `next8`, `consume`, `top`, `needs
 
 ### 5.3 What makes each day harder than the one before
 
-- 2: two steps from Erde to Wald, rain as a tool. 3: fire every 2 twists, only 8 twists, 4 Tiere.
+- 2: two steps from Erde to Wald, rain as a tool. 3: fire every 2 twists, 10 twists, 4 Tiere.
 - 4: first Gedeihen task; every Hütte costs 3 Tiere and must end next to other Tiere; fire can burn huts.
 - 5: two needs; huts must first grow (2 satt twists), then the Dorf needs Arbeit too; sources are scarce
-  (2 Acker, 3 Tiere); rain makes Acker only next to people.
+  (no Acker in the morning, 5 Tiere); rain makes Acker only next to people.
 - 6: three needs, 3 churches that must not touch (war spreads), a city needs 2 satt twists as a Dorf first.
 - 7: same goal with only 11 twists, cities crowd a face (flood), Industrie kills nature next to it (smog).
 
@@ -362,25 +383,29 @@ best of its 3 moves each twist (good-bot value) with rain, best of 9 slices.
 - 20 boards per day, placed by sticker type (½ corners, 40 % edges, 10 % centres per kind), start rules of 4.3,
   ≤ 3 growable kinds, day 1 board 0 = tutorial (slice x = 1 makes an Erde row), the good bot wins in 3 (days 4–7: 4)
   … limit − 2 twists, no single twist wins, and **farm-proof**: `pp`, `cyc` and `slice` never win the board.
-- Rejected while building: day 1: 3 farm, 1 bot; day 2: 1 farm; day 3: 5 bot, 1 farm; day 4: 5 bot, 2 farm;
-  day 5: 25 bot; day 6: 3 bot; day 7: 21 bot.
-- On the pools: good 100 % every day; greedy 95 / 95 / 30 / 50 / 15 / 45 / 25 %; weak 90 / 60 / 5 / 0 / 0 / 0 / 0 %;
-  pp, cyc, slice **0 %** every day.
-- Pool ★★★ / ★★ / ★ (of 20): 4/15/1, 5/15/0, 4/16/0, 7/7/6, 3/9/8, 4/11/5, 8/10/2; median `solved_in`
-  5, 6, 5, 8, 7, 5, 5.
+- Rejected while building (Rev. 9; days 1, 2 and 4 kept, days 3, 5, 6, 7 rebuilt with `b3/export8b.py`): day 3: 2
+  farm; day 5: 69 bot, 5 farm; day 6: 10 bot; day 7: 72 bot (Rev. 8: day 1: 3 farm, 1 bot; day 2: 1 farm; day 4: 5
+  bot, 2 farm).
+- On the pools: good 100 % every day; greedy 95 / 100 / 55 / 35 / 25 / 30 / 15 %; weak (4 seeds) 88 / 40 / 0 / 10 /
+  8 / 1 / 2 %; pp, cyc, slice **0 %** every day.
+- Pool ★★★ / ★★ / ★ (of 20): 4/15/1, 5/15/0, 4/14/2, 7/7/6, 9/11/0, 5/8/7, 7/3/10; median `solved_in`
+  5, 6, 5.5, 8, 5.5, 5, 6.5.
 - Replay: all 140 solutions win exactly at `solved_in` with the stars of the model, in Python and in the GDScript
   port. File: `gdpd_sim/b3/gdpd_concept8_boards.json` (format as today, `code` gets `R` = Stein; per board also
   `growable`). Copy to `gdpd/data/days_schoepfung.json` and `gdpd/docs/gdpd_7_tage_boards.json` when the rules ship.
 - Welt des Tages uses templates 2–7 of this table and their pools.
 
-### 5.6 „Über Nacht gewachsen“ (presentation only)
+### 5.6 „Neuer Morgen“ (presentation only)
 
-Rules start from the pool board; this is only how it appears.
-- First start of a day ≥ 2 from the overview (not on „Nochmal“, not in Weiterbauen): every field whose kind is a `to`
-  of the day's `overnight` list is first drawn as its `from` kind; 0.4 s after the board is visible a soft wave from
+Rules start from the pool board; this is only how it appears. Each day is a **new world** (a pool board, not the
+player's board of yesterday), so the pill says „Neuer Morgen“ and only a few fields grow up visibly (Rev. 9: before,
+every field of the target kind was labelled „Erde wird Wiese“ – 18 of 18 meadows on day 3).
+- First start of a day ≥ 2 from the overview (not on „Nochmal“, not in Weiterbauen): at most
+  `Days.OVERNIGHT_MAX` = 4 fields whose kind is a `to` of the day's `overnight` list (spread evenly over the matching
+  fields) are first drawn as their `from` kind; 0.4 s after the board is visible a soft wave from
   the camera-facing centre outwards (60 ms stagger, the normal growth pop at 70 % scale, one soft chime) turns them
   into today's kind. New landscape (Stein day 5, Kirchen day 6, Industrie day 7) fades in with the wave.
-- Pill (top, `MOUSE_FILTER_IGNORE`, 1.8 s): caps **„Über Nacht gewachsen“**, line: day 2/3 **„Erde wird Wiese“**,
+- Pill (top, `MOUSE_FILTER_IGNORE`, 1.8 s): caps **„Neuer Morgen“**, line: day 2/3 **„Erde wird Wiese“**,
   day 4 **„Wiesen werden Wald“**, day 5 **„Tiere werden Hütten“**, day 6 **„Hütten werden Dörfer“**, day 7
   **„Dörfer werden Städte“**.
 - Never blocks input; a swipe during the wave finishes it at once and counts. The goal card comes after the wave.
@@ -481,10 +506,10 @@ progress. Non-blocking overlays use `MOUSE_FILTER_IGNORE`.
 | task chips | „Lass 8 Wiesen wachsen“ · „Lass 5 Wälder wachsen“ · „Erschaffe 4 Tiere“ · „Versorge 3 Hütten“ · „Mach 3 Dörfer satt“ · „Mach 3 Städte satt“ |
 | reveal cards (caps · line) | 3 „Neu: Blitz“ · „Regen löscht Feuer“ · 4 „Neu: Menschen“ · „Menschen brauchen Nahrung“ · 5 „Neu: Arbeit“ · „Dorf braucht Nahrung und Arbeit“ · 6 „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ · 7 „Neu: Fabriken“ · „Zu viel Stadt: Flut!“ |
 | coach (first time each) | „Tiere neben die Hütte“ · „Wald oder Stein gibt Arbeit“ · „Stadt braucht eine Kirche“ · „Satt? Dann wächst es.“ · „Regen neben Hütten: Acker“ · „Meteor bereit“ · „Fabrik weg vom Wald“ |
-| field pills | „Satt!“ · „Hunger“ · „Keine Arbeit“ · „Zweifel“ (faith missing) · „Wächst bald“ |
+| field pills | „Hütte satt!“ / „Dorf satt!“ (only the goal kind, once per day) · „Hunger“ · „Keine Arbeit“ · „Zweifel“ (faith missing) · „Wächst bald“ |
 | events | see section 7 |
-| overnight | „Über Nacht gewachsen“ + lines of 5.6 |
-| after the win | „Geschafft!“ · „Weiterbauen“ · „Extra: Versorge 4 Hütten“ (etc.) · „Bau weiter“ |
+| overnight | „Neuer Morgen“ + lines of 5.6 |
+| after the win | „Geschafft!“ · „Weiterbauen“ · chip „Extra: 4 Hütten satt“ / „Extra: 9 Wiesen“ (etc.) · „Bau weiter“ |
 | free play help (optional) | „Nachwachsen schließt keine Reihe.“ |
 
 ---
@@ -525,8 +550,9 @@ progress. Non-blocking overlays use `MOUSE_FILTER_IGNORE`.
 9. **flood / smog**: weight 5 → warning, next twist low wet fields of that face become Wasser; Industrie withers the
    best nature neighbour every twist.
 10. **farm_pools**: on every pool board `pp`, `cyc`, `slice` never win (model port or recorded results).
-11. **kinds_per_day**: every pool board has ≤ 3 growable kinds; days 3+ have no Erde, days 5+ no Wiese row.
-12. **preview**: on day 5 board 0, `preview([1, 0, -1])` lists field 10 in `satt_new`.
+11. **kinds_per_day**: every pool board has ≤ 3 growable kinds and ≤ `Days.VISIBLE_MAX` visible kinds (Rev. 9); days 3+ have no Erde, days 5+ no Wiese row.
+12. **preview**: on day 5 board 0 some move lists a field in `satt_new`; on boards 0–2 of days 4–7 the preview's
+    `satt_new` / `satt_lost` equal the real events of every move (Rev. 9).
 13. Free play: **regrow_safe** and **free_farm** (Mittel median slice back and forth grows on ≤ 40 % of twists).
 
 ---
@@ -539,13 +565,13 @@ progress. Non-blocking overlays use `MOUSE_FILTER_IGNORE`.
 | `spent_feedback` | a `spent` row shows „Schon gewachsen“, input never blocked |
 | `overnight_growth` | start day 3 from the overview: within 0.5 s Wiesen drawn as Erde, pill „Über Nacht gewachsen“ / „Erde wird Wiese“, after ≤ 2.5 s every field shows its pool kind; a swipe during the wave counts. Shots `overnight_a.jpg`, `overnight_b.jpg`; „Nochmal“ shows no wave |
 | `task_chip` | days 1–7: the chip is visible after start, after 3 twists and after the win; days 4–7 show the connect icons |
-| `bolt_warn` | day 3 board 0: after the twist [0, 1, 1] the warning cloud is on field 47 (Wald); after the next twist it burns (or rain on it cancels it: „Regen schützt“) |
+| `bolt_warn` | day 3 board 0: after the twist [0, 1, 1] the warning cloud is on a Wald/Tiere field (the camera turns to it); after the next twist it burns (or rain on it cancels it: „Regen schützt“) |
 | `consume_hut` | day 4 board 0, solution twist 1: field 8 becomes Hütte, 23 and 24 become Wiese, the Hütte is satt (gold ring) |
-| `thrive_preview` | day 5 board 0: while dragging move [1, 0, −1] field 10 shows the „satt“ preview; after release the ring pops |
-| `war_preview` | day 6 board 0: dragging move [0, −1, 1] or [0, 0, −1] shows crossed swords before release |
-| `flood_warn` | day 7 board 0 starts with face 3 at weight 7: after twist 1 „Das Meer steigt!“ unless the cities are spread |
+| `thrive_preview` | day 5 board 0: while dragging the first move that makes a field satt (and can be swiped in view), that field shows the „satt“ preview; after release it is satt |
+| `war_preview` | day 6 board 0: dragging a move with `war_risk` shows crossed swords before release; after it „Krieg droht!“ |
+| `flood_warn` | day 7 board 0: the first move that crowds a face (weight ≥ 5) brings „Das Meer steigt!“; the camera shows that face (blue rim, rising water) |
 | `extra_task` | win day 4 board 0 by its solution: chip changes to „Extra: Versorge 4 Hütten“, Weiterbauen has no limit |
-| `kinds_per_day` | the started board has ≤ 3 growable kinds; prints the lists |
+| `kinds_per_day` | the started board has ≤ 3 growable kinds and at most `Days.VISIBLE_MAX` visible kinds besides Wasser; prints the lists |
 | `help_once` | help shows „Jede Reihe wächst nur einmal.“ |
 
 ---
@@ -658,6 +684,26 @@ Old type names are kept where `world.gd` already animates them:
   `war_hit`, `flood`, `merge` (with `consume`), `burn`, `polluted` / `smog`.
 - **Silent rows:** badges for the new reasons `people` (person), `done` (goal) and `stone` (stone).
 - **Meteor:** on days 6–7 the Gewitter slot shows the meteor icon as well as the label.
-- **Tour:** new checks `supply_preview` (held drag on day 5: field 10 gets the green mark, all marks gone after
+- **Tour:** new checks `supply_preview` (held drag on day 5: the target field gets the green mark, all marks gone after
   release) and `look_life` (close-ups on day 7: water, forest, village, animals, people; animals and people are
   alive). `overnight_growth` now also checks the wave, `no_farming` that the reason pill was shown.
+
+---
+
+## 16. Review round Rev. 9 (7. November 2026)
+
+What changed after the review of the integrated build (rules, pools, readability; graphics in GDPD_GRAFIK.md 15):
+
+| finding | change | check |
+|---|---|---|
+| Meteor farmable (+1 per person next to a church on every twist; back and forth → meteor after ~6 twists) | Glaube only for a **new level next to a church**, +3 (`GameState.FAITH_STEP`, `FieldData.flvl`; same in `engine8.py`) | `test_day_toggles`: back and forth brings 0; no day-6 board affords a meteor in 6 back-and-forth twists |
+| Too many different fields at once (2/3/3/4/7/9/10 kinds incl. Wasser) | compositions of days 5–7 (5.1), pools rebuilt; at most 1/2/2/3/5/6/6 kinds besides Wasser | `test_day_boards` (`Days.VISIBLE_MAX`), tour `kinds_per_day` |
+| Difficulty spike on day 3, dip on day 6 | day 3: 10 twists; day 6: 12 twists, ★★ ≤ 6; day 7: ★★ ≤ 6 | `test_day_table`; hint/greedy/weak per day (5.5) |
+| Preview missed merges, consume, war, thriving | `preview8(…, post)` from the resolved clone | `test_preview8`: preview = events on 324 moves |
+| „Über Nacht gewachsen“ on every field of an unrelated board | „Neuer Morgen“, at most 4 fields | `test_overnight`, tour `overnight_growth` |
+| Extra chip cut off („EXTRA: LASS 11 WIESEN WACHS“) | short noun form „Extra: 11 Wiesen“ / „Extra: 4 Hütten satt“ | `test_extras`, tour `extra_task` |
+| „Satt!“ pill while the chip stayed 0/3 | pill only for the goal kind: „Dorf satt!“ | – |
+| Hint froze the phone (190–370 ms desktop) | search on a clone in `WorkerThreadPool`, the Tipp button pulses; a stale result is dropped | – |
+
+Re-run: `cd gdpd_sim/b3 && python3 export8b.py 3,5,6,7 pools9.json` (needs `engine8.py` with `FAITH_STEP`,
+`days8.py` of Rev. 9), then `python3 mk_test_cases.py gdpd/tests/data/xcheck8_cases.json` (187 cases, 3380 steps).

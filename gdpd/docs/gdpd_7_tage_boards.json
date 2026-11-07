@@ -2497,6 +2497,94 @@
     ]
    },
    {
+    "board": "wWoooooooWowwWoooowwowooooWwwowowwowowoWoowoWowwooowwW",
+    "seed": 4,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Wald",
+     "Wiese"
+    ],
+    "solution": [
+     [
+      "rain",
+      42
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
+     ],
+     [
+      "rain",
+      0
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       2
+      ]
+     ],
+     [
+      "rain",
+      37
+     ]
+    ]
+   },
+   {
     "board": "wowwwoowoooWowWwoooowooWwoooowwooooWwwWooooowwwwooWowW",
     "seed": 5,
     "solved_in": 5,
@@ -3341,6 +3429,90 @@
     ]
    },
    {
+    "board": "WWoowoowwwwowwWoowowooooooooowooWowwooWowowwoowwoWWwoo",
+    "seed": 20,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Wald",
+     "Wiese"
+    ],
+    "solution": [
+     [
+      "rain",
+      47
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ],
+     [
+      "rain",
+      17
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
     "board": "WwwoowoowoowowooowWoowWowowWoooWowoWoowwowowooWowowoow",
     "seed": 21,
     "solved_in": 6,
@@ -3403,142 +3575,6 @@
       [
        1,
        -1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "wwwoowwowooWoooooowooowWooowWooowooooooWwowwowwowwwWWW",
-    "seed": 22,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Wald",
-     "Wiese"
-    ],
-    "solution": [
-     [
-      "rain",
-      50
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "rain",
-      1
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "owwoWowwoowooWoWowwoWwooowoooowowoowowwoWoWWowoowwooow",
-    "seed": 23,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Wald",
-     "Wiese"
-    ],
-    "solution": [
-     [
-      "rain",
-      7
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      35
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
        2
       ]
      ]
@@ -5089,12 +5125,12 @@
   ],
   "5": [
    {
-    "board": "HWRoTAwoooHooooooooooooooWoooAowWooHoHoWooRwwoTowooowT",
-    "seed": 1,
-    "solved_in": 8,
-    "stars": 1,
+    "board": "wooTRWTooWoooooTHoHWWwwoooTooWHooTwRoowwWoooowRooWoHHo",
+    "seed": 2,
+    "solved_in": 6,
+    "stars": 2,
     "growable": [
-     "Hütte",
+     "H\u00fctte",
      "Tiere",
      "Wald"
     ],
@@ -5103,6 +5139,18 @@
       "twist",
       [
        2,
+       1,
+       2
+      ]
+     ],
+     [
+      "rain",
+      38
+     ],
+     [
+      "twist",
+      [
+       1,
        -1,
        -1
       ]
@@ -5126,7 +5174,182 @@
      [
       "twist",
       [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "rain",
+      26
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oTwooTTwWowooHoWoooHooooooWTwooWoWwWoooWRHwHRToowooHoR",
+    "seed": 6,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      42
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TwRwooHWTooowWHWooooooooHoToowWHoowToowooWoRoooHWWoTRw",
+    "seed": 10,
+    "solved_in": 7,
+    "stars": 2,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       0,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
        2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "rain",
+      15
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oWWoooHoooRwooToooHwwoTWooowoWooHoWTWwWwRHoooTwHoooTRo",
+    "seed": 17,
+    "solved_in": 7,
+    "stars": 2,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      20
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
        1,
        2
       ]
@@ -5134,7 +5357,7 @@
      [
       "twist",
       [
-       1,
+       0,
        1,
        -1
       ]
@@ -5148,6 +5371,43 @@
       ]
      ],
      [
+      "rain",
+      27
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oWRHooowwwHooHwHooToToTwoooToooWoHowRooTWooWoooWWWowoR",
+    "seed": 27,
+    "solved_in": 7,
+    "stars": 2,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      8
+     ],
+     [
       "twist",
       [
        2,
@@ -5156,8 +5416,48 @@
       ]
      ],
      [
+      "twist",
+      [
+       1,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
       "rain",
-      31
+      14
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
      ],
      [
       "twist",
@@ -5170,12 +5470,481 @@
     ]
    },
    {
-    "board": "ToTwoWHoowTooowoooHoRWoAoooooowoHoooooAooWRooowooHoWwo",
-    "seed": 4,
-    "solved_in": 7,
+    "board": "WTTRwHHooooooooooooooooTwWHWoooToWwwooWHwoowHoToWWowRR",
+    "seed": 36,
+    "solved_in": 5,
     "stars": 2,
     "growable": [
-     "Hütte",
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      24
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "wwHooRooowToWToToooowooHoooooTRoooWwwHWHHWooWwWWooooRT",
+    "seed": 43,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      36
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oTWooooWwoRooWTwooTowooHooWooowwWoHooHHowooToTHRRWoWow",
+    "seed": 44,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      40
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TwoowwowoWHoowooowRWHWwTooooooooooTRooWooHooRTHWHoWWoT",
+    "seed": 53,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "rain",
+      4
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "HwHooRoRooWooowwoooWTooHHooowowooTwWoWWoTToRwWoWooTooH",
+    "seed": 54,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      1
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "wRWooHoHTooooTwooooooHRowwoooTHowTRwWoowHoWooWWTooooWW",
+    "seed": 61,
+    "solved_in": 6,
+    "stars": 2,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      25
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "rain",
+      8
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "HoHRoWowoowoowRWowoTWWoooWoHoWooHHoWooRToowTooowTTooow",
+    "seed": 62,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      53
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "RHWoooWHToooWWoHoWooToooowoooHwoWwoWoRwTooHTooToowowwR",
+    "seed": 64,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      25
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oRTooWooooHHoWoToowHwooowwoWwWTooooWWooHWoTRooTRwooHwo",
+    "seed": 73,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      18
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oRToowToooTWowowwooHWWowoWoRooHoToHoooWWRowooowoTHoHWo",
+    "seed": 76,
+    "solved_in": 6,
+    "stars": 2,
+    "growable": [
+     "H\u00fctte",
      "Tiere",
      "Wald"
     ],
@@ -5187,7 +5956,15 @@
      [
       "twist",
       [
+       2,
        1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
        0,
        1
       ]
@@ -5196,7 +5973,15 @@
       "twist",
       [
        1,
-       -1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
        -1
       ]
      ],
@@ -5204,99 +5989,35 @@
       "twist",
       [
        0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
        0,
        -1
       ]
      ],
      [
       "rain",
-      5
+      16
      ],
      [
       "twist",
       [
-       0,
        1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
+       1,
        2
       ]
      ]
     ]
    },
    {
-    "board": "oTAWowowoooooooRowoWHoowTwoooHoHRooHoAoWoWooooTwoooooo",
-    "seed": 5,
-    "solved_in": 10,
-    "stars": 1,
+    "board": "owHRoTwoowWoowoWTooHwooooowHowoooRWWoWoTToooHWRWooTooH",
+    "seed": 77,
+    "solved_in": 7,
+    "stars": 2,
     "growable": [
-     "Hütte",
+     "H\u00fctte",
      "Tiere",
      "Wald"
     ],
     "solution": [
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ],
      [
       "rain",
       1
@@ -5306,14 +6027,6 @@
       [
        1,
        1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
        1
       ]
      ],
@@ -5321,56 +6034,7 @@
       "twist",
       [
        1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "owTowoRoooToooooooowHoRoHoHooooWwoToooHooooAoWWWAowowo",
-    "seed": 6,
-    "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      19
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
+       -1,
        2
       ]
      ],
@@ -5379,7 +6043,15 @@
       [
        2,
        -1,
-       2
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
       ]
      ],
      [
@@ -5387,25 +6059,17 @@
       [
        1,
        -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
+       -1
       ]
      ],
      [
       "rain",
-      32
+      20
      ],
      [
       "twist",
       [
-       0,
+       1,
        -1,
        -1
       ]
@@ -5415,104 +6079,63 @@
       [
        0,
        -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "owoWoHHooHwooooWoAwwooooooooToRHoWoTowToRooowoooooWAoo",
-    "seed": 11,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      19
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
        2
       ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
      ]
     ]
    },
    {
-    "board": "WWoooAowooooHooooowoHAoTowRwoWowoRoTHowoTooooooHoWoooo",
-    "seed": 12,
+    "board": "ToRwooToooooToHoooRWoHooowHTWoWoowWoowwWWoWooowTwRooHH",
+    "seed": 81,
     "solved_in": 6,
     "stars": 2,
     "growable": [
-     "Hütte",
+     "H\u00fctte",
      "Tiere",
      "Wald"
     ],
     "solution": [
      [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
       "rain",
-      38
+      3
      ],
      [
       "twist",
       [
        1,
-       -1,
-       2
+       1,
+       1
       ]
      ],
      [
       "twist",
       [
        0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
        1,
-       0,
        1
       ]
      ],
@@ -5523,6 +6146,27 @@
        1,
        -1
       ]
+     ]
+    ]
+   },
+   {
+    "board": "oHooowTWWooToTWTowoowHoRwoTooooWoRowooowowoooHWoWoWHRH",
+    "seed": 83,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       0,
+       1
+      ]
      ],
      [
       "twist",
@@ -5530,6 +6174,14 @@
        0,
        0,
        1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
       ]
      ],
      [
@@ -5543,32 +6195,24 @@
     ]
    },
    {
-    "board": "ooToooToAwoooWoHTRWoRoooowWooooWowooHowHoooowooowoHAoo",
-    "seed": 14,
+    "board": "RWwooowHoooooWWooWowHTWoooToHoRwoWowooTRTHoWooooHwwToo",
+    "seed": 87,
     "solved_in": 7,
     "stars": 2,
     "growable": [
-     "Hütte",
+     "H\u00fctte",
      "Tiere",
      "Wald"
     ],
     "solution": [
      [
       "rain",
-      38
+      6
      ],
      [
       "twist",
       [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
+       0,
        0,
        2
       ]
@@ -5577,8 +6221,8 @@
       "twist",
       [
        1,
-       1,
-       1
+       0,
+       -1
       ]
      ],
      [
@@ -5592,20 +6236,61 @@
      [
       "twist",
       [
-       2,
+       1,
        1,
        2
       ]
      ],
      [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
       "rain",
-      13
+      19
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "WoWoWToooHTwooowToWTRoRoWoowooWoooHHooWTwoooHwHoRoooww",
+    "seed": 93,
+    "solved_in": 7,
+    "stars": 2,
+    "growable": [
+     "H\u00fctte",
+     "Tiere",
+     "Wald"
+    ],
+    "solution": [
+     [
+      "rain",
+      15
      ],
      [
       "twist",
       [
        2,
-       1,
+       0,
        2
       ]
      ],
@@ -5616,25 +6301,250 @@
        1,
        2
       ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "rain",
+      11
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       -1
+      ]
+     ]
+    ]
+   }
+  ],
+  "6": [
+   {
+    "board": "oKAWooRoooDKDDoToRWToDooooTAooooWKoDToADoDoWoARTWooWDW",
+    "seed": 6,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
      ]
     ]
    },
    {
-    "board": "ooAHoowoowowoooWoooTRooHooooWoAoRoowoWooooowoTWTwooHHo",
-    "seed": 18,
-    "solved_in": 10,
+    "board": "WooDWoADATooooADoooKToTDooKooooooWoTDoWDoWAWoRRDRDoKTW",
+    "seed": 7,
+    "solved_in": 9,
     "stars": 1,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "KDWDoRTWWooWoWKWooRooooAAooDoDoooTAooTTDoRKToDAoDWoooD",
+    "seed": 8,
+    "solved_in": 5,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ooWToRoWooWWoToDoDDoWRoooKTDDAoooWRAAooDTWooooTKDoDKoA",
+    "seed": 9,
+    "solved_in": 5,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
     ],
     "solution": [
      [
       "twist",
       [
        0,
-       1,
+       0,
        1
       ]
      ],
@@ -5649,6 +6559,146 @@
      [
       "twist",
       [
+       2,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ToRooTRWoDooTAoooWWWKoTWoRDAKDoWoDDooooDoooooAAoWoDTKD",
+    "seed": 12,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "DoKRDWDDoAToWooWDooooKoDoWoooooAWoWDooKRWoDoooTATToART",
+    "seed": 14,
+    "solved_in": 5,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "DToDoRDWooooooTDoooDWDKAooDoToWooRAoooWoTARTWWAWKDoKoo",
+    "seed": 15,
+    "solved_in": 7,
+    "stars": 1,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
        1,
        1,
        1
@@ -5658,44 +6708,60 @@
       "twist",
       [
        2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
        0,
-       1,
-       -1
+       1
       ]
      ],
      [
       "twist",
       [
        2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
        1,
-       1,
-       -1
+       2
       ]
-     ],
-     [
-      "rain",
-      45
      ],
      [
       "twist",
       [
        0,
        -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
        2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ToooDWoToooooDWoDoDoRoWDooAWAooooATWDoADKKTTRooKRWooWD",
+    "seed": 17,
+    "solved_in": 5,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
       ]
      ],
      [
@@ -5704,6 +6770,22 @@
        1,
        1,
        2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
       ]
      ],
      [
@@ -5717,32 +6799,283 @@
     ]
    },
    {
-    "board": "ooWooooWoooowwHHoooTwooooTHAoowWooToowAoooRWoowoooHoRo",
+    "board": "TDooDoDoooooDoDooRWTooWDoAooKWToDAKRooWToooooTWWRAWDAK",
+    "seed": 18,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TTAAoooWToooAWWRooDRooooooRoKoWoToDooDKWDoDDWDTAooWDKo",
+    "seed": 19,
+    "solved_in": 5,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "RWRWoWTToTooWoADooDKAWoooDRTDoDoDWoooAoKooooKoDDToAWoo",
+    "seed": 20,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TKoooDoWWDooDoRRoWWKooKWToDRoooDAADoooTDAoAooTWTWooooD",
+    "seed": 21,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ooDDoDoWooWoooRKooTKDWoAoADooRTooAoTWToTWoDoKoWWDDooRA",
     "seed": 22,
     "solved_in": 10,
     "stars": 1,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Dorf",
+     "Tiere"
     ],
     "solution": [
      [
-      "rain",
-      13
-     ],
-     [
       "twist",
       [
        0,
        0,
-       -1
+       2
       ]
      ],
      [
       "twist",
       [
        1,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
        0,
        1
       ]
@@ -5758,7 +7091,7 @@
      [
       "twist",
       [
-       1,
+       2,
        1,
        2
       ]
@@ -5766,20 +7099,76 @@
      [
       "twist",
       [
-       1,
        0,
-       2
+       1,
+       -1
       ]
      ],
      [
-      "rain",
-      37
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
      ],
      [
       "twist",
       [
        2,
        1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TKTWDDDRoooooWDoooooWoDDoooRoDWoWAoDToWooKooTAWAooAKRT",
+    "seed": 23,
+    "solved_in": 9,
+    "stars": 1,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
        1
       ]
      ],
@@ -5794,8 +7183,16 @@
      [
       "twist",
       [
-       2,
+       0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
        1,
+       -1,
        -1
       ]
      ],
@@ -5804,7 +7201,15 @@
       [
        2,
        1,
-       2
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       1
       ]
      ],
      [
@@ -5818,19 +7223,246 @@
     ]
    },
    {
-    "board": "oooooTooowwoWwwWWoAooooooHTooooRoRwowHoHWoAoooTooooHoo",
-    "seed": 30,
+    "board": "WTToRRWAoDoDooDTooKooWToDooWDoooAWoooooWDooATWDAKKoRDo",
+    "seed": 24,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oToooWTTDoooDoAWoKDoKRoWAoToAoDoWoAoToWRKoooWDDWDooRDo",
+    "seed": 26,
+    "solved_in": 5,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "RRToWKWoooooDDWDDRWDDoWAooooToKoooTooAoWToDooTooADWoKA",
+    "seed": 27,
+    "solved_in": 6,
+    "stars": 2,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "WoWooDKAoDAooDooDoTADToooooKDoDooTTooWWRoooRWTWRoWADoK",
+    "seed": 28,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Dorf",
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TDAADooDoTooooWRoATWADooWoKWToRooTooDoooKooDoWDWWooKRD",
+    "seed": 29,
     "solved_in": 8,
     "stars": 1,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Dorf",
+     "Tiere"
     ],
     "solution": [
      [
-      "rain",
-      34
+      "twist",
+      [
+       1,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
      ],
      [
       "twist",
@@ -5844,14 +7476,6 @@
       "twist",
       [
        2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
        -1,
        -1
       ]
@@ -5859,8 +7483,8 @@
      [
       "twist",
       [
-       0,
        1,
+       -1,
        1
       ]
      ],
@@ -5868,55 +7492,26 @@
       "twist",
       [
        2,
-       1,
+       -1,
        2
-      ]
-     ],
-     [
-      "rain",
-      40
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
       ]
      ]
     ]
    },
    {
-    "board": "oRHwoowooRooWTooooHWoAoowooooWoowAoooHwWoooHooToooToow",
-    "seed": 32,
-    "solved_in": 6,
+    "board": "oToooAARoKoooWDDDRDoRWoooDoDooWoTDKoAAoWWoDooTTTKWoooW",
+    "seed": 30,
+    "solved_in": 5,
     "stars": 2,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Dorf",
+     "Tiere"
     ],
     "solution": [
      [
       "twist",
       [
-       2,
+       1,
        0,
        1
       ]
@@ -5925,6 +7520,22 @@
       "twist",
       [
        2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
        -1,
        2
       ]
@@ -5932,52 +7543,24 @@
      [
       "twist",
       [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
+       2,
        1,
        2
       ]
      ]
     ]
-   },
+   }
+  ],
+  "7": [
    {
-    "board": "ooRoWoATwTooowTwHooHHoWooowoooooHooooRoWWwooAoooooowoo",
-    "seed": 34,
+    "board": "oIooSTWSooIoASooooooWToWWWAoooSWoTKSoooWoooTooWKWKoATA",
+    "seed": 5,
     "solved_in": 4,
     "stars": 3,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Tiere"
     ],
     "solution": [
-     [
-      "rain",
-      13
-     ],
      [
       "twist",
       [
@@ -5991,7 +7574,7 @@
       [
        1,
        1,
-       1
+       -1
       ]
      ],
      [
@@ -5999,7 +7582,42 @@
       [
        2,
        1,
-       -1
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "WToWoWWoooooKKoWoWAooooooWoAIoooSooIoSWoToAoWTKTSToASS",
+    "seed": 7,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       1
       ]
      ],
      [
@@ -6009,30 +7627,280 @@
        -1,
        1
       ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
      ]
     ]
    },
    {
-    "board": "oAoHooToooooooowoowwowAooRooooWowHooooooRWoToHWWTwoooH",
+    "board": "WKWToToTooooWoAoooSASoooWoWATSooATWSoKKWooSooWWoIoIooo",
+    "seed": 30,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "KSoSWooToooAoWoIoKoWSWooooAoTIWoooTWTSSWoooooWKWToooAA",
+    "seed": 31,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "rain",
+      28
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "AWSWoooooWoAoTWWooWSKTooKIoWooooAoWoSoKSIoWSoTTAooooTo",
+    "seed": 33,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       0,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oWooSSAooooWooWTSWKoTooWAKoToooooWooTIAKIWooooWoSoASWT",
     "seed": 35,
-    "solved_in": 4,
-    "stars": 3,
+    "solved_in": 5,
+    "stars": 2,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Tiere"
     ],
     "solution": [
      [
-      "rain",
-      32
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
      ],
      [
       "twist",
       [
        1,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ToooooWooWIKoKIWoTASooooWoTWWooooATTooSKWSoASAWoWooooS",
+    "seed": 44,
+    "solved_in": 9,
+    "stars": 1,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
        0,
-       -1
+       2
       ]
      ],
      [
@@ -6049,6 +7917,345 @@
        1,
        -1,
        1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "KSWoSAooTWoKooAooAWTKooWWooAWToooWIWoSoooIooooWSoooTTS",
+    "seed": 45,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "rain",
+      46
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "TWooAWKAooTooSTSoTTAooWoWooWWIooooWSoooooAooKSKIoSoWoW",
+    "seed": 50,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "WoWooTWooooWoSoKoooooKoASoooAWTSoIWToooTSooWWoAKWTISAo",
+    "seed": 52,
+    "solved_in": 6,
+    "stars": 2,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       0,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       2
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "oSIoWTAWSoAWKoWWooWKooooooWooWSooAooToSTTAIoooWKSToooo",
+    "seed": 53,
+    "solved_in": 8,
+    "stars": 1,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "IoWIoKoAWoAWTTSoooAWooooAKoWoooSoTKSooSoToTooooWoSWWoW",
+    "seed": 57,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       2
       ]
      ],
      [
@@ -6062,36 +8269,14 @@
     ]
    },
    {
-    "board": "oowoWToooRHooWowoTHRooHoAowoooWowAWoooowHwooooooooooTo",
-    "seed": 38,
-    "solved_in": 6,
-    "stars": 2,
+    "board": "WooooSKSoToooIooKoWWoIoSWoAooAWWoToWSTTAToWoooKoWoooAS",
+    "seed": 58,
+    "solved_in": 7,
+    "stars": 1,
     "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
+     "Tiere"
     ],
     "solution": [
-     [
-      "rain",
-      2
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
      [
       "twist",
       [
@@ -6103,11 +8288,62 @@
      [
       "twist",
       [
-       1,
+       2,
        -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
        2
       ]
      ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       -1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ooAoooTSoWoToKoWoKoWoooSWWWAToooAooKooIWSooIoSSTWooTAW",
+    "seed": 59,
+    "solved_in": 4,
+    "stars": 3,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
      [
       "twist",
       [
@@ -6127,310 +8363,6 @@
        -1,
        -1
       ]
-     ]
-    ]
-   },
-   {
-    "board": "owowTooAooHoooTWWooHwooooWoowoooooHoowoRWRAooHooTooowo",
-    "seed": 39,
-    "solved_in": 10,
-    "stars": 1,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      3
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      4
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "HooHooToowooHHwRoowoWWoooTowoooWwoooAooWARoooooooooowT",
-    "seed": 40,
-    "solved_in": 8,
-    "stars": 1,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      14
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oooWoAWTooTooHooooTowooHwAoooWwoowHooHoowoRoowoooooWoR",
-    "seed": 41,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      24
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "HooooAWowToowowoooooToooRHoHAooWoooooooHWoWoooRTowowow",
-    "seed": 42,
-    "solved_in": 8,
-    "stars": 1,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      8
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
      ],
      [
       "twist",
@@ -6444,14 +8376,6 @@
       "twist",
       [
        0,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
        0,
        2
       ]
@@ -6459,1067 +8383,11 @@
     ]
    },
    {
-    "board": "oHoooowAooooowooooowWoAwoWoTwoooWooWHoooTwRooooHooHTRo",
-    "seed": 43,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      28
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oooooTWoHoHowwooooHwooooowoWWTowoAWoAoToRooooRooooooHw",
-    "seed": 44,
+    "board": "AoTooWWoAoToooSWooSSooooSoKIoWAWoToooooWKWSoTWToKooAIW",
+    "seed": 60,
     "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Hütte",
-     "Tiere",
-     "Wald"
-    ],
-    "solution": [
-     [
-      "rain",
-      13
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "rain",
-      19
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ]
-    ]
-   }
-  ],
-  "6": [
-   {
-    "board": "KWAowowWDTooowDToAWKAoooHKoRoWWWoDHoDDDHoooAToWoRooTTR",
-    "seed": 2,
-    "solved_in": 9,
     "stars": 1,
     "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      6
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      4
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "AWAooDHWoAWDWoTDToDKwADooooooooTDooToWWRwowRKHTWKooRoH",
-    "seed": 3,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      40
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "KHHDooDAHowDoRwDoAWoWRKToWWoDoooTAwWooKRDooAoWoWToooTT",
-    "seed": 4,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      10
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "RTTooDwHAooToKWDwoAWRoDDoDKWooTRAAKTooDooWooWoHooHowWW",
-    "seed": 5,
-    "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      6
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "ooRToWWTHWwooHWwWowKooDoTDRDooAoADAKKoAoDoWoooHDRooWTT",
-    "seed": 6,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      10
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "KwHWoDoRoDAoToTWooKAwDHDooKwAToRoTRoooDHWoWWooDToooWWA",
-    "seed": 7,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      1
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "wTWoooDoDooAoHWHooKoAooRoDTAWoWoWADKKDRWTTooHoTwRowWDo",
-    "seed": 8,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      50
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "WATKoTWoWooTWwoHToKTWAooDoDRooooAKRDoHDWoowoooADwWDHRo",
-    "seed": 9,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      42
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "AoToWWDHooWooWTTAoRRKKRTDwoDWooooKWoTAWoADooooDDwoHHow",
-    "seed": 10,
-    "solved_in": 10,
-    "stars": 1,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      25
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      48
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "KoTooWoHoWTooWRwooDDHooooKHWowoWooTWDAwWTToDARADAoDRKo",
-    "seed": 11,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      29
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "WRooooHHoooAWTWTAooKWoDooKWwoooToTAooDRDwoWoRHDAwDTKWD",
-    "seed": 12,
-    "solved_in": 10,
-    "stars": 1,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      40
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "wTTDTADDwoAAKARooRRKoooooDoooWooDWKToToWHWoooWDwHHoWWo",
-    "seed": 13,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      47
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "RToooWHDoDoooADooDDTwowoKRWDAoTTooWTWoHWwooHooAKWWAoKR",
-    "seed": 14,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      40
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "KARAoRWooKooWwDTRAooWoDWoTHwooTWoDHHoowDWooDooKATDooTW",
-    "seed": 15,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      38
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "ATWoWRHWooWooWwAoTwDKDooDWARDooHoDTDAwKoToooTooHWoKRoo",
-    "seed": 16,
-    "solved_in": 9,
-    "stars": 1,
-    "growable": [
-     "Dorf",
-     "Hütte",
      "Tiere"
     ],
     "solution": [
@@ -7532,373 +8400,8 @@
       ]
      ],
      [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
-     ],
-     [
       "rain",
-      14
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       2
-      ]
-     ],
-     [
-      "rain",
-      34
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oTKooDDoAoWTooRHooAWTwoToHoKAooDDKwWWRWoHoooDWDTwooWRA",
-    "seed": 19,
-    "solved_in": 8,
-    "stars": 1,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "twist",
-      [
-       1,
-       0,
-       1
-      ]
-     ],
-     [
-      "rain",
-      48
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oWKooWRAoTWAoToKoDATDoooWRKooDATooTDowDWHHoDoowWHoWowR",
-    "seed": 20,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      46
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "DoHowRKoRooHWWAKoWoRoooDoDToKoooDDTwooWDWAoWToWwHoATAT",
-    "seed": 21,
-    "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      47
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      4
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "AoDToKHoooAAoWoTwKWwDRoDWoWoWTHooARRDoDHWoooooTKwoDoTW",
-    "seed": 22,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      19
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "DwTAWWWHooDooRTAAWwoADoWoDTHooRooDRoKoHWWoowooToKToDoK",
-    "seed": 23,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Hütte",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      1
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
+      53
      ],
      [
       "twist",
@@ -7912,276 +8415,6 @@
       "twist",
       [
        1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ]
-    ]
-   }
-  ],
-  "7": [
-   {
-    "board": "SAoSoRwWooDoooWKDoDWRTooWTWAWowoWDToooIAwooKooWSoARDTK",
-    "seed": 5,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oWSooAKWoWooWDTSDAKRwoAooSRWooKWDToRooWwWoTooToDDowAIo",
-    "seed": 6,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      20
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "AoWooSKToAWoDDDIooWWSTKAoowTooDWoWoToooKDWoSoowARoWRRw",
-    "seed": 7,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "wSDoKoDKoWoooWKDoSRwWoooooWDoWowAoWoTRoWAoTADoRIToWATS",
-    "seed": 9,
-    "solved_in": 5,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      0
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "meteor",
-      47
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "AIToSoWooRWAowDRoKTSKoooTooDWoowWDWoWTwWDooAoDKRWooAoS",
-    "seed": 10,
-    "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      13
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
        0,
        2
       ]
@@ -8189,84 +8422,8 @@
      [
       "twist",
       [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      31
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "wKoooDWDoAoRooSoooAWSoDwDooWAKoWSWRTooIDoWooTTTwWoWKAR",
-    "seed": 11,
-    "solved_in": 9,
-    "stars": 1,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      23
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
        0,
        0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       1,
        2
       ]
      ],
@@ -8278,54 +8435,6 @@
        1
       ]
      ],
-     [
-      "rain",
-      47
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "DWoooRRAWTDooDoWKDToTooAwoWoAoooTwDIWooKSooSoRwKWWoSAW",
-    "seed": 12,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
      [
       "rain",
       33
@@ -8334,14 +8443,6 @@
       "twist",
       [
        2,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
        -1,
        2
       ]
@@ -8351,37 +8452,24 @@
       [
        2,
        1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       1
+       -1
       ]
      ]
     ]
    },
    {
-    "board": "STSooDKoTooWWAwoooWRKWoSooATooWKoTAoARWWDowoDoWoDDoRwI",
-    "seed": 15,
+    "board": "SWKooWWToWoTAKoAoooooSoooooSoKWTIooToWWIAAoooWooWooTSS",
+    "seed": 63,
     "solved_in": 4,
     "stars": 3,
     "growable": [
-     "Dorf",
      "Tiere"
     ],
     "solution": [
      [
-      "rain",
-      42
-     ],
-     [
       "twist",
       [
-       2,
+       1,
        0,
        2
       ]
@@ -8389,17 +8477,17 @@
      [
       "twist",
       [
-       0,
        1,
-       1
+       -1,
+       -1
       ]
      ],
      [
       "twist",
       [
+       2,
        1,
-       -1,
-       1
+       2
       ]
      ],
      [
@@ -8413,48 +8501,110 @@
     ]
    },
    {
-    "board": "ooRAoWDWTKoAWKWWoSDAARoooooWooDTwDSKoDwITWooooRwoWoSTo",
-    "seed": 16,
+    "board": "ooSoIISWooooTTToooWAWoooASoSAWTooKoooWWAoooWoKWKoWoSoT",
+    "seed": 67,
+    "solved_in": 6,
+    "stars": 2,
+    "growable": [
+     "Tiere"
+    ],
+    "solution": [
+     [
+      "twist",
+      [
+       1,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       1,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       -1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       1,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
+       -1,
+       -1
+      ]
+     ]
+    ]
+   },
+   {
+    "board": "ooKoATAooTooWSWKWoWIooSooooWAoIoWoSoooAWWSKoooWoToToTS",
+    "seed": 68,
     "solved_in": 9,
     "stars": 1,
     "growable": [
-     "Dorf",
      "Tiere"
     ],
     "solution": [
      [
       "twist",
       [
-       2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      32
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
        1,
+       -1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
        0,
+       0,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       0,
+       -1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
        2
       ]
      ],
@@ -8469,23 +8619,15 @@
      [
       "twist",
       [
-       0,
        1,
-       1
+       -1,
+       -1
       ]
      ],
      [
       "twist",
       [
        2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
        -1,
        2
       ]
@@ -8501,23 +8643,34 @@
     ]
    },
    {
-    "board": "oRKoTTDDooAKowKWWDWDWoooDwWoARooTowoooSIAWoooWRTWoSSAo",
-    "seed": 17,
-    "solved_in": 4,
-    "stars": 3,
+    "board": "IToWoWSSKooSooWooSToKTIToooWWoAooAoSooWoTAoooooWWWoAKo",
+    "seed": 71,
+    "solved_in": 8,
+    "stars": 1,
     "growable": [
-     "Dorf",
      "Tiere"
     ],
     "solution": [
      [
-      "rain",
-      25
+      "twist",
+      [
+       1,
+       -1,
+       1
+      ]
      ],
      [
       "twist",
       [
        2,
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       0,
        1,
        -1
       ]
@@ -8525,9 +8678,25 @@
      [
       "twist",
       [
+       2,
        1,
+       2
+      ]
+     ],
+     [
+      "twist",
+      [
        0,
-       -1
+       1,
+       1
+      ]
+     ],
+     [
+      "twist",
+      [
+       2,
+       1,
+       2
       ]
      ],
      [
@@ -8549,122 +8718,17 @@
     ]
    },
    {
-    "board": "DoAoooDIooSoTDTwDwWWTAAooRToooooWRoWWoWAKoKooDSKwWWRSo",
-    "seed": 19,
-    "solved_in": 4,
-    "stars": 3,
+    "board": "WoooAoKoKoTooTSWooISToWWooISWSoooKAWooooToWoTAWWoooASo",
+    "seed": 83,
+    "solved_in": 9,
+    "stars": 1,
     "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      48
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "KRwSoKWDooWooToWWDwIWWoKwoRooooDWAoRoTSToAoAoTDDAooSoW",
-    "seed": 21,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
      "Tiere"
     ],
     "solution": [
      [
       "twist",
       [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "ToAWSRWSAoAooWwDWKADwWooooTowDWTDKWDooKooooRooTWoooRIS",
-    "seed": 22,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      14
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
        0,
        1,
        2
@@ -8673,123 +8737,27 @@
      [
       "twist",
       [
-       1,
-       1,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "KoSowWoAooToWWWDoWwoTSooKooooDoRWAwTAoRDSAoDoWKRoToWDI",
-    "seed": 23,
-    "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "rain",
-      45
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
        2,
        -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
        -1
       ]
      ],
      [
       "rain",
-      4
+      20
+     ],
+     [
+      "twist",
+      [
+       1,
+       1,
+       1
+      ]
      ],
      [
       "twist",
       [
        0,
-       1,
-       2
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "WKWoAoDTAwDToooRDKwDSooWooooRoTooWSKSoAwTWoooWWAIWoDRo",
-    "seed": 24,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      18
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
        0,
        1
       ]
@@ -8799,35 +8767,7 @@
       [
        0,
        1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oWoSoKDTWoooowoRwDAKDRAWDooooWoToSoDoowRIoTAWKWTSooWWA",
-    "seed": 29,
-    "solved_in": 4,
-    "stars": 3,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "twist",
-      [
-       1,
-       0,
-       1
+       2
       ]
      ],
      [
@@ -8839,186 +8779,18 @@
       ]
      ],
      [
-      "rain",
-      16
-     ],
-     [
       "twist",
       [
        0,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
        -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "TWooDIoKoooooRSAoSToDWoKoAooTWoWoDWDwDwwRoRTAWAWSooWoK",
-    "seed": 30,
-    "solved_in": 7,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      36
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
        -1
       ]
      ],
      [
       "twist",
       [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "WwSTRKoIooooAwDAwoTAWooTWDoWoWooKoDRDoWToSAoooRoWoWKDS",
-    "seed": 31,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       0,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      1
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ],
-     [
-      "rain",
-      16
-     ],
-     [
-      "twist",
-      [
        0,
        1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "AoAoAWSToWoooWoooKWTWSoowoToToRWASDDDoDKIooWDWKwRoowoR",
-    "seed": 32,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      51
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
        2
       ]
      ],
@@ -9026,103 +8798,7 @@
       "twist",
       [
        1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
        1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       -1
-      ]
-     ]
-    ]
-   },
-   {
-    "board": "oWwooToSDWSWwDDWRoTWoToooooKoDAooIKoooARSoAWoWKDwToWRA",
-    "seed": 35,
-    "solved_in": 6,
-    "stars": 2,
-    "growable": [
-     "Dorf",
-     "Tiere"
-    ],
-    "solution": [
-     [
-      "rain",
-      48
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
-       -1
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       0,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       1,
-       -1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       1,
-       2
-      ]
-     ],
-     [
-      "twist",
-      [
-       0,
-       -1,
-       1
-      ]
-     ],
-     [
-      "twist",
-      [
-       2,
-       0,
        2
       ]
      ]
@@ -9147,8 +8823,7 @@
   "3": {
    "tried": 32,
    "rejected": {
-    "bot": 5,
-    "farm": 1
+    "farm": 2
    }
   },
   "4": {
@@ -9159,21 +8834,22 @@
    }
   },
   "5": {
-   "tried": 48,
+   "tried": 96,
    "rejected": {
-    "bot": 25
+    "farm": 5,
+    "bot": 69
    }
   },
   "6": {
    "tried": 32,
    "rejected": {
-    "bot": 3
+    "bot": 10
    }
   },
   "7": {
-   "tried": 48,
+   "tried": 96,
    "rejected": {
-    "bot": 21
+    "bot": 72
    }
   }
  }

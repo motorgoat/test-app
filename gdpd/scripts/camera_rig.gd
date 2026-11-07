@@ -49,7 +49,7 @@ func _ready() -> void:
 	key.directional_shadow_max_distance = 24.0
 	key.shadow_bias = 0.03
 	key.shadow_normal_bias = 1.2
-	key.shadow_opacity = 0.85
+	key.shadow_opacity = 0.7
 	add_child(key)
 	fill = DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-20, 140, 0)

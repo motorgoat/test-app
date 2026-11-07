@@ -14,6 +14,16 @@ world is complete and free play opens.
 
 Validated with the Python model (section 8). Board pools and replayable solutions: `gdpd/docs/gdpd_7_tage_boards.json`.
 
+> **Superseded in parts (7. November 2026).** The day table, goals, start boards and pools of this spec were replaced
+> by the new core concept (Erschaffen + Gedeihen) in [`GDPD_BALANCE_2.md`](GDPD_BALANCE_2.md), sections 4–6 and 16
+> (Rev. 9). Current days: 1 Land „Lass 8 Wiesen wachsen“ (15 twists, ★★★ ≤ 4) · 2 Pflanzen „Lass 5 Wälder wachsen“
+> (14, ≤ 5) · 3 Tiere „Erschaffe 4 Tiere“ (10, ≤ 4; Blitz) · 4 Menschen „Versorge 3 Hütten“ (14, ≤ 6) · 5 Arbeit
+> „Mach 3 Dörfer satt“ (13, ≤ 4) · 6 Glaube „Mach 3 Städte satt“ (12, ≤ 4; Krieg, Meteor) · 7 Gleichgewicht „Mach 3
+> Städte satt“ (11, ≤ 4; Smog, Flut). At most 3 growable kinds and at most 1/2/2/3/5/6/6 visible kinds besides
+> Wasser per board; „Neuer Morgen“ shows a few fields growing up from the lower kind. The file
+> `gdpd_7_tage_boards.json` holds the current pools (same as `gdpd/data/days_schoepfung.json`). What stays valid
+> here: the daily flow, goal card, chip, stars, mercy, overview, texts, save format and the free-play parts.
+
 ---
 
 ## 0. Summary of the changes

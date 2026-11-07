@@ -96,6 +96,7 @@ func _ready() -> void:
 	Game.new_game_started.connect(_on_day_mood)
 	Game.new_game_started.connect(_night_clear)
 	Game.overnight_growth.connect(_on_overnight)
+	Game.day_started.connect(_perf_restart.unbind(1))
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shots="):
 			_tour = true
@@ -232,7 +233,7 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 			continue
 		if _night.has(f.id) and gs == Game.state:
 			var old_f: FieldData = f.copy()
-			old_f.kind = int(_night[f.id])      # „Über Nacht gewachsen“: bis zur Welle noch die Art von gestern
+			old_f.kind = int(_night[f.id])      # „Neuer Morgen“: bis zur Welle noch die Art von gestern
 			v.refresh(old_f)
 		else:
 			v.refresh(f)
@@ -260,7 +261,7 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 
 
 # =============================================================================
-# „Über Nacht gewachsen“ (GDPD_BALANCE_2.md 5.6): Unter der Ziel-Karte steht noch die Welt von gestern; nach „Los!“
+# „Neuer Morgen“ (GDPD_BALANCE_2.md 5.6): Unter der Ziel-Karte steht noch die Welt von gestern; nach „Los!“
 # wachsen die unteren Felder in einer Welle (von oben nach unten auf dem Bildschirm) in ihre neue Art.
 # =============================================================================
 
@@ -577,45 +578,45 @@ func _update_life(delta: float) -> void:
 		_birds.multimesh.set_instance_transform(i, Transform3D(b, base + Vector3(ph.x * 0.5 - float(i) * 0.18, ph.y * 0.5 + sin(t * 1.3 + ph.z) * 0.05, 0.0)))
 
 
-## Stimmungen: Sonne, Füll-Licht, Umgebung, Himmel, Nebel und Farbstimmung. set_mood blendet weich hinüber.
+## Stimmungen: Sonne, Füll-Licht (hell genug, dass man auch auf den Schattenseiten Wald, Wiese und Erde unterscheidet), Umgebung, Himmel, Nebel und Farbstimmung. set_mood blendet weich hinüber.
 const MOODS := {
-	"tag": {"sun": Vector3(-36, -48, 0), "sun_c": Color("#ffe2b8"), "sun_e": 1.25, "fill_c": Color("#a9c2e8"), "fill_e": 0.55,
-		"amb_c": Color("#9fb3cc"), "amb_e": 0.83, "exp": 1.00, "glow": 0.6,
+	"tag": {"sun": Vector3(-36, -48, 0), "sun_c": Color("#ffe2b8"), "sun_e": 1.25, "fill_c": Color("#a9c2e8"), "fill_e": 0.80,
+		"amb_c": Color("#9fb3cc"), "amb_e": 0.95, "exp": 1.00, "glow": 0.6,
 		"top": Color("#7891ad"), "mid": Color("#c7d5e0"), "low": Color("#ede1cc"), "cloud": Color("#fffaf2"), "clouds": 1.0, "sunglow": 0.35,
 		"fog": 0.0, "fog_c": Color("#c9ced2"), "warm": Vector3(1.04, 1.0, 0.93), "cool": Vector3(0.93, 0.98, 1.06), "sat": 1.06, "con": 1.06,
 		"vig": 0.3, "life": 1.0},
-	"morgen": {"sun": Vector3(-26, -58, 0), "sun_c": Color("#ffd6a3"), "sun_e": 1.20, "fill_c": Color("#9db8e6"), "fill_e": 0.60,
-		"amb_c": Color("#a4b4cf"), "amb_e": 0.83, "exp": 1.00, "glow": 0.65,
+	"morgen": {"sun": Vector3(-26, -58, 0), "sun_c": Color("#ffd6a3"), "sun_e": 1.20, "fill_c": Color("#9db8e6"), "fill_e": 0.82,
+		"amb_c": Color("#a4b4cf"), "amb_e": 0.95, "exp": 1.00, "glow": 0.65,
 		"top": Color("#8aa3c0"), "mid": Color("#dcdcd6"), "low": Color("#f3d9b8"), "cloud": Color("#fff1e0"), "clouds": 0.9, "sunglow": 0.6,
 		"fog": 0.0, "fog_c": Color("#d8d4cc"), "warm": Vector3(1.06, 1.0, 0.9), "cool": Vector3(0.92, 0.97, 1.08), "sat": 1.03, "con": 1.03,
 		"vig": 0.3, "life": 1.0},
-	"abend": {"sun": Vector3(-22, -40, 0), "sun_c": Color("#ffc18a"), "sun_e": 1.25, "fill_c": Color("#93a3d8"), "fill_e": 0.55,
-		"amb_c": Color("#a8a2bd"), "amb_e": 0.81, "exp": 0.98, "glow": 0.8,
+	"abend": {"sun": Vector3(-22, -40, 0), "sun_c": Color("#ffc18a"), "sun_e": 1.25, "fill_c": Color("#93a3d8"), "fill_e": 0.78,
+		"amb_c": Color("#a8a2bd"), "amb_e": 0.92, "exp": 0.98, "glow": 0.8,
 		"top": Color("#6f7fa6"), "mid": Color("#d8c4bc"), "low": Color("#f2c49a"), "cloud": Color("#ffe3c8"), "clouds": 1.0, "sunglow": 0.7,
 		"fog": 0.0, "fog_c": Color("#d6c2b4"), "warm": Vector3(1.08, 0.99, 0.88), "cool": Vector3(0.92, 0.95, 1.08), "sat": 1.04, "con": 1.04,
 		"vig": 0.32, "life": 1.0},
-	"weiter": {"sun": Vector3(-30, -50, 0), "sun_c": Color("#ffd29c"), "sun_e": 1.29, "fill_c": Color("#a0b6e2"), "fill_e": 0.57,
-		"amb_c": Color("#a8b0c8"), "amb_e": 0.83, "exp": 1.00, "glow": 0.75,
+	"weiter": {"sun": Vector3(-30, -50, 0), "sun_c": Color("#ffd29c"), "sun_e": 1.29, "fill_c": Color("#a0b6e2"), "fill_e": 0.80,
+		"amb_c": Color("#a8b0c8"), "amb_e": 0.95, "exp": 1.00, "glow": 0.75,
 		"top": Color("#7a8fb0"), "mid": Color("#dcd3c8"), "low": Color("#f4d6b0"), "cloud": Color("#fff2e2"), "clouds": 1.0, "sunglow": 0.55,
 		"fog": 0.0, "fog_c": Color("#d8d0c4"), "warm": Vector3(1.06, 1.0, 0.9), "cool": Vector3(0.93, 0.97, 1.07), "sat": 1.05, "con": 1.03,
 		"vig": 0.3, "life": 1.0},
-	"regen": {"sun": Vector3(-52, -30, 0), "sun_c": Color("#dfe4ea"), "sun_e": 0.65, "fill_c": Color("#a3b4cc"), "fill_e": 0.72,
-		"amb_c": Color("#93a0b2"), "amb_e": 1.04, "exp": 0.92, "glow": 0.5,
+	"regen": {"sun": Vector3(-52, -30, 0), "sun_c": Color("#dfe4ea"), "sun_e": 0.65, "fill_c": Color("#a3b4cc"), "fill_e": 0.85,
+		"amb_c": Color("#93a0b2"), "amb_e": 1.08, "exp": 0.92, "glow": 0.5,
 		"top": Color("#6d7a88"), "mid": Color("#aab3bb"), "low": Color("#c6c9c8"), "cloud": Color("#e3e6e8"), "clouds": 1.6, "sunglow": 0.0,
 		"fog": 0.012, "fog_c": Color("#a7afb6"), "warm": Vector3(1.0, 1.0, 0.98), "cool": Vector3(0.94, 0.98, 1.05), "sat": 0.92, "con": 1.02,
 		"vig": 0.34, "life": 0.0},
-	"smog": {"sun": Vector3(-40, -44, 0), "sun_c": Color("#ead9ad"), "sun_e": 0.90, "fill_c": Color("#aaa99c"), "fill_e": 0.49,
-		"amb_c": Color("#a5a191"), "amb_e": 0.85, "exp": 0.94, "glow": 0.5,
+	"smog": {"sun": Vector3(-40, -44, 0), "sun_c": Color("#ead9ad"), "sun_e": 0.90, "fill_c": Color("#aaa99c"), "fill_e": 0.70,
+		"amb_c": Color("#a5a191"), "amb_e": 0.95, "exp": 0.94, "glow": 0.5,
 		"top": Color("#8b8a7c"), "mid": Color("#bdb8a3"), "low": Color("#cfc4a4"), "cloud": Color("#d9d3bf"), "clouds": 1.3, "sunglow": 0.2,
 		"fog": 0.008, "fog_c": Color("#b5ad93"), "warm": Vector3(1.05, 1.0, 0.88), "cool": Vector3(0.97, 0.98, 1.0), "sat": 0.82, "con": 1.02,
 		"vig": 0.36, "life": 0.0},
-	"krieg": {"sun": Vector3(-24, -30, 0), "sun_c": Color("#ffb282"), "sun_e": 1.16, "fill_c": Color("#9c8aa8"), "fill_e": 0.49,
-		"amb_c": Color("#a6928c"), "amb_e": 0.79, "exp": 0.96, "glow": 0.8,
+	"krieg": {"sun": Vector3(-24, -30, 0), "sun_c": Color("#ffb282"), "sun_e": 1.16, "fill_c": Color("#9c8aa8"), "fill_e": 0.70,
+		"amb_c": Color("#a6928c"), "amb_e": 0.90, "exp": 0.96, "glow": 0.8,
 		"top": Color("#7a6f75"), "mid": Color("#c7aa9c"), "low": Color("#e0b58e"), "cloud": Color("#e9d2c2"), "clouds": 1.2, "sunglow": 0.5,
 		"fog": 0.008, "fog_c": Color("#b59a8a"), "warm": Vector3(1.08, 0.97, 0.88), "cool": Vector3(0.95, 0.95, 1.04), "sat": 0.94, "con": 1.04,
 		"vig": 0.42, "life": 0.0},
-	"vollendet": {"sun": Vector3(-26, -52, 0), "sun_c": Color("#ffd08a"), "sun_e": 1.38, "fill_c": Color("#9fb5e6"), "fill_e": 0.60,
-		"amb_c": Color("#b0aec4"), "amb_e": 0.87, "exp": 1.02, "glow": 1.0,
+	"vollendet": {"sun": Vector3(-26, -52, 0), "sun_c": Color("#ffd08a"), "sun_e": 1.38, "fill_c": Color("#9fb5e6"), "fill_e": 0.82,
+		"amb_c": Color("#b0aec4"), "amb_e": 0.97, "exp": 1.02, "glow": 1.0,
 		"top": Color("#7f95b8"), "mid": Color("#e6d8c6"), "low": Color("#f6d3a2"), "cloud": Color("#fff0dc"), "clouds": 1.0, "sunglow": 0.8,
 		"fog": 0.0, "fog_c": Color("#e0d2c0"), "warm": Vector3(1.08, 1.0, 0.88), "cool": Vector3(0.93, 0.96, 1.07), "sat": 1.08, "con": 1.04,
 		"vig": 0.3, "life": 1.0},
@@ -879,7 +880,6 @@ func select(fid: int) -> void:
 
 
 var _perf_t := 0.0
-var _perf_frames := 0
 var _perf_done := false
 
 
@@ -959,33 +959,89 @@ func _update_post() -> void:
 	var win := get_window().size
 	var vs := get_viewport().get_visible_rect().size
 	var fy := 0.47
+	var fh := 0.16
 	if not rig.cam.is_position_behind(Vector3.ZERO) and vs.y > 0.0:
-		fy = clampf(rig.cam.unproject_position(Vector3.ZERO).y / vs.y, 0.3, 0.7)
+		# scharf über die ganze Höhe des Würfels (die untere Reihe ist so wichtig wie die Mitte): die 8 Ecken
+		# projizieren, Unschärfe nur für Hintergrund, Wolken und was über den Umriss hinausragt
+		var y0 := INF
+		var y1 := -INF
+		for cx in [-1.0, 1.0]:
+			for cy in [-1.0, 1.0]:
+				for cz in [-1.0, 1.0]:
+					var wp: Vector3 = cube_root.global_transform * (Vector3(float(cx), float(cy), float(cz)) * Balance.CUBE_HALF)
+					if rig.cam.is_position_behind(wp):
+						continue
+					var py := rig.cam.unproject_position(wp).y / vs.y
+					y0 = minf(y0, py)
+					y1 = maxf(y1, py)
+		if y1 > y0:
+			fy = clampf((y0 + y1) * 0.5, 0.2, 0.8)
+			fh = clampf((y1 - y0) * 0.5 + 0.03, 0.12, 0.45)
+		else:
+			fy = clampf(rig.cam.unproject_position(Vector3.ZERO).y / vs.y, 0.3, 0.7)
 	_post_mat.set_shader_parameter("focus_y", fy)
-	_post_mat.set_shader_parameter("blur_px", 0.0 if Look.quality == 0 else 0.0065 * float(win.x))
+	_post_mat.set_shader_parameter("focus_half", fh)
+	_post_mat.set_shader_parameter("blur_px", 0.0 if Look.quality == 0 else 0.004 * float(win.x))
 
 
-## Qualität: Die ersten Sekunden messen; ist das Handy zu langsam, gehen Pollen, Vögel, Post-Unschärfe und
-## Schattenauflösung herunter (GDPD_GRAFIK.md A13). Die Tour bleibt auf „hoch“ (gleiche Bilder in der CI).
+## Qualität (GDPD_GRAFIK.md A13): gemessen 2–5 s nach dem Start und nach jedem Tag-Start (volle Bretter der Tage 6/7),
+## mit dem Median der Bildzeiten (erste Shader-Übersetzungen zählen so nicht). Ist das Handy zu langsam, geht die
+## Qualität eine Stufe herunter (nie wieder hinauf) und das Brett wird neu gebaut (Materialien, Schatten der Figuren):
+##   1: Schattenkarte 2048 mit weichem Filter „niedrig“, keine Figuren-Schatten, keine Vögel/Pollen
+##   0: zusätzlich keine Sonnen-Schatten, kein Glühen, keine Miniatur-Unschärfe, kein MSAA
+## Die Tour bleibt auf „hoch“ (gleiche Bilder in der CI).
+var _perf_dts: Array = []
+var _quality_rebuild := false
+
+
+func _perf_restart() -> void:
+	if Look.quality <= 0:
+		return
+	_perf_t = 0.0
+	_perf_dts.clear()
+	_perf_done = false
+
+
 func _measure_quality(delta: float) -> void:
+	if _quality_rebuild and _mode == "" and not animating and not Game.busy:
+		_quality_rebuild = false
+		var lock := input_locked
+		rebuild()
+		input_locked = lock
 	if _perf_done or _tour:
 		return
 	_perf_t += delta
-	if _perf_t < 1.0:
+	if _perf_t < 2.0:
 		return
-	_perf_frames += 1
-	if _perf_t < 4.0:
+	_perf_dts.append(delta)
+	if _perf_t < 5.0:
 		return
 	_perf_done = true
-	var avg := (_perf_t - 1.0) / maxf(1.0, float(_perf_frames))
-	if avg > 1.0 / 26.0:
-		Look.quality = 0
+	_perf_dts.sort()
+	var med := float(_perf_dts[_perf_dts.size() / 2]) if not _perf_dts.is_empty() else 0.0
+	var q := Look.quality
+	if med > 1.0 / 26.0:
+		q = mini(q, 0)
+	elif med > 1.0 / 40.0:
+		q = mini(q, 1)
+	if q < Look.quality:
+		apply_quality(q)
+		print("Grafik: Qualität %d (%.1f ms je Bild)" % [q, med * 1000.0])
+
+
+## Qualität setzen (0 niedrig, 1 mittel, 2 hoch) und das Brett neu bauen, sobald nichts läuft.
+func apply_quality(q: int) -> void:
+	Look.quality = clampi(q, 0, 2)
+	if Look.quality <= 1:
 		RenderingServer.directional_shadow_atlas_set_size(2048, true)
-	elif avg > 1.0 / 40.0:
-		Look.quality = 1
-	if Look.quality < 2:
-		_life_on = _life_on and Look.quality >= 1
-		print("Grafik: Qualität %d (%.1f ms je Bild)" % [Look.quality, avg * 1000.0])
+		RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+	_life_on = _life_on and Look.quality >= 1
+	if Look.quality == 0:
+		rig.key.shadow_enabled = false
+		_env.glow_enabled = false
+		_postfx.visible = false
+		get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+	_quality_rebuild = true
 
 
 func focus_place(n: Vector3i) -> void:
@@ -1963,6 +2019,9 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 					cv.pulse_light(Color("#fff3c4"), 0.8)
 					_sparks(cv.global_position + cv.world_normal() * 0.3, Vector3.ZERO, Color("#fff3a0"), 6)
 			_war_churches = []
+	# Wen hat die Drehung satt gemacht, wer hungert, wo droht Blitz oder Flut? Liegt es nicht im Bild (Rückseite,
+	# Kante), dreht die Kamera kurz hin, wie beim Krieg: der Spieler soll sehen, wen er versorgt hat.
+	await _focus_round8(events)
 	for e in events:
 		var fv8: FieldView = views.get(int(e.get("field", -1)))
 		if fv8 == null:
@@ -2021,8 +2080,10 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 
 
 ## Abzeichen über den Feldern einer stillen Reihe (warum sie nicht wächst).
-const STILL_BADGE = {"rest": "lock", "diag": "close", "water": "water", "finished": "check", "standing": "check",
-	"spent": "check", "repeat": "undo", "other": "wait", "people": "person", "done": "goal", "stone": "stone", "slice": "undo"}
+## Abzeichen stiller Reihen: kein grüner Haken für „schon gewachsen“ / „stand schon so“ (das hiesse Erfolg), sondern das
+## Schloss; den Haken gibt es nur für fertige Felder.
+const STILL_BADGE = {"rest": "lock", "diag": "close", "water": "water", "finished": "check", "standing": "lock",
+	"spent": "lock", "repeat": "undo", "other": "wait", "people": "person", "done": "goal", "stone": "stone", "slice": "undo"}
 
 
 ## Stille Reihen zeigen (GameState._still_rows). Blockiert nicht: Die Felder leuchten kurz mit Abzeichen, dann ist
@@ -2067,7 +2128,7 @@ func _still_fx(events: Array, grew: bool, same_slice: bool = false) -> void:
 				continue
 			v.refresh(Game.state.fields[int(i)])
 			if why != "water":
-				v.set_highlight(true)
+				v.set_still(true)          # neutraler grauer Rand (gold hiesse „wächst gleich“)
 			v.set_badge(str(STILL_BADGE.get(why, "info")))
 			v.nudge()
 			_still_views.append(v)
@@ -2097,7 +2158,7 @@ func _still_clear() -> void:
 	var drag := _mode == "twist"      # eine laufende Vorschau gehört dem Finger: dort nichts löschen
 	for v in _still_views:
 		if is_instance_valid(v) and not drag:
-			(v as FieldView).set_highlight(false)
+			(v as FieldView).set_still(false)
 			(v as FieldView).set_badge("")
 	_still_views.clear()
 
@@ -2113,6 +2174,38 @@ func _show_ids(ids: Dictionary, skip: Dictionary) -> void:
 
 
 ## Krieg: Schwerter über den Kirchen, rotes Blinken, Beben; die Kirchen stürzen zu Häusern ein.
+const _FOCUS8 := ["flood_warn", "bolt_warn", "starve", "thrive", "satt_new"]
+
+
+## Kamera zum wichtigsten neuen Ereignis der neuen Tage, wenn es nicht gut zu sehen ist (0,45 s, dann die Effekte).
+func _focus_round8(events: Array) -> void:
+	var cam_dir := rig.cam.global_position.normalized()
+	for want in _FOCUS8:
+		for e in events:
+			if str(e["type"]) != want:
+				continue
+			if want == "flood_warn":
+				if not bool(e.get("new", false)):
+					continue
+				var ni: Vector3i = GameState.FACE_NORMALS[int(e["face"])]
+				var n := Vector3(ni)
+				if n.dot(cam_dir) > 0.55:
+					return
+				rig.focus(n)
+			else:
+				var fid := int(e.get("field", -1))
+				var v: FieldView = views.get(fid)
+				if v == null:
+					continue
+				# gut zu sehen = fast frontal (nicht nur „sichtbar“ am Rand des Würfels)
+				var to_cam := (rig.cam.global_position - v.global_position).normalized()
+				if bool(field_screen(fid)["visible"]) and v.world_normal().dot(to_cam) > 0.55:
+					return
+				focus_field(fid)
+			await get_tree().create_timer(0.45).timeout
+			return
+
+
 func _war_fx(e: Dictionary) -> void:
 	var ids: Array = e["fields"]
 	if ids.is_empty():

@@ -306,6 +306,8 @@ func build(owner_ui: GameUI) -> void:
 	Game.choice_made.connect(_on_choice_made)
 	Game.choice_needed.connect(_on_choice_needed)
 	Game.round_resolved.connect(_on_round)
+	if ui.world != null:
+		ui.world.preview_changed.connect(_on_preview_chip)
 
 
 ## Beim Start der App: Noch kein eigener Charakter → erst der Ersteller (unter einer Minute), dann beim ersten Start
@@ -1588,7 +1590,7 @@ func _on_go() -> void:
 	var delay := 0.35
 	var on: Dictionary = _info.get("overnight", {})
 	if not on.is_empty():
-		# „Über Nacht gewachsen“ (GDPD_BALANCE_2.md 5.6): kurz oben, blockiert nichts (die Welle zeigt die World)
+		# „Neuer Morgen“ (GDPD_BALANCE_2.md 5.6): kurz oben, blockiert nichts (die Welle zeigt die World)
 		ui._show_banner("still", str(on.get("caps", "")), str(on.get("line", "")), "up")
 		ui.world.overnight_wave()
 		delay += 1.8
@@ -1784,6 +1786,36 @@ func refresh_hud() -> void:
 		_warned_fire = false
 
 
+## Beim Drehen (Vorschau): Ändert die Drehung den Fortschritt, zeigt der Chip „1→2/3“ (grün) oder „2→1/3“ (rot), auch
+## wenn das betroffene Feld gerade nicht im Bild ist. Nach dem Loslassen stellt refresh_hud den Chip wieder her.
+var chip_ghost := 0              # +1 / -1: der Chip zeigt gerade einen Vorschau-Wert (Tests, Tour)
+
+
+func _on_preview_chip(info: Dictionary) -> void:
+	if info.is_empty() or not Game.in_day() or not info.has("state"):
+		if chip_ghost != 0:
+			chip_ghost = 0
+			chip_num.remove_theme_color_override("font_color")
+			refresh_hud()
+		return
+	var gs := Game.state
+	if gs.day_free_build or not ["make", "satt"].has(gs.goal_type()):
+		return
+	var post: GameState = info["state"]
+	var cur := gs.goal_progress()
+	var nxt := post.goal_progress()
+	var target := gs.goal_target()
+	if nxt == cur:
+		if chip_ghost != 0:
+			chip_ghost = 0
+			chip_num.remove_theme_color_override("font_color")
+			chip_num.text = "%d/%d" % [mini(cur, target), target]
+		return
+	chip_ghost = 1 if nxt > cur else -1
+	chip_num.text = "%d→%d/%d" % [mini(cur, target), mini(nxt, target), target]
+	chip_num.add_theme_color_override("font_color", Style.LEAF_DEEP if nxt > cur else Style.FIRE_DEEP)
+
+
 func _goal_noun(gs: GameState) -> String:
 	var t := gs.goal_type()
 	if t == "make":
@@ -1828,8 +1860,8 @@ func _pill8(result: Dictionary) -> void:
 			continue
 		if t == "flood_warn" and not bool(e.get("new", true)):
 			continue
-		if t == "satt_new" and _satt_said:
-			continue
+		if t == "satt_new" and (_satt_said or not Game.state.goal_kinds().has(int(e.get("kind", -1)))):
+			continue          # nur wer fürs Ziel zählt („Hütte satt!“), sonst widerspräche die Pille dem Chip
 		if t == "smog" and _smog_said:
 			continue
 		if t == "thrive" and not bool(e.get("first", true)):
@@ -1852,6 +1884,7 @@ func _pill8(result: Dictionary) -> void:
 		line = str(Game.state.day_status().get("extra_text", ""))
 	elif tt == "satt_new":
 		_satt_said = true
+		caps = str(Days.TEXT["satt_goal"]) % FieldData.kind_name(int(best.get("kind", FieldData.HUT))) + "!"
 	elif tt == "smog":
 		_smog_said = true
 	if line == "":

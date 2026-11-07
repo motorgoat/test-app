@@ -13,8 +13,10 @@ varying vec3 lp;
 varying float hue;
 varying float ao;
 void vertex() {
-	vec3 o = NODE_POSITION_WORLD;
-	float ph = dot(o, vec3(3.1, 1.7, 2.3));
+	// Zufall je Pflanze aus dem Mesh selbst (nie aus NODE_POSITION_WORLD: das wandert beim Drehen einer Scheibe und
+	// liesse Farbe und Wind flackern). Gebackene Felder bringen ihn in UV2.x mit, sonst Raster im Objektraum.
+	float seed = UV2.x > 0.0 ? UV2.x * 97.0 : dot(floor(VERTEX.xz * 9.0), vec2(3.1, 2.3));
+	float ph = seed;
 	float w = clamp(0.35 + VERTEX.y * 10.0, 0.0, 1.3);
 	if (use_vc) { w *= COLOR.a; }
 	float vp = ph + dot(VERTEX.xz, vec2(37.0, 29.0));
@@ -22,7 +24,7 @@ void vertex() {
 	VERTEX.x += sin(TIME * speed + vp) * sway * w * g;
 	VERTEX.z += cos(TIME * speed * 0.83 + vp * 1.3) * sway * 0.6 * w * g;
 	lp = VERTEX;
-	hue = fract(sin(ph) * 43758.5453);
+	hue = fract(sin(seed * 1.37 + 12.9898) * 43758.5453);
 	// eigene Meshes (use_vc) bringen ihre Abdunklung in den Vertexfarben mit
 	ao = use_vc ? 1.0 : clamp(0.62 + VERTEX.y * 7.0, 0.55, 1.0);
 }

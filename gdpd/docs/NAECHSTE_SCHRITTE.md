@@ -44,7 +44,21 @@
 
 ## Realistischere Grafik (Wunsch von Philipp)
 - Die Welt soll realistischer aussehen: echtere Wiesen, Wälder, Wasser, Felder, Häuser, Licht und Schatten.
-- Kommt nach dem Duolingo-Umbau; Leistung am Handy muss gut bleiben.
+  (erledigt: Teil A und B in GDPD_GRAFIK.md 13, 14)
+- „Die Grafik muss noch dynamischer und schöner werden.“ (Rev. 9, GDPD_GRAFIK.md 15: Wasser als zusammenhängende
+  Seen, helle Schattenseiten, kein Laub-Flackern beim Drehen, Flut und Blitz gut sichtbar, Kamera zu dem, was
+  passiert, größere Bedürfnis-Symbole, Häuser mit klarer Form; offen: am echten Handy prüfen, MultiMesh für Tiere)
+- Leistung am Handy muss gut bleiben (Rev. 9: Back-Cache begrenzt, indizierte Meshes, Qualität misst auch nach
+  jedem Tag-Start und baut das Brett neu, Tipp im Hintergrund).
+
+## Nicht zu viele Felder, jeden Tag schwerer, kein Hin-und-her-Farmen (Wunsch von Philipp)
+- Höchstens 3 Arten wachsen an einem Tag; am Morgen liegen höchstens 1/2/2/3/5/6/6 verschiedene Arten (ohne Wasser)
+  auf dem Brett, die niedrigen sind „über Nacht“ aufgestiegen (Pools neu, GDPD_BALANCE_2.md 5.1, 16). (erledigt)
+- Jeden Tag etwas schwerer: Tag 3 bekam 10 Drehungen (vorher eine Spitze mit 8), Tag 6 ist enger (12). (erledigt)
+- Eine Scheibe hin und her bringt weder Wachsen (jede Reihe wächst nur einmal) noch Glauben für den Meteor (Glaube
+  nur für eine neue Stufe neben einer Kirche). (erledigt)
+- Offen: die echte Welt von gestern weiterführen (heute ist jeder Tag ein neues, geprüftes Brett; „Neuer Morgen“
+  zeigt nur ein paar Felder, die heraufwachsen).
 
 ## 100-Sekunden-Challenge (Wunsch von Philipp)
 - Ersetzt im freien Spiel den Modus „40 Drehungen“.
