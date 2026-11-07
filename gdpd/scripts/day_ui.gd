@@ -410,7 +410,8 @@ func _build_chip() -> void:
 	_chip_sb = Style.lift(Style.hairline(Style.box(Style.GLASS, 30, 12, 8)), 1)
 	_chip_sb.content_margin_right = 14
 	chip.add_theme_stylebox_override("panel", _chip_sb)
-	chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	# Ausdehnen und darin mittig: sonst schiebt die Zeile den Chip nach links (die Glaubenszahl ist in den Tagen aus)
+	chip.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
 	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row1.add_child(chip)
 	row1.move_child(chip, ui.score_box.get_index() + 1)
