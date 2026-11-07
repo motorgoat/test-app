@@ -42,7 +42,9 @@ jobs:
       - name: Projekt importieren
         run: |
           cd $PROJECT
-          timeout 300 godot --headless --editor --quit 2>&1 | tail -20 || true
+          # --import wartet, bis alles importiert ist (--editor --quit bricht den Scan bei vielen Dateien zu früh ab)
+          timeout 900 godot --headless --import 2>&1 | tail -20 || true
+          test -f .godot/global_script_class_cache.cfg || { echo "Import unvollständig: Klassen-Cache fehlt"; exit 1; }
 
       - name: Regeltests
         run: |
