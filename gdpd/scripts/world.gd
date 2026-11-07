@@ -761,25 +761,25 @@ func hold_mood(name: String, dur: float = 0.8) -> void:
 	_update_mood(dur)
 
 
-## Wasser: Schaum nur dort, wo kein Nachbarwasser auf derselben Seite liegt (Seen statt Pfützen).
 ## Nahtlos (GDPD_GRAFIK.md): jedem Feld seine 8 Nachbarn geben, wie sie gerade liegen – auf derselben Seite und
 ## über die Würfelkante hinweg (dort liegt der Nachbar auf demselben Würfelstein oder dem daneben). Läuft nach jeder
 ## Drehung und jedem Artwechsel (FieldView.seams_dirty). Rechnet nur mit der Lage der Ansichten, nicht mit den Regeln.
-func _update_seams() -> void:
+## moving (beim Start einer Drehung): Felder der drehenden Scheibe. Über die laufende Fuge hinweg gilt der Nachbar
+## als neutral (wie das Feld selbst, kein Wasser): Ufer schließen sich, kein Übergang zu Feldern, die gleich weg sind.
+func _update_seams(moving: Dictionary = {}) -> void:
 	FieldView.seams_dirty = false
 	var at := {}
 	var info := {}
 	for fid in views:
 		var v: FieldView = views[fid]
+		v.clear_back()
 		var t := cube_root.global_transform.affine_inverse() * v.global_transform
 		var n := Vector3i(t.basis.y.normalized().round())
 		var p := Vector3i((t.origin - Vector3(n) * 0.47).round())
 		at[_seam_key(p, n)] = v
-		info[fid] = [p, n, Vector3i(t.basis.x.normalized().round()), Vector3i(t.basis.z.normalized().round())]
-		var k := 0 if n.x != 0 else (1 if n.y != 0 else 2)
-		var k1 := (k + 1) % 3
-		var k2 := (k + 2) % 3
-		v.set_wave_frame(Vector4(t.basis.x[k1], t.basis.z[k1], t.basis.x[k2], t.basis.z[k2]), Vector2(t.origin[k1], t.origin[k2]))
+		info[fid] = [p, n, Vector3i(t.basis.x.normalized().round()), Vector3i(t.basis.z.normalized().round()), t]
+		v.set_cube_frame(t)
+		_set_wave(v, t, n)
 	var offs := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1)]
 	for fid in views:
 		var v: FieldView = views[fid]
@@ -789,8 +789,11 @@ func _update_seams() -> void:
 		var ax: Vector3i = inf[2]
 		var az: Vector3i = inf[3]
 		var kinds: Array = []
-		for o in offs:
-			var off: Vector2i = o
+		var same: Array = []
+		var nbv: Array = []
+		var mk := v.get_kind()
+		for i in offs.size():
+			var off: Vector2i = offs[i]
 			var a := ax * off.x
 			var b := az * off.y
 			var a_in := off.x == 0 or _inside(p + a)
@@ -803,8 +806,51 @@ func _update_seams() -> void:
 			elif a_in and not b_in:
 				key = _seam_key(p + a, b)
 			var nv: FieldView = at.get(key) if key >= 0 else null
-			kinds.append(nv.get_kind() if nv != null else -1)
-		v.set_neighbors(kinds)
+			if nv != null and moving.has(v.field_id) != moving.has(nv.field_id):
+				kinds.append(-2)
+				same.append(true)
+				nbv.append(null)
+				continue
+			var k := nv.get_kind() if nv != null else -1
+			kinds.append(k)
+			same.append(nv != null and k == mk and (k != FieldView.K_FIELD or _furrows_match(v, nv, inf[4], info[nv.field_id][4], i)))
+			nbv.append(nv)
+			if nv != null:
+				nv.add_back(v, i)
+		v.set_neighbors(kinds, same, nbv)
+
+
+## Wellen in Koordinaten der Würfelseite k (Normale): fc = (Lage[k+1], Lage[k+2]).
+func _set_wave(v: FieldView, t: Transform3D, n: Vector3i) -> void:
+	var k := 0 if n.x != 0 else (1 if n.y != 0 else 2)
+	var k1 := (k + 1) % 3
+	var k2 := (k + 2) % 3
+	v.set_wave_frame(Vector4(t.basis.x[k1], t.basis.z[k1], t.basis.x[k2], t.basis.z[k2]), Vector2(t.origin[k1], t.origin[k2]))
+
+
+## Acker neben Acker: Furchen laufen nur durch, wenn sie zur gemeinsamen Fuge gleich liegen (beide längs oder beide
+## quer). Diagonal: nur bei gleicher Richtung auf derselben Seite.
+static func _furrows_match(v: FieldView, nv: FieldView, tv: Transform3D, tn: Transform3D, slot: int) -> bool:
+	var rv := tv.basis * (Vector3(0, 0, 1) if v.furrow_dir() == 1 else Vector3(1, 0, 0))
+	var rn := tn.basis * (Vector3(0, 0, 1) if nv.furrow_dir() == 1 else Vector3(1, 0, 0))
+	if slot >= 4:
+		return absf(rv.normalized().dot(rn.normalized())) > 0.7
+	var seam := tv.basis * (Vector3(1, 0, 0) if slot == 0 or slot == 2 else Vector3(0, 0, 1))
+	var pv := absf(rv.normalized().dot(seam.normalized())) > 0.7
+	var pn := absf(rn.normalized().dot(seam.normalized())) > 0.7
+	return pv == pn
+
+
+## Während einer Drehung: auf der Deckseite der Scheibe (dreht um ihre eigene Normale) laufen die Wellen in
+## Würfel-Koordinaten weiter – kein Sprung am Ende. Felder, die die Seite wechseln, nehmen ihr Muster mit.
+func _twist_waves() -> void:
+	var inv := cube_root.global_transform.affine_inverse()
+	for v in _tw_views:
+		var fv := v as FieldView
+		if not is_instance_valid(fv):
+			continue
+		var t := inv * fv.global_transform
+		_set_wave(fv, t, fv.get_meta("tw_n", Vector3i(0, 1, 0)))
 
 
 static func _inside(q: Vector3i) -> bool:
@@ -959,6 +1005,7 @@ func select(fid: int) -> void:
 		views[fid].set_selected(true)
 
 
+var _tw_views: Array = []        # Deckseite der drehenden Scheibe (Wellen laufen mit, _twist_waves)
 var _perf_t := 0.0
 var _perf_done := false
 
@@ -1005,6 +1052,8 @@ func _process(delta: float) -> void:
 	# Nahtlos: nach einem Artwechsel (Welle, Verschmelzen, Effekte) die Nachbarn neu verteilen – nicht mitten in einer Drehung
 	if FieldView.seams_dirty and _mode != "twist" and _pivot == null:
 		_update_seams()
+	if _pivot != null and not _tw_views.is_empty():
+		_twist_waves()
 	var cam_pos := rig.cam.global_position
 	for fid in views:
 		var v: FieldView = views[fid]
@@ -1012,6 +1061,11 @@ func _process(delta: float) -> void:
 		var facing := v.world_normal().dot(to_cam)
 		v.set_labels_visible(facing > 0.2)
 		v.set_detail(facing)
+		# Seiten, die von der Kamera wegkippen: Inhalt flacher (ragt nicht weit über die Würfelkante)
+		v.set_squash(smoothstep(-0.1, 0.4, facing))
+	# Sonne im Kamera-Raum (Glitzern auf dem Wasser nur, wo sie sich spiegelt)
+	if rig.key != null:
+		Look.set_sun(rig.cam.global_basis.inverse() * rig.key.global_basis.z.normalized())
 
 
 ## Bildschirmposition eines Felds. {"pos": Vector2, "visible": bool}
@@ -1482,6 +1536,7 @@ func _begin_twist(drag: Vector2) -> void:
 	cube_root.add_child(_pivot)
 	for cb in _slice_cubies(_tw_axis, _tw_layer):
 		(cb as Node3D).reparent(_pivot, true)
+	_twist_seams()
 	_mode = "twist"
 	_over_cancel = false
 	_tw_live = false
@@ -1771,6 +1826,23 @@ func _finish_twist() -> void:
 		refresh_all()
 
 
+## Nahtlos beim Drehen: die Fuge zwischen drehender Scheibe und Rest wird neutral (Ufer zu, kein Übergang),
+## die Deckseite merkt sich ihre Seite für die mitlaufenden Wellen.
+func _twist_seams() -> void:
+	var moving := {}
+	_tw_views = []
+	var inv := cube_root.global_transform.affine_inverse()
+	for fid in views:
+		var v: FieldView = views[fid]
+		if _pivot != null and _pivot.is_ancestor_of(v):
+			moving[fid] = true
+			var n := Vector3i((inv * v.global_transform).basis.y.normalized().round())
+			if n[_tw_axis] != 0:
+				v.set_meta("tw_n", n)
+				_tw_views.append(v)
+	_update_seams(moving)
+
+
 func _slice_cubies(axis: int, layer: int) -> Array:
 	var out: Array = []
 	for cb in cubies:
@@ -1794,6 +1866,7 @@ func _unparent_pivot(piv: Node3D, axis: int, turns: int) -> void:
 		node.set_meta("pos", p)
 	piv.queue_free()
 	_pivot = null if _pivot == piv else _pivot
+	_tw_views = []
 	FieldView.seams_dirty = true
 
 
@@ -1822,6 +1895,7 @@ func auto_twist(axis: int, layer: int, turns: int) -> bool:
 	cube_root.add_child(_pivot)
 	for cb in _slice_cubies(axis, layer):
 		(cb as Node3D).reparent(_pivot, true)
+	_twist_seams()
 	_tw_display = 0.0
 	_tw_angle = 0.0
 	_tw_quarter = turns

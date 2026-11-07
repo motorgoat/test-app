@@ -189,6 +189,20 @@ func _test_seamless(root: Node3D) -> void:
 	# Innenecke: N und O Wasser, NO Land -> Kern, 2 Nachbarkerne, 2 Brücken, keine Füllung
 	if Look.water_boxes([true, true, false, false, false, false, false, false]).size() != 5:
 		_fail("Wasser Innenecke")
+	# Meerenge: Wasser nur über Eck (NO) -> ein Kanal zur Ecke; Landfeld zwischen zwei Wasserfeldern über Eck trägt ihn mit
+	var F8 := [false, false, false, false, false, false, false, false]
+	var wd := F8.duplicate()
+	wd[4] = true
+	if Look.water_segs(wd, true).size() != 1 or Look.water_segs(F8, true).size() != 0:
+		_fail("Meerenge Wasserfeld")
+	var wl := F8.duplicate()
+	wl[0] = true
+	wl[1] = true
+	if Look.water_segs(wl, false).size() != 1:
+		_fail("Meerenge Landfeld")
+	wl[4] = true
+	if Look.water_segs(wl, false).size() != 0:
+		_fail("Meerenge, obwohl die Diagonale Wasser ist")
 	# Ansicht: Nachbarn setzen, Wassermaske lesen, Inhalt bleibt auf der Platte
 	var f := FieldData.new()
 	f.id = 7
@@ -200,6 +214,23 @@ func _test_seamless(root: Node3D) -> void:
 	v.set_neighbors([FieldView.K_WATER, FieldView.K_MEADOW, -1, FieldView.K_WATER, FieldView.K_FOREST, -1, -1, FieldView.K_WATER])
 	if v.debug_water_mask() != [1, 0, 0, 1, 0, 0, 0, 1] or v.outer_mask() != 6:
 		_fail("Nachbarn/Wassermaske")
+	# Markierungen im Boden: höchster Vorrang gewinnt, Nachbarn erfahren die Nummer (kein Rand zwischen gleichen)
+	v.set_hint(true)
+	v.set_danger(true)
+	if int(v.seam_fx().a) != int((FieldView.MARKS["danger"] as Array)[3]):
+		_fail("Markierung: Gefahr vor Hinweis")
+	v.set_danger(false)
+	if int(v.seam_fx().a) != int((FieldView.MARKS["hint"] as Array)[3]):
+		_fail("Markierung: Hinweis")
+	v.set_hint(false)
+	if v.seam_fx().a != 0.0:
+		_fail("Markierung aus")
+	# Stauchen: der Fuß des Inhalts bleibt auf dem Boden
+	v.set_squash(0.0)
+	var foot := v._squash.position.y + v._squash.scale.y * FieldView.TOP
+	if v._squash.scale.y > 0.5 or absf(foot - FieldView.TOP) > 0.001:
+		_fail("Stauchen")
+	v.set_squash(1.0)
 	for k in [FieldView.K_BIGFOREST, FieldView.K_VILLAGE, FieldView.K_CHURCH, FieldView.K_HUT]:
 		v.set_kind(k)
 		for it in v._items:

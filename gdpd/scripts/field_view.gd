@@ -64,26 +64,33 @@ var field_id := -1
 var _tile: MeshInstance3D
 var _content: Node3D
 var _preview_label: Label3D
-var _sel: MeshInstance3D
-var _glow: MeshInstance3D
-var _glow_top: MeshInstance3D
-var _danger: MeshInstance3D
-var _still_rim: MeshInstance3D
-var _danger_top: MeshInstance3D
-var _hint: MeshInstance3D
-var _hint_mat: StandardMaterial3D
+var _squash: Node3D              # staucht den Inhalt, wenn die Seite von der Kamera wegkippt (World, set_squash)
 var _hint_on := false
+## Markierungen (Lichtrand im Boden-Shader, GDPD_GRAFIK.md 7.3): Name -> [Vorrang, Farbe, Puls, Nummer].
+## Es leuchtet die mit dem höchsten Vorrang; gleich markierte Nachbarn zeigen an ihrer Fuge keinen Rand.
+const MARKS := {
+	"danger": [11, Color(1.0, 0.3, 0.2), 7.0, 1], "front": [10, Color(0.9, 0.22, 0.14), 4.0, 10],
+	"flood": [9, Color(0.25, 0.55, 0.95), 4.0, 11], "target": [8, Color(0.4, 0.7, 1.0), 3.0, 2],
+	"supply_up": [7, Color(0.35, 0.92, 0.45), 4.0, 3], "supply_down": [7, Color(1.0, 0.32, 0.25), 4.0, 8],
+	"highlight": [6, Color(1.0, 0.78, 0.3), 0.0, 4], "select": [5, Color(1.0, 0.97, 0.9), 0.0, 9],
+	"hint": [4, Color(1.0, 0.86, 0.45), 3.5, 5], "satt": [3, Color(1.0, 0.8, 0.35), 0.0, 6],
+	"still": [2, Color(0.82, 0.84, 0.88), 0.0, 7],
+}
+var _marks := {}                 # aktive Markierungen: Name -> Farbe (Ziel: Bonusfarbe)
+var _mark_id := 0
+var _scorch_v := 0.0             # Bodenzustände (an die Nachbarn weitergereicht: Übergang ohne Kante)
+var _pol_v := 0.0
+var _wet_v := 0.0
+var _nb_fx := PackedColorArray() # Zustände der 8 Nachbarn (nb_fx im Shader)
+var _nb_neutral: Array = []      # Nachbar während der Drehung neutral (= eigener Zustand)
+var _back: Array = []            # [FieldView, Platz]: wer dieses Feld als Nachbarn hat (World._update_seams)
 var _shown := ""
 var _smoke: Array = []
 var _time := 0.0
 var _labels_on := true
 var _badge: Sprite3D             # Abzeichen über dem Feld (z. B. Tropfen: hier lohnt sich Gießen)
 var _badge_name := ""
-var _target: MeshInstance3D      # Ziel eines Bonus: Ring um das Feld (Regen blau, Blitz gelb)
-var _target_top: MeshInstance3D
-var _target_mat: ShaderMaterial
-var _target_top_mat: ShaderMaterial
-var _target_on := false
+var _target_on := false         # Ziel eines Bonus: Lichtrand in der Bonusfarbe (Regen blau, Blitz gelb)
 var _kind := -1
 var _fresh := 0
 var _burning := false
@@ -127,14 +134,12 @@ var _st_key := ""
 var _needs: Node3D
 var _need_icons: Array = []      # [bg Sprite3D, icon Sprite3D, met]
 var _need_pulse := false
-var _satt_ring: MeshInstance3D
 var _front := false
 var _front_node: Node3D
 var _bolt_node: Node3D
 var _bolt_flash: MeshInstance3D
 var _flood_node: Node3D
 var _supply_mode := 0            # Vorschau beim Drehen: 1 wird satt, -1 verliert die Versorgung, 0 aus
-var _supply_ring: MeshInstance3D
 var _supply_icon: Sprite3D
 
 
@@ -152,31 +157,17 @@ func build(f: FieldData, outer: int = 0) -> void:
 	var ex := func(bit: int) -> float:
 		return Models.SLAB_EDGE if (outer & bit) != 0 else Models.SLAB_SEAM
 	_ground.set_shader_parameter("cell_ext", Vector4(ex.call(1), ex.call(2), ex.call(4), ex.call(8)))
+	_ground.set_shader_parameter("tile_seed", float(f.id) + 1.0)
+	_nb_fx.resize(8)
+	for i in 8:
+		_nb_neutral.append(false)
+	_squash = Node3D.new()
+	add_child(_squash)
 	_content = Node3D.new()
 	_content.position.y = TOP
 	_content.scale = Vector3.ONE * CONTENT_SCALE
-	add_child(_content)
-
-	# Hinweise als weicher Lichtrand (GDPD_GRAFIK.md 7.3)
-	_sel = Models.rbox(self, Vector3(TILE + 0.06, 0.02, TILE + 0.06), 0.04, Color(1, 1, 1, 0.6), Vector3(0, 0.005, 0), Vector3.ZERO,
-		Look.rim(Color(1.0, 0.97, 0.9, 0.9), (TILE + 0.06) * 0.5, 0.05, 0.0, 0.3))
-	_sel.visible = false
-	_glow = Models.rbox(self, Vector3(TILE + 0.08, 0.03, TILE + 0.08), 0.05, Color("#ffd23f"), Vector3(0, 0.01, 0), Vector3.ZERO,
-		Look.rim(Color(1.0, 0.78, 0.3, 1.0), (TILE + 0.08) * 0.5, 0.0, 0.0, 0.4))
-	_glow.visible = false
-	_glow_top = Models.rbox(self, Vector3(TILE - 0.03, 0.014, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.006, 0), Vector3.ZERO,
-		Look.rim(Color(1.0, 0.84, 0.42, 0.9), (TILE - 0.03) * 0.5, 0.14, 0.0, 0.26, true))
-	_glow_top.visible = false
-	_danger = Models.rbox(self, Vector3(TILE + 0.08, 0.03, TILE + 0.08), 0.05, Color("#e5483c"), Vector3(0, 0.012, 0), Vector3.ZERO,
-		Look.rim(Color(1.0, 0.3, 0.2, 1.0), (TILE + 0.08) * 0.5, 0.0, 7.0, 0.4))
-	_danger.visible = false
-	_danger_top = Models.rbox(self, Vector3(TILE - 0.03, 0.014, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.008, 0), Vector3.ZERO,
-		Look.rim(Color(0.95, 0.3, 0.2, 0.9), (TILE - 0.03) * 0.5, 0.16, 7.0, 0.28, true))
-	_danger_top.visible = false
-	_hint_mat = Models.unshaded(Color(1.0, 0.85, 0.25, 0.5)).duplicate() as StandardMaterial3D
-	_hint = Models.rbox(self, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.004, 0), Vector3.ZERO,
-		Look.rim(Color(1.0, 0.86, 0.45, 0.9), (TILE - 0.03) * 0.5, 0.1, 3.5, 0.28, true))
-	_hint.visible = false
+	_squash.add_child(_content)
+	# Hinweise als weicher Lichtrand im Boden (GDPD_GRAFIK.md 7.3): set_mark / _update_mark
 
 	var body := StaticBody3D.new()
 	body.set_meta("field_id", f.id)
@@ -218,7 +209,47 @@ func label_world_pos() -> Vector3:
 
 
 func set_selected(on: bool) -> void:
-	_sel.visible = on
+	set_mark("select", on)
+
+
+## Markierung an/aus (MARKS). color: eigene Farbe (Ziel in der Bonusfarbe), sonst die der Markierung.
+func set_mark(name: String, on: bool, color: Color = Color(0, 0, 0, 0)) -> void:
+	var was: Variant = _marks.get(name)
+	if on:
+		var c: Color = color if color.a > 0.0 else (MARKS[name] as Array)[1]
+		if was != null and (was as Color) == c:
+			return
+		_marks[name] = c
+	else:
+		if was == null:
+			return
+		_marks.erase(name)
+	_update_mark()
+
+
+func has_mark(name: String) -> bool:
+	return _marks.has(name)
+
+
+func _update_mark() -> void:
+	var best := ""
+	var bp := -1
+	for k in _marks:
+		var pr: int = (MARKS[k] as Array)[0]
+		if pr > bp:
+			bp = pr
+			best = String(k)
+	if best == "":
+		_mark_id = 0
+		_ground.set_shader_parameter("mark_c", Color(0, 0, 0, 0))
+	else:
+		var d: Array = MARKS[best]
+		var c: Color = _marks[best]
+		_mark_id = int(d[3])
+		_ground.set_shader_parameter("mark_c", Color(c.r, c.g, c.b, 0.55 if best == "still" or best == "satt" else 0.95))
+		_ground.set_shader_parameter("mark_speed", float(d[2]))
+	_ground.set_shader_parameter("mark_id", float(_mark_id))
+	_push_fx()
 
 
 func set_labels_visible(on: bool) -> void:
@@ -247,19 +278,15 @@ func set_supply(mode: int) -> void:
 	if mode == _supply_mode:
 		return
 	_supply_mode = mode
-	if mode != 0 and _supply_ring == null:
-		_supply_ring = Models.rbox(self, Vector3(TILE + 0.1, 0.03, TILE + 0.1), 0.05, Color.WHITE, Vector3(0, 0.016, 0), Vector3.ZERO,
-			Look.rim(Color(0.35, 0.9, 0.45, 1.0), (TILE + 0.1) * 0.5, 0.0, 4.0, 0.42))
-		_supply_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if mode != 0 and _supply_icon == null:
 		_supply_icon = _sprite("up", 0.004, 7)
 		_supply_icon.position = Vector3(0, 0.98, 0)
 		add_child(_supply_icon)
-	if _supply_ring == null:
+	set_mark("supply_up", mode > 0)
+	set_mark("supply_down", mode < 0)
+	if _supply_icon == null:
 		return
-	var c := Color(0.35, 0.92, 0.45, 1.0) if mode > 0 else Color(1.0, 0.32, 0.25, 1.0)
-	(_supply_ring.material_override as ShaderMaterial).set_shader_parameter("color", c)
 	_supply_icon.texture = Style.icon("up" if mode > 0 else "down")
-	_supply_ring.visible = mode != 0
 	_supply_icon.visible = mode != 0 and _labels_on
 	if mode != 0:
 		# kurzer Hüpfer, damit man die Marke beim Drehen sieht
@@ -284,25 +311,13 @@ func set_preview(text: String, color: Color) -> void:
 ## Sanftes Pulsieren: Tipp, diese Scheibe zu drehen.
 func set_hint(on: bool) -> void:
 	_hint_on = on
-	_hint.visible = on
+	set_mark("hint", on)
 
 
 ## Ziel eines Bonus: weicher, pulsierender Ring in der Bonusfarbe (hier kann man gießen / blitzen).
 func set_target(on: bool, color: Color = Color("#3B8EEA")) -> void:
-	if on and _target == null:
-		_target_mat = Look.rim(Color(color, 1.0), (TILE + 0.1) * 0.5, 0.0, 3.0, 0.4)
-		_target = Models.rbox(self, Vector3(TILE + 0.1, 0.026, TILE + 0.1), 0.05, Color.WHITE, Vector3(0, 0.012, 0), Vector3.ZERO, _target_mat)
-		_target_top_mat = Look.rim(Color(color, 0.9), (TILE - 0.03) * 0.5, 0.2, 3.0, 0.28, true)
-		_target_top = Models.rbox(self, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.005, 0), Vector3.ZERO, _target_top_mat)
 	_target_on = on
-	if _target == null:
-		return
-	if on:
-		var lit := color.lightened(0.15)
-		_target_mat.set_shader_parameter("color", Color(lit, 1.0))
-		_target_top_mat.set_shader_parameter("color", Color(lit, 0.9))
-	_target.visible = on
-	_target_top.visible = on
+	set_mark("target", on, Color(color.lightened(0.15), 1.0))
 
 
 ## Kurz wackeln (z. B. hier geht der gewählte Bonus nicht).
@@ -318,28 +333,21 @@ func nudge() -> void:
 
 ## Goldenes Leuchten: dieses Feld würde gleich verschmelzen.
 func set_highlight(on: bool) -> void:
-	_glow.visible = on
-	_glow_top.visible = on
+	set_mark("highlight", on)
 
 
 ## Neutraler grauer Rand: diese Reihe wächst nicht (still: schon gewachsen, stand schon so, hin und her …).
 func set_still(on: bool) -> void:
-	if on and _still_rim == null:
-		_still_rim = Models.rbox(self, Vector3(TILE - 0.03, 0.014, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.006, 0), Vector3.ZERO,
-			Look.rim(Color(0.82, 0.84, 0.88, 0.7), (TILE - 0.03) * 0.5, 0.1, 0.0, 0.24, true))
-		_still_rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if _still_rim != null:
-		_still_rim.visible = on
+	set_mark("still", on)
 
 
 func is_still_marked() -> bool:
-	return _still_rim != null and _still_rim.visible
+	return has_mark("still")
 
 
 ## Rotes Leuchten: hier würde gleich eine Katastrophe zuschlagen.
 func set_danger(on: bool) -> void:
-	_danger.visible = on
-	_danger_top.visible = on
+	set_mark("danger", on)
 
 
 ## Erdbeben: der Inhalt ruckelt und kippt.
@@ -553,7 +561,17 @@ func _apply_tile_color() -> void:
 		scorch = 0.35
 	if _crater and _kind == K_EMPTY:
 		scorch = 0.5
-	Look.apply_ground(_ground, _kind, scorch, 1.0 if _polluted else 0.0, _rot % 2 if _kind == K_FIELD else 0)
+	var pol := 1.0 if _polluted else 0.0
+	Look.apply_ground(_ground, _kind, scorch, pol, furrow_dir())
+	if scorch != _scorch_v or pol != _pol_v:
+		_scorch_v = scorch
+		_pol_v = pol
+		_push_fx()
+
+
+## Acker: Furchen quer zu z (0) oder quer zu x (1) im eigenen Koordinatensystem (wie die Saatreihen).
+func furrow_dir() -> int:
+	return _rot % 2 if _kind == K_FIELD else 0
 
 
 ## Warmer Lichtpuls im Boden (Verschmelzen, Wachsen): über Emission und Glühen, keine Lampe.
@@ -574,12 +592,12 @@ func pulse_light(color: Color = Color("#ffd9a0"), dur: float = 0.5) -> void:
 func set_wet(amount: float, dry: float = 3.0) -> void:
 	if _wet_tw != null and _wet_tw.is_valid():
 		_wet_tw.kill()
-	var w0 := float(_ground.get_shader_parameter("wet")) if _ground.get_shader_parameter("wet") != null else 0.0
+	var w0 := _wet_v
 	_wet_tw = create_tween()
-	_wet_tw.tween_method(_shader_set.bind(_ground, "wet"), w0, amount, 0.35)
+	_wet_tw.tween_method(_set_wet_v, w0, amount, 0.35)
 	if dry > 0.0:
 		_wet_tw.tween_interval(0.6)
-		_wet_tw.tween_method(_shader_set.bind(_ground, "wet"), amount, 0.0, dry).set_trans(Tween.TRANS_SINE)
+		_wet_tw.tween_method(_set_wet_v, amount, 0.0, dry).set_trans(Tween.TRANS_SINE)
 	if amount >= 0.5:
 		for a in _agents:
 			(a as Dictionary)["hop"] = 1.8
@@ -590,22 +608,92 @@ static func _shader_set(v: float, m: ShaderMaterial, param: String) -> void:
 	m.set_shader_parameter(param, v)
 
 
-## Nahtlos: die 8 Nachbarn dieses Felds, wie sie gerade zu sehen sind (Art je Nachbar, −1 = keiner; Reihenfolge
-## N −z, O +x, S +z, W −x, NO, SO, SW, NW im eigenen Koordinatensystem, über Würfelkanten hinweg). World rechnet sie
-## nach jeder Drehung und jedem Artwechsel neu. Der Boden geht am Rand in die Nachbarn über, Wasser fließt zusammen.
-func set_neighbors(kinds: Array) -> void:
-	var key := "%d|%s" % [_kind, str(kinds)]
-	if key == _nb_key:
+func _set_wet_v(v: float) -> void:
+	_wet_v = v
+	_ground.set_shader_parameter("wet", v)
+	_push_fx()
+
+
+## Nahtlos: die 8 Nachbarn dieses Felds, wie sie gerade zu sehen sind (Art je Nachbar, −1 = keiner, −2 = neutral
+## während einer Drehung; Reihenfolge N −z, O +x, S +z, W −x, NO, SO, SW, NW im eigenen Koordinatensystem, über
+## Würfelkanten hinweg). World rechnet sie nach jeder Drehung und jedem Artwechsel neu. Der Boden geht am Rand in
+## die Nachbarn über, Wasser fließt zusammen. same: gleiche Art (Muster laufen durch); nbv: die Nachbar-Ansichten
+## (deren Zustände – verwelkt, Smog, Nässe, Markierung – mischt der Rand mit).
+func set_neighbors(kinds: Array, same: Array = [], nbv: Array = []) -> void:
+	var key := "%d|%s|%s" % [_kind, str(kinds), str(same)]
+	if key != _nb_key:
+		_nb_key = key
+		_nb = kinds.duplicate()
+		Look.apply_neighbors(_ground, maxi(_kind, 0), kinds, same)
+	var own := seam_fx()
+	for i in 8:
+		var nv: FieldView = nbv[i] if i < nbv.size() else null
+		_nb_neutral[i] = nv == null
+		_nb_fx[i] = nv.seam_fx() if nv != null else own
+	_ground.set_shader_parameter("nb_fx", _nb_fx)
+
+
+## Wer dieses Feld als Nachbarn hat (World._update_seams): Zustandswechsel gehen sofort dorthin.
+func clear_back() -> void:
+	_back.clear()
+
+
+func add_back(viewer: FieldView, slot: int) -> void:
+	_back.append([viewer, slot])
+
+
+## Zustand für den Rand der Nachbarn: verwelkt, Smog, Nässe, Markierung.
+func seam_fx() -> Color:
+	return Color(_scorch_v, _pol_v, _wet_v, float(_mark_id))
+
+
+func _push_fx() -> void:
+	if _ground == null or _nb_fx.size() < 8:
 		return
-	_nb_key = key
-	_nb = kinds.duplicate()
-	Look.apply_neighbors(_ground, maxi(_kind, 0), kinds)
+	var c := seam_fx()
+	for b in _back:
+		var nv: FieldView = (b as Array)[0]
+		if is_instance_valid(nv):
+			nv._take_nb_fx(int((b as Array)[1]), c)
+	var own_changed := false
+	for i in 8:
+		if bool(_nb_neutral[i]) and _nb_fx[i] != c:
+			_nb_fx[i] = c
+			own_changed = true
+	if own_changed:
+		_ground.set_shader_parameter("nb_fx", _nb_fx)
 
 
-## Wellen in Koordinaten der Würfelseite (World, nach jeder Drehung): alle Wasserfelder einer Seite teilen ein Muster.
+func _take_nb_fx(slot: int, c: Color) -> void:
+	if _nb_fx[slot] == c:
+		return
+	_nb_fx[slot] = c
+	_ground.set_shader_parameter("nb_fx", _nb_fx)
+
+
+## Wellen in Koordinaten der Würfelseite (World, nach jeder Drehung und während einer Drehung): alle Wasserfelder
+## einer Seite teilen ein Muster.
 func set_wave_frame(m: Vector4, o: Vector2) -> void:
 	_ground.set_shader_parameter("w_m", m)
 	_ground.set_shader_parameter("w_o", o)
+
+
+## Lage der Kachel im Würfel (World, nach jeder Drehung): Rauschen am Rand und Muster in Würfel-Koordinaten.
+func set_cube_frame(t: Transform3D) -> void:
+	_ground.set_shader_parameter("cb_x", t.basis.x)
+	_ground.set_shader_parameter("cb_y", t.basis.y)
+	_ground.set_shader_parameter("cb_z", t.basis.z)
+	_ground.set_shader_parameter("cb_o", t.origin)
+
+
+## Stauchen (World): kippt die Seite von der Kamera weg, werden Bäume und Häuser flacher, statt weit über die
+## Würfelkante zu ragen (k = 1 voll, 0 flach). Der Fuß bleibt auf dem Boden.
+func set_squash(k: float) -> void:
+	var sy := lerpf(0.42, 1.0, clampf(k, 0.0, 1.0))
+	if absf(sy - _squash.scale.y) < 0.004:
+		return
+	_squash.scale = Vector3(1.0, sy, 1.0)
+	_squash.position = Vector3(0.0, TOP * (1.0 - sy), 0.0)
 
 
 ## Prüfung (Tour): die zuletzt gesetzten Nachbarn.
@@ -859,8 +947,7 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 		_needs = null
 	_need_icons.clear()
 	_need_pulse = false
-	if _satt_ring != null:
-		_satt_ring.visible = false
+	set_mark("satt", false)
 	if not people:
 		return
 	var names: Array = []
@@ -894,12 +981,7 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 		up.offset = Vector2((x0 + gap * float(names.size())) * 1.1875, 0)
 		_needs.add_child(up)
 	_need_pulse = not satt and hungry >= shrink_after - 1 and hungry > 0
-	if satt:
-		if _satt_ring == null:
-			_satt_ring = Models.rbox(self, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.003, 0), Vector3.ZERO,
-				Look.rim(Color(1.0, 0.8, 0.35, 0.85), (TILE - 0.03) * 0.5, 0.0, 0.0, 0.16, true))
-			_satt_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_satt_ring.visible = true
+	set_mark("satt", satt)
 	_update_needs_visible()
 
 
@@ -915,9 +997,6 @@ func _set_front(on: bool) -> void:
 	if on and _front_node == null:
 		_front_node = Node3D.new()
 		add_child(_front_node)
-		var rim := Models.rbox(_front_node, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.004, 0), Vector3.ZERO,
-			Look.rim(Color(0.9, 0.22, 0.14, 0.85), (TILE - 0.03) * 0.5, 0.06, 4.0, 0.22, true))
-		rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		for k in 2:
 			var p := Node3D.new()
 			p.position = Vector3(-0.22 + 0.44 * k, TOP + 0.25, 0.2 - 0.4 * k)
@@ -927,6 +1006,7 @@ func _set_front(on: bool) -> void:
 			Look.smoke_puff(p, 0.22, Color(0.35, 0.32, 0.3, 0.5), Vector3(0.04, 0.16, 0.0))
 	if _front_node != null:
 		_front_node.visible = on
+	set_mark("front", on)
 
 
 ## Blitz-Warnung: dunkle Gewitterwolke über dem Feld, in der es ab und zu aufleuchtet.
@@ -966,13 +1046,10 @@ func _set_flood_risk(on: bool) -> void:
 	if on and _flood_node == null:
 		_flood_node = Node3D.new()
 		add_child(_flood_node)
-		var rim := Models.rbox(_flood_node, Vector3(TILE - 0.03, 0.012, TILE - 0.03), 0.03, Color.WHITE, Vector3(0, TOP + 0.004, 0), Vector3.ZERO,
-			Look.rim(Color(0.25, 0.55, 0.95, 0.85), (TILE - 0.03) * 0.5, 0.06, 4.0, 0.22, true))
-		rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var wm := Look.water()
-		wm.set_shader_parameter("half_size", 0.44)
+		wm.set_shader_parameter("half_size", 0.5)
 		wm.set_shader_parameter("edge_mask", Vector4.ZERO)
-		var slab := Models.rbox(_flood_node, Vector3(0.88, 0.02, 0.88), 0.01, Color.WHITE, Vector3(0, -0.04, 0), Vector3.ZERO, wm)
+		var slab := Models.rbox(_flood_node, Vector3(1.0, 0.02, 1.0), 0.01, Color.WHITE, Vector3(0, -0.04, 0), Vector3.ZERO, wm)
 		slab.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		slab.transparency = 0.35
 		var tw := slab.create_tween().set_loops()
@@ -983,12 +1060,13 @@ func _set_flood_risk(on: bool) -> void:
 		_flood_node.add_child(icon)
 	if _flood_node != null:
 		_flood_node.visible = on
+	set_mark("flood", on)
 	if on:
 		if _wet_tw != null and _wet_tw.is_valid():
 			_wet_tw.kill()
-		_ground.set_shader_parameter("wet", 0.75)
+		_set_wet_v(0.75)
 	elif _flood_node != null and (_wet_tw == null or not _wet_tw.is_valid()):
-		_ground.set_shader_parameter("wet", 0.0)
+		_set_wet_v(0.0)
 
 
 ## Gefahr auf dem Feld oder nebenan (Feuer, Krieg, Smog): Tiere und Menschen laufen weg.
@@ -1542,10 +1620,12 @@ const INSIDE := 0.5 / CONTENT_SCALE - 0.012     # Inhalt bleibt auf der Platte (
 
 
 ## Nahtlos: Bäume und Häuser ragen nicht über den Feldrand (und damit nicht über die Würfelkante):
-## das Teil rückt nach innen und wird, falls es dann noch zu groß ist, etwas kleiner.
+## das Teil rückt nach innen und wird, falls es dann noch zu groß ist, etwas kleiner. An einer Würfelkante rücken
+## hohe Teile zusätzlich etwas weiter hinein (die Krone kippt sonst über die Kante, wenn man die Seite flach sieht).
 func _keep_inside(it: Node3D, parts: Array) -> void:
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
+	var top := 0.0
 	var xf := it.transform
 	for pv in parts:
 		var bb: AABB = ((pv as Array)[0] as Mesh).get_aabb()
@@ -1554,18 +1634,22 @@ func _keep_inside(it: Node3D, parts: Array) -> void:
 			var w := xf * corner
 			lo = Vector2(minf(lo.x, w.x), minf(lo.y, w.z))
 			hi = Vector2(maxf(hi.x, w.x), maxf(hi.y, w.z))
+			top = maxf(top, w.y)
 	if lo.x > hi.x:
 		return
+	var tall := clampf((top - 0.14) * 0.5, 0.0, 0.08)
+	var lim_lo := Vector2(INSIDE - (tall if (_outer & 8) != 0 else 0.0), INSIDE - (tall if (_outer & 1) != 0 else 0.0))
+	var lim_hi := Vector2(INSIDE - (tall if (_outer & 2) != 0 else 0.0), INSIDE - (tall if (_outer & 4) != 0 else 0.0))
 	var size := hi - lo
-	var fit := minf(1.0, minf(2.0 * INSIDE / maxf(size.x, 0.001), 2.0 * INSIDE / maxf(size.y, 0.001)))
+	var fit := minf(1.0, minf((lim_lo.x + lim_hi.x) / maxf(size.x, 0.001), (lim_lo.y + lim_hi.y) / maxf(size.y, 0.001)))
 	if fit < 1.0:
 		var piv := Vector2(it.position.x, it.position.z)
 		lo = piv + (lo - piv) * fit
 		hi = piv + (hi - piv) * fit
 		it.scale *= fit
 	var shift := Vector2.ZERO
-	shift.x = maxf(0.0, -INSIDE - lo.x) - maxf(0.0, hi.x - INSIDE)
-	shift.y = maxf(0.0, -INSIDE - lo.y) - maxf(0.0, hi.y - INSIDE)
+	shift.x = maxf(0.0, -lim_lo.x - lo.x) - maxf(0.0, hi.x - lim_hi.x)
+	shift.y = maxf(0.0, -lim_lo.y - lo.y) - maxf(0.0, hi.y - lim_hi.y)
 	it.position += Vector3(shift.x, 0.0, shift.y)
 
 

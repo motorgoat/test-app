@@ -114,7 +114,7 @@ const GROUND := [
 	{"a": "#44413d", "b": "#524e48", "acc": "#6a665f", "amt": 0.25, "mc": 0.74},                                  # 12 Industrie (Asphalt)
 	{"a": "#c4c0b7", "b": "#d0ccc3", "cob": 0.55, "cs": 1.3, "mc": 0.7},                                         # 13 Metropole (Platz)
 	{"a": "#4a8c34", "b": "#69a748", "spk": "#f2c6d4", "spk2": "#fbf3e6", "samt": 0.9, "mc": 0.3},             # 14 Paradies
-	{"a": "#a39170", "b": "#b8a782", "acc": "#c9bd9e", "amt": 0.4, "mc": 0.45},                                   # 15 Wasser (Ufer-Sand)
+	{"a": "#a39170", "b": "#b8a782", "acc": "#bfb294", "amt": 0.2, "mc": 0.45},                                   # 15 Wasser (Ufer-Sand)
 	{"a": "#7a756c", "b": "#8f897e", "acc": "#aaa397", "amt": 1.0, "mc": 0.82},                                   # 16 Stein (Schotter)
 ]
 
@@ -130,26 +130,37 @@ static func ground_material() -> ShaderMaterial:
 	m.set_shader_parameter("n_fbm", fbm())
 	m.set_shader_parameter("n_cell", cell())
 	m.set_shader_parameter("w_sky", sky_color)
+	m.set_shader_parameter("sun_v", sun_view)
 	_water_mats.append(weakref(m))
 	return m
 
 
-## Nahtlos: Nachbarn (8 Arten, Reihenfolge N, O, S, W, NO, SO, SW, NW; −1 = keiner, z. B. Würfelecke) als
-## Shader-Werte: nb_a = Bodenton a + Mischwert, nb_b = Bodenton b + Wasser. Eine fehlende Diagonale (Würfelecke)
-## ist das Mittel aus der eigenen Art und den beiden Nachbarn daneben: alle drei Felder treffen sich dort gleich.
-static func apply_neighbors(m: ShaderMaterial, self_kind: int, kinds: Array) -> void:
+## Nahtlos: Nachbarn (8 Arten, Reihenfolge N, O, S, W, NO, SO, SW, NW; −1 = keiner, z. B. Würfelecke; −2 = neutral:
+## wie das eigene Feld, aber kein Wasser – während einer Drehung an der laufenden Fuge) als Shader-Werte:
+## nb_a = Bodenton a + Mischwert, nb_b = Bodenton b + Flag (2 = gleiche Art: zählt als „selbst“, Muster laufen
+## durch; 1 = Wasser). Eine fehlende Diagonale (Würfelecke) ist das Mittel aus der eigenen Art und den beiden
+## Nachbarn daneben: alle drei Felder treffen sich dort gleich. same: je Nachbar „gleiche Art“ (leer: k == self_kind;
+## World prüft beim Acker zusätzlich die Furchenrichtung).
+static func apply_neighbors(m: ShaderMaterial, self_kind: int, kinds: Array, same: Array = []) -> void:
 	var ca := PackedColorArray()
 	var cb := PackedColorArray()
 	ca.resize(8)
 	cb.resize(8)
+	var wat: Array = []
 	for i in 8:
 		var k := int(kinds[i]) if i < kinds.size() else -1
+		wat.append(k == 15)
+		if k == -2:
+			k = self_kind
 		if k >= 0:
 			ca[i] = _nb_a(k)
 			cb[i] = _nb_b(k)
+			var sm := bool(same[i]) if i < same.size() else k == self_kind
+			if sm or int(kinds[i]) == -2:
+				cb[i].a = 2.0
 	for i in range(4, 8):
 		var k := int(kinds[i]) if i < kinds.size() else -1
-		if k >= 0:
+		if k >= 0 or k == -2:
 			continue
 		var o1 := i - 4                 # NO: N und O, SO: O und S, SW: S und W, NW: W und N
 		var o2 := (i - 3) % 4
@@ -157,59 +168,97 @@ static func apply_neighbors(m: ShaderMaterial, self_kind: int, kinds: Array) -> 
 		var k2 := int(kinds[o2]) if o2 < kinds.size() and int(kinds[o2]) >= 0 else self_kind
 		var a := (_nb_a(self_kind) + _nb_a(k1) + _nb_a(k2)) / 3.0
 		var b := (_nb_b(self_kind) + _nb_b(k1) + _nb_b(k2)) / 3.0
-		b.a = 1.0 if self_kind == 15 and k1 == 15 and k2 == 15 else 0.0
+		b.a = 2.0 if k1 == self_kind and k2 == self_kind else 0.0
+		# Würfelecke: drei Wasserfelder schließen die Ecke (die fehlende Diagonale zählt als Wasser)
+		wat[i] = self_kind == 15 and int(kinds[o1]) == 15 and int(kinds[o2]) == 15
 		ca[i] = a
 		cb[i] = b
 	m.set_shader_parameter("nb_a", ca)
 	m.set_shader_parameter("nb_b", cb)
 	m.set_shader_parameter("nb_on", 1.0)
-	if self_kind == 15:
-		var w: Array = []
-		for i in 8:
-			w.append(cb[i].a > 0.5)
-		var boxes := water_boxes(w)
+	var self_water := self_kind == 15
+	# Meerengen nur über echte Ecken: an einer Würfelecke (Diagonale fehlt) berühren sich die beiden Seitennachbarn
+	# schon an der Kante – dort zählt die fehlende Diagonale als Wasser, wenn beide Nachbarn Wasser sind
+	var ws := wat.duplicate()
+	for i in range(4, 8):
+		if i >= kinds.size() or int(kinds[i]) == -1:
+			ws[i] = bool(wat[i - 4]) and bool(wat[(i - 3) % 4])
+	var segs := water_segs(ws, self_water)
+	if self_water or not segs.is_empty():
+		var boxes := water_boxes(wat, self_water)
 		m.set_shader_parameter("w_box", boxes)
 		m.set_shader_parameter("w_box_n", boxes.size())
+		var sg := segs.duplicate()
+		while sg.size() < 4:
+			sg.append(Color(0, 0, 0, 0))
+		m.set_shader_parameter("w_seg", sg)
+		m.set_shader_parameter("w_seg_n", segs.size())
+	else:
+		m.set_shader_parameter("w_box_n", 0)
+		m.set_shader_parameter("w_seg_n", 0)
 
 
 const WATER_SHORE := 0.355       # so weit reicht das Wasser zum Land hin (Zellen-Koordinaten, Feld = −0,5 … 0,5)
 const WATER_ROUND := 0.1         # Rundung der Außenecken
+const NB_OFF := [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1)]
 
 
 ## Wasser als Vereinigung von Rechtecken (Mitte xy, halbe Größe zw) in Zellen-Koordinaten des Felds: eigener Kern,
 ## Kerne der Wasser-Nachbarn, Brücken zwischen benachbarten Wasserfeldern und Füllungen, wo vier Wasserfelder an
 ## einer Ecke zusammenkommen. Der Shader rundet die Vereinigung (weiches Minimum): Innen- und Außenecken sind rund,
 ## und zwei Wasserfelder rechnen an ihrer Fuge mit denselben Rechtecken – das Ufer läuft lückenlos weiter.
-## w: 8 Nachbarn (N, O, S, W, NO, SO, SW, NW) – true = Wasser.
-static func water_boxes(w: Array) -> PackedColorArray:
+## w: 8 Nachbarn (N, O, S, W, NO, SO, SW, NW) – true = Wasser. self_water = false: Landfeld mit einer Meerenge über
+## seine Ecke (water_segs) – ohne eigenen Kern (Platz 0 bleibt, der Shader überspringt ihn dann).
+static func water_boxes(w: Array, self_water: bool = true) -> PackedColorArray:
 	var s := WATER_SHORE - WATER_ROUND
 	var out := PackedColorArray()
-	var off := [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1)]
 	out.append(Color(0, 0, s, s))
 	for i in 8:
 		if bool(w[i]):
-			var o: Vector2 = off[i]
+			var o: Vector2 = NB_OFF[i]
 			out.append(Color(o.x, o.y, s, s))
-	for i in 4:
-		if bool(w[i]):
-			var o: Vector2 = off[i]
-			out.append(Color(o.x * 0.5, o.y * 0.5, 0.5 if o.x != 0.0 else s, 0.5 if o.y != 0.0 else s))
+	if self_water:
+		for i in 4:
+			if bool(w[i]):
+				var o: Vector2 = NB_OFF[i]
+				out.append(Color(o.x * 0.5, o.y * 0.5, 0.5 if o.x != 0.0 else s, 0.5 if o.y != 0.0 else s))
 	# zwischen Nachbarn: (Orthogonal, Diagonal)
 	var pairs := [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0]]
 	for pr in pairs:
 		var a: int = pr[0]
 		var b: int = pr[1]
 		if bool(w[a]) and bool(w[b]):
-			var oa: Vector2 = off[a]
-			var ob: Vector2 = off[b]
+			var oa: Vector2 = NB_OFF[a]
+			var ob: Vector2 = NB_OFF[b]
 			var c := (oa + ob) * 0.5
 			var horiz := absf(oa.y - ob.y) < 0.01
 			out.append(Color(c.x, c.y, 0.5 if horiz else s, s if horiz else 0.5))
+	if self_water:
+		var corners := [[0, 4, 1], [1, 5, 2], [2, 6, 3], [3, 7, 0]]
+		for cr in corners:
+			if bool(w[cr[0]]) and bool(w[cr[1]]) and bool(w[cr[2]]):
+				var c2: Vector2 = NB_OFF[cr[1]]
+				out.append(Color(c2.x * 0.5, c2.y * 0.5, 0.5, 0.5))
+	return out
+
+
+## Meerengen: zwei Wasserfelder, die sich nur über Eck berühren (die beiden Felder dazwischen sind Land), verbindet
+## ein schmaler Kanal genau über die gemeinsame Ecke. Alle vier Felder an der Ecke zeichnen dieselbe Strecke
+## (Mitte zu Mitte, Zellen-Koordinaten: xy Anfang, zw Ende): auch die beiden Landfelder tragen ihr Stück Wasser.
+static func water_segs(w: Array, self_water: bool) -> PackedColorArray:
+	var out := PackedColorArray()
 	var corners := [[0, 4, 1], [1, 5, 2], [2, 6, 3], [3, 7, 0]]
 	for cr in corners:
-		if bool(w[cr[0]]) and bool(w[cr[1]]) and bool(w[cr[2]]):
-			var c2: Vector2 = off[cr[1]]
-			out.append(Color(c2.x * 0.5, c2.y * 0.5, 0.5, 0.5))
+		var o1: int = cr[0]
+		var d: int = cr[1]
+		var o2: int = cr[2]
+		if self_water and bool(w[d]) and not bool(w[o1]) and not bool(w[o2]):
+			var od: Vector2 = NB_OFF[d]
+			out.append(Color(0, 0, od.x, od.y))
+		elif not self_water and bool(w[o1]) and bool(w[o2]) and not bool(w[d]):
+			var a: Vector2 = NB_OFF[o1]
+			var b: Vector2 = NB_OFF[o2]
+			out.append(Color(a.x, a.y, b.x, b.y))
 	return out
 
 
@@ -266,6 +315,23 @@ static func water() -> ShaderMaterial:
 	m.set_shader_parameter("sky", sky_color)
 	_water_mats.append(weakref(m))
 	return m
+
+
+## Richtung zur Sonne im Kamera-Raum (World, nur bei Änderung weitergegeben).
+static var sun_view := Vector3(0.45, 0.6, 0.66)
+
+
+static func set_sun(d: Vector3) -> void:
+	if d.distance_squared_to(sun_view) < 0.0004:
+		return
+	sun_view = d
+	var keep: Array = []
+	for w in _water_mats:
+		var m: ShaderMaterial = (w as WeakRef).get_ref()
+		if m != null:
+			m.set_shader_parameter("sun_v", d)
+			keep.append(w)
+	_water_mats = keep
 
 
 static func set_sky(c: Color) -> void:
