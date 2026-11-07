@@ -76,6 +76,8 @@ func _shots(dir: String) -> void:
 		await _free_tour(dir)
 	if only == "" or only == "free" or only == "seamless":
 		await _seamless_tour(dir)
+	if only == "bonus":             # nur die lange Bonusrunde (läuft sonst am Ende der Tage mit)
+		await _bonus_round_tour(dir)
 	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
 	print("Tour: %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	print("TOUR-DONE checks=%d failed=%d" % [_checks, _failed])
@@ -642,26 +644,40 @@ func _days_tour(dir: String) -> void:
 
 # --- Weiterbauen bleibt bedienbar (Bericht „hat sich aufgehängt in der Bonusrunde“) ---------------------------------
 
-var _fw := {"on": false, "frames": 0, "max_proc": 0.0, "max_wall": 0, "last": 0, "slow": 0}
+## Misst die Rechenzeit des Spiels je Bild: vom Signal process_frame (danach laufen die wartenden Suchen weiter) bis
+## zum Ende aller _process (diese Sonde läuft als letzte). Ohne die Software-Grafik der Tour und ohne die Tour selbst
+## (ihre Schritte laufen in Timern, nach _process).
+class FrameProbe extends Node:
+	var on := false
+	var frames := 0
+	var max_usec := 0
+	var slow := 0
+	var max_wall := 0
+	var _t0 := 0
+	var _last := 0
+
+	func _ready() -> void:
+		process_priority = 1 << 30
+		get_tree().process_frame.connect(_begin)
+
+	func _begin() -> void:
+		_t0 = Time.get_ticks_usec()
+
+	func _process(_delta: float) -> void:
+		if not on or _t0 == 0:
+			return
+		var now := Time.get_ticks_usec()
+		var dt := now - _t0
+		max_usec = maxi(max_usec, dt)
+		if dt > 250000:
+			slow += 1
+		if _last > 0:
+			max_wall = maxi(max_wall, now - _last)
+		_last = now
+		frames += 1
 
 
-## Misst jedes Bild: die Skriptzeit (Performance.TIME_PROCESS: Regeln, Tipp-Suche, Welt – ohne die langsame
-## Software-Grafik der Tour) und die echte Zeit zwischen zwei Bildern.
-func _frame_watch() -> void:
-	if not bool(_fw["on"]):
-		return
-	var now := Time.get_ticks_msec()
-	if int(_fw["last"]) > 0:
-		_fw["max_wall"] = maxi(int(_fw["max_wall"]), now - int(_fw["last"]))
-	_fw["last"] = now
-	var p := Performance.get_monitor(Performance.TIME_PROCESS)
-	_fw["max_proc"] = maxf(float(_fw["max_proc"]), p)
-	if p > 0.25:
-		_fw["slow"] = int(_fw["slow"]) + 1
-	_fw["frames"] = int(_fw["frames"]) + 1
-
-
-## Ein Feld, das das Werkzeug (Meteor) gerade treffen darf und auf dem Bildschirm frei liegt. {"fid", "pos"}
+## Ein Feld, auf das das Werkzeug (Regen, Meteor) gerade darf und das auf dem Bildschirm frei liegt. {"fid", "pos"}
 func _tool_target(kind: String) -> Dictionary:
 	var mid := get_viewport().get_visible_rect().size * 0.5
 	var best := -1
@@ -684,15 +700,23 @@ func _tool_target(kind: String) -> Dictionary:
 	return {"fid": best, "pos": best_pos}
 
 
-## Gerade frei für den Spieler: keine Runde, keine Animation, keine Karte, kein Werkzeug gewählt.
+## Gerade frei für den Spieler: keine Runde, keine Animation, keine Karte, kein Werkzeug gewählt, keine Suche.
 func _input_free() -> bool:
 	return not Game.busy and not world.animating and world._mode == "" and not ui._blocked() and not ui.day_ui.blocking() \
-		and not ui.modal_bg.visible and ui._hint_job < 0
+		and not ui.modal_bg.visible and ui._hint_job < 0 and ui.bonus_mode == ""
+
+
+var _bonus_seen: Array = []
+
+
+func _on_bonus_round(result: Dictionary, _before: Dictionary) -> void:
+	if result.has("bonus"):
+		_bonus_seen.append(str((result["bonus"] as Dictionary).get("kind", "")))
 
 
 ## Tag 6 schaffen, „Weiterbauen“ (echte Eingabe), dann wie ein Spieler, der lange weiterbaut: 40 echte Wische,
 ## Regen und Meteor über Dock und Feld, Tipp, eine lange Pause, Menü auf und zu, „Zurück“. Danach nimmt das Spiel
-## noch jede Eingabe an (Wisch, Werkzeug), und kein Bild hat lange gerechnet.
+## noch jede Eingabe an (Wisch, Werkzeug), und kein Bild hat lange gerechnet (Rechenzeit des Spiels je Bild).
 func _bonus_round_tour(dir: String) -> void:
 	var dui := ui.day_ui
 	var open0 := Game.debug_open_all
@@ -721,18 +745,26 @@ func _bonus_round_tour(dir: String) -> void:
 	var building := Game.in_day() and Game.state.day_free_build and not Game.onboarding
 	var gs := Game.state
 	var tw0 := gs.twists
-	_fw = {"on": true, "frames": 0, "max_proc": 0.0, "max_wall": 0, "last": 0, "slow": 0}
-	if not get_tree().process_frame.is_connected(_frame_watch):
-		get_tree().process_frame.connect(_frame_watch)
+	# Software-Grafik schafft ~2 Bilder je Sekunde: die Suche darf je Bild mehr rechnen (sonst dauert ein Tipp eine
+	# Minute), und die 3D-Welt wird hier mit Viertel-Auflösung gerechnet (die Bilder am Ende wieder mit halber)
+	var budget0: int = Game.hint_budget_usec
+	Game.hint_budget_usec = 60000
+	var scale0 := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	var probe := FrameProbe.new()
+	add_child(probe)
+	_bonus_seen = []
+	Game.round_resolved.connect(_on_bonus_round)
+	probe.on = true
 	var t0 := Time.get_ticks_msec()
-	# 40 echte Wische: meist zufällig, jeder vierte wie der Tipp
+	# 40 echte Wische: meist zufällig, jeder vierte die beste Drehung
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 606
 	var swiped := 0
 	for i in 40:
 		var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
 		if i % 4 == 3:
-			var act: Dictionary = await Game.search_hint(true)      # verteilt über mehrere Bilder, wie der Tipp
+			var act := Game.state.best_move()
 			if not act.is_empty():
 				m = [int(act["axis"]), int(act["layer"]), int(act["turns"])]
 		if await _swipe_move(int(m[0]), int(m[1]), int(m[2])):
@@ -743,51 +775,47 @@ func _bonus_round_tour(dir: String) -> void:
 			await _wait(0.6)
 		ui._coach_dismiss()
 	var twisted := gs.twists - tw0
-	await _shot(dir, "00y_weiterbauen_lange")
-	# Regen über das Dock auf ein leuchtendes Feld
+	# Regen über das Dock auf ein Feld, auf das er darf (echte Eingabe)
 	Game.state.rain = maxi(Game.state.rain, 2)
 	Game.state_changed.emit()
 	await _wait(0.4)
-	var rain0 := Game.state.rain
 	await _tap(ui.rain_btn)
 	await _wait(0.5)
 	var rain_mode := ui.bonus_mode == "rain"
-	_fw["on"] = false                   # die Suche der Tour nach einem Ziel (54 Simulationen) zählt nicht mit
-	var rt := _rain_target()
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_fw["on"] = true
+	var rt := _tool_target("rain")
 	if int(rt["fid"]) >= 0:
 		await _touch(rt["pos"])
 		await _wait(0.4)
-		await _settle(6.0)
-	var rained := Game.state.rain == rain0 - 1
+		await _settle(8.0)
 	ui._set_bonus_mode("")
-	# Meteor (12 Glauben) über das Dock auf ein Feld, das er treffen darf
+	# Meteor (12 Glauben) über das Dock: ein Feld antippen (zeigt, was getroffen wird), noch einmal tippen bestätigt
 	Game.state.faith = maxi(Game.state.faith, GameState.METEOR_COST)
 	Game.state_changed.emit()
 	await _wait(0.4)
-	var faith0 := Game.state.faith
 	await _tap(ui.strike_btn)
 	await _wait(0.5)
 	var strike_mode := ui.bonus_mode == "strike"
 	var mt := _tool_target("strike")
 	if int(mt["fid"]) >= 0:
 		await _touch(mt["pos"])
+		await _wait(0.5)
+		await _touch(mt["pos"])
 		await _wait(0.4)
 		await _settle(8.0)
-	var struck := Game.state.faith == faith0 - GameState.METEOR_COST
 	ui._set_bonus_mode("")
 	await _settle(4.0)
+	var rained := _bonus_seen.has("rain")
+	var struck := _bonus_seen.has("strike") or _bonus_seen.has("meteor")
 	# Tipp (die Suche läuft verteilt über mehrere Bilder), dann eine lange Pause wie ein Spieler, der überlegt
 	await _tap(ui.hint_btn)
 	var hint_done := false
-	for i in 400:
+	for i in 600:
 		await _wait(0.05)
 		if ui._hint_job < 0:
 			hint_done = true
 			break
 	await _wait(7.0)
+	ui._set_bonus_mode("")
 	# Menü auf und zu (echte Eingabe)
 	await _tap(ui.menu_b)
 	var menu_open := await _until_shown(ui.menu_card, 3.0)
@@ -820,17 +848,22 @@ func _bonus_round_tour(dir: String) -> void:
 	var tool_ok := ui.bonus_mode == "rain"
 	ui._set_bonus_mode("")
 	await _wait(0.3)
-	_fw["on"] = false
+	probe.on = false
+	Game.round_resolved.disconnect(_on_bonus_round)
+	Game.hint_budget_usec = budget0
+	get_viewport().scaling_3d_scale = scale0
 	var secs := float(Time.get_ticks_msec() - t0) / 1000.0
-	var frames_ok := float(_fw["max_proc"]) < 0.25 and int(_fw["frames"]) > 0
-	await _shot(dir, "00y2_weiterbauen_bedienbar")
+	var frames_ok := probe.frames > 100 and probe.max_usec < 250000
+	await _wait(0.6)
+	await _shot(dir, "00z_weiterbauen_bedienbar")
 	_check(building and swiped >= 38 and twisted >= 38 and rain_mode and rained and strike_mode and struck and hint_done and menu_open
 		and menu_closed and undone and free_now and accepted and tool_ok and frames_ok and Game.state.day_free_build and not Game.over,
-		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s meteor=%s/%s tipp=%s menue=%s/%s zurueck=%s frei=%s " +
-		"wisch_danach=%s werkzeug=%s bilder=%d skript_max=%.0fms langsam=%d bild_max=%dms zeit=%.0fs") % [str(building), swiped, twisted,
-		str(rain_mode), str(rained), str(strike_mode), str(struck), str(hint_done), str(menu_open), str(menu_closed), str(undone),
-		str(free_now), str(accepted), str(tool_ok), int(_fw["frames"]), float(_fw["max_proc"]) * 1000.0, int(_fw["slow"]),
-		int(_fw["max_wall"]), secs])
+		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s meteor=%s/%s werkzeuge=%s tipp=%s menue=%s/%s " +
+		"zurueck=%s frei=%s wisch_danach=%s werkzeug=%s bilder=%d rechnen_max=%.0fms langsam=%d bild_max=%.0fms zeit=%.0fs") % [str(building),
+		swiped, twisted, str(rain_mode), str(rained), str(strike_mode), str(struck), str(_bonus_seen), str(hint_done), str(menu_open),
+		str(menu_closed), str(undone), str(free_now), str(accepted), str(tool_ok), probe.frames, float(probe.max_usec) / 1000.0,
+		probe.slow, float(probe.max_wall) / 1000.0, secs])
+	probe.queue_free()
 	Game.debug_open_all = open0
 
 

@@ -3736,7 +3736,7 @@ func test_bonus_stress() -> void:
 			if gs.is_over() or not gs.day_free_build:
 				ended = "%s nach %d Zügen" % [str(wd["name"]), done]
 				break
-			# Ab und zu der Tipp in Schritten (4 ms je Bild, wie Game.search_hint) gegen die Suche am Stück
+			# Ab und zu der Tipp in Schritten (6 ms je Bild, wie Game.search_hint) gegen die Suche am Stück
 			if done % 150 == 75:
 				var only_twists := rng.randf() < 0.5
 				var search := gs.clone().day_search(only_twists)

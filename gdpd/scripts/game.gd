@@ -1301,12 +1301,13 @@ func resume_build() -> bool:
 	return true
 
 
-## Der Tipp an einem Tag auf einer Kopie des Stands, auf mehrere Bilder verteilt (je Bild höchstens HINT_BUDGET_USEC
-## Rechenzeit), damit das Spiel flüssig bleibt. Immer auf dem Haupt-Thread: Godot 4.3 liest const-Tabellen nicht
+## Der Tipp an einem Tag auf einer Kopie des Stands, auf mehrere Bilder verteilt (je Bild höchstens hint_budget_usec
+## Rechenzeit plus eine Simulation), damit das Spiel flüssig bleibt. Immer auf dem Haupt-Thread: Godot 4.3 liest const-Tabellen nicht
 ## threadsicher (ein zweiter Thread führte zu Abstürzen und Hängern). Ändert sich der Stand inzwischen (Drehung,
 ## Werkzeug, neues Spiel), bricht die Suche ab: {}. twist_only: nur Drehungen (wie best_move).
 ## Ohne neue Regeln (oder außerhalb eines Tages) am Stück wie bisher.
-const HINT_BUDGET_USEC := 4000
+const HINT_BUDGET_USEC := 6000
+var hint_budget_usec := HINT_BUDGET_USEC      # die Tour (Software-Grafik, 2 Bilder je Sekunde) erlaubt mehr je Bild
 
 
 func search_hint(twist_only: bool = false) -> Dictionary:
@@ -1319,7 +1320,7 @@ func search_hint(twist_only: bool = false) -> Dictionary:
 			return state.best_move()
 		return state.best_action()
 	hint_searches += 1
-	while not search.step(HINT_BUDGET_USEC):
+	while not search.step(hint_budget_usec):
 		await get_tree().process_frame
 		if state != st0 or state.twists != tw0 or _hint_key() != key0:
 			hint_searches -= 1
