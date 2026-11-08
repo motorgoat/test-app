@@ -122,3 +122,10 @@
     Glaube und Krieg, Städte und Industrie (längster Abschnitt)
   7 Ruhe: Gleichgewicht der vollendeten Welt
 - Kein Spoilern des nächsten Levels. Schritte zählen statt Limit; weniger Schritte = mehr Punkte.
+
+## Feedback 8. November (Philipp)
+- Kombinationen bleiben wirksam: Einmal versorgte Menschen bleiben versorgt, auch wenn man weiterdreht
+  (nur Gefahren können das rückgängig machen). Wächst das Haus, kommen nur die neuen Bedürfnisse dazu.
+- 2 Sterne müssen gut erreichbar sein; 3 Sterne für gutes Spiel.
+- Wasser dreht sich beim Drehen mit der Scheibe mit (nicht in der Welt stehen bleiben).
+- Menü übersichtlicher: Wichtiges oben, unwichtige Einstellungen in einem Untermenü „Einstellungen“.
