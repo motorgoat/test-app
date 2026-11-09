@@ -19,7 +19,7 @@ const BOARDS_PATH := "res://data/days_schoepfung.json"
 const PACKS_DIR := "res://data/packs"
 ## Ein Zeichen je Art im Brett-Text (Index = Art): E Erde, w Wiese, W Wald, A Acker, g Großer Wald, T Tiere, H Hütte,
 ## h Haus, D Dorf, S Stadt, K Kirche, G Großstadt, I Industrie, M Metropole, P Paradies, o Wasser, R Stein.
-const CODE := "EwWAgTHhDSKGIMPoR"
+const CODE := FieldData.CODE
 
 const E := FieldData.EMPTY
 const W := FieldData.MEADOW
@@ -173,7 +173,7 @@ const TEXT = {
 	"countdown_late": "Morgen früh",
 	"build": "Weiterbauen",
 	"again_stars": "Nochmal · mehr Sterne",
-	"build_coin": "+1 Münze",
+	"build_coin": "+1 ✦",
 	"to_overview": "Zur Übersicht",
 	"streak": "Serie %d · Rekord %d",
 	"record": "Rekord %d",
@@ -184,7 +184,7 @@ const TEXT = {
 	"shield_text": "Rettet deine Serie. Du hast %d/2.",
 	"shield_buy": "Kaufen · %d Münzen",
 	"shield_full": "Du hast genug Serienschutz.",
-	"shield_missing": "Dir fehlen %d Münzen.",
+	"shield_missing": "Dir fehlen %d ✦",
 	"shield_won": "+1 Serienschutz",
 	"shield_coins": "+%d Münzen",
 	"test_next_day": "Nächster Tag (Test)",

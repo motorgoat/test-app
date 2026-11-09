@@ -9,6 +9,10 @@ uniform float speed = 1.7;
 uniform float gust = 1.0;
 uniform float vary = 0.1;
 uniform sampler2D n_fbm : repeat_enable, filter_linear_mipmap;
+// Jahreszeit (Look.set_season): Frühling hellgrün, Herbst Laubbäume gelb-orange (Nadelbäume bleiben), Winter fahl
+uniform float spring = 0.0;
+uniform float autumn = 0.0;
+uniform float winter = 0.0;
 varying vec3 lp;
 varying float hue;
 varying float ao;
@@ -32,6 +36,15 @@ void fragment() {
 	float n = texture(n_fbm, lp.xz * 14.0 + lp.yy * 9.0).r;
 	vec3 c = (use_vc ? COLOR.rgb : albedo) * (0.82 + 0.36 * n);
 	c *= mix(vec3(1.0 - vary, 1.0, 1.0 - vary * 0.6), vec3(1.0 + vary * 0.6, 1.0, 1.0 - vary), hue);
+	if (spring + autumn + winter > 0.0) {
+		float green = smoothstep(0.0, 0.04, c.g - c.r);
+		float conifer = smoothstep(0.62, 0.8, c.b / max(c.r, 0.01));
+		float lum = dot(c, vec3(0.3, 0.55, 0.15));
+		c = mix(c, c * vec3(0.95, 1.14, 0.9), spring * green);
+		vec3 fall = mix(vec3(1.5, 0.82, 0.22), vec3(1.35, 1.1, 0.3), hue) * lum;
+		c = mix(c, fall, autumn * green * (1.0 - conifer) * 0.85);
+		c = mix(c, vec3(lum) * vec3(0.95, 0.95, 1.0), winter * 0.6);
+	}
 	ALBEDO = c * ao;
 	ROUGHNESS = 0.85;
 	BACKLIGHT = c * 0.45;

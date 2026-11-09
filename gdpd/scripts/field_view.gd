@@ -5,7 +5,10 @@ extends Node3D
 ## um CONTENT_SCALE vergrößert, seine Koordinaten laufen etwa −0,31 … 0,31.
 ##
 ## Arten (FieldData.kind): 0 Erde, 1 Wiese, 2 Wald, 3 Acker, 4 Großer Wald, 5 Tiere, 6 Hütte, 7 Haus, 8 Dorf,
-##   9 Stadt, 10 Kirche★, 11 Großstadt, 12 Industrie★, 13 Metropole★, 14 Paradies★, 15 Wasser, 16 Stein.
+##   9 Stadt, 10 Kirche★, 11 Großstadt, 12 Industrie★, 13 Metropole★, 14 Paradies★, 15 Wasser, 16 Fels (Stein),
+##   Schöpfung: 17 Lava, 18 Ursuppe, 19 Einzeller, 20 Algen, 21 Fische (Wasser-Familie), 22 Moos, 23 Farn, 24 Vögel,
+##   25 Raubtiere, 26 Saat. Wie eine Art aussieht, hängt auch am Zeitalter (Look.set_era: Urboden, Urwald, Basalt,
+##   wilde Herde, Enten) – GDPD_SCHOEPFUNG_GRAFIK.md.
 ## Teil B (docs/GDPD_GRAFIK.md 9): Modelle aus Models.get_model() (je Variante ein Mesh mit Vertexfarben), je Feld
 ##   eine Variante und eine Drehung der Anordnung. Jedes Teil (Baum, Haus) wächst einzeln; danach backt der Feld-Baker
 ##   alle statischen Teile zu einem Mesh je Material (Cache je Art/Variante/Drehung/Zustand).
@@ -17,6 +20,8 @@ extends Node3D
 ##   set_crater(on) · wish_anchor_world_pos() · wish_visible() · war_fx() · strike_fx() · wither_fx() · wish_fx()
 ##   plus: set_badge, set_preview, set_hint, set_target, set_highlight, set_danger, nudge, quake, flood, burn,
 ##   vanish, burst, pulse_light, set_wet, set_neighbors (nahtlose Übergänge, Wasser als ein See).
+##   Schöpfung: era_changed() · set_day(k) (Sonnenseite) · loss_fx(cause, kind) (−1) · merge_mask() · debug_wave()
+##   apply_state8 nimmt auch GameState.field_state9 (versorgt-Häkchen, Vorzeichen, Gruppen-Stärke).
 
 const TILE := 0.9
 const TILE_H := 0.09
@@ -24,18 +29,28 @@ const TOP := 0.09
 const CONTENT_SCALE := 1.4
 
 enum { K_EMPTY, K_MEADOW, K_FOREST, K_FIELD, K_BIGFOREST, K_ANIMALS, K_HUT, K_HOUSE, K_VILLAGE, K_TOWN,
-	K_CHURCH, K_BIGCITY, K_INDUSTRY, K_METROPOLIS, K_PARADISE, K_WATER, K_STONE }
-const KIND_COUNT := 17
+	K_CHURCH, K_BIGCITY, K_INDUSTRY, K_METROPOLIS, K_PARADISE, K_WATER, K_STONE,
+	K_LAVA, K_SOUP, K_CELLS, K_ALGAE, K_FISH, K_MOSS, K_FERN, K_BIRDS, K_PRED, K_SEED }
+const KIND_COUNT := 27
 
 ## Tabelle je Art (Index = kind id). Schlüssel und Symbole wie in der Spec.
 const KIND_KEY := ["empty", "meadow", "forest", "field", "bigforest", "animals", "hut", "house", "village", "town",
-	"church", "bigcity", "industry", "metropolis", "paradise", "water", "stone"]
+	"church", "bigcity", "industry", "metropolis", "paradise", "water", "stone",
+	"lava", "soup", "cells", "algae", "fish", "moss", "fern", "birds", "pred", "seed"]
 const KIND_ICON := ["empty", "meadow", "smallforest", "field", "nature", "animals", "hut", "house", "village", "town",
-	"church", "bigcity", "industry", "metropolis", "paradise", "water", "stone"]
+	"church", "bigcity", "industry", "metropolis", "paradise", "water", "stone",
+	"lava", "soup", "cells", "algae", "fish", "moss", "fern", "birds", "pred", "seed"]
+## Ersatz-Symbol, solange das eigene SVG fehlt (icons/<name>.svg)
+const ICON_FALLBACK := {"lava": "volcano", "soup": "water", "cells": "water", "algae": "water", "fish": "water", "moss": "meadow",
+	"fern": "smallforest", "birds": "smallforest", "pred": "paw", "seed": "field", "heat": "fire", "mineral": "stone",
+	"spark": "miracle", "sun": "star", "prey": "paw", "plants": "meadow", "fishneed": "water", "shore": "water", "wet": "rain"}
 const KIND_TILE := ["#a5805c", "#c3e07a", "#4f9a46", "#e4b850", "#24552d", "#7cc56e", "#d9c08a", "#ebc97f", "#e6b468",
-	"#d4cdc2", "#c9b5f0", "#bdb6ad", "#7f7c7a", "#9aa0ab", "#48c49a", "#5b9fcf", "#8f8a80"]
+	"#d4cdc2", "#c9b5f0", "#bdb6ad", "#7f7c7a", "#9aa0ab", "#48c49a", "#5b9fcf", "#8f8a80",
+	"#e0582a", "#7d7a52", "#6f9a7a", "#5f9a4a", "#3f8fb0", "#6f8f3a", "#3f7a3a", "#e8e4d8", "#5d5d63", "#a8c070"]
 const FINISHED_KINDS := [K_CHURCH, K_INDUSTRY, K_METROPOLIS, K_PARADISE]
-const NATURE_KINDS := [K_MEADOW, K_FOREST, K_BIGFOREST, K_ANIMALS, K_PARADISE]
+const NATURE_KINDS := [K_MEADOW, K_FOREST, K_BIGFOREST, K_ANIMALS, K_PARADISE, K_MOSS, K_FERN, K_BIRDS, K_PRED, K_SEED]
+## Wasser-Familie (Spec WATERS): für den Boden ein See, Leben ist ein Zustand der Fläche
+const WATER_KINDS := [K_WATER, K_SOUP, K_CELLS, K_ALGAE, K_FISH]
 const PEOPLE_KINDS := [K_HUT, K_HOUSE, K_VILLAGE, K_TOWN, K_BIGCITY, K_METROPOLIS]
 ## Ersatz, solange FieldData noch das alte stage (0..9) hat: Stufe -> Art.
 const LEGACY_KIND := [K_EMPTY, K_MEADOW, K_FOREST, K_BIGFOREST, K_HUT, K_HOUSE, K_VILLAGE, K_TOWN, K_BIGCITY, K_METROPOLIS]
@@ -108,7 +123,11 @@ var _water_mat: ShaderMaterial
 var _outer := 0                  # Würfelkanten (build)
 var _nb: Array = []              # Nachbar-Arten (set_neighbors)
 var _nb_key := ""
-static var seams_dirty := true   # eine Art hat sich geändert: World rechnet die Nachbarn neu
+static var seams_dirty := true
+## PROTOTYP Schöpfung: Zusammenwachsen (Wald-Kronendach über Fugen gleicher Art)
+static var merge_on := true
+var _merge_mask := 0             # Bit 0: N gleich, 1: O gleich, 2: Ecke NO (N, O, NO gleich) – nur auf derselben Seite
+var _steam: Array = []   # eine Art hat sich geändert: World rechnet die Nachbarn neu
 var _pulse_tw: Tween
 var _wet_tw: Tween
 
@@ -258,6 +277,10 @@ func set_labels_visible(on: bool) -> void:
 	_badge.visible = on and _badge_name != "" and _preview_label.text == ""
 	if _supply_icon != null:
 		_supply_icon.visible = on and _supply_mode != 0
+	if _strength_lbl != null:
+		_strength_lbl.visible = on and _strength_n >= 2
+	if _cool_node != null:
+		_cool_node.visible = on
 	_update_needs_visible()
 
 
@@ -469,7 +492,19 @@ static func kind_tile_color(kind: int) -> Color:
 
 
 static func kind_icon(kind: int) -> String:
-	return KIND_ICON[clampi(kind, 0, KIND_COUNT - 1)]
+	return icon_name(KIND_ICON[clampi(kind, 0, KIND_COUNT - 1)])
+
+
+## Symbolname mit Ersatz: fehlt icons/<name>.svg (neue Arten, neue Bedürfnisse), gilt ICON_FALLBACK.
+static var _icon_ok := {}
+
+
+static func icon_name(n: String) -> String:
+	if not _icon_ok.has(n):
+		_icon_ok[n] = ResourceLoader.exists("res://icons/%s.svg" % n)
+	if bool(_icon_ok[n]):
+		return n
+	return String(ICON_FALLBACK.get(n, "info"))
 
 
 func refresh(f: FieldData) -> void:
@@ -496,11 +531,19 @@ func set_kind(kind: int, fresh: int = 0, burning: bool = false) -> void:
 	_fresh = fresh
 	_burning = burning
 	_wither = fresh > 0 and (NATURE_KINDS.has(kind) or kind == K_FIELD or kind == K_EMPTY)
+	_model_key = Look.model_key()
 	_variant = posmod(field_id, 4)
 	_rot = 0 if PATH_KINDS.has(kind) else posmod(field_id / 4 + kind, 4)
 	_apply_tile_color()
 	for c in _content.get_children():
 		c.queue_free()
+	if not _steam.is_empty():
+		_steam_total -= _steam.size()
+		_steam.clear()
+		_nb_key = ""
+		seams_dirty = true
+	_fish = null
+	_birds = null
 	_smoke.clear()
 	_items.clear()
 	_obst.clear()
@@ -522,7 +565,7 @@ func set_kind(kind: int, fresh: int = 0, burning: bool = false) -> void:
 	_content.scale = Vector3.ONE * CONTENT_SCALE
 	_content.visible = _detail > 0
 	if not first:
-		_grow_in()
+		_grow_in(_merge_grow)
 		_bake_at = _time + 0.95
 	else:
 		_bake_at = _time
@@ -530,10 +573,12 @@ func set_kind(kind: int, fresh: int = 0, burning: bool = false) -> void:
 
 
 ## Wachsen (GDPD_GRAFIK.md 6.3): jedes Teil wächst gestaffelt von der Mitte nach außen, mit Stauchen und Federn.
-func _grow_in() -> void:
+func _grow_in(seam_only: bool = false) -> void:
 	var parts: Array = []
 	for c in _content.get_children():
 		if c is Node3D and not (c as Node3D).is_queued_for_deletion():
+			if seam_only and not (c as Node3D).has_meta("seam"):
+				continue
 			parts.append(c)
 	for c in parts:
 		var n := c as Node3D
@@ -561,7 +606,9 @@ func _apply_tile_color() -> void:
 		scorch = 0.35
 	if _crater and _kind == K_EMPTY:
 		scorch = 0.5
-	var pol := 1.0 if _polluted else 0.0
+	if _dry and scorch < 0.2:
+		scorch = 0.2              # trockene Waldgruppe: leicht gelblich (Blitz droht nur ohne Wasser daneben)
+	var pol := 1.0 if _polluted else (0.35 if _smog_warn else 0.0)
 	Look.apply_ground(_ground, _kind, scorch, pol, furrow_dir())
 	if scorch != _scorch_v or pol != _pol_v:
 		_scorch_v = scorch
@@ -625,12 +672,106 @@ func set_neighbors(kinds: Array, same: Array = [], nbv: Array = []) -> void:
 		_nb_key = key
 		_nb = kinds.duplicate()
 		Look.apply_neighbors(_ground, maxi(_kind, 0), kinds, same)
+		_update_merge(kinds, same)
+		_update_steam(kinds)
 	var own := seam_fx()
 	for i in 8:
 		var nv: FieldView = nbv[i] if i < nbv.size() else null
 		_nb_neutral[i] = nv == null
 		_nb_fx[i] = nv.seam_fx() if nv != null else own
 	_ground.set_shader_parameter("nb_fx", _nb_fx)
+
+
+## Zusammenwachsen (GDPD_SCHOEPFUNG_GRAFIK.md 5): gleiche Felder nebeneinander werden als eines gezeigt. Der Boden ist
+## schon zusammen (nb_b.a = 2); hier geht es um den Inhalt auf den Fugen. Besitz-Regel: jede Fuge gehört dem Feld
+## südlich bzw. westlich davon – ein Feld setzt Fugen-Teile nur an seiner N- und O-Fuge und an der Ecke NO (wenn N, O
+## und NO gleich sind). Über Würfelkanten nie (dort zeigt nur der Boden die Verbindung). _same4: N, O, S, W gleich
+## (auch über die Würfelkante): dort kein Zaun, keine Büsche, kein Totholz. Während einer Drehung (−2) bleibt alles.
+const MERGE_KINDS := [K_FOREST, K_BIGFOREST, K_BIRDS, K_FIELD, K_SEED, K_MEADOW, K_MOSS, K_FERN, K_TOWN, K_VILLAGE, K_ANIMALS]
+var _same4 := 0
+var _merge_grow := false
+
+
+func _update_merge(kinds: Array, same: Array) -> void:
+	var mm := 0
+	var s4 := 0
+	if merge_on and MERGE_KINDS.has(_kind) and not _wither:
+		for i in 5:
+			var k := int(kinds[i]) if i < kinds.size() else -1
+			var on := false
+			if k == -2:
+				on = (_same4 & (1 << i)) != 0 if i < 4 else (_merge_mask & 4) != 0
+			else:
+				on = k == _kind and (bool(same[i]) if i < same.size() else true)
+			if on and i < 4:
+				s4 |= 1 << i
+		var nf := (s4 & 1) != 0 and (_outer & 1) == 0
+		var ef := (s4 & 2) != 0 and (_outer & 2) == 0
+		var ne := int(kinds[4]) if kinds.size() > 4 else -1
+		var ne_on := (_merge_mask & 4) != 0 if ne == -2 else ne == _kind
+		if nf:
+			mm |= 1
+		if ef:
+			mm |= 2
+		if nf and ef and ne_on:
+			mm |= 4
+	if mm == _merge_mask and s4 == _same4:
+		return
+	var grew := (mm & ~_merge_mask) != 0
+	_merge_mask = mm
+	_same4 = s4
+	if _kind < 0 or _shown == "":
+		return
+	_shown = ""
+	_merge_grow = grew
+	set_kind(_kind, _fresh, _burning)
+	_merge_grow = false
+	if grew:
+		pulse_light(Color("#ffe2a0"), 0.4)
+
+
+## Fugen-Maske (Tests, Tour): Bit 0 N, 1 O, 2 Ecke NO.
+func merge_mask() -> int:
+	return _merge_mask
+
+
+## Dampf (Urzeit): Wasser neben Lava dampft – 3 Billboards je Ufer, im ganzen Würfel höchstens 12 (niedrig: 4).
+static var _steam_total := 0
+
+
+func _update_steam(kinds: Array) -> void:
+	for st in _steam:
+		if is_instance_valid(st):
+			_smoke.erase(st)
+			(st as Node).queue_free()
+	_steam_total -= _steam.size()
+	_steam.clear()
+	if not WATER_KINDS.has(_kind) or not bool(Look.era_ambient("steam", true)):
+		return
+	var cap := 12 if Look.quality >= 1 else 4
+	for i in 4:
+		if int(kinds[i]) != K_LAVA:
+			continue
+		var o: Vector2 = Look.NB_OFF[i]
+		for k in 3:
+			if _steam_total >= cap:
+				return
+			var puff := Node3D.new()
+			puff.position = Vector3(o.x * 0.25 + (float(k) - 1.0) * 0.08 * absf(o.y), 0.02, o.y * 0.25 + (float(k) - 1.0) * 0.08 * absf(o.x))
+			_content.add_child(puff)
+			Look.smoke_puff(puff, 0.24, Color(0.9, 0.88, 0.86, 0.3))
+			puff.set_meta("base_y", 0.02)
+			puff.set_meta("base_x", puff.position.x)
+			puff.set_meta("rise", 0.22)
+			puff.set_meta("speed", 0.3)
+			puff.set_meta("phase", 0.33 * float(k) + 0.1 * float(i))
+			_smoke.append(puff)
+			_steam.append(puff)
+			_steam_total += 1
+
+
+func steam_count() -> int:
+	return _steam.size()
 
 
 ## Wer dieses Feld als Nachbarn hat (World._update_seams): Zustandswechsel gehen sofort dorthin.
@@ -673,9 +814,53 @@ func _take_nb_fx(slot: int, c: Color) -> void:
 
 ## Wellen in Koordinaten der Würfelseite (World, nach jeder Drehung und während einer Drehung): alle Wasserfelder
 ## einer Seite teilen ein Muster.
-func set_wave_frame(m: Vector4, o: Vector2) -> void:
+var _wave_m := Vector4(1.0, 0.0, 0.0, 1.0)
+var _wave_o := Vector2.ZERO
+var _wave_tw: Tween
+
+
+func set_wave_frame(m: Vector4, o: Vector2, fade: bool = false) -> void:
+	var changed := not (m - _wave_m).is_zero_approx() or not (o - _wave_o).is_zero_approx()
+	if fade and changed and is_water_like():
+		_ground.set_shader_parameter("w_m_old", _wave_m)
+		_ground.set_shader_parameter("w_o_old", _wave_o)
+		_ground.set_shader_parameter("w_fade", 1.0)
+		if _wave_tw != null and _wave_tw.is_valid():
+			_wave_tw.kill()
+		_wave_tw = create_tween()
+		_wave_tw.tween_method(_set_wave_fade, 1.0, 0.0, 0.45).set_trans(Tween.TRANS_SINE)
+	_wave_m = m
+	_wave_o = o
 	_ground.set_shader_parameter("w_m", m)
 	_ground.set_shader_parameter("w_o", o)
+
+
+## Wellen-Koordinaten einer Kachel (Lage t im Würfel, Seite n), gedreht um q Vierteldrehungen der Seite (World):
+## [w_m (Vector4), w_o (Vector2)] mit fc = (dot(w_m.xy, uv), dot(w_m.zw, uv)) + w_o. Vier Vierteldrehungen = gleich.
+static func wave_frame(t: Transform3D, n: Vector3i, q: int) -> Array:
+	var k := 0 if n.x != 0 else (1 if n.y != 0 else 2)
+	var k1 := (k + 1) % 3
+	var k2 := (k + 2) % 3
+	var m := Vector4(t.basis.x[k1], t.basis.z[k1], t.basis.x[k2], t.basis.z[k2])
+	var o := Vector2(t.origin[k1], t.origin[k2])
+	for i in posmod(q, 4):
+		m = Vector4(-m.z, -m.w, m.x, m.y)
+		o = Vector2(-o.y, o.x)
+	return [m, o]
+
+
+func _set_wave_fade(k: float) -> void:
+	_ground.set_shader_parameter("w_fade", k)
+
+
+func is_water_like() -> bool:
+	return WATER_KINDS.has(_kind)
+
+
+## Prüfung (Tour, Tests): Wellen-Muster dieses Felds [w_m, w_o, Überblendung 0 … 1].
+func debug_wave() -> Array:
+	var f: Variant = _ground.get_shader_parameter("w_fade")
+	return [_wave_m, _wave_o, float(f) if f != null else 0.0]
 
 
 ## Lage der Kachel im Würfel (World, nach jeder Drehung): Rauschen am Rand und Muster in Würfel-Koordinaten.
@@ -705,7 +890,7 @@ func debug_neighbors() -> Array:
 func debug_water_mask() -> Array:
 	var out: Array = []
 	for k in _nb:
-		out.append(1 if int(k) == K_WATER else 0)
+		out.append(1 if WATER_KINDS.has(int(k)) else 0)
 	return out
 
 
@@ -729,7 +914,8 @@ func _set_star(on: bool) -> void:
 # =============================================================================
 
 func _bake_key() -> String:
-	return "%d|%d|%d|%d|%d" % [_kind, _variant, _rot, 1 if _wither else 0, 1 if _crater else 0]
+	return "%d|%d|%d|%d|%d|m%d.%d|e%s" % [_kind, _variant, _rot, 1 if _wither else 0, 1 if _crater else 0, _merge_mask, _same4,
+		Look.model_key()]
 
 
 func _bake() -> void:
@@ -915,33 +1101,85 @@ func get_detail() -> int:
 # =============================================================================
 
 ## st = GameState.field_state8(f) (leer: aus), dazu "flood_risk" (World). Baut nur neu, wenn sich etwas ändert.
+## Schöpfung (GDPD_SCHOEPFUNG_GRAFIK.md 5.7, 7; Spec 11), alle Schlüssel freiwillig:
+##   needs (Bedürfnisse auch ohne Menschen zeigen) · sealed [Bedürfnis] (bleibt versorgt: goldenes Häkchen) ·
+##   amounts {Bedürfnis: [hat, braucht]} („1/2“) · hunger_warn · volc (Lava-Gruppe grollt) · crater (Rauchsäule) ·
+##   dry (trockene Waldgruppe) · pack (Raubtiere ducken sich) · pack_warn (bedrohte Herde) · smog_warn ·
+##   cool (Lava kühlt: 0 … 2 Punkte) · strength (Gruppen-Stärke, Plakette „×2“/„×3“ auf diesem Feld)
 func apply_state8(st: Dictionary) -> void:
+	var key := str(st)
+	if key == _st_key:
+		return
+	_st_key = key
 	var people := bool(st.get("people", false))
+	var camp := st.has("thriver")       # GameState.field_state9 (Schöpfung)
 	var met: Array = st.get("met", [])
 	var missing: Array = st.get("missing", [])
+	var sealed: Array = st.get("sealed", [])
 	var satt := bool(st.get("satt", false))
 	var fed := int(st.get("fed", 0))
 	var hungry := int(st.get("hungry", 0))
 	var shrink_after := int(st.get("shrink_after", 4))
-	var front := bool(st.get("front", false))
-	var bolt := bool(st.get("bolt", false))
-	var flood_risk := bool(st.get("flood_risk", false))
-	var key := "%s|%s|%s|%s|%d|%d|%s|%s|%s" % [people, met, missing, satt, fed, hungry, front, bolt, flood_risk]
-	if key == _st_key:
-		return
-	_st_key = key
-	_set_needs(people, met, missing, satt, fed, hungry, shrink_after)
-	_set_front(front)
-	_set_bolt(bolt)
-	_set_flood_risk(flood_risk)
-	_sad = clampf(float(hungry - 1) / 2.0, 0.0, 1.0) if people and not satt else 0.0
+	var hunger_warn := bool(st.get("hunger_warn", false))
+	if camp and not satt and shrink_after > 0 and hungry > 0 and hungry >= shrink_after - 1:
+		hunger_warn = true
+	var show := people or bool(st.get("needs", false)) or not sealed.is_empty() \
+		or (bool(st.get("thriver", false)) and not (met.is_empty() and missing.is_empty()) and _kind != K_LAVA)
+	_lasting = st.has("sealed")
+	_set_needs(show, met, missing, satt, fed, hungry, shrink_after, sealed, st.get("amounts", st.get("have", {})), hunger_warn)
+	_set_front(bool(st.get("front", false)))
+	_set_bolt(bool(st.get("bolt", false)))
+	_set_flood_risk(bool(st.get("flood_risk", false)))
+	_set_volcano(bool(st.get("volc", false)) or bool(st.get("crater", false)), bool(st.get("crater", false)))
+	_set_cool(int(st.get("cool", 0)))
+	_set_strength(int(st.get("strength", 0)) if bool(st.get("badge", true)) else 0)
+	# Rudel: field_state9 „pack“ = diese Herde wird gejagt; die Raubtiere daneben (World: pack_pred) ducken sich
+	var pack_warn := bool(st.get("pack_warn", false)) or (camp and bool(st.get("pack", false)))
+	var smog_warn := bool(st.get("smog_warn", false)) or (camp and bool(st.get("smog", false)))
+	set_mark("danger", pack_warn or smog_warn or hunger_warn)
+	_pack = bool(st.get("pack_pred", false)) or (not camp and bool(st.get("pack", false)))
+	_huddle = pack_warn
+	if smog_warn != _smog_warn:
+		_smog_warn = smog_warn
+		_apply_tile_color()
+	var dry := bool(st.get("dry", false))
+	if dry != _dry:
+		_dry = dry
+		_apply_tile_color()
+		if [K_FOREST, K_BIGFOREST, K_BIRDS].has(_kind) and _shown != "":
+			_shown = ""
+			set_kind(_kind, _fresh, _burning)
+	var sad_people := clampf(float(hungry - 1) / 2.0, 0.0, 1.0) if people and not satt else 0.0
+	_sad = 1.0 if hunger_warn else sad_people
 	for a in _agents:
 		var ad: Dictionary = a
-		if bool(ad["person"]):
-			(ad["m"] as ShaderMaterial).set_shader_parameter("tint", _sad)
+		if bool(ad["person"]) or hunger_warn or _pack:
+			(ad["m"] as ShaderMaterial).set_shader_parameter("tint", _sad if not _pack else 0.0)
 
 
-func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, hungry: int, shrink_after: int) -> void:
+var _lasting := false            # Regel „versorgt bleibt versorgt“ (Spec 3.2): fehlende Bedürfnisse grau statt rot
+var _dry := false
+var _pack := false
+var _huddle := false
+var _smog_warn := false
+var _volc_node: Node3D
+var _cool_node: Node3D
+var _strength_lbl: Label3D
+
+
+static var _need_icons9: Dictionary = {}
+
+
+func _need_icon(n: String) -> String:
+	if _need_icons9.is_empty():
+		var consts: Dictionary = (load("res://scripts/game_state.gd") as Script).get_script_constant_map()
+		_need_icons9 = consts.get("NEED_ICON9", {"-": "-"})
+	var gi: Variant = _need_icons9.get(n, GameState.NEED_ICON.get(n))
+	return icon_name(String(gi) if gi != null else n)
+
+
+func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, hungry: int, shrink_after: int,
+		sealed: Array = [], amounts: Dictionary = {}, warn: bool = false) -> void:
 	if _needs != null:
 		_needs.queue_free()
 		_needs = null
@@ -950,11 +1188,16 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 	set_mark("satt", false)
 	if not people:
 		return
+	# Reihenfolge: versorgt (für immer) – da – fehlt
 	var names: Array = []
+	for n in sealed:
+		names.append([String(n), true, true])
 	for n in met:
-		names.append([String(n), true])
+		if not sealed.has(n):
+			names.append([String(n), true, false])
 	for n in missing:
-		names.append([String(n), false])
+		if not sealed.has(n):
+			names.append([String(n), false, false])
 	if names.is_empty():
 		return
 	_needs = Node3D.new()
@@ -966,23 +1209,114 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 	for i in names.size():
 		var nm: Array = names[i]
 		var ok: bool = nm[1]
-		# Was fehlt, ist laut (rote Scheibe, helles Zeichen), was da ist, leise (halb durchsichtig); satt: gold
+		var seal: bool = nm[2]
+		# Was fehlt, ist laut (rote Scheibe, helles Zeichen), was da ist, leise (halb durchsichtig); satt und versorgt:
+		# gold. Mit „versorgt bleibt versorgt“ ist Fehlendes grau, erst die Hunger-Warnung macht es rot.
 		var bg := _sprite("need_bg", NEED_BG_PX, 5)
 		bg.offset = Vector2(x0 + gap * float(i), 0)
-		bg.modulate = Color("#ffd75e") if satt else (Color(1, 1, 1, 0.55) if ok else Color("#e5483c"))
+		var miss_c := Color("#e5483c") if (warn or not _lasting) else Color(0.62, 0.62, 0.64, 0.9)
+		bg.modulate = Color("#ffd75e") if (satt or seal) else (Color(1, 1, 1, 0.55) if ok else miss_c)
 		_needs.add_child(bg)
-		var ic := _sprite(String(GameState.NEED_ICON.get(nm[0], "info")), NEED_BG_PX / 1.2838, 6)
+		var ic := _sprite(_need_icon(String(nm[0])), NEED_BG_PX / 1.2838, 6)
 		ic.offset = Vector2((x0 + gap * float(i)) * 1.2838, 0)
-		ic.modulate = Color(0.45, 0.36, 0.18) if satt else (Color(0.5, 0.5, 0.52, 0.75) if ok else Color(1.22, 1.22, 1.22))
+		ic.modulate = Color(0.45, 0.36, 0.18) if (satt or seal) else (Color(0.5, 0.5, 0.52, 0.75) if ok else Color(1.22, 1.22, 1.22))
 		_needs.add_child(ic)
-		_need_icons.append([bg, ic, ok])
+		if seal:
+			# goldenes Häkchen: dieses Bedürfnis bleibt versorgt (dreht mit dem Feld)
+			var ck := _sprite("check", NEED_BG_PX * 0.55, 7)
+			ck.offset = Vector2((x0 + gap * float(i)) / 0.55 + 70.0, -70.0)
+			ck.modulate = Color("#fff4c8")
+			_needs.add_child(ck)
+		var am: Variant = amounts.get(nm[0])
+		if am is Array and (am as Array).size() >= 2 and not seal:
+			var lb := Label3D.new()
+			lb.text = "%d/%d" % [int((am as Array)[0]), int((am as Array)[1])]
+			lb.font = Style.bold()
+			lb.font_size = 40
+			lb.pixel_size = 0.0028
+			lb.outline_size = 12
+			lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			lb.no_depth_test = true
+			lb.render_priority = 8
+			lb.outline_render_priority = 7
+			lb.offset = Vector2((x0 + gap * float(i)) * NEED_BG_PX / 0.0028, -38.0)
+			_needs.add_child(lb)
+		_need_icons.append([bg, ic, ok or seal])
 	if satt and fed > 0:
 		var up := _sprite("up", NEED_BG_PX / 1.1875, 6)
 		up.offset = Vector2((x0 + gap * float(names.size())) * 1.1875, 0)
 		_needs.add_child(up)
-	_need_pulse = not satt and hungry >= shrink_after - 1 and hungry > 0
-	set_mark("satt", satt)
+	_need_pulse = warn or (not satt and hungry >= shrink_after - 1 and hungry > 0)
+	set_mark("satt", satt or (not sealed.is_empty() and missing.is_empty()))
 	_update_needs_visible()
+
+
+## Vulkan grollt (7.1): die ganze Lava-Gruppe glüht heller und pulsiert im Gleichtakt; das Krater-Feld bekommt die
+## Rauchsäule.
+func _set_volcano(on: bool, crater: bool) -> void:
+	_ground.set_shader_parameter("lava_warn", 1.0 if on else 0.0)
+	var col := on and crater
+	if col and _volc_node == null:
+		_volc_node = Node3D.new()
+		add_child(_volc_node)
+		for k in 4:
+			var p := Node3D.new()
+			p.position = Vector3(0.02 * float(k % 2), TOP + 0.12 + 0.13 * float(k), 0.0)
+			p.set_meta("base", p.position)
+			_volc_node.add_child(p)
+			Look.smoke_puff(p, 0.22 + 0.07 * float(k), Color(0.42, 0.38, 0.36, 0.7 - 0.1 * float(k)))
+	if _volc_node != null:
+		_volc_node.visible = col
+
+
+## Lava kühlt (Spec 10 steam): 1 oder 2 graue Punkte über dem Feld.
+func _set_cool(n: int) -> void:
+	if _cool_node != null:
+		_cool_node.queue_free()
+		_cool_node = null
+	if n <= 0:
+		return
+	_cool_node = Node3D.new()
+	_cool_node.position = Vector3(0, 0.42, 0)
+	add_child(_cool_node)
+	for i in 2:
+		var d := _sprite("dot", 0.0014, 6)
+		d.offset = Vector2((float(i) - 0.5) * 70.0, 0)
+		d.modulate = Color("#cfd6dc") if i < n else Color(1, 1, 1, 0.3)
+		_cool_node.add_child(d)
+
+
+## Gruppen-Stärke (5.1): eine goldene Plakette „×2“/„×3“ über dem größten Feld der Gruppe.
+var _strength_n := 0
+
+
+func _set_strength(n: int) -> void:
+	_strength_n = n
+	if n < 2:
+		if _strength_lbl != null:
+			_strength_lbl.visible = false
+		return
+	if _strength_lbl == null:
+		_strength_lbl = Label3D.new()
+		_strength_lbl.font = Style.bold()
+		_strength_lbl.font_size = 56
+		_strength_lbl.pixel_size = 0.003
+		_strength_lbl.outline_size = 16
+		_strength_lbl.modulate = Color("#ffd75e")
+		_strength_lbl.outline_modulate = Color("#5a3a10")
+		_strength_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_strength_lbl.no_depth_test = true
+		_strength_lbl.render_priority = 8
+		_strength_lbl.outline_render_priority = 7
+		_strength_lbl.position = Vector3(0.28, 0.42, 0.28)
+		add_child(_strength_lbl)
+	var txt := "×%d" % n
+	if _strength_lbl.text != txt or not _strength_lbl.visible:
+		_strength_lbl.text = txt
+		_strength_lbl.visible = _labels_on
+		_strength_lbl.scale = Vector3.ONE * 1.6
+		var tw := _strength_lbl.create_tween()
+		tw.tween_property(_strength_lbl, "scale", Vector3.ONE, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _update_needs_visible() -> void:
@@ -1099,6 +1433,119 @@ func agent_states() -> Array:
 	for a in _agents:
 		out.append(String((a as Dictionary)["st"]))
 	return out
+
+
+# =============================================================================
+# Schöpfung: Zeitalter, Sonnenseite, Verlust-Hinweis (GDPD_SCHOEPFUNG_GRAFIK.md 2, 6, 8)
+# =============================================================================
+
+## Das Zeitalter hat sich geändert (Look.set_era): Bodenwerte neu, Inhalt nur, wenn sein Modell vom Zeitalter abhängt.
+var _model_key := ""
+
+
+func era_changed() -> void:
+	if _kind < 0:
+		return
+	_nb_key = ""
+	seams_dirty = true
+	_apply_tile_color()
+	var mk := Look.model_key()
+	if mk != _model_key:
+		_model_key = mk
+		if [K_EMPTY, K_FOREST, K_BIGFOREST, K_BIRDS, K_ANIMALS, K_STONE, K_FIELD, K_SEED, K_WATER, K_FISH].has(_kind):
+			_shown = ""
+			var keep := _time
+			set_kind(_kind, _fresh, _burning)
+			_bake_at = keep
+	elif _kind == K_FIELD:
+		_shown = ""
+		set_kind(_kind, _fresh, _burning)
+
+
+## Sonnenseite (8.1): Tönung dieses Felds (1 oben/Tag, 0 Seite, −1 unten/Nacht), nach dem Einrasten in 0,4 s.
+var _day := 1.0
+var _day_tw: Tween
+
+
+func set_day(k: float, dur: float = 0.4) -> void:
+	if absf(k - _day) < 0.01:
+		return
+	if _day_tw != null and _day_tw.is_valid():
+		_day_tw.kill()
+	if dur <= 0.0:
+		_set_day_v(k)
+		return
+	_day_tw = create_tween()
+	_day_tw.tween_method(_set_day_v, _day, k, dur).set_trans(Tween.TRANS_SINE)
+
+
+func _set_day_v(k: float) -> void:
+	_day = k
+	_ground.set_shader_parameter("day", k)
+
+
+func get_day() -> float:
+	return _day
+
+
+## Verlust (6): der Grund am Feld (0,5 s) und eine rote Plakette „−1“ mit dem Art-Symbol, die aufsteigt.
+## cause: burn, fire, flood, starve, hunger, pack, war, erupt, meteor, smog. Den Flug zum Ziel-Chip spielt day_ui.
+func loss_fx(cause: String, kind: int = -1) -> void:
+	match cause:
+		"burn", "fire", "burnt", "bolt":
+			burn(0.8)
+		"flood":
+			flood(1.0)
+		"war":
+			war_fx(1.0)
+		"erupt", "volcano":
+			pulse_light(Color("#ff6a1a"), 0.8)
+			quake(0.5)
+		"meteor":
+			strike_fx(0.6)
+		"smog", "polluted":
+			wither_fx(0.8)
+		_:
+			# Hunger, Rudel: grau, Figuren sinken, Staubwölkchen
+			pulse_light(Color(0.55, 0.52, 0.5), 0.5)
+			for a in _agents:
+				var ad: Dictionary = a
+				ad["st"] = "gone"
+				ad["t"] = 2.5
+	var plq := Node3D.new()
+	plq.position = Vector3(0, 0.45, 0)
+	add_child(plq)
+	var bg := _sprite("need_bg", NEED_BG_PX * 1.15, 9)
+	bg.modulate = Color("#e5483c")
+	plq.add_child(bg)
+	var ic := _sprite(kind_icon(kind if kind >= 0 else maxi(_kind, 0)), NEED_BG_PX * 1.15 / 1.2838, 10)
+	ic.offset = Vector2(-24.0, 0.0)
+	plq.add_child(ic)
+	var lb := Label3D.new()
+	lb.text = "−1"
+	lb.font = Style.bold()
+	lb.font_size = 60
+	lb.pixel_size = 0.003
+	lb.outline_size = 14
+	lb.outline_modulate = Color("#5a1a14")
+	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lb.no_depth_test = true
+	lb.render_priority = 11
+	lb.outline_render_priority = 10
+	lb.offset = Vector2(34.0, 0.0)
+	plq.add_child(lb)
+	plq.scale = Vector3.ONE * 0.3
+	var tw := plq.create_tween()
+	tw.tween_property(plq, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(plq, "position:y", 0.85, 0.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_interval(0.1)
+	tw.tween_property(plq, "scale", Vector3.ONE * 0.01, 0.2)
+	tw.tween_callback(plq.queue_free)
+
+
+func _exit_tree() -> void:
+	_steam_total -= _steam.size()
+	_steam.clear()
 
 
 # =============================================================================
@@ -1394,6 +1841,11 @@ func _process(delta: float) -> void:
 				(arr[1] as Sprite3D).scale = Vector3.ONE * pk
 	if _detail == 2 and not _agents.is_empty():
 		_update_agents(delta)
+	if _detail == 2:
+		if _fish != null:
+			_update_fish(delta)
+		if _birds != null:
+			_update_birds(delta)
 	if _wish_shown and _wish != null:
 		var face := _facing_camera()
 		_wish.visible = face > 0.15
@@ -1405,8 +1857,10 @@ func _process(delta: float) -> void:
 # Bei Gefahr laufen alle zum Kachelrand und verschwinden; ist es ruhig, kommen sie zurück.
 # =============================================================================
 
-const AGENT_SPEED := {"sheep": 0.022, "cow": 0.018, "deer": 0.035, "hare": 0.05, "duck": 0.015, "person": 0.028}
-const AGENT_RATE := {"sheep": 13.0, "cow": 9.0, "deer": 11.0, "hare": 18.0, "duck": 4.0, "person": 11.0}
+const AGENT_SPEED := {"sheep": 0.022, "cow": 0.018, "deer": 0.035, "hare": 0.05, "duck": 0.015, "person": 0.028,
+	"bison": 0.016, "wolf": 0.03, "newt": 0.02}
+const AGENT_RATE := {"sheep": 13.0, "cow": 9.0, "deer": 11.0, "hare": 18.0, "duck": 4.0, "person": 11.0, "bison": 8.0,
+	"wolf": 12.0, "newt": 16.0}
 
 
 func _agent(kind: String, variant: int, pos: Vector3, yaw: float = -100.0) -> void:
@@ -1451,6 +1905,9 @@ func _pick_free(a: Dictionary) -> Vector3:
 	if bool(a["person"]) and not _spots.is_empty() and randf() < 0.55:
 		var sp: Vector3 = _spots[randi() % _spots.size()]
 		return sp + Vector3(randf_range(-0.02, 0.02), 0.0, randf_range(-0.02, 0.02))
+	if _huddle and not bool(a["person"]):
+		# Rudel droht: die Herde drängt sich in der Mitte zusammen
+		return Vector3(randf_range(-0.07, 0.07), 0.0, randf_range(-0.07, 0.07))
 	var cur: Vector3 = (a["n"] as Node3D).position
 	var best: Vector3 = _free[randi() % _free.size()]
 	# Tiere bleiben gern in der Nähe (kurze Wege, ruhige Herde)
@@ -1470,6 +1927,9 @@ func _update_agents(delta: float) -> void:
 		if not is_instance_valid(n):
 			continue
 		var st := String(a["st"])
+		if _pack and String(a["k"]) == "wolf" and st == "idle":
+			st = "graze"              # Rudel lauert: geduckt, Kopf tief
+			a["t"] = 2.0
 		var want_w := 0.0
 		var want_g := 0.0
 		var want_b := 0.0
@@ -1769,10 +2229,24 @@ func _build_content(kind: int, fresh: int) -> void:
 			_b_metropolis(rng)
 		K_PARADISE:
 			_b_paradise(rng)
-		K_WATER:
+		K_WATER, K_SOUP, K_CELLS, K_ALGAE, K_FISH:
 			_b_water(rng)
 		K_STONE:
 			_b_stone(rng)
+		K_LAVA:
+			_b_lava(rng)
+		K_MOSS:
+			_b_moss(rng)
+		K_FERN:
+			_b_fern(rng)
+		K_BIRDS:
+			_b_forest(rng, false)
+			_b_nests(rng)
+		K_PRED:
+			_b_pred(rng)
+		K_SEED:
+			_b_field(rng)
+	_seam_content(rng)
 
 
 ## Erde: nackter Boden, ein paar Steine und Keime. Frisch verbrannt: Stümpfe, Asche, Rauch. Krater nach Meteor.
@@ -1788,6 +2262,10 @@ func _b_earth(rng: RandomNumberGenerator, fresh: int) -> void:
 			_content.add_child(em)
 		_puff(Vector3(0, 0.03, 0), 0.05, Color(0.35, 0.33, 0.32, 0.6), 0.2)
 		_cover(4, 0, true, 10)
+		return
+	if Look.era_flag("primeval") and fresh <= 0:
+		# Urboden: leer – nur Risse (Boden-Shader) und Kiesel, nichts steht darauf
+		_cover(0, 0, true, 12 + 3 * _variant, 0.4)
 		return
 	var nrock := 1 + _variant % 3
 	for k in nrock:
@@ -1817,9 +2295,17 @@ func _b_meadow(rng: RandomNumberGenerator) -> void:
 		_agent("hare", 0, _R(Vector3(0.05, 0, 0.08)))
 
 
-## Wald / Großer Wald: gemischte Bäume, Unterholz, Totholz, ein Hirsch.
+## Wald / Großer Wald: gemischte Bäume, Unterholz, Totholz, ein Hirsch. Urzeit (Akt 3): Urwald aus Baumfarnen,
+## Schachtelhalmen und wenigen Nadelbäumen. Zusammengewachsen: Bäume innen 18 % größer, kein Totholz zur gleichen Art.
+var _tree_tops: Array = []      # Kronen (Position, Höhe) für Nester
+
+
 func _b_forest(rng: RandomNumberGenerator, big: bool) -> void:
+	_tree_tops = []
+	var primeval := Look.era_flag("primeval")
 	var types := ["oak", "spruce", "beech", "birch", "spruce", "oak", "pine"]
+	if primeval:
+		types = ["tree_fern", "horsetail", "tree_fern", "spruce", "tree_fern", "horsetail", "pine"]
 	var spots: Array = []
 	if big:
 		spots = [Vector3(-0.2, 0, -0.2), Vector3(0.0, 0, -0.22), Vector3(0.2, 0, -0.19), Vector3(-0.21, 0, 0.01),
@@ -1827,6 +2313,7 @@ func _b_forest(rng: RandomNumberGenerator, big: bool) -> void:
 	else:
 		spots = [Vector3(-0.16, 0, -0.15), Vector3(0.15, 0, -0.14), Vector3(-0.14, 0, 0.16), Vector3(0.16, 0, 0.15),
 			Vector3(0.0, 0, 0.0)]
+	var dry := _dry and not _wither
 	for k in spots.size():
 		var p: Vector3 = spots[k] + Vector3(rng.randf_range(-0.03, 0.03), 0, rng.randf_range(-0.03, 0.03))
 		var model: String = types[(k + _variant) % types.size()]
@@ -1834,49 +2321,83 @@ func _b_forest(rng: RandomNumberGenerator, big: bool) -> void:
 			model = "spruce" if k % 3 != 1 else ("oak" if k % 2 == 0 else "beech")
 		if _wither:
 			model = "dead" if k % 2 == 0 else "bush_dry"
+		elif dry and k % 3 == 1 and not primeval:
+			model = "bush_dry"
 		var s := rng.randf_range(1.15, 1.4) if big else rng.randf_range(0.85, 1.05)
+		if _merge_mask != 0 or _same4 != 0:
+			s *= 1.18          # Zusammenwachsen: dichteres, geschlossenes Kronendach
 		if model == "bush_dry":
 			s *= 1.4
-		_tree(model, k + _variant, p, rng, s)
-	if not big:
-		_item("log", _variant, Vector3(0.02, 0, 0.2), rng.randf() * TAU, 1.0, 0.04)
-		_item("stump", _variant, Vector3(-0.21, 0, 0.0), 0.0, 1.0, 0.025)
-		_item("bush_dry" if _wither else "bush", _variant + 1, Vector3(0.22, 0, 0.0), rng.randf() * TAU, 0.9, 0.04)
-	_cover(30 if big else 44, 0 if big or _wither else 3, _wither, 5, 0.9)
-	if not _wither and (big or _variant % 2 == 0):
+		var it := _tree(model, k + _variant, p, rng, s)
+		_tree_tops.append([it.position, 0.2 * it.scale.y])
+	if not big and _same4 == 0:
+		if primeval:
+			_item("fern", _variant, Vector3(0.02, 0, 0.2), rng.randf() * TAU, 0.8, 0.04)
+		else:
+			_item("log", _variant, Vector3(0.02, 0, 0.2), rng.randf() * TAU, 1.0, 0.04)
+			_item("stump", _variant, Vector3(-0.21, 0, 0.0), 0.0, 1.0, 0.025)
+		_item("bush_dry" if _wither else ("fern" if primeval else "bush"), _variant + 1, Vector3(0.22, 0, 0.0), rng.randf() * TAU, 0.9, 0.04)
+	_cover(30 if big else 44, 0 if big or _wither or primeval else 3, _wither or dry, 5, 0.9)
+	if not _wither and not primeval and (big or _variant % 2 == 0):
 		_agent("deer", _variant, _R(Vector3(0.08, 0, 0.07) if big else Vector3(0.06, 0, -0.1)))
 
 
-## Acker: Dämme mit Pflanzenreihen (Saat, grün oder reif), Zaun, Vogelscheuche oder Karren, ein Bauer.
+## Acker / Saat: Dämme mit Pflanzenreihen (Saat hellgrün, Acker reif und golden), Zaun, Vogelscheuche oder Karren,
+## ein Bauer. Vor den Menschen (Akt 4–5) nur die Reihen (nichts verrät, was kommt). Zusammengewachsen: kein Zaun zur
+## gleichen Seite, eine Vogelscheuche je Gruppe (das Feld ohne gleichen Nachbarn im Süden und Westen).
 func _b_field(rng: RandomNumberGenerator) -> void:
 	var dir := _rot % 2
-	var stage: int = [2, 2, 1, 0][_variant]
+	var stage: int = 0 if _kind == K_SEED else 2
+	var wild := Look.era_flag("wild")
 	var it := Node3D.new()
 	_content.add_child(it)
 	it.set_meta("xf", it.transform)
 	_add_parts(it, Models.crops("%d|%d|%d" % [stage, dir, 1 if _wither else 0], stage, dir, _wither))
 	_items.append(it)
-	# Zaun längs der Reihen am Rand
-	var side := 1.0 if _rot < 2 else -1.0
-	var fp := Vector3(0.12, 0, 0.3 * side) if dir == 0 else Vector3(0.3 * side, 0, 0.12)
-	_item("fence", 0, fp, 0.0 if dir == 0 else PI * 0.5, 1.0, 0.0, true)
-	if _variant % 2 == 0:
-		_item("scarecrow", 0, Vector3(0.1, 0, -0.045) if dir == 0 else Vector3(-0.045, 0, 0.1), rng.randf() * TAU, 1.0, 0.0, true)
-	else:
-		_item("cart", 0, Vector3(-0.27, 0, -0.3 * side) if dir == 0 else Vector3(-0.3 * side, 0, -0.27), 0.0 if dir == 0 else PI * 0.5,
-			1.0, 0.0, true)
-	# Bauer zwischen den Reihen
 	for z in [-0.134, 0.045, 0.223]:      # in den Furchen (zwischen den Dämmen, siehe Models.crops)
 		var zz: float = z
 		_spots.append(Vector3(rng.randf_range(-0.2, 0.2), 0, zz) if dir == 0 else Vector3(zz, 0, rng.randf_range(-0.2, 0.2)))
+	if stage == 2 and Look.season >= 1.5 and not _wither:
+		# Herbst: Garben am Rand
+		for k in 2:
+			_item("sheaf", k, Vector3(-0.22 + 0.1 * k, 0, 0.27) if dir == 0 else Vector3(0.27, 0, -0.22 + 0.1 * k), rng.randf() * TAU, 1.0, 0.0, true)
+	if wild:
+		return
+	# Zaun längs der Reihen am Rand (nicht zur gleichen Art: ein großes Feld)
+	var side := 1.0 if _rot < 2 else -1.0
+	var fbit := (4 if side > 0.0 else 1) if dir == 0 else (2 if side > 0.0 else 8)
+	if (_same4 & fbit) == 0:
+		var fp := Vector3(0.12, 0, 0.3 * side) if dir == 0 else Vector3(0.3 * side, 0, 0.12)
+		_item("fence", 0, fp, 0.0 if dir == 0 else PI * 0.5, 1.0, 0.0, true)
+	var lead := (_same4 & (4 | 8)) == 0
+	if _variant % 2 == 0 and lead:
+		_item("scarecrow", 0, Vector3(0.1, 0, -0.045) if dir == 0 else Vector3(-0.045, 0, 0.1), rng.randf() * TAU, 1.0, 0.0, true)
+	elif _same4 == 0:
+		_item("cart", 0, Vector3(-0.27, 0, -0.3 * side) if dir == 0 else Vector3(-0.3 * side, 0, -0.27), 0.0 if dir == 0 else PI * 0.5,
+			1.0, 0.0, true)
 	if not _wither:
 		var p0: Vector3 = _spots[0]
 		_agent("person", _variant * 2, p0, 0.0 if dir == 0 else -PI * 0.5)
 
 
-## Weide: helles Gras, Zaun, Tränke, ein Baum, eine kleine Herde.
+## Weide: helles Gras, Zaun, Tränke, ein Baum, eine kleine Herde. Vor den Menschen (wild): abgegraste Wiese mit
+## Trittpfaden und einer Herde aus 4–6 braunen Tieren (Wisente, Hirsche), ohne Zaun.
 func _b_animals(rng: RandomNumberGenerator) -> void:
-	_item("fence", 1, Vector3(-0.2, 0, 0.18), 0.0, 1.0, 0.0)
+	var pts := [Vector3(-0.08, 0, -0.08), Vector3(0.06, 0, -0.04), Vector3(-0.04, 0, 0.1), Vector3(0.1, 0, 0.1), Vector3(-0.16, 0, 0.02),
+		Vector3(0.16, 0, -0.14)]
+	if Look.era_flag("wild"):
+		_tree("bush_dry" if _wither else "bush", 7 + _variant, Vector3(0.23, 0, 0.21), rng, 1.1)
+		_cover(70, 2 if _wither else 4, _wither or _sad > 0.5, 5, 0.6)
+		var wild_herds := [["bison", "bison", "bison", "deer", "bison"], ["deer", "deer", "bison", "deer"],
+			["bison", "bison", "bison", "bison", "deer", "bison"], ["deer", "bison", "deer", "bison", "deer"]]
+		var wh: Array = wild_herds[_variant]
+		if _wither:
+			wh = ["deer"]
+		for k in wh.size():
+			_agent(String(wh[k]), k + _variant, _R(pts[k]))
+		return
+	if _same4 == 0:
+		_item("fence", 1, Vector3(-0.2, 0, 0.18), 0.0, 1.0, 0.0)
 	_item("trough", 0, Vector3(0.14, 0, -0.22), 0.3, 1.0, 0.04)
 	_tree("bush_dry" if _wither else "oak", 7 + _variant, Vector3(0.23, 0, 0.21), rng, 0.85)
 	_cover(100, 2 if _wither else 8, _wither, 3, 0.75)
@@ -1884,7 +2405,6 @@ func _b_animals(rng: RandomNumberGenerator) -> void:
 	var herd: Array = herds[_variant]
 	if _wither:
 		herd = ["sheep"]
-	var pts := [Vector3(-0.08, 0, -0.08), Vector3(0.06, 0, -0.04), Vector3(-0.04, 0, 0.1), Vector3(0.1, 0, 0.1), Vector3(-0.16, 0, 0.02)]
 	for k in herd.size():
 		var kind: String = herd[k]
 		_agent(kind, k + _variant, _R(pts[k]))
@@ -2050,12 +2570,16 @@ func _b_paradise(rng: RandomNumberGenerator) -> void:
 		_content.add_child(beam)
 
 
-## Wasser: Wasser-Shader (Wellen, Ufer-Schaum), manchmal Enten.
+## Wasser-Familie: die Fläche malt der Boden-Shader (is_water, w_life): so fließt sie nahtlos in benachbartes Wasser
+## über und dreht mit der Scheibe. Enten erst, wenn das Zeitalter sie hat (Akt 5+). Fische: ein Schwarm je Feld.
 func _b_water(_rng: RandomNumberGenerator) -> void:
-	# Die Wasserfläche malt der Boden-Shader (is_water): so fließt sie nahtlos in benachbartes Wasser über.
 	for ix in 4:
 		for iz in 4:
 			_water_pts.append(Vector3(-0.18 + 0.12 * float(ix), 0.005, -0.18 + 0.12 * float(iz)))
+	if _kind == K_FISH:
+		_make_fish()
+	if not Look.era_flag("ducks") or not (_kind == K_WATER or _kind == K_FISH):
+		return
 	if posmod(field_id, 5) == 0:
 		_agent("duck", 0, Vector3(-0.06, 0.005, 0.04))
 		_agent("duck", 1, Vector3(0.0, 0.005, 0.1))
@@ -2063,8 +2587,21 @@ func _b_water(_rng: RandomNumberGenerator) -> void:
 		_agent("duck", 1, Vector3(0.08, 0.005, -0.06))
 
 
-## Stein: Felsen mit Abbaukante, geschnittene Blöcke, Schutt, manchmal ein Steinhauer.
+## Fels / Stein: in Akt 1–2 schwarzgrauer Basalt (2–3 scharfkantige Brocken), vor den Menschen graue Felsen, danach
+## der Steinbruch mit Abbaukante, Blöcken, Schutt und manchmal einem Steinhauer.
 func _b_stone(rng: RandomNumberGenerator) -> void:
+	if Look.era_flag("basalt") or Look.era_flag("wild"):
+		var basalt := Look.era_flag("basalt")
+		var n := 2 + _variant % 2
+		var spots := [Vector3(-0.12, 0, -0.08), Vector3(0.12, 0, 0.06), Vector3(-0.02, 0, 0.17)]
+		for k in n:
+			var sp: Vector3 = spots[k] + Vector3(rng.randf_range(-0.04, 0.04), 0, rng.randf_range(-0.04, 0.04))
+			if basalt and Look.era_name.begins_with("glut"):
+				_item("basalt", k + _variant, sp, rng.randf() * TAU, rng.randf_range(1.5, 1.9), 0.08)
+			else:
+				_item("boulder", k + _variant, sp, rng.randf() * TAU, rng.randf_range(1.0, 1.3), 0.08)
+		_cover(0 if basalt else 14, 0, true, 26, 0.5)
+		return
 	_item("quarry", _variant, Vector3.ZERO, 0.0, 1.0, 0.0)
 	var qp := _R(Vector3(-0.1, 0, -0.12))
 	_obst.append(Vector3(qp.x, qp.z, 0.17))
@@ -2074,4 +2611,212 @@ func _b_stone(rng: RandomNumberGenerator) -> void:
 	_spots = [_R(Vector3(0.05, 0, 0.0)), _R(Vector3(0.1, 0, 0.12))]
 	if _variant % 2 == 0:
 		_agent("person", 3 + field_id % 2, _spots[0])
-	var _u := rng
+
+
+## Lava: kein eigenes Mesh – Kruste, Risse und Fluss malt der Boden-Shader (lückenlos über Fugen). Dazu zwei
+## erstarrte Brocken mit glühenden Spalten und ein Rauchfaden.
+func _b_lava(rng: RandomNumberGenerator) -> void:
+	for k in 2:
+		_item("crust", k + _variant, Vector3(rng.randf_range(-0.18, 0.18), 0, rng.randf_range(-0.18, 0.18)), rng.randf() * TAU,
+			rng.randf_range(0.9, 1.3), 0.04)
+	_puff(Vector3(rng.randf_range(-0.1, 0.1), 0.04, rng.randf_range(-0.1, 0.1)), 0.035, Color(0.5, 0.46, 0.44, 0.4), 0.3, -1.0, 0.22)
+
+
+## Moos: niedriger, samtiger Teppich aus runden Polstern auf Urboden (niedriger als Wiese, keine Blumen).
+func _b_moss(rng: RandomNumberGenerator) -> void:
+	var spots := [Vector3(-0.15, 0, -0.14), Vector3(0.12, 0, -0.16), Vector3(-0.17, 0, 0.13), Vector3(0.15, 0, 0.14), Vector3(0.0, 0, 0.0),
+		Vector3(0.02, 0, -0.22), Vector3(-0.23, 0, 0.0)]
+	for k in 5 + _variant % 3:
+		var sp: Vector3 = spots[k] + Vector3(rng.randf_range(-0.03, 0.03), 0, rng.randf_range(-0.03, 0.03))
+		_item("moss", k + _variant, sp, rng.randf() * TAU, rng.randf_range(1.3, 1.9), 0.0)
+	_cover(26, 0, false, 4, 0.35)
+
+
+## Farn: kniehohe, gefiederte Rosetten auf dunklem Humus, dazwischen Schachtelhalme.
+func _b_fern(rng: RandomNumberGenerator) -> void:
+	var spots := [Vector3(-0.15, 0, -0.13), Vector3(0.14, 0, -0.15), Vector3(-0.13, 0, 0.15), Vector3(0.15, 0, 0.13), Vector3(0.0, 0, 0.0)]
+	for k in spots.size():
+		var sp: Vector3 = spots[k] + Vector3(rng.randf_range(-0.03, 0.03), 0, rng.randf_range(-0.03, 0.03))
+		if _wither:
+			_item("bush_dry", k, sp, rng.randf() * TAU, 1.4, 0.05)
+		else:
+			_item("fern", k + _variant, sp, rng.randf() * TAU, rng.randf_range(1.0, 1.25), 0.06)
+	if not _wither:
+		_item("horsetail", _variant, Vector3(0.22, 0, 0.0), 0.0, 1.0, 0.03)
+	_cover(30, 0, _wither, 6, 0.6)
+
+
+## Vögel nisten im Wald: 2–3 Nester in den Kronen (helle Tupfer) und Vögel, die über dem Feld kreisen.
+func _b_nests(rng: RandomNumberGenerator) -> void:
+	var n := mini(_tree_tops.size(), 2 + _variant % 2)
+	for k in n:
+		var tt: Array = _tree_tops[k]
+		var tp: Vector3 = tt[0]
+		_item("nest", k, tp + Vector3(rng.randf_range(-0.02, 0.02), float(tt[1]) * 0.95, rng.randf_range(-0.02, 0.02)), rng.randf() * TAU,
+			1.25, 0.0, true)
+	if not _wither:
+		_make_birds()
+
+
+## Raubtiere: Fels mit dunklem Gras, eine Höhle, Knochen als helle Punkte, 1–2 graue Wölfe.
+func _b_pred(rng: RandomNumberGenerator) -> void:
+	_item("den", _variant, Vector3(-0.1, 0, -0.12), rng.randf_range(-0.3, 0.3), 1.3, 0.12)
+	_item("boulder", _variant + 2, Vector3(0.2, 0, -0.18), rng.randf() * TAU, 0.9, 0.06)
+	_item("bones", _variant, Vector3(0.1, 0, 0.14), rng.randf() * TAU, 1.3, 0.0)
+	_cover(40, 0, true, 10, 0.75)
+	if _wither:
+		return
+	_agent("wolf", _variant, _R(Vector3(0.04, 0, 0.0)))
+	if _variant % 2 == 0:
+		_agent("wolf", _variant + 1, _R(Vector3(-0.14, 0, 0.12)))
+
+
+## Fugen-Teile (Zusammenwachsen): Bäume, Häuser und Wege auf den gemeinsamen Fugen (_merge_mask). Sie stehen frei auf
+## der Fuge (nicht nach innen gerückt) und reichen ins Nachbarfeld – zusammen ein Wald, eine Stadt.
+func _seam_content(rng: RandomNumberGenerator) -> void:
+	if _merge_mask == 0 or _wither:
+		return
+	var e := 0.5 / CONTENT_SCALE
+	var pts: Array = []        # [Position, Drehung]
+	if (_merge_mask & 1) != 0:
+		pts.append([Vector3(-0.12, 0, -e), 0.0])
+		pts.append([Vector3(0.13, 0, -e + 0.02), 0.0])
+	if (_merge_mask & 2) != 0:
+		pts.append([Vector3(e, 0, 0.1), PI * 0.5])
+		pts.append([Vector3(e - 0.02, 0, -0.14), PI * 0.5])
+	if (_merge_mask & 4) != 0:
+		pts.append([Vector3(e, 0, -e), PI * 0.25])
+	var primeval := Look.era_flag("primeval")
+	for k in pts.size():
+		var pa: Array = pts[k]
+		var sp: Vector3 = (pa[0] as Vector3) + Vector3(rng.randf_range(-0.02, 0.02), 0, rng.randf_range(-0.02, 0.02))
+		var corner := k == pts.size() - 1 and (_merge_mask & 4) != 0
+		match _kind:
+			K_FOREST, K_BIGFOREST, K_BIRDS:
+				var sm: String = ["oak", "beech", "spruce", "oak", "pine"][(k + field_id) % 5]
+				if primeval:
+					sm = ["tree_fern", "tree_fern", "horsetail", "spruce"][(k + field_id) % 4]
+				elif _kind == K_BIGFOREST:
+					sm = "spruce" if k % 2 == 0 else "oak"
+				var big := _kind == K_BIGFOREST or (corner and not primeval)
+				var sc := rng.randf_range(1.15, 1.35) if big else rng.randf_range(0.95, 1.15)
+				if corner and not primeval:
+					sm = "oak"
+					sc *= 1.3            # Großbaum in der Mitte der Gruppe
+				_seam_item(sm, k + _variant, sp, rng.randf() * TAU, sc)
+			K_FERN:
+				_seam_item("fern", k + _variant, sp, rng.randf() * TAU, 1.1)
+			K_MOSS:
+				_seam_item("moss", k + _variant, sp, rng.randf() * TAU, 1.6)
+			K_TOWN:
+				if _seam_free(sp, 0.09):
+					_seam_item("well" if corner else "townhouse", (k + _variant) % 4, sp, float(pa[1]), 0.9 if corner else 0.95)
+			K_VILLAGE:
+				if _seam_free(sp, 0.07):
+					_seam_item("well" if corner else ("young" if k % 2 == 0 else "bush"), k + _variant, sp, float(pa[1]), 1.0)
+			K_MEADOW:
+				if k % 2 == 0:
+					_seam_item("young" if corner else "bush", k + _variant, sp, rng.randf() * TAU, 0.9)
+
+
+func _seam_free(p: Vector3, r: float) -> bool:
+	for o in _obst:
+		var ob: Vector3 = o
+		if Vector2(p.x - ob.x, p.z - ob.y).length() < ob.z + r:
+			return false
+	return true
+
+
+func _seam_item(model: String, variant: int, pos: Vector3, yaw: float, s: float) -> Node3D:
+	var it := Node3D.new()
+	it.position = pos
+	it.rotation.y = yaw
+	it.scale = Vector3.ONE * s
+	it.set_meta("seam", true)
+	_content.add_child(it)
+	it.set_meta("xf", it.transform)
+	_add_parts(it, Models.get_model(model, variant))
+	_items.append(it)
+	_obst.append(Vector3(pos.x, pos.z, 0.06 * s))
+	return it
+
+
+# =============================================================================
+# Fische und Vögel (Schöpfung): je Feld ein MultiMesh, Bewegung im Feld-Raum (dreht mit der Scheibe mit)
+# =============================================================================
+
+var _fish: MultiMeshInstance3D
+var _birds: MultiMeshInstance3D
+const FISH_N := 7
+const BIRD_N := 4
+
+
+func _make_fish() -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = Models.creature_mesh("fish", _variant)
+	mm.instance_count = FISH_N if Look.quality >= 1 else 0
+	_fish = MultiMeshInstance3D.new()
+	_fish.multimesh = mm
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(1, 1, 1, 0.62)    # knapp unter der Oberfläche: halb durchscheinend
+	m.roughness = 0.4
+	m.metallic_specular = 0.9
+	_fish.material_override = m
+	_fish.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_content.add_child(_fish)
+	_update_fish(0.0)
+
+
+func _make_birds() -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = Models.creature_mesh("bird", 0)
+	mm.instance_count = BIRD_N if Look.quality >= 1 else 2
+	_birds = MultiMeshInstance3D.new()
+	_birds.multimesh = mm
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.roughness = 0.8
+	_birds.material_override = m
+	_birds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_content.add_child(_birds)
+	_update_birds(0.0)
+
+
+## Schwarm: eine Bahn um die Feldmitte (Kreis mit Wellen), die Fische folgen einander; ab und zu wendet einer
+## (silberner Bauch blitzt). Ein Schwarm über mehrere Felder: die Bahn wird zur Gruppe hin gezogen (Fugen offen).
+func _update_fish(_delta: float) -> void:
+	if _fish == null:
+		return
+	var mm := _fish.multimesh
+	var t := _time * 0.35 + float(field_id) * 1.7
+	var stretch := Vector2(1.0 + (0.35 if (_same4 & 10) != 0 else 0.0), 1.0 + (0.35 if (_same4 & 5) != 0 else 0.0))
+	for i in mm.instance_count:
+		var ph := t - float(i) * 0.22
+		var r := 0.15 + 0.03 * sin(ph * 1.7 + float(i))
+		var p := Vector3(cos(ph) * r * stretch.x, 0.004, sin(ph) * r * 0.8 * stretch.y)
+		var tang := Vector3(-sin(ph) * stretch.x, 0, cos(ph) * 0.8 * stretch.y).normalized()
+		var yaw := atan2(-tang.z, tang.x)
+		var roll := 0.0
+		if fmod(ph * 0.5 + float(i) * 0.37, 3.0) < 0.12:
+			roll = PI * 0.45                 # Wenden: Silberblitz
+		var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, roll) * Basis.from_scale(Vector3.ONE * (1.0 + 0.15 * float(i % 3)))
+		mm.set_instance_transform(i, Transform3D(b, p))
+
+
+func _update_birds(_delta: float) -> void:
+	if _birds == null:
+		return
+	var mm := _birds.multimesh
+	for i in mm.instance_count:
+		var ph := _time * (0.6 + 0.1 * float(i)) + float(i) * TAU / float(mm.instance_count) + float(field_id)
+		var r := 0.13 + 0.04 * float(i % 2)
+		var p := Vector3(cos(ph) * r, 0.36 + 0.05 * sin(ph * 1.3 + float(i)), sin(ph) * r)
+		var yaw := -ph - PI * 0.5
+		var flap := 0.35 + 0.65 * absf(cos(_time * 7.0 + float(i) * 1.3))
+		var b := Basis(Vector3.UP, yaw) * Basis(Vector3(1, 0, 0), sin(ph) * 0.3) * Basis.from_scale(Vector3(1.2, 1.2, 1.2 * flap))
+		mm.set_instance_transform(i, Transform3D(b, p))

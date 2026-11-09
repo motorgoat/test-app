@@ -43,6 +43,10 @@ signal extra_done(info: Dictionary)
 ## Ein neuer Erinnerungs-Plan (ReminderPlan.plan, schon mit echter Uhrzeit): das Plugin plant ihn ein.
 ## Hört niemand zu (PC, CI), schreibt Game die Zeilen „REMINDER …“ ins Protokoll.
 signal reminders_planned(plan: Array)
+## Punkte haben sich geändert (delta, Quelle: "level", "streak", "extra", "bau", "frei", "video", "kauf", "migration").
+signal points_changed(delta: int, source: String)
+## Die Schöpfung: ein Level beginnt (info wie level_info()).
+signal level_started(info: Dictionary)
 
 const SAVE_PATH := "user://rekord.cfg"
 const SETTINGS_PATH := "user://einstellungen.cfg"
@@ -57,6 +61,7 @@ const MODE_INTRO = {
 	"mittel": "Mittel: Schräg zählt ab Wald.",
 	"schwer": "Schwer: Nur gerade Reihen.",
 	"challenge": "Wie viel Glaube in 40 Drehungen?",
+	"sek100": "Uhr startet mit der ersten Drehung.",
 }
 ## Was neue Spieler nach und nach kennenlernen (in coach_seen gemerkt, „Tutorial nochmal“ setzt es zurück).
 const REVEAL_FLAGS = ["show_undo", "show_hint", "show_bolt", "show_coins", "show_flames"]
@@ -81,11 +86,19 @@ var _onb_twists := 0
 var _tut_board := false    # das Spiel läuft auf dem Tutorial-Würfel
 var _announce := false     # Spielart im Menü gewählt: kurz sagen, was gilt
 var _last_kind := ""
-var credits := 0           # Münzen für Tipps (gibt es für Werbung)
+var points := 0            # Punkte: die eine Währung (GDPD_PUNKTE_LADEN.md), gespeichert in [konto] punkte
+## Alter Name (Münzen) für ältere Oberflächen-Teile: dasselbe wie points.
+var credits: int:
+	get:
+		return points
+	set(v):
+		points = maxi(0, v)
+var points_migrated := 0   # > 0: Punkte aus der Umstellung Münzen → Punkte, der Hinweis ist noch nicht gezeigt
+var pdata: Dictionary = {}  # Punkte-Buchhaltung (Points.fresh), gespeichert in [punkte]
 var new_record := false
 var endless := true        # false = Challenge (40 Drehungen)
 var level := 0             # 0 Einfach (berühren), 1 Mittel (Reihen + Diagonalen), 2 Schwer (nur Reihen)
-var _best := {"einfach": 0, "mittel": 0, "schwer": 0, "challenge": 0}
+var _best := {"einfach": 0, "mittel": 0, "schwer": 0, "challenge": 0, "sek100": 0}
 var music_on := true
 var sfx_on := true
 
@@ -143,12 +156,15 @@ var character: Dictionary = {}
 
 
 func _ready() -> void:
+	set_process(true)
 	_load_settings()
 	_load_best()
 	character = Character.load_look()
 	note_session()
 	call_deferred("replan_reminders")      # nach den anderen Autoloads (Plugin-Hülle)
-	if world_done:
+	if Balance.CAMPAIGN_ON:
+		start_level(current_level())
+	elif world_done:
 		new_game()
 	else:
 		start_day(current_day())
@@ -167,9 +183,18 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 	if not endless:
 		level = CHALLENGE_LEVEL
 	var ended_tutorial := tutorial_step >= 0
+	sek100 = _sek_next
+	_sek_next = false
+	sek100_left = SEK100
+	sek100_running = false
+	sek100_done = false
+	if sek100:
+		endless = true
+		level = CHALLENGE_LEVEL
 	tutorial_step = -1
 	_tut_board = false
 	day_no = 0
+	level_no = 0
 	day_board = {}
 	wdt_key = -1
 	_end_build()
@@ -194,6 +219,10 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 ## Neues Spiel in einer Spielart: "einfach" | "mittel" | "schwer" | "challenge" (aus dem Menü).
 func start_mode(key: String) -> void:
 	_announce = true
+	if key == "sek100":
+		_sek_next = true
+		new_game(0, 1, CHALLENGE_LEVEL)
+		return
 	if key == "challenge":
 		new_game(0, 0, CHALLENGE_LEVEL)
 	else:
@@ -206,6 +235,8 @@ func level_name() -> String:
 
 ## "einfach" | "mittel" | "schwer" | "challenge"
 func mode_key() -> String:
+	if sek100:
+		return "sek100"
 	if not endless:
 		return "challenge"
 	return str(MODE_KEYS[clampi(level, 0, MODE_KEYS.size() - 1)])
@@ -284,7 +315,7 @@ func preview(axis: int, layer: int, turns: int, row: Array = []) -> Dictionary:
 		"card_field": sim.card_field,
 		"war": war,               # Kirchen, die Krieg führen würden (gekreuzte Schwerter)
 		# Neue Tage (GDPD_BALANCE_2.md 4.6): wer wird satt, wer verliert es, Krieg/Flut/Feuer-Gefahr nach der Drehung
-		"supply": state.preview8(axis, layer, turns, sim) if state.v8 and turns != 0 else {},
+		"supply": state.preview8(axis, layer, turns, sim) if (state.v8 or state.camp) and turns != 0 else {},
 	}
 
 
@@ -304,6 +335,9 @@ func play_turn(axis: int, layer: int, turns: int, row: Array = []) -> void:
 		state.no_fire = tutorial()      # im Tutorial zählen Fehlversuche nicht (an den Tagen: der Tag entscheidet)
 		state.calm = tutorial()
 	_last_kind = "twist" if turns != 0 else "wait"
+	if sek100 and turns != 0 and not sek100_running and not sek100_done:
+		sek100_running = true          # die Uhr startet mit der ersten Drehung
+		sek100_changed.emit(sek100_left, 0.0)
 	_start({"type": "twist", "axis": axis, "layer": layer, "turns": turns, "row": row.duplicate()})
 
 
@@ -370,6 +404,8 @@ func finish_round(result: Dictionary) -> void:
 	for e in result["events"]:
 		if str(e["type"]) == "complete":
 			message.emit("Deine Welt ist vollendet!", "good")
+		if str(e["type"]) == "disaster" and sek100 and sek100_running:
+			_sek100_fire()             # ein Feuer kostet 5 Sekunden
 		if str(e["type"]) == "disaster" and not state.is_over() and coach_seen.has("fire"):
 			# Beim ersten Feuer erklärt ein Hinweis alles; danach eine kurze Meldung
 			if state.hearts:
@@ -391,8 +427,13 @@ func finish_round(result: Dictionary) -> void:
 			_build_coins()
 			for e in result["events"]:
 				if str(e["type"]) == "extra":
+					if level_no > 0:
+						_add_points(Points.pay_extra(pdata, level_no, today_key()), "extra")
 					message.emit(str(Days.TEXT["extra_done"]), "good")
 					extra_done.emit((e as Dictionary).duplicate())
+			if level_no > 0:
+				camp["world"] = state.slot_board9()
+				camp["world_level"] = level_no
 		if moved_goal:
 			day_progress.emit(state.day_status())
 		if state.is_over() and not over:
@@ -403,8 +444,13 @@ func finish_round(result: Dictionary) -> void:
 			return
 	elif state.is_over():
 		over = true
+		if sek100:
+			sek100_done = true
+			sek100_running = false
 		_save_best()
 		game_over.emit()
+	elif sek100 and sek100_running and sek100_left <= 0.0:
+		_sek100_end()
 	state_changed.emit()
 	move_done.emit(_last_kind)
 
@@ -462,8 +508,11 @@ func can_undo() -> bool:
 func undo() -> void:
 	if not can_undo():
 		return
+	var steps_before := state.steps9() if state.camp else 0
 	state = undo_state
 	undo_state = null
+	if state.camp and not state.day_won:
+		state.extra_steps += maxi(0, steps_before - state.steps9())      # der Schritt bleibt gezählt
 	if build_state != null and state.day_free_build:
 		build_state = state
 		if _slot_live:
@@ -499,16 +548,26 @@ func grant(kind: String) -> void:
 
 ## Münzen ausgeben. true = bezahlt.
 func spend(cost: int) -> bool:
-	if credits < cost:
+	if points < cost:
 		return false
-	credits -= cost
+	points -= cost
 	_save_profile()
+	points_changed.emit(-cost, "kauf")
 	return true
 
 
-## Platzhalter für „Video ansehen“: gibt Münzen. Später kommt hier die echte Werbung hin.
+## Platzhalter für „Video ansehen“: gibt Punkte (+10, höchstens 2 je Spieltag, nur mit Balance.ADS_ON und nicht in den
+## ersten 3 Spieltagen). Später kommt hier die echte Werbung hin.
 func reward_ad() -> void:
-	credits += Balance.CREDITS_PER_AD
+	_ensure_daily()
+	var k := today_key()
+	var played := k - int(daily.get("first_key", k)) + 1
+	if not Balance.ADS_ON:
+		points += Balance.CREDITS_PER_AD          # Platzhalter der Test-Versionen (der Video-Knopf ist sonst aus)
+		_save_profile()
+		points_changed.emit(Balance.CREDITS_PER_AD, "video")
+		return
+	_add_points(Points.pay_ad(pdata, k, played), "video")
 	_save_profile()
 
 
@@ -566,19 +625,22 @@ func _load_best() -> void:
 			_best[k] = int(cfg.get_value("rekorde", str(k), _old_best(cfg, str(k))))
 		# zuletzt gespielte Spielart wieder aufnehmen
 		var mk: String = str(cfg.get_value("spiel", "modus", "einfach"))
+		if mk == "sek100":
+			mk = "mittel"
 		endless = mk != "challenge"
 		level = CHALLENGE_LEVEL if mk == "challenge" else maxi(0, MODE_KEYS.find(mk))
 		tutorial_done = bool(cfg.get_value("tutorial", "fertig", false))
 		for k in cfg.get_value("tutorial", "hinweise", []):
 			coach_seen[str(k)] = true
-		credits = int(cfg.get_value("konto", "credits", Balance.CREDITS_START))
+		_load_points(cfg)
 		var cs: Dictionary = cfg.get_value("wahl", "karten", {})
 		for k in cs:
 			cards_seen[int(k)] = int(cs[k])
 		always_ask = bool(cfg.get_value("wahl", "immer_fragen", false))
 		_load_campaign(cfg)
 	else:
-		credits = Balance.CREDITS_START
+		points = Balance.POINTS_START
+		pdata = Points.fresh(Campaign.COUNT)
 		first_launch = true
 		_load_campaign(null)
 	# Wer das Tutorial schon aus einer älteren Version kennt, sieht gleich alles
@@ -624,7 +686,15 @@ func _save_profile() -> void:
 		cfg.set_value("rekorde", str(k), int(_best[k]))
 	cfg.set_value("tutorial", "fertig", tutorial_done)
 	cfg.set_value("tutorial", "hinweise", coach_seen.keys())
-	cfg.set_value("konto", "credits", credits)
+	cfg.set_value("konto", "punkte", points)
+	cfg.set_value("konto", "version", 2)
+	cfg.set_value("konto", "umgestellt", points_migrated)
+	if cfg.has_section_key("konto", "credits"):
+		cfg.erase_section_key("konto", "credits")
+	if pdata.is_empty():
+		pdata = Points.fresh(Campaign.COUNT)
+	Points.save(pdata, cfg)
+	_save_camp(cfg)
 	cfg.set_value("spiel", "modus", mode_key())
 	cfg.set_value("wahl", "karten", cards_seen)
 	cfg.set_value("wahl", "immer_fragen", always_ask)
@@ -635,7 +705,7 @@ func _save_profile() -> void:
 	cfg.set_value("schoepfung", "fehlversuche", day_fails)
 	cfg.set_value("schoepfung", "brett", day_next_board)
 	cfg.set_value("schoepfung", "fertig", world_done)
-	cfg.set_value("schoepfung", "version", 2)
+	cfg.set_value("schoepfung", "version", 3)
 	_ensure_daily()
 	daily["test_days"] = debug_day_offset
 	Daily.save(daily, cfg)
@@ -673,6 +743,8 @@ func start_day(n: int, board_index: int = -1) -> bool:
 
 ## Die Welt des Tages von heute starten (nach Tag 7, GDPD_TAEGLICH_CHARAKTER.md 1.3). false: gibt es heute nicht.
 func start_daily_world() -> bool:
+	if Balance.CAMPAIGN_ON:
+		return start_level_wdt()
 	_ensure_campaign()
 	var k := today_key()
 	if not Daily.wdt_available(daily, day_stars, k):
@@ -699,11 +771,13 @@ func in_daily_world() -> bool:
 
 
 func _start_attempt(n: int, cfg: Dictionary, b: Dictionary, mercy: int) -> void:
+	sek100 = false
 	if state != null and not state.is_day():
 		_save_best()             # Glaube des freien Spiels zählt noch für den Rekord
 	_end_build()
 	attempt_key = today_key()
 	attempt_start = game_now()
+	level_no = 0
 	day_no = n
 	day_board = b
 	tutorial_step = -1
@@ -729,6 +803,8 @@ func _start_attempt(n: int, cfg: Dictionary, b: Dictionary, mercy: int) -> void:
 ## Denselben Tag noch einmal (das nächste Brett des Pools, eine Wiederholung ist nie ein Gedächtnistest).
 ## Die Welt des Tages: dieselbe Welt noch einmal (an ihrem Spieltag).
 func retry_day() -> bool:
+	if level_no > 0:
+		return retry_level()
 	if wdt_key >= 0:
 		return start_daily_world()
 	_retrying = true
@@ -739,6 +815,8 @@ func retry_day() -> bool:
 
 ## Nach einem Sieg: der nächste Tag (false, wenn es keinen gibt – dann ist die Welt vollendet).
 func next_day() -> bool:
+	if level_no > 0:
+		return wdt_key < 0 and level_no < Campaign.COUNT and start_level(level_no + 1)
 	if wdt_key >= 0 or day_no >= Days.count():
 		return false
 	return start_day(day_no + 1)
@@ -746,12 +824,13 @@ func next_day() -> bool:
 
 ## Läuft gerade ein Tag?
 func in_day() -> bool:
-	return day_no > 0 and state != null and state.is_day()
+	return (day_no > 0 or level_no > 0) and state != null and state.is_day()
 
 
 ## Tag 1 auf dem Tutorial-Brett (Brett 0): die Oberfläche zeigt die Hand und die Coach-Sätze von Tag 1.
 func day_tutorial() -> bool:
-	return in_day() and day_no == 1 and int(day_board.get("index", -1)) == 0 and state.used_twists() < 3
+	return in_day() and (day_no == 1 or (level_no == 1 and wdt_key < 0)) and int(day_board.get("index", -1)) == 0 \
+		and state.used_twists() < 3
 
 
 ## Die vorgezeigte Drehung des Tutorials ({"axis", "layer", "turns"}) oder {}.
@@ -766,6 +845,8 @@ func tutorial_move() -> Dictionary:
 	_tut_move_key = key
 	_tut_move = {}
 	var mv: Dictionary = (Days.config(1).get("tutorial", {}) as Dictionary).duplicate()
+	if level_no == 1:
+		mv = {"axis": 0, "layer": 1, "turns": 1}
 	if not mv.is_empty() and _twist_grows(int(mv["axis"]), int(mv["layer"]), int(mv["turns"])):
 		_tut_move = mv
 		return mv.duplicate()
@@ -807,6 +888,9 @@ func stars_of(n: int) -> int:
 
 func stars_total() -> int:
 	_ensure_campaign()
+	if Balance.CAMPAIGN_ON:
+		_ensure_camp()
+		return _camp_stars_total()
 	var t := 0
 	for v in day_stars:
 		t += int(v)
@@ -814,7 +898,7 @@ func stars_total() -> int:
 
 
 func stars_max() -> int:
-	return 3 * Days.count()
+	return 3 * (Campaign.COUNT if Balance.CAMPAIGN_ON else Days.count())
 
 
 ## Der Tag, mit dem es weitergeht: der erste freie, noch nicht geschaffte Tag (sonst der letzte freie).
@@ -839,11 +923,21 @@ func day_mercy(n: int) -> int:
 
 ## Freies Spiel offen? Nach Tag 7 – oder für Spieler, die das alte Tutorial schon kannten.
 func free_play_unlocked() -> bool:
+	if Balance.CAMPAIGN_ON:
+		_ensure_camp()
+		return world_done or bool(camp["veteran"]) or level_stars(Campaign.COUNT) > 0 or (debug_open_all and OS.is_debug_build())
 	return world_done or tutorial_done
+
+
+## Warum das freie Spiel noch zu ist (kurz, ohne zu verraten, was kommt).
+func free_locked_text() -> String:
+	return "Nach der Schöpfung." if Balance.CAMPAIGN_ON else "Erst die 7 Tage schaffen."
 
 
 ## Tipp gratis? (An den Tagen ja – Produktentscheidung, Balance.DAY_HINT_FREE.)
 func hint_free() -> bool:
+	if level_no > 0 and state != null and state.camp:
+		return level_no <= Balance.HINT_FREE_LEVELS or state.rescue() or hint_free_left > 0
 	return in_day() and Balance.DAY_HINT_FREE
 
 
@@ -854,6 +948,8 @@ func hint_free() -> bool:
 func day_info() -> Dictionary:
 	if not in_day():
 		return {}
+	if level_no > 0:
+		return level_info()
 	var cfg := state.day
 	var n := day_no
 	var wdt := wdt_key >= 0
@@ -874,6 +970,9 @@ func day_info() -> Dictionary:
 
 ## Ende eines Versuchs: Sterne, Freischalten, Gnade, nächstes Brett, speichern, Signal.
 func _finish_day() -> void:
+	if level_no > 0:
+		_finish_level()
+		return
 	_ensure_campaign()
 	var today := _win_key()
 	if wdt_key >= 0:
@@ -966,6 +1065,7 @@ func _load_campaign(cfg: ConfigFile) -> void:
 	_last_today = -2147483648
 	_load_remind(cfg)
 	_sync_day_free()
+	_load_camp(cfg)
 
 
 ## Fortschritt der 7 Tage löschen (Einstellungen/Tests). Rekorde des freien Spiels bleiben.
@@ -1112,6 +1212,8 @@ func shields() -> int:
 ## offen) · "wdt_done" (heute geschafft) · "world_done_today" (Tag 7 heute geschafft, ab morgen Welt des Tages)
 func today_info() -> Dictionary:
 	_ensure_campaign()
+	if Balance.CAMPAIGN_ON:
+		return camp_today_info()
 	var k := today_key()
 	var now := game_now()
 	var nn := Daily.next_new_day(day_stars)
@@ -1159,10 +1261,11 @@ func take_comeback() -> String:
 ## Serienschutz kaufen. "" = gekauft, sonst der Grund („Du hast genug Serienschutz.“ / „Dir fehlen 2 Münzen.“).
 func buy_shield() -> String:
 	today_key()
-	var err := Daily.shield_buy_error(daily, credits)
+	var err := Daily.shield_buy_error(daily, points)
 	if err != "":
 		return err
-	credits -= Balance.SHIELD_PRICE
+	points -= Balance.SHIELD_PRICE
+	points_changed.emit(-Balance.SHIELD_PRICE, "kauf")
 	Daily.add_shield(daily)
 	_save_profile()
 	daily_changed.emit()
@@ -1174,7 +1277,16 @@ func _streak_win(today: int) -> Dictionary:
 	var start := session_start if session_start >= 0 else now_local()
 	var s := Daily.win(daily, today, Daily.minute_of_day(start))
 	if int(s["coins"]) > 0:
-		credits += int(s["coins"])
+		_add_points(int(s["coins"]), "streak")
+	if bool(s.get("counted", false)):
+		var bonus := Points.streak_bonus(int(s["streak"]))
+		var ms := Points.milestone(int(s["streak"]))
+		s["bonus"] = bonus
+		s["milestone_points"] = int(ms["points"])
+		s["gift"] = str(ms["gift"])
+		_add_points(bonus + int(ms["points"]), "streak")
+		if str(ms["gift"]) != "" and not owned.has(str(ms["gift"])):
+			owned.append(str(ms["gift"]))
 	return s
 
 
@@ -1253,7 +1365,8 @@ func continue_build() -> bool:
 	pending_choice = {}
 	undo_state = null
 	build_state = state
-	build_ctx = {"day_no": day_no, "wdt_key": wdt_key, "board": day_board, "given": 0, "key": today_key()}
+	build_ctx = {"day_no": day_no, "level_no": level_no, "wdt_key": wdt_key, "board": day_board, "given": 0,
+		"key": today_key()}
 	_slot_live = today_build == state
 	if _slot_live:
 		build_ctx = today_build_ctx
@@ -1272,7 +1385,8 @@ func can_resume_build() -> bool:
 ## vorher auf der Erfolgskarte „Weiterbauen“ getippt zu haben). Weiterbauen selbst beginnt erst mit resume_build.
 func _keep_for_build() -> void:
 	today_build = state
-	today_build_ctx = {"day_no": day_no, "wdt_key": wdt_key, "board": day_board, "given": 0, "key": today_key()}
+	today_build_ctx = {"day_no": day_no, "level_no": level_no, "wdt_key": wdt_key, "board": day_board, "given": 0,
+		"key": today_key()}
 
 
 ## Zurück in die heute geschaffte Welt zum Weiterbauen (aus der Übersicht).
@@ -1281,11 +1395,13 @@ func resume_build() -> bool:
 		return false
 	if not today_build.day_free_build:
 		today_build.start_free_build()
+	sek100 = false
 	state = today_build
 	build_state = today_build
 	build_ctx = today_build_ctx
 	_slot_live = true
 	day_no = int(build_ctx.get("day_no", day_no))
+	level_no = int(build_ctx.get("level_no", 0))
 	wdt_key = int(build_ctx.get("wdt_key", -1))
 	day_board = build_ctx.get("board", {})
 	attempt_key = -1
@@ -1340,17 +1456,21 @@ func _end_build() -> void:
 	_slot_live = false
 
 
-## Weiterbauen: 1 Münze je 10 gewachsene Felder, höchstens 3 je Spieltag.
+## Weiterbauen: +1 Punkt je neu gewachsenes Feld (Reihe oder erstes Gedeihen zu einer Art), höchstens 20 je Spieltag.
 func _build_coins() -> void:
 	var g := state.build_growth()
 	var given := int(build_ctx.get("given", 0))
-	var n := Daily.build_coins(daily, today_key(), g, given)
-	build_ctx["given"] = maxi(given, g / maxi(1, Balance.BUILD_COIN_EVERY))
-	if n > 0:
-		credits += n
+	if g <= given:
+		return
+	# Punkte (GDPD_PUNKTE_LADEN.md 3): +1 je neu gewachsenes Feld, höchstens 20 je Spieltag (ersetzt die Münzen)
+	var k := today_key()
+	var paid := 0
+	for i in g - given:
+		paid += Points.build_point(pdata, k)
+	build_ctx["given"] = g
+	if paid > 0:
+		_add_points(paid, "bau")
 		_save_profile()
-		for i in n:
-			message.emit(str(Days.TEXT["build_coin"]), "good")
 
 
 # --- Erinnerungen (5): Plan rechnen, Geschichte führen, an das Plugin geben --------------------------
@@ -1562,3 +1682,770 @@ func reset_daily() -> void:
 	_sync_day_free()
 	_save_profile()
 	daily_changed.emit()
+
+
+# =============================================================================
+# Die Schöpfung (docs/GDPD_SCHOEPFUNG.md v2): 30 Level, ein neues je Spieltag, die Welt läuft im Akt weiter,
+# Punkte statt Münzen (GDPD_PUNKTE_LADEN.md). Die Regeln stehen in GameState (setup_level), die Daten in Campaign,
+# das Freischalten in Daily (level_unlocked). Balance.CAMPAIGN_ON schaltet den Start auf die Kampagne um (die
+# Oberfläche der 7 Tage läuft bis dahin weiter).
+# =============================================================================
+
+const CAMP_SECTION := "kampagne"
+var level_no := 0                # laufendes Level (1 … 30), 0 = keins
+var level_board: Dictionary = {} # das Start-Brett dieses Versuchs ({"kinds", "seed", "index", "how", "board"})
+var hint_free_left := 0          # Gratis-Tipps in diesem Level (1 je Level)
+var undo_free_left := 0          # Gratis-Zurück in diesem Level (1 je Level)
+var owned: Array = []            # [laden] besitz: gekaufte und geschenkte Dinge
+var stock: Dictionary = {}       # [laden] vorrat: gekaufte Verbrauchsgüter (regen, blitzschutz, meteor, tipp, zurueck)
+var seen_shop: Array = []        # [laden] gesehen: Dinge ohne „Neu“-Punkt
+## Kampagnen-Zustand (gespeichert in [kampagne]): "stars", "steps", "won_key" (je 30), "last_new_key", "world"
+## (Brett-Text nach Plätzen), "world_level", "start" (Start-Brett des laufenden, noch nicht geschafften Levels),
+## "start_level", "start_seed", "fast_to" (Schnellstart bis), "fast_day", "veteran", "next_board" (je 30),
+## "thanks" (Punkte aus alten Sternen, Hinweis noch nicht gezeigt).
+var camp: Dictionary = {}
+
+
+static func fresh_camp() -> Dictionary:
+	var st: Array = []
+	var sp: Array = []
+	var wk: Array = []
+	var nb: Array = []
+	for i in Campaign.COUNT:
+		st.append(0)
+		sp.append(0)
+		wk.append(-1)
+		nb.append(0)
+	return {"stars": st, "steps": sp, "won_key": wk, "last_new_key": -1, "world": "", "world_level": 0,
+		"start": "", "start_level": 0, "start_seed": 1, "fast_to": 0, "fast_day": [-1, 0], "veteran": false,
+		"next_board": nb, "thanks": 0}
+
+
+## Punkte laden; einmal (konto.version < 2) die Münzen umstellen: max(20 × Münzen, 60) + 20 je alter Stern (8.2).
+func _load_points(cfg: ConfigFile) -> void:
+	pdata = Points.load_from(cfg, Campaign.COUNT)
+	if int(cfg.get_value("konto", "version", 1)) >= 2:
+		points = maxi(0, int(cfg.get_value("konto", "punkte", Balance.POINTS_START)))
+		points_migrated = int(cfg.get_value("konto", "umgestellt", 0))
+		_load_owned(cfg)
+		return
+	var coins := int(cfg.get_value("konto", "credits", 0))
+	var old_stars := 0
+	for v in cfg.get_value("schoepfung", "sterne", []):
+		old_stars += maxi(0, int(v))
+	points = Points.migrate_coins(coins, old_stars)
+	points_migrated = points
+	var bm: Variant = cfg.get_value(Daily.SECTION, "bau_muenzen", [-1, 0])
+	if bm is Array and (bm as Array).size() >= 2:
+		pdata["heute"] = [int((bm as Array)[0]), mini(Balance.BUILD_POINTS_MAX, 10 * int((bm as Array)[1])), 0, 0]
+	_load_owned(cfg)
+
+
+func _load_owned(cfg: ConfigFile) -> void:
+	owned = []
+	for v in cfg.get_value("laden", "besitz", []):
+		owned.append(str(v))
+	Character.owned_parts = owned
+	stock = {}
+	var vr: Variant = cfg.get_value("laden", "vorrat", {})
+	if vr is Dictionary:
+		for k in (vr as Dictionary):
+			stock[str(k)] = int((vr as Dictionary)[k])
+	seen_shop = []
+	for v in cfg.get_value("laden", "gesehen", []):
+		seen_shop.append(str(v))
+
+
+## Punkte gutschreiben (nie negativ) und melden.
+func _add_points(n: int, source: String) -> void:
+	if n <= 0:
+		return
+	points += n
+	points_changed.emit(n, source)
+
+
+## Den Hinweis „Deine Münzen sind jetzt Punkte.“ einmal abholen (0 = nichts zu zeigen).
+func take_points_migrated() -> int:
+	var n := points_migrated
+	if n > 0:
+		points_migrated = 0
+		_save_profile()
+	return n
+
+
+## [kampagne] laden. Ohne den Abschnitt: neu – oder Veteran der 7 Tage (13.1): Level 1 offen und Schnellstart bis
+## zum Level, das dem höchsten geschafften alten Tag entspricht (3 neue Level je Spieltag); wer alle 7 Tage
+## geschafft hat, behält die Welt des Tages jeden Tag.
+func _load_camp(cfg: ConfigFile) -> void:
+	camp = fresh_camp()
+	if cfg != null and cfg.has_section(CAMP_SECTION):
+		var s := CAMP_SECTION
+		for key in ["stars", "steps", "won_key", "next_board"]:
+			var src: Array = cfg.get_value(s, {"stars": "sterne", "steps": "schritte", "won_key": "gewonnen_am",
+				"next_board": "brett"}[key], [])
+			var a: Array = camp[key]
+			for i in mini(a.size(), src.size()):
+				a[i] = int(src[i])
+		camp["last_new_key"] = int(cfg.get_value(s, "letzter_neuer", -1))
+		camp["world"] = str(cfg.get_value(s, "welt", ""))
+		camp["world_level"] = int(cfg.get_value(s, "welt_level", 0))
+		camp["start"] = str(cfg.get_value(s, "start", ""))
+		camp["start_level"] = int(cfg.get_value(s, "start_level", 0))
+		camp["start_seed"] = int(cfg.get_value(s, "start_seed", 1))
+		camp["fast_to"] = int(cfg.get_value(s, "schnell_bis", 0))
+		var fd: Variant = cfg.get_value(s, "schnell_tag", [-1, 0])
+		camp["fast_day"] = [int((fd as Array)[0]), int((fd as Array)[1])] if fd is Array and (fd as Array).size() >= 2 else [-1, 0]
+		camp["veteran"] = bool(cfg.get_value(s, "veteran", false))
+		camp["thanks"] = int(cfg.get_value(s, "danke", 0))
+		return
+	# Umstellung v2 → v3 (13.1): alte Tage → Schnellstart
+	var top := 0
+	for i in day_stars.size():
+		if int(day_stars[i]) > 0:
+			top = i + 1
+	if world_done:
+		top = maxi(top, 7)
+	if top > 0:
+		camp["fast_to"] = int(Campaign.FAST_TRACK[clampi(top, 0, 7)])
+		camp["veteran"] = world_done
+		var old := 0
+		for v in day_stars:
+			old += maxi(0, int(v))
+		camp["thanks"] = Balance.POINTS_PER_OLD_STAR * old
+
+
+func _save_camp(cfg: ConfigFile) -> void:
+	if camp.is_empty():
+		camp = fresh_camp()
+	var s := CAMP_SECTION
+	cfg.set_value(s, "version", 1)
+	cfg.set_value(s, "level", level_free())
+	cfg.set_value(s, "sterne", camp["stars"])
+	cfg.set_value(s, "schritte", camp["steps"])
+	cfg.set_value(s, "gewonnen_am", camp["won_key"])
+	cfg.set_value(s, "letzter_neuer", int(camp["last_new_key"]))
+	cfg.set_value(s, "welt", str(camp["world"]))
+	cfg.set_value(s, "welt_level", int(camp["world_level"]))
+	cfg.set_value(s, "start", str(camp["start"]))
+	cfg.set_value(s, "start_level", int(camp["start_level"]))
+	cfg.set_value(s, "start_seed", int(camp["start_seed"]))
+	cfg.set_value(s, "schnell_bis", int(camp["fast_to"]))
+	cfg.set_value(s, "schnell_tag", camp["fast_day"])
+	cfg.set_value(s, "veteran", bool(camp["veteran"]))
+	cfg.set_value(s, "brett", camp["next_board"])
+	cfg.set_value(s, "danke", int(camp["thanks"]))
+	cfg.set_value("laden", "besitz", owned)
+	cfg.set_value("laden", "vorrat", stock)
+	cfg.set_value("laden", "gesehen", seen_shop)
+
+
+func _ensure_camp() -> void:
+	if camp.is_empty():
+		camp = fresh_camp()
+
+
+## „Danke fürs Mitspielen: +140 Punkte“ einmal abholen (0 = nichts zu zeigen). Die Punkte sind schon gutgeschrieben.
+func take_thanks() -> int:
+	_ensure_camp()
+	var n := int(camp["thanks"])
+	if n > 0:
+		camp["thanks"] = 0
+		_save_profile()
+	return n
+
+
+## Höchstes freies Level.
+func level_free() -> int:
+	_ensure_camp()
+	return Daily.level_free(camp, Daily.observe(daily, now_local()) if not daily.is_empty() else 0)
+
+
+func level_unlocked(n: int) -> bool:
+	_ensure_camp()
+	if debug_open_all and OS.is_debug_build():
+		return n >= 1 and n <= Campaign.COUNT
+	return Daily.level_unlocked(camp, n, today_key())
+
+
+func level_stars(n: int) -> int:
+	_ensure_camp()
+	return int((camp["stars"] as Array)[n - 1]) if n >= 1 and n <= Campaign.COUNT else 0
+
+
+func next_new_level() -> int:
+	_ensure_camp()
+	return Daily.next_new_level(camp)
+
+
+func new_level_open() -> bool:
+	_ensure_camp()
+	return Daily.new_level_open(camp, today_key())
+
+
+func new_level_tomorrow() -> bool:
+	_ensure_camp()
+	return Daily.new_level_tomorrow(camp, today_key()) and not (debug_open_all and OS.is_debug_build())
+
+
+## Das Level, mit dem es weitergeht: das neue (wenn heute offen), sonst das zuletzt geschaffte.
+func current_level() -> int:
+	_ensure_camp()
+	var nn := Daily.next_new_level(camp)
+	if nn > Campaign.COUNT:
+		return Campaign.COUNT
+	if level_unlocked(nn):
+		return nn
+	return maxi(1, nn - 1)
+
+
+## Für die Übersicht: je Akt die Kachel (Name nur, wenn erreicht) und je Level {"level", "open", "stars", "title",
+## "icon", "current"} – gesperrte Level zeigen nur „?“ (nie spoilern).
+func campaign_overview() -> Dictionary:
+	_ensure_camp()
+	var acts: Array = []
+	var cur := current_level()
+	for a in range(1, 8):
+		var lv: Array = []
+		var reached := false
+		for n in Campaign.act_levels(a):
+			var open := level_unlocked(n)
+			reached = reached or open
+			var t := Campaign.tile(n, open)
+			t["stars"] = level_stars(n)
+			t["current"] = n == cur
+			lv.append(t)
+		var at := Campaign.act_tile(a, reached)
+		at["levels"] = lv
+		acts.append(at)
+	var k := today_key()
+	return {"acts": acts, "current": cur, "next_new": next_new_level(), "new_open": new_level_open(),
+		"fast_left": Daily.new_levels_left(camp, k) if Daily.fast_track_on(camp) else 0,
+		"fast_line": str(Campaign.TEXT["fast_track"]) % Daily.new_levels_left(camp, k) if Daily.fast_track_on(camp) and new_level_open() else "",
+		"wdt": Daily.wdt_available_camp(camp, k), "points": points, "stars": _camp_stars_total()}
+
+
+func _camp_stars_total() -> int:
+	var t := 0
+	for v in camp["stars"]:
+		t += int(v)
+	return t
+
+
+## Level n starten (nur, wenn es frei ist). Das Start-Brett (5): ein laufendes, noch nicht geschafftes Level startet
+## wieder auf seinem gespeicherten Brett; das neue Level eines Akts auf der Welt von gestern (Campaign.carry), der
+## erste Level eines Akts und Wiederholungen auf einem Pool-Brett (Level 1 beim ersten Mal: Brett 0, das Tutorial).
+## board_index ≥ 0: genau dieses Pool-Brett.
+func start_level(n: int, board_index: int = -1) -> bool:
+	_ensure_camp()
+	if n < 1 or n > Campaign.COUNT or not level_unlocked(n):
+		return false
+	var b := _level_start_board(n, board_index)
+	_board_explicit = board_index >= 0
+	overnight = {}
+	if str(b.get("how", "")) == "carry" and not (b.get("changed", []) as Array).is_empty():
+		# Die Welle (5, „Neuer Morgen“): höchstens 6 Felder wachsen sichtbar herauf, die anderen sind einfach da
+		var prev := Campaign.decode(str(camp["world"]))
+		var kinds: Array = b.get("kinds", [])
+		var ch: Array = []
+		for i0 in b["changed"]:
+			var i := int(i0)
+			if ch.size() >= Days.OVERNIGHT_MAX:
+				break
+			ch.append({"field": i, "from": int(prev[i]) if i < prev.size() else 0, "kind": int(kinds[i]) if i < kinds.size() else 0})
+		overnight = {"type": "overnight", "level": n, "day": n, "changes": ch,
+			"caps": str(Campaign.TEXT["overnight"]), "line": ""}
+	_start_level_state(n, b)
+	if not overnight.is_empty():
+		overnight_growth.emit(overnight.duplicate(true))
+	return true
+
+
+func _level_start_board(n: int, board_index: int) -> Dictionary:
+	var won := level_stars(n) > 0
+	if board_index >= 0:
+		var pb := Campaign.board(n, board_index)
+		pb["how"] = "pool"
+		return pb
+	if not won and int(camp["start_level"]) == n and str(camp["start"]).length() == 54:
+		var idx0 := -1
+		var pb0 := Campaign.board(n, 0)
+		if str(pb0.get("board", "")) == str(camp["start"]):
+			idx0 = 0              # das Lehr-Brett (Level 1: Tutorial) bleibt es auch nach einem Neustart
+		return {"kinds": Campaign.decode(str(camp["start"])), "seed": int(camp["start_seed"]), "index": idx0,
+			"how": "stored", "board": str(camp["start"]), "solution": pb0.get("solution", []) if idx0 == 0 else []}
+	if not won and not Campaign.first_of_act(n) and int(camp["world_level"]) == n - 1 \
+			and str(camp["world"]).length() == 54:
+		var idx := int((camp["next_board"] as Array)[n - 1])
+		var c := Campaign.carry(Campaign.decode(str(camp["world"])), n, idx + 1000 * n + 1, idx)
+		c["board"] = Campaign.encode(c["kinds"])
+		return c
+	var i := int((camp["next_board"] as Array)[n - 1])
+	if n > 1 and i == 0:
+		i = 1 if Campaign.pool_size(n) > 1 else 0      # Brett 0 bleibt das Lehr-Brett (Level 1: Tutorial)
+	var pb2 := Campaign.board(n, i)
+	pb2["how"] = "pool"
+	return pb2
+
+
+func _start_level_state(n: int, b: Dictionary) -> void:
+	if state != null and not state.is_day():
+		_save_best()
+	sek100 = false
+	_end_build()
+	attempt_key = today_key()
+	attempt_start = game_now()
+	day_no = 0
+	level_no = n
+	wdt_key = -1
+	level_board = b
+	day_board = b
+	tutorial_step = -1
+	_tut_board = false
+	hint_free_left = Balance.HINT_FREE
+	undo_free_left = Balance.UNDO_FREE
+	state = Campaign.new_state(n, b)
+	if level_stars(n) == 0:
+		camp["start"] = Campaign.encode(b.get("kinds", []))
+		camp["start_level"] = n
+		camp["start_seed"] = int(b.get("seed", 1))
+	pending_choice = {}
+	busy = false
+	over = false
+	continued = false
+	undo_state = null
+	new_record = false
+	onboarding = n <= 2
+	_save_profile()
+	new_game_started.emit()
+	state_changed.emit()
+	var info := level_info()
+	day_started.emit(info)
+	level_started.emit(info)
+
+
+## „Nochmal · mehr Sterne“: dasselbe Start-Brett noch einmal.
+func retry_level() -> bool:
+	if level_no <= 0:
+		return false
+	if wdt_key >= 0:
+		return start_level_wdt()
+	if level_board.is_empty():
+		return start_level(level_no)
+	_start_level_state(level_no, level_board)
+	return true
+
+
+## Welt des Tages in der Schöpfung (nach Level 30; Veteranen jeden Tag).
+func start_level_wdt() -> bool:
+	_ensure_camp()
+	var k := today_key()
+	if not Daily.wdt_available_camp(camp, k):
+		return false
+	var cfg := Campaign.wdt_config(k, Daily.weekday_name(k))
+	if cfg.is_empty():
+		return false
+	var b := Campaign.wdt_board(k)
+	_end_build()
+	sek100 = false
+	attempt_key = k
+	attempt_start = game_now()
+	day_no = 0
+	level_no = int(cfg["level"])
+	wdt_key = k
+	level_board = b
+	day_board = b
+	hint_free_left = Balance.HINT_FREE
+	undo_free_left = Balance.UNDO_FREE
+	state = GameState.new()
+	state.setup_level(cfg, b.get("kinds", []), int(b.get("seed", 1)))
+	pending_choice = {}
+	busy = false
+	over = false
+	undo_state = null
+	new_game_started.emit()
+	state_changed.emit()
+	var info := level_info()
+	day_started.emit(info)
+	level_started.emit(info)
+	return true
+
+
+## Alles für die Ziel-Karte und den Chip eines Levels: Titel, Geschichte, Aufgabe, Teilziele, Sterne-Grenzen, Neu-Karte,
+## Coach-Satz, Ära, beste Sterne/Schritte, Brett, Tutorial, Status (GameState.level_status9).
+func level_info() -> Dictionary:
+	if state == null or not state.camp:
+		return {}
+	var cfg := state.day
+	var n := level_no
+	var wdt := wdt_key >= 0
+	var newc: Array = cfg.get("new", [])
+	return {"day": n, "level": n, "camp": true, "act": int(cfg.get("act", 0)), "act_name": str(cfg.get("act_name", "")),
+		"title": str(cfg.get("title", "")), "story": str(cfg.get("story", "")), "intro": str(cfg.get("story", "")),
+		"wdt": wdt, "wdt_key": wdt_key, "caps": str(cfg.get("caps", str(Campaign.TEXT["act_caps"]) % int(cfg.get("act", 1)))),
+		"free_build": state.day_free_build, "goal_text": Campaign.goal_line(cfg), "goal_type": state.goal_type(),
+		"goal_icon": FieldData.kind_icon(maxi(0, int(state.goal_kinds()[0]) if not state.goal_kinds().is_empty() else 0)),
+		"target": state.goal_target(), "subs": state.sub_status9(), "stars": state.stars9.duplicate(), "par": state.par9,
+		"limit": 0, "base_limit": 0, "mercy": 0,
+		"new": {"key": "level%d" % n, "icon": FieldData.kind_icon(maxi(0, int(state.goal_kinds()[0]) if not state.goal_kinds().is_empty() else 0)),
+			"title": str(newc[0]) if newc.size() > 0 else "", "text": str(newc[1]) if newc.size() > 1 else ""} if not wdt else {},
+		"coach": [str(cfg.get("coach", ""))] if not wdt and str(cfg.get("coach", "")) != "" else [], "coach_demo": "",
+		"best_stars": Daily.wdt_stars(daily, wdt_key) if wdt else level_stars(n),
+		"best_twists": 0 if wdt else int((camp["steps"] as Array)[n - 1]), "board": int(level_board.get("index", -1)),
+		"how": str(level_board.get("how", "")),
+		"tutorial": {"axis": 0, "layer": 1, "turns": 1} if n == 1 and not wdt and int(level_board.get("index", -1)) == 0 else {},
+		"first_visit": not wdt and level_stars(n) == 0, "status": state.day_status(), "overnight": overnight.duplicate(true),
+		"era": state.era9(), "v8": false}
+
+
+## Ende eines Level-Versuchs (nur gewonnen – ein Level kann man nicht verlieren): Sterne, Schritte, Freischalten,
+## Punkte (Verbesserung, Serienbonus), die Welt für morgen, speichern, day_won.
+func _finish_level() -> void:
+	_ensure_camp()
+	var today := _win_key()
+	var n := level_no
+	var info := level_info()
+	if not state.day_won:
+		return
+	var st := state.stars()
+	var steps := state.day_won_at
+	var pts := state.level_points()
+	if wdt_key >= 0:
+		var first_w := Daily.wdt_win(daily, wdt_key, st)
+		var paid_w := Points.pay_wdt(pdata, wdt_key, pts)
+		_add_points(paid_w, "wdt")
+		var streak_w := _streak_win(today)
+		_end_attempt()
+		_save_profile()
+		info.merge({"stars": st, "used": steps, "steps": steps, "points": pts, "paid": paid_w, "first_win": first_w,
+			"best_stars": Daily.wdt_stars(daily, wdt_key), "streak": streak_w, "next_day": 0, "next_new": 0,
+			"next_open": false, "next_locked": true, "next_line": str(Days.TEXT["wdt_tomorrow"]),
+			"world_complete": false}, true)
+		_keep_for_build()
+		day_won.emit(info)
+		_after_win(streak_w)
+		return
+	var i := n - 1
+	var stars_a: Array = camp["stars"]
+	var steps_a: Array = camp["steps"]
+	var first_win := int(stars_a[i]) == 0
+	info["best_before"] = int(stars_a[i])
+	stars_a[i] = maxi(int(stars_a[i]), st)
+	steps_a[i] = steps if int(steps_a[i]) == 0 else mini(int(steps_a[i]), steps)
+	var nb: Array = camp["next_board"]
+	if str(level_board.get("how", "")) == "pool":
+		nb[i] = maxi(int(nb[i]), int(level_board.get("index", 0)) + 1)
+	if first_win:
+		Daily.register_level_win(camp, n, today)
+		camp["start"] = ""
+		camp["start_level"] = 0
+	var before_best := int((pdata["level_best"] as Array)[i])
+	var paid := Points.pay_level(pdata, n, pts, today)
+	_add_points(paid, "level")
+	camp["world"] = state.slot_board9()
+	camp["world_level"] = n
+	var complete := n >= Campaign.COUNT and first_win
+	var streak := _streak_win(today)
+	_end_attempt()
+	_save_profile()
+	var nn := Daily.next_new_level(camp)
+	var open := nn <= Campaign.COUNT and level_unlocked(nn)
+	info.merge({"stars": st, "used": steps, "steps": steps, "points": pts, "paid": paid, "best_points": before_best,
+		"lines": _win_lines(st, steps, pts, paid, before_best, streak), "best_stars": int(stars_a[i]),
+		"first_win": first_win, "next_day": n + 1 if n < Campaign.COUNT else 0, "next_new": nn if nn <= Campaign.COUNT else 0,
+		"next_open": open, "next_locked": nn <= Campaign.COUNT and not open,
+		"next_line": str(Campaign.TEXT["tomorrow"]) if nn <= Campaign.COUNT and not open else "",
+		"world_complete": complete, "stars_total": _camp_stars_total(), "stars_max": 3 * Campaign.COUNT,
+		"streak": streak}, true)
+	_keep_for_build()
+	day_won.emit(info)
+	_after_win(streak)
+
+
+## Zeilen der Sieg-Karte (GDPD_PUNKTE_LADEN.md 2.4): [[Schlüssel, Punkte]].
+static func _win_lines(st: int, steps: int, pts: int, paid: int, before: int, streak: Dictionary) -> Array:
+	var lines: Array = []
+	if before > 0:
+		lines.append(["win_better" if paid > 0 else "win_same", paid])
+	else:
+		lines.append(["win_done", Balance.LEVEL_DONE])
+		lines.append(["win_stars", Balance.LEVEL_PER_STAR * st])
+		var fast := pts - Balance.LEVEL_DONE - Balance.LEVEL_PER_STAR * st
+		if fast > 0:
+			lines.append(["win_fast", fast])
+	if int(streak.get("bonus", 0)) > 0:
+		lines.append(["win_streak", int(streak["bonus"])])
+	return lines
+
+
+## Was ein Tipp gerade kostet (0 = gratis: Level 1–5, der Gratis-Tipp des Levels, die Rettung).
+func hint_cost() -> int:
+	return 0 if hint_free() else Balance.HINT_COST
+
+
+## Ein Tipp wurde benutzt: erst der Gratis-Tipp des Levels.
+func note_hint_used() -> void:
+	if level_no > 0 and level_no > Balance.HINT_FREE_LEVELS and not state.rescue() and hint_free_left > 0:
+		hint_free_left -= 1
+
+
+# =============================================================================
+# Oberfläche der Schöpfung: Heute-Karte, gesperrte Level, Laden, 100-Sekunden-Challenge
+# =============================================================================
+
+## Wie today_info, für die Kampagne: state "new" (neues Level offen) · "done_next" (heute geschafft, morgen das
+## nächste – nie verraten, was kommt) · "wdt" / "wdt_done" (Welt des Tages) · "world_done_today" (Level 30 heute).
+func camp_today_info() -> Dictionary:
+	_ensure_camp()
+	var k := today_key()
+	var now := game_now()
+	var nn := Daily.next_new_level(camp)
+	var out := {"today": k, "weekday": Daily.weekday_name(k), "countdown": Daily.countdown_text(now),
+		"done_today": Daily.done_today(daily, k), "streak": int(daily["streak"]), "best": int(daily["streak_best"]),
+		"shields": int(daily["shields"]), "shields_visible": int(daily["shields"]) > 0 or bool(daily["shields_ever"]),
+		"week": Daily.week(daily, k), "can_build": can_resume_build(), "comeback": str(daily["comeback"]),
+		"more_stars": false, "camp": true, "fast_line": ""}
+	var wdt_ok := Daily.wdt_available_camp(camp, k)
+	if nn <= Campaign.COUNT and level_unlocked(nn):
+		var c := Campaign.config(nn)
+		out.merge({"state": "new", "day": nn, "title": str(c.get("title", "")),
+			"caps": "%s · %s" % [str(Days.TEXT["today_new"]), str(Campaign.TEXT["act_caps"]) % int(c.get("act", 1))],
+			"goal": Campaign.goal_line(c), "line": str(c.get("story", "")), "icon": str(Campaign.ICON.get(int(c.get("act", 1)), "star"))})
+		if Daily.fast_track_on(camp):
+			out["fast_line"] = str(Campaign.TEXT["fast_track"]) % Daily.new_levels_left(camp, k)
+		return out
+	if wdt_ok:
+		var cfg := Campaign.wdt_config(k, Daily.weekday_name(k))
+		if Daily.wdt_done(daily, k):
+			out.merge({"state": "wdt_done", "day": 0, "title": str(Days.TEXT["today_done"]), "caps": str(cfg.get("caps", "")),
+				"goal": Campaign.goal_line(cfg), "line": str(Days.TEXT["wdt_tomorrow"]), "more_stars": Daily.wdt_stars(daily, k) < 3,
+				"icon": "trophy"})
+		else:
+			out.merge({"state": "wdt", "day": 0, "title": str(Days.TEXT["wdt"]), "caps": str(cfg.get("caps", "")),
+				"goal": Campaign.goal_line(cfg), "line": Campaign.goal_line(cfg), "icon": "trophy"})
+		return out
+	if nn <= Campaign.COUNT:
+		var last := maxi(1, nn - 1)
+		out.merge({"state": "done_next", "day": nn, "title": str(Days.TEXT["today_done"]), "caps": str(Days.TEXT["today"]),
+			"goal": "", "line": str(Campaign.TEXT["locked"]), "more_stars": level_stars(last) < 3, "replay_day": last,
+			"icon": "check"})
+		return out
+	out.merge({"state": "world_done_today", "day": Campaign.COUNT, "title": str(Days.TEXT["complete"]),
+		"caps": str(Days.TEXT["today"]), "goal": "", "line": str(Days.TEXT["wdt_first_tomorrow"]),
+		"more_stars": level_stars(Campaign.COUNT) < 3, "replay_day": Campaign.COUNT, "icon": "check"})
+	return out
+
+
+## Text für ein gesperrtes Level (nie mit Titel): das nächste neue „Morgen wartet etwas Neues“, sonst „Erst Level n“.
+func level_locked_text(n: int) -> String:
+	var nn := next_new_level()
+	if n == nn and new_level_tomorrow():
+		return str(Campaign.TEXT["locked"])
+	return "Erst Level %d schaffen." % mini(nn, Campaign.COUNT)
+
+
+# --- Laden (GDPD_PUNKTE_LADEN.md 5, 7) ------------------------------------------------------------------
+
+## Wunder und Hilfe: id → [Reiter, Titel, Symbol, Preis, Vorrat, ab Level (0 = immer), Satt-Satz nach dem Kauf]
+const SHOP_ITEMS = {
+	"regen": ["wunder", "Regen", "rain", 25, 3, 5, "Regen bereit."],
+	"blitzschutz": ["wunder", "Blitzschutz", "sparkle_shield", 40, 2, 12, "Gut für schlechte Tage."],
+	"meteor": ["wunder", "Meteor", "meteor", 60, 1, 23, "Meteor bereit."],
+	"tipp": ["hilfe", "Tipp", "bulb", 10, 5, 0, "Gut für schlechte Tage."],
+	"zurueck": ["hilfe", "Zurück", "undo", 10, 5, 0, "Gut für schlechte Tage."],
+	"schutz": ["hilfe", "Serienschutz", "shield", 100, 2, 0, "Deine Serie ist sicher."],
+}
+const SHOP_TABS = [["wunder", "Wunder", "miracle"], ["hilfe", "Hilfe", "bulb"], ["gott", "Gott", "profile"], ["welten", "Welten", "days"]]
+
+
+## Höchstes je erreichtes Level (für „steht erst im Laden, wenn es im Spiel schon vorkam“).
+func shop_level_seen() -> int:
+	_ensure_camp()
+	if bool(camp["veteran"]) or world_done:
+		return Campaign.COUNT
+	return maxi(level_free(), level_no)
+
+
+## Die Karten eines Reiters: [{"id", "title", "icon", "price", "have" (Vorrat/besitzt), "max", "full", "owned",
+## "worn" (angelegt), "slot", "new", "locked"}]. Nicht spoilern: was noch nicht vorkam, fehlt ganz.
+func shop_items(tab: String) -> Array:
+	var out: Array = []
+	var seen := shop_level_seen()
+	if tab == "gott":
+		for slot in Character.ACC_SLOTS:
+			for a in Character.SHOP_PARTS.get(slot, []):
+				var ad: Dictionary = a
+				var id := str(ad["id"])
+				out.append({"id": id, "title": str(ad["title"]), "icon": "", "price": int(ad["price"]), "slot": str(slot),
+					"owned": owned.has(id), "worn": str(character.get(str(slot), "")) == id, "have": 1 if owned.has(id) else 0,
+					"max": 1, "full": owned.has(id), "new": not seen_shop.has(id), "part": true})
+		return out
+	if tab == "welten":
+		return [{"id": "bald", "title": "Bald mehr", "icon": "lock", "price": 0, "locked": true, "have": 0, "max": 0,
+			"full": false, "new": false}]
+	for id in SHOP_ITEMS:
+		var it: Array = SHOP_ITEMS[id]
+		if str(it[0]) != tab or int(it[5]) > seen:
+			continue
+		var have := shields() if id == "schutz" else int(stock.get(id, 0))
+		var mx := Balance.SHIELD_MAX if id == "schutz" else int(it[4])
+		out.append({"id": id, "title": str(it[1]), "icon": str(it[2]), "price": int(it[3]), "have": have, "max": mx,
+			"full": have >= mx, "new": not seen_shop.has(id), "owned": false})
+	return out
+
+
+func shop_price(id: String) -> int:
+	if SHOP_ITEMS.has(id):
+		return int((SHOP_ITEMS[id] as Array)[3])
+	var slot := Character.shop_slot(id)
+	return int(Character.accessory(slot, id).get("price", 0)) if slot != "" else 0
+
+
+func shop_title(id: String) -> String:
+	if SHOP_ITEMS.has(id):
+		return str((SHOP_ITEMS[id] as Array)[1])
+	var slot := Character.shop_slot(id)
+	return str(Character.accessory(slot, id).get("title", id)) if slot != "" else id
+
+
+## Kaufen: "" = gekauft, sonst der Grund („Vorrat voll“, „Dir fehlen 20 ✦“).
+func buy(id: String) -> String:
+	var price := shop_price(id)
+	if price <= 0:
+		return "Gibt es nicht."
+	if id == "schutz":
+		return buy_shield()
+	if SHOP_ITEMS.has(id):
+		var mx := int((SHOP_ITEMS[id] as Array)[4])
+		if int(stock.get(id, 0)) >= mx:
+			return "Vorrat voll"
+	elif owned.has(id):
+		return "Hast du schon"
+	if points < price:
+		return "Dir fehlen %d ✦" % (price - points)
+	points -= price
+	if SHOP_ITEMS.has(id):
+		stock[id] = int(stock.get(id, 0)) + 1
+	else:
+		owned.append(id)
+		Character.owned_parts = owned
+	Points._book(pdata, today_key(), "kauf:" + id, 0)
+	points_changed.emit(-price, "kauf")
+	_save_profile()
+	return ""
+
+
+## Ein Gott-Teil zurückgeben (solange der Laden offen ist): volle Erstattung, angelegt wird es abgelegt.
+func refund(id: String) -> bool:
+	if not owned.has(id) or SHOP_ITEMS.has(id):
+		return false
+	owned.erase(id)
+	Character.owned_parts = owned
+	var slot := Character.shop_slot(id)
+	if slot != "" and str(character.get(slot, "")) == id:
+		var lk := character.duplicate(true)
+		lk[slot] = ""
+		set_character(lk)
+	var price := shop_price(id)
+	points += price
+	points_changed.emit(price, "zurueck")
+	_save_profile()
+	return true
+
+
+## Ein gekauftes Teil anlegen / ablegen.
+func wear(id: String, on: bool) -> void:
+	var slot := Character.shop_slot(id)
+	if slot == "" or (on and not owned.has(id)):
+		return
+	var lk := character.duplicate(true) if not character.is_empty() else Character.default_look("bart")
+	lk[slot] = id if on else ""
+	set_character(lk)
+
+
+func mark_shop_seen(ids: Array) -> void:
+	var changed := false
+	for id in ids:
+		if not seen_shop.has(str(id)):
+			seen_shop.append(str(id))
+			changed = true
+	if changed:
+		_save_profile()
+
+
+## Ein gekauftes Wunder aus dem Vorrat benutzen (Regen, Meteor: auf ein Feld; Blitzschutz: sofort). Zählt im Level
+## 2 Schritte, je Art einmal (GameState). true = es läuft.
+func use_stock(kind: String, fid: int = -1) -> bool:
+	var id := {"rain": "regen", "strike": "meteor", "meteor": "meteor", "guard": "blitzschutz"}.get(kind, kind) as String
+	if int(stock.get(id, 0)) <= 0 or state == null or busy or over:
+		return false
+	if id == "blitzschutz":
+		if not state.guard_bolt9():
+			return false
+		stock[id] = int(stock[id]) - 1
+		_save_profile()
+		message.emit("Geschützt", "good")
+		state_changed.emit()
+		return true
+	if fid < 0 or not state.camp:
+		return false
+	var f: FieldData = state.fields[fid]
+	var ok := state.rain_ok9(f, true) if id == "regen" else state.meteor_ok9(f, true)
+	if not ok:
+		return false
+	stock[id] = int(stock[id]) - 1
+	_save_profile()
+	busy = true
+	_last_kind = "rain" if id == "regen" else "strike"
+	_start({"type": "rain" if id == "regen" else "strike", "field": fid, "row": [], "bought": true})
+	return true
+
+
+func stock_of(kind: String) -> int:
+	var id := {"rain": "regen", "strike": "meteor", "meteor": "meteor", "guard": "blitzschutz"}.get(kind, kind) as String
+	return int(stock.get(id, 0))
+
+
+# --- 100-Sekunden-Challenge (GDPD_SCHOEPFUNG.md 12; ersetzt „40 Drehungen“) ---------------------------------
+
+signal sek100_changed(left: float, delta: float)
+
+const SEK100 := 100.0
+const SEK100_FIRE := 5.0
+var sek100 := false              # das laufende freie Spiel ist die Challenge
+var sek100_left := SEK100
+var sek100_running := false      # die Uhr läuft (ab der ersten Drehung)
+var sek100_done := false
+var _sek_next := false
+
+
+func sek100_paused() -> bool:
+	return not pending_choice.is_empty() and not bool(pending_choice.get("mini", false))
+
+
+func _process(delta: float) -> void:
+	if not sek100 or not sek100_running or sek100_done or state == null or state.is_day():
+		return
+	if sek100_paused():
+		return              # die große Wahl-Karte hält die Uhr an (die kleine Pille nicht)
+	sek100_left = maxf(0.0, sek100_left - delta)
+	if sek100_left <= 0.0 and not busy:
+		_sek100_end()
+
+
+func _sek100_fire() -> void:
+	sek100_left = maxf(0.0, sek100_left - SEK100_FIRE)
+	sek100_changed.emit(sek100_left, -SEK100_FIRE)
+
+
+func _sek100_end() -> void:
+	if sek100_done:
+		return
+	sek100_done = true
+	sek100_running = false
+	pending_choice = {}
+	over = true
+	_save_best()
+	_add_points(Points.free_play_point(pdata, today_key()), "frei")
+	_save_profile()
+	sek100_changed.emit(0.0, 0.0)
+	game_over.emit()

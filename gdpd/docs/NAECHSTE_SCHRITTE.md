@@ -125,7 +125,13 @@
 
 ## Feedback 8. November (Philipp)
 - Kombinationen bleiben wirksam: Einmal versorgte Menschen bleiben versorgt, auch wenn man weiterdreht
-  (nur Gefahren können das rückgängig machen). Wächst das Haus, kommen nur die neuen Bedürfnisse dazu.
-- 2 Sterne müssen gut erreichbar sein; 3 Sterne für gutes Spiel.
-- Wasser dreht sich beim Drehen mit der Scheibe mit (nicht in der Welt stehen bleiben).
-- Menü übersichtlicher: Wichtiges oben, unwichtige Einstellungen in einem Untermenü „Einstellungen“.
+  (nur Gefahren können das rückgängig machen). Wächst das Haus, kommen nur die neuen Bedürfnisse dazu. (erledigt:
+  goldenes Siegel am Bedürfnis, Tour-Prüfung `need_seal_stays`)
+- 2 Sterne müssen gut erreichbar sein; 3 Sterne für gutes Spiel. (erledigt: Grenzen aus der Simulation, normaler
+  Spieler 88 % ★★ oder mehr, guter Spieler 59 % ★★★)
+- Wasser dreht sich beim Drehen mit der Scheibe mit (nicht in der Welt stehen bleiben). (erledigt, Tour-Prüfung
+  `water_turns_with_slice`)
+- Menü übersichtlicher: Wichtiges oben, unwichtige Einstellungen in einem Untermenü „Einstellungen“. (erledigt:
+  Weiter · Die Schöpfung · Freies Spiel · Laden · Dein Gott, darunter ⚙ Einstellungen)
+- Die Oberfläche zeigt jetzt die Schöpfung (7 Akte, 30 Level), den Laden und im freien Spiel die
+  100-Sekunden-Challenge. Offen: am echten Handy prüfen; „Extras der Welt“ (Vulkan zähmen …); Skins im Laden.

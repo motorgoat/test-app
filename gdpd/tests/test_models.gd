@@ -1,5 +1,8 @@
 extends SceneTree
-## Modell-Test: baut jede Art (kind 0..16, 15 = Wasser, 16 = Stein) und jeden Zustand einmal als FieldView und lässt ein paar Frames laufen.
+## Modell-Test: baut jede Art (kind 0..26: 15 Wasser, 16 Fels, 17–26 Schöpfung) und jeden Zustand einmal als FieldView
+## und lässt ein paar Frames laufen. Dazu jedes Zeitalter (Eras) mit seinen Modell-Zweigen, Zusammenwachsen, Wasser dreht
+## mit (Wellen-Rahmen), Verlust-Hinweis, Versorgt-Zeichen, Vorzeichen der Gefahren.
+## Sheet je Zeitalter: ... -- --sheet=/pfad/models.png --era=glut
 ##   godot --headless --script res://tests/test_models.gd
 ## Mit Bild (echtes GL, z. B. unter xvfb-run):
 ##   godot --rendering-driver opengl3 --resolution 1500x1100 --script res://tests/test_models.gd -- --sheet=/pfad/models.png
@@ -9,6 +12,7 @@ const COLS := 5
 var _views: Array = []
 var _frames := 0
 var _sheet := ""
+var _era := ""
 var _errors := 0
 var _cam: Camera3D
 var _fx_time := -1.0
@@ -20,6 +24,10 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--sheet="):
 			_sheet = a.substr(8)
+		elif a.begins_with("--era="):
+			_era = a.substr(6)
+	if _era != "":
+		Look.set_era(_era)
 	var root := Node3D.new()
 	get_root().add_child(root)
 	_setup_scene(root)
@@ -53,6 +61,23 @@ func _initialize() -> void:
 	specs.append({"kind": FieldView.K_MEADOW, "st8": {"flood_risk": true}, "label": "Flut droht"})
 	specs.append({"kind": FieldView.K_ANIMALS, "alarm": true, "label": "Tiere fliehen"})
 	specs.append({"kind": FieldView.K_STONE, "detail": -1.0, "label": "Rückseite"})
+	# Schöpfung (GDPD_SCHOEPFUNG_GRAFIK.md 4–7): Vorzeichen, Versorgt-Zeichen, Gruppen-Stärke, Zustände der neuen Arten
+	specs.append({"kind": FieldView.K_LAVA, "st8": {"thriver": true, "crater": true, "volc": true}, "label": "Vulkan grollt"})
+	specs.append({"kind": FieldView.K_LAVA, "st8": {"thriver": true, "met": ["wet"], "missing": [], "fed": 1, "cool": 2}, "label": "Lava kühlt"})
+	specs.append({"kind": FieldView.K_HUT, "st8": {"thriver": true, "people": true, "met": ["food"], "sealed": ["food"], "missing": [],
+		"satt": true, "fed": 1, "hungry": 0, "shrink_after": 4}, "label": "versorgt"})
+	specs.append({"kind": FieldView.K_VILLAGE, "st8": {"thriver": true, "people": true, "met": ["food"], "sealed": ["food"],
+		"missing": ["work"], "have": {"work": [1, 2]}, "satt": false, "fed": 0, "hungry": 0, "shrink_after": 4}, "label": "neues Bedürfnis"})
+	specs.append({"kind": FieldView.K_ANIMALS, "st8": {"thriver": true, "met": [], "missing": ["plants"], "satt": false, "fed": 0,
+		"hungry": 3, "shrink_after": 4}, "label": "Hunger!"})
+	specs.append({"kind": FieldView.K_ANIMALS, "st8": {"thriver": true, "pack": true}, "label": "Rudel droht"})
+	specs.append({"kind": FieldView.K_PRED, "st8": {"thriver": true, "pack_pred": true}, "label": "Rudel lauert"})
+	specs.append({"kind": FieldView.K_MEADOW, "st8": {"thriver": true, "smog": true}, "label": "Smog droht"})
+	specs.append({"kind": FieldView.K_FOREST, "st8": {"thriver": true, "dry": true}, "label": "trocken"})
+	specs.append({"kind": FieldView.K_STONE, "st8": {"thriver": true, "strength": 3, "badge": true}, "label": "×3"})
+	specs.append({"kind": FieldView.K_FERN, "fresh": 2, "label": "Farn welk"})
+	specs.append({"kind": FieldView.K_BIRDS, "burning": true, "label": "Vögel brennen"})
+	specs.append({"kind": FieldView.K_FIELD, "fx": "loss", "label": "−1"})
 	for i in specs.size():
 		var sp: Dictionary = specs[i]
 		var v := FieldView.new()
@@ -113,8 +138,8 @@ func _initialize() -> void:
 			_fail("Symbol fehlt: " + FieldView.KIND_ICON[k])
 	if FieldView.KIND_ICON[FieldData.WATER] != "water":
 		_fail("Wasser fehlt in FieldView")
-	if FieldView.KIND_COUNT != FieldData.KIND_COUNT:
-		_fail("FieldView und FieldData haben verschieden viele Arten")
+	if FieldView.KIND_COUNT < FieldData.KIND_COUNT:
+		_fail("FieldView kennt weniger Arten als FieldData")
 	if FieldView.KIND_ICON[FieldData.STONE] != "stone":
 		_fail("Stein fehlt in FieldView")
 	# Vorschau beim Drehen (neue Tage): grün = wird satt, rot = verliert die Versorgung
@@ -143,6 +168,25 @@ func _initialize() -> void:
 				var arr := Models.arrays_of((part_v as Array)[0])
 				if arr.is_empty() or (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty() or (arr[Mesh.ARRAY_COLOR] as PackedColorArray).size() != (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size():
 					_fail("Modell ohne Daten/Farben: %s/%d" % [nm, vr])
+	for nm in ["fern", "tree_fern", "horsetail", "nest", "den", "bones", "sheaf", "volcano", "basalt", "crust", "moss"]:
+		for vr in 3:
+			var parts := Models.get_model(String(nm), vr)
+			if parts.is_empty():
+				_fail("Modell leer: %s/%d" % [nm, vr])
+			for part_v in parts:
+				var arr := Models.arrays_of((part_v as Array)[0])
+				if arr.is_empty() or (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty():
+					_fail("Modell ohne Daten: %s/%d" % [nm, vr])
+	for cr in ["wolf", "bison", "newt", "fish", "bird"]:
+		var arr := Models.arrays_of(Models.creature_mesh(String(cr), 0))
+		if arr.is_empty() or (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() < 30:
+			_fail("Figur leer: " + String(cr))
+	for n2 in ["heat", "mineral", "spark", "sun", "prey", "plants", "fishneed", "shore", "wet", "food", "work"]:
+		if Style.icon(FieldView.icon_name(String(n2))) == null:
+			_fail("Bedürfnis-Symbol fehlt: " + String(n2))
+	_test_eras(root)
+	_test_merge(root)
+	_test_wave_frame()
 	for cr in ["sheep", "cow", "deer", "hare", "duck", "person"]:
 		for vr in 6:
 			var arr := Models.arrays_of(Models.creature_mesh(String(cr), vr))
@@ -156,6 +200,120 @@ func _initialize() -> void:
 				_fail("Tier ohne Kopf: %s/%d" % [cr, vr])
 	print("Modelle gebaut: %d Ansichten" % _views.size())
 	_test_character()
+
+
+# --- Schöpfung: Zeitalter, Zusammenwachsen, Wasser dreht mit ------------------------------------------------------
+
+## Jedes Zeitalter: Paletten und Modell-Zweige bauen ohne Fehler; Urzeit hat Urboden, Basalt, keine Enten.
+func _test_eras(root: Node3D) -> void:
+	var probe := FieldView.new()
+	root.add_child(probe)
+	probe.position = Vector3(200, 0, 0)
+	var fd := FieldData.new()
+	fd.id = 5
+	probe.build(fd)
+	for en in Eras.ORDER:
+		Look.set_era(String(en))
+		for k in FieldView.KIND_COUNT:
+			probe.set_kind(k)
+			probe.era_changed()
+			if probe.get_kind() != k:
+				_fail("Zeitalter %s: Art %d" % [en, k])
+		if not Eras.has(String(en)) or String(Eras.get_era(String(en))["mood"]) == "":
+			_fail("Zeitalter ohne Stimmung: " + String(en))
+	Look.set_era("glut")
+	if not Look.era_flag("basalt") or not Look.era_flag("primeval") or Look.era_flag("ducks"):
+		_fail("Glut: Basalt/Urboden/keine Enten")
+	probe.set_kind(FieldView.K_WATER)
+	probe.era_changed()
+	if probe.agent_count() != 0:
+		_fail("Urozean hat Enten")
+	Look.set_era("tag")
+	probe.era_changed()
+	# Level → Zeitalter (Spec 4.1)
+	var want := {1: "glut", 4: "glut_kuehl", 6: "dunst", 10: "blau", 13: "fruehling", 14: "sommer", 15: "herbst", 17: "tag",
+		24: "menschen", 27: "abend", 30: "vollendet"}
+	for lv in want:
+		if Eras.of(0, int(lv)) != String(want[lv]):
+			_fail("Eras.of Level %d: %s" % [int(lv), Eras.of(0, int(lv))])
+	Look.set_era(_era if _era != "" else "tag")
+	probe.queue_free()
+
+
+## Zusammenwachsen (5.1): Besitz-Regel – eine Fuge gehört nur einem Feld (keine doppelten Fugen-Teile); getrennt
+## verschwinden die Fugen-Teile; über eine Würfelkante nie.
+func _test_merge(root: Node3D) -> void:
+	var a := FieldView.new()
+	var b := FieldView.new()
+	root.add_child(a)
+	root.add_child(b)
+	a.position = Vector3(220, 0, 0)
+	b.position = Vector3(220, 0, -0.9)
+	var fa := FieldData.new()
+	fa.id = 7
+	var fb := FieldData.new()
+	fb.id = 8
+	a.build(fa)
+	b.build(fb)
+	a.set_kind(FieldView.K_FOREST)
+	b.set_kind(FieldView.K_FOREST)
+	var f := FieldView.K_FOREST
+	# a liegt südlich von b: a hat b im Norden (Platz 0), b hat a im Süden (Platz 2)
+	a.set_neighbors([f, 0, 0, 0, 0, 0, 0, 0], [true, false, false, false, false, false, false, false])
+	b.set_neighbors([0, 0, f, 0, 0, 0, 0, 0], [false, false, true, false, false, false, false, false])
+	if (a.merge_mask() & 1) == 0 or b.merge_mask() != 0:
+		_fail("Fugen-Besitz: a=%d b=%d" % [a.merge_mask(), b.merge_mask()])
+	var seam := 0
+	for c in a._content.get_children():
+		if (c as Node).has_meta("seam"):
+			seam += 1
+	if seam == 0:
+		_fail("keine Fugen-Bäume")
+	a.set_neighbors([0, 0, 0, 0, 0, 0, 0, 0], [false, false, false, false, false, false, false, false])
+	if a.merge_mask() != 0:
+		_fail("getrennt, Fuge bleibt")
+	# Würfelkante im Norden: nie ein Fugen-Teil
+	var c2 := FieldView.new()
+	root.add_child(c2)
+	c2.position = Vector3(222, 0, 0)
+	var fc := FieldData.new()
+	fc.id = 9
+	c2.build(fc, 1)
+	c2.set_kind(FieldView.K_FOREST)
+	c2.set_neighbors([f, 0, 0, 0, 0, 0, 0, 0], [true, false, false, false, false, false, false, false])
+	if c2.merge_mask() != 0:
+		_fail("Fugen-Teil auf der Würfelkante")
+	for v in [a, b, c2]:
+		(v as Node).queue_free()
+	print("Zusammenwachsen geprüft")
+
+
+## Wasser dreht mit (Spec 10.1, wave_frame_rot): vier Vierteldrehungen einer Seite = Ausgangslage; eine Vierteldrehung
+## dreht das Muster wirklich.
+func _test_wave_frame() -> void:
+	var t := Transform3D(Basis(Vector3.UP, 0.0), Vector3(1.0, 1.47, -1.0))
+	var n := Vector3i(0, 1, 0)
+	var f0 := FieldView.wave_frame(t, n, 0)
+	var f4 := FieldView.wave_frame(t, n, 4)
+	var f1 := FieldView.wave_frame(t, n, 1)
+	if not ((f0[0] as Vector4) - (f4[0] as Vector4)).is_zero_approx() or not ((f0[1] as Vector2) - (f4[1] as Vector2)).is_zero_approx():
+		_fail("wave_frame_rot: 4 Vierteldrehungen")
+	if ((f0[0] as Vector4) - (f1[0] as Vector4)).is_zero_approx():
+		_fail("wave_frame_rot: Vierteldrehung ohne Wirkung")
+	# Die Deckseite dreht um ihre Normale: Lage der Kachel nach einer Vierteldrehung + q-Ausgleich = Muster vorher
+	# (an einem festen Punkt der Kachel – kein Sprung beim Einrasten)
+	var rot := Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3.ZERO)
+	var t1 := rot * t
+	var g1 := FieldView.wave_frame(t1, n, -1)
+	for uv in [Vector2(0.2, -0.3), Vector2(-0.4, 0.1)]:
+		var u: Vector2 = uv
+		var m0: Vector4 = f0[0]
+		var m1: Vector4 = g1[0]
+		var p0 := Vector2(m0.x * u.x + m0.y * u.y, m0.z * u.x + m0.w * u.y) + (f0[1] as Vector2)
+		var p1 := Vector2(m1.x * u.x + m1.y * u.y, m1.z * u.x + m1.w * u.y) + (g1[1] as Vector2)
+		if p0.distance_to(p1) > 1e-4:
+			_fail("wave_frame_rot: Sprung beim Einrasten %s / %s" % [p0, p1])
+	print("Wellen-Rahmen geprüft")
 
 
 # --- Nahtlos: Platten schließen lückenlos an, Wasser fließt zusammen, Inhalt bleibt auf der Platte -----------------
@@ -457,6 +615,8 @@ func _process(delta: float) -> bool:
 					v.wither_fx()
 				"wish":
 					v.wish_fx()
+				"loss":
+					v.loss_fx("burn", FieldView.K_FIELD)
 	# Bilder: Übersicht, dann Nahaufnahmen (Effekte laufen noch)
 	if _sheet != "" and _fx_time >= 0.06 and _shot < 5:
 		if _shot > 0:

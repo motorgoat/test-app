@@ -343,6 +343,95 @@ static func register_first_win(d: Dictionary, n: int, today: int) -> void:
 	d["last_new_key"] = maxi(int(d["last_new_key"]), today)
 
 
+# --- Die Schöpfung: ein neues Level je Spieltag (GDPD_SCHOEPFUNG.md 4, 13) -----------------------------
+# c: Kampagnen-Zustand (Game.camp, gespeichert in [kampagne]): "stars" (Array 30, beste Sterne je Level),
+# "won_key" (Array 30, Spieltag des ersten Siegs, −1), "last_new_key" (Spieltag des letzten ersten Siegs),
+# "fast_to" (Schnellstart bis zu diesem Level, 0 = keiner), "fast_day" ([Spieltag, erste Siege an ihm]),
+# "veteran" (die alten 7 Tage geschafft: Welt des Tages auch während der Kampagne).
+
+## Das nächste neue Level (das erste noch nicht geschaffte; 31 = keins mehr).
+static func next_new_level(c: Dictionary) -> int:
+	return next_new_day(c["stars"])
+
+
+## Erste Siege am Spieltag today (für den Schnellstart).
+static func firsts_on(c: Dictionary, today: int) -> int:
+	var fd: Array = c.get("fast_day", [-1, 0])
+	return int(fd[1]) if fd.size() >= 2 and int(fd[0]) == today else 0
+
+
+## Schnellstart (13.1): solange das nächste neue Level ≤ fast_to ist, öffnen bis zu 3 neue Level je Spieltag.
+static func fast_track_on(c: Dictionary) -> bool:
+	return next_new_level(c) <= int(c.get("fast_to", 0))
+
+
+## Ist heute ein neues Level offen? (Eins je Spieltag; im Schnellstart bis zu 3.)
+static func new_level_open(c: Dictionary, today: int) -> bool:
+	var nn := next_new_level(c)
+	if nn > (c["stars"] as Array).size():
+		return false
+	if today > int(c.get("last_new_key", -1)):
+		return true
+	return nn <= int(c.get("fast_to", 0)) and firsts_on(c, today) < Balance.FAST_TRACK_PER_DAY
+
+
+## So viele neue Level gehen heute noch (für „Schnellstart: 3 heute“).
+static func new_levels_left(c: Dictionary, today: int) -> int:
+	if not new_level_open(c, today):
+		return 0
+	if not fast_track_on(c):
+		return 1
+	return maxi(1, Balance.FAST_TRACK_PER_DAY - firsts_on(c, today))
+
+
+static func new_level_tomorrow(c: Dictionary, today: int) -> bool:
+	return next_new_level(c) <= (c["stars"] as Array).size() and not new_level_open(c, today)
+
+
+## Ist Level n spielbar? Level 1 immer; sonst muss das Level davor geschafft sein und n schon geschafft
+## (Wiederholung) oder das heute offene neue Level sein.
+static func level_unlocked(c: Dictionary, n: int, today: int) -> bool:
+	var st: Array = c["stars"]
+	if n < 1 or n > st.size():
+		return false
+	if n == 1:
+		return true
+	if int(st[n - 2]) <= 0:
+		return false
+	if int(st[n - 1]) > 0:
+		return true
+	return n == next_new_level(c) and new_level_open(c, today)
+
+
+## Höchstes freies Level (Spielstand [kampagne] level).
+static func level_free(c: Dictionary, today: int) -> int:
+	var nn := next_new_level(c)
+	var cnt := (c["stars"] as Array).size()
+	if nn > cnt:
+		return cnt
+	return nn if level_unlocked(c, nn, today) else maxi(1, nn - 1)
+
+
+## Der erste Sieg von Level n am Spieltag today.
+static func register_level_win(c: Dictionary, n: int, today: int) -> void:
+	var won: Array = c["won_key"]
+	if n >= 1 and n <= won.size():
+		won[n - 1] = today
+	c["last_new_key"] = maxi(int(c.get("last_new_key", -1)), today)
+	c["fast_day"] = [today, firsts_on(c, today) + 1]
+
+
+## Welt des Tages in der Schöpfung: ab dem Spieltag nach dem ersten Sieg von Level 30; Veteranen (alte 7 Tage
+## geschafft) jeden Tag.
+static func wdt_available_camp(c: Dictionary, today: int) -> bool:
+	if bool(c.get("veteran", false)):
+		return true
+	if next_new_level(c) <= (c["stars"] as Array).size():
+		return false
+	var won: Array = c["won_key"]
+	return won.is_empty() or today > int(won[won.size() - 1])
+
+
 # --- Welt des Tages (1.3) -------------------------------------------------------------------------
 
 ## Gibt es heute eine Welt des Tages? Ab dem Spieltag nach dem ersten Sieg von Tag 7.

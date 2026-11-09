@@ -69,7 +69,10 @@ func _shots(dir: String) -> void:
 			only = a.substr(7)
 	_only = only
 	var t0 := Time.get_ticks_msec()
-	if only == "" or only == "days" or only == "day1":
+	if only == "" or only == "camp":
+		await _camp_tour(dir)
+		print("Tour: Schöpfung fertig nach %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
+	if only == "days" or only == "day1":
 		await _days_tour(dir)
 		print("Tour: Tage fertig nach %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	if only == "" or only == "free":
@@ -131,6 +134,774 @@ func _check(ok: bool, check_name: String, extra: String = "") -> void:
 	if not ok:
 		_failed += 1
 	print("CHECK ok=%s name=%s %s" % [str(ok), check_name, extra])
+
+
+# --- Die Schöpfung (30 Level in 7 Akten) ---------------------------------------------------------------
+
+func _camp_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	# Wie ein neuer Spieler: kein Fortschritt, keine Hinweise, noch kein eigener Gott; die Uhr steht fest auf Montag,
+	# 9. November 2026, 17:40 (gleiche Bilder, gleiche Erinnerungs-Zeiten in jedem Lauf)
+	Game.debug_open_all = false
+	Game.debug_day_offset = 0
+	Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
+	Game.reset_campaign()
+	Game.reset_daily()
+	Game.note_session()
+	Game.coach_seen = {}
+	Game.cards_seen = {}
+	Game.tutorial_done = false
+	Game.always_ask = false
+	Game.reminder_echo = true
+	Game.pdata = Points.fresh(Campaign.COUNT)
+	Game.points = Balance.POINTS_START
+	Game.stock = {}
+	Game.owned = []
+	Character.owned_parts = Game.owned
+	Game.hint_budget_usec = 40000
+	dui.debug_ask_on_pc = true
+	await get_tree().process_frame
+	await _creator_tour(dir)
+	# 1. Die Übersicht: 7 Akte (Genesis-Tage), nur Level 1 offen, nichts verraten
+	dui.show_overview(false)
+	await _wait(1.4)
+	await _shot(dir, "00a_schoepfung")
+	var spoil := _spoiler_labels(dui.overview)
+	var a2: Dictionary = dui.ov_acts[1]
+	_check(dui.is_open() and dui.ov_acts.size() == 7 and Game.level_unlocked(1) and not Game.level_unlocked(2)
+		and (dui.ov_acts[0]["name"] as Label).text == "Licht" and (a2["name"] as Label).text == "?"
+		and not (((a2["levels"] as Array)[0] as Dictionary)["num"] as Label).visible, "camp_overview",
+		"akt1=%s akt2=%s heute=%s" % [(dui.ov_acts[0]["name"] as Label).text, (a2["name"] as Label).text, dui.tc_title.text])
+	_check(spoil.is_empty(), "no_spoiler_campaign", "verraten=%s" % str(spoil))
+	# 2. Den eigenen Gott antippen öffnet ihn (ansehen, ändern, Art zu reden)
+	await _tap(dui.ov_char_btn)
+	await _wait(1.0)
+	var god_open := dui.creator_open() and dui._creator_edit
+	await _shot(dir, "00b_gott_antippen")
+	dui.creator._on_close()
+	await _wait(0.8)
+	_check(god_open and dui.is_open() and not dui.creator_open(), "god_tap_opens", "offen=%s" % str(god_open))
+	# 3. Level 1 antippen (echte Eingabe): die Start-Karte mit Geschichte und Aufgabe, ohne Limit
+	await _tap(dui.level_btn(1))
+	var card1 := await _until_shown(dui.goal_card, 4.0)
+	await _wait(0.5)
+	await _shot(dir, "00c_level1_karte")
+	_check(card1 and Game.level_no == 1 and dui.gc_goal.text == "Mach 6 Felsen" and dui.gc_limit.text == "Ohne Limit. Schritte zählen."
+		and dui.gc_intro.text.contains("Die Erde glüht.") and dui.gc_go.text == str(Days.TEXT["go_demo"]) and dui.gc_star_label.text == "bis 4 · ★★ bis 6",
+		"l1_goal_card", "ziel=%s grenze=%s intro=%s sterne=%s" % [dui.gc_goal.text, dui.gc_limit.text, dui.gc_intro.text.left(40), dui.gc_star_label.text])
+	# 4. „Zeig's mir“: die Hand spielt den ersten Zug vor (3 Lava → Fels), ein Wisch in der Zeit zählt nicht
+	world.tour_auto = false
+	await _tap(dui.gc_go)
+	await _wait(0.2)
+	var lane_cv := ui.speaker_view(dui.lane_speaker)
+	_check(dui.lane.visible and str(lane_cv.look.get("basis", "")) == "katze" and dui.lane_label.text == CharacterTexts.line("d1_demo", "frech"),
+		"character_coach", "basis=%s text=%s" % [str(lane_cv.look.get("basis", "")), dui.lane_label.text.left(40)])
+	var vs0 := get_viewport().get_visible_rect().size
+	await _swipe(vs0 * Vector2(0.3, 0.47), vs0 * Vector2(0.7, 0.47))
+	var ignored := Game.state.twists == 0
+	for i in 160:
+		if Game.state.goal_progress() >= 1 and not world.animating and not Game.busy:
+			break
+		await _wait(0.05)
+	await _wait(0.6)
+	await _shot(dir, "00d_level1_lava_fels")
+	var ring_cap := dui.ring_caps.text
+	_check(ignored and Game.state.goal_progress() >= 1 and dui.chip_num.text == "%d/6" % Game.state.goal_progress()
+		and Game.state.steps9() == 0 and Game.state.gift_twists == 1 and (Game.state.fields as Array).any(func(f: FieldData) -> bool: return f.kind == FieldData.STONE),
+		"l1_tutorial_lava", "chip=%s schritte=%d ring=%s" % [dui.chip_num.text, Game.state.steps9(), ring_cap])
+	# HUD mitten und groß genug (1080 × 2340: Chip-Mitte nah der Bildschirm-Mitte, Chips ≥ 56 px hoch)
+	var sc := get_tree().root.content_scale_factor
+	var cr := dui.chip.get_global_rect()
+	var dr := ui.dock.get_global_rect()
+	_check(absf(cr.get_center().x - vs0.x * 0.5) <= vs0.x * 0.12 and cr.size.y * sc >= 56.0 and absf(dr.get_center().x - vs0.x * 0.5) <= vs0.x * 0.12
+		and ring_cap == "★★★ bis 4", "hud_central", "chip=%s dock=%s skala=%.2f ring=%s" % [str(cr), str(dr), sc, ring_cap])
+	var your_turn := false
+	for i in 100:
+		if dui.lane_visible() and dui.lane_label.text == CharacterTexts.line("d1_c2", "frech") and ui.dock.visible:
+			your_turn = true
+			break
+		await _wait(0.05)
+	await _shot(dir, "00e_level1_jetzt_du")
+	_check(your_turn and not ui.input_locked(), "l1_your_turn", "lane=%s" % dui.lane_label.text.left(30))
+	await _no_auto_twist_check()
+	world.tour_auto = true
+	# 5. Den Rest selbst (wie der Tipp, echte Wische): geschafft – Sterne nach Schritten, Punkte einzeln
+	var won := await _play_level(14)
+	var wcard := await _until_shown(dui.win_card, 6.0)
+	await _wait(3.2)
+	await _shot(dir, "00f_level1_geschafft")
+	var steps1 := Game.state.day_won_at
+	var st1 := Campaign.stars_for(1, steps1)
+	var pts1 := Campaign.points_for(1, steps1)
+	var lines_ok := dui.wc_points.visible and dui.wc_points.get_child_count() >= 3 and dui.wc_total_pts.text == "+%d" % int(dui.wc_total_pts.get_meta("total", -1))
+	_check(won and wcard and Game.level_stars(1) == st1 and st1 >= 2 and Game.state.level_points() == pts1 and lines_ok
+		and dui.wc_title.text == "Glut geschafft!" and Game.streak() == 1, "stars_generous",
+		"schritte=%d sterne=%d punkte=%d zeilen=%d summe=%s" % [steps1, st1, pts1, dui.wc_points.get_child_count(), dui.wc_total_pts.text])
+	_check(won and wcard and dui.wc_next.text == str(Days.TEXT["build"]) and dui.wc_next_line.text == str(Campaign.TEXT["tomorrow"]),
+		"level_success", "knopf=%s zeile=%s" % [dui.wc_next.text, dui.wc_next_line.text])
+	# 6. „Weiterbauen“: vorher fragt der Charakter, ob er erinnern darf („Lieber nicht“); dann ohne Limit weiter
+	await _tap(dui.wc_next)
+	var ask := await _until_shown(dui.ask_card, 4.0)
+	await _wait(0.4)
+	await _shot(dir, "00g_erinnern_frage")
+	var ask_ok := ask and dui.ask_text.text == CharacterTexts.fill(str((CharacterTexts.LINES["ask_reminder"] as Dictionary)["frech"]), {"tag": "etwas Neues"})
+	await _tap(dui.ask_no)
+	await _wait(1.2)
+	_check(ask_ok and int(Game.remind["asked"]) == 1 and not dui.ask_card.visible, "permission_ask", "frage=%s" % dui.ask_text.text.left(40))
+	var gs1 := Game.state
+	var g0 := gs1.build_growth()
+	var chip_build := dui.chip.visible and dui.grow_box.visible and dui.chip_caps.text.begins_with("Extra")
+	for i in 3:
+		var act: Dictionary = await Game.search_hint(true)
+		if act.is_empty() or str(act.get("type", "twist")) != "twist":
+			var d := _twist_without_progress()
+			act = {"axis": d[0], "layer": d[1], "turns": d[2]}
+		await _swipe_move(int(act["axis"]), int(act["layer"]), int(act["turns"]))
+		await _settle(8.0)
+	await _wait(0.6)
+	await _shot(dir, "00h_weiterbauen")
+	_check(chip_build and Game.state == gs1 and gs1.day_free_build and gs1.day_won and not Game.over and not dui.win_card.visible
+		and gs1.twists >= gs1.day_won_at + 3, "continue_mode_no_limit", "chip=%s gewachsen=%d->%d" % [dui.chip_caps.text, g0, gs1.build_growth()])
+	# 7. Das Menü (echte Eingabe): oben das Wichtige, Unwichtiges unter „Einstellungen“
+	await _menu_check(dir)
+	# 8. Zur Übersicht (Menü → Schöpfung): Level 2 erst morgen; Antippen sagt „Erst morgen“ und die Uhr
+	await _tap(ui.menu_b)
+	await _until_shown(ui.menu_card, 3.0)
+	await _tap(ui._menu_days)
+	await _wait(1.2)
+	var lb2 := dui.level_btn(2)
+	var morgen := dui.is_open() and bool(lb2.get_meta("morgen", false)) and not Game.level_unlocked(2) and dui.tc_title.text == str(Days.TEXT["today_done"])
+	await _shot(dir, "00i_morgen")
+	await _tap(lb2)
+	var toast_ok := false
+	for i in 80:
+		if ui.toast.visible and (ui.toast_label.text.begins_with("Neuer Tag in") or ui.toast_label.text == str(Days.TEXT["countdown_late"])):
+			toast_ok = true
+			break
+		await _wait(0.05)
+	_check(morgen and toast_ok and dui.tc_line.text == str(Campaign.TEXT["locked"]), "level_locked_until_tomorrow",
+		"morgen=%s toast=%s zeile=%s" % [str(morgen), str(toast_ok), dui.tc_line.text])
+	# 9. „Nächster Tag (Test)“: Level 2 ist offen (Titel erst jetzt), die Welt von gestern läuft weiter
+	dui.ov_scroll.ensure_control_visible(dui.ov_debug)
+	await _wait(0.3)
+	await _tap(dui.ov_debug)
+	await _wait(0.9)
+	dui.ov_scroll.scroll_vertical = 0
+	await _wait(0.4)
+	await _shot(dir, "00j_naechster_tag")
+	_check(Game.level_unlocked(2) and dui.tc_title.text == "Abkühlen" and dui.tc_go.visible and Game.debug_day_offset == 1,
+		"next_day_debug_unlocks", "heute=%s %s" % [dui.tc_caps.text, dui.tc_title.text])
+	var world1 := str(Game.camp["world"])
+	await _tap(dui.tc_go)
+	var card2 := await _until_shown(dui.goal_card, 4.0)
+	var same := 0
+	var b2 := str(Game.level_board.get("board", ""))
+	for i in mini(world1.length(), b2.length()):
+		if world1[i] == b2[i]:
+			same += 1
+	await _shot(dir, "00k_level2_welt_von_gestern")
+	_check(card2 and Game.level_no == 2 and str(Game.level_board.get("how", "")) == "carry" and same >= 27, "carry_world",
+		"wie=%s gleich=%d/54" % [str(Game.level_board.get("how", "")), same])
+	await _tap(dui.gc_go)
+	await _wait(2.0)
+	ui._coach_dismiss()
+	# 10. Level 2 schaffen: die Serie wächst auf 2; der Plan der Erinnerungen
+	var s0 := Game.streak()
+	var won2 := await _play_level(20)
+	var wc2 := await _until_shown(dui.win_card, 6.0)
+	await _wait(3.0)
+	await _shot(dir, "00l_serie")
+	_check(won2 and wc2 and s0 == 1 and Game.streak() == 2 and dui.wc_streak_num.text == "2", "streak_increments",
+		"serie=%d->%d zahl=%s" % [s0, Game.streak(), dui.wc_streak_num.text])
+	await _reminder_check(dir)
+	# Ab hier springt die Tour durch die Akte (alle Level offen)
+	Game.debug_open_all = true
+	await _acts_tour(dir)
+	await _shop_tour(dir)
+	await _free100_tour(dir)
+	await _wdt_tour(dir)
+	await _bonus_round_tour(dir)
+
+
+## Texte in der Übersicht, die ein gesperrtes Level verraten würden (Titel, Geschichte, Aufgabe).
+func _spoiler_labels(root: Node) -> Array:
+	var bad: Array = []
+	var words := {}
+	for n in range(1, Campaign.COUNT + 1):
+		if Game.level_unlocked(n):
+			continue
+		var c := Campaign.config(n)
+		words[str(c.get("title", ""))] = n
+		words[str(c.get("story", ""))] = n
+	for a in range(1, 8):
+		var reached := false
+		for n in Campaign.act_levels(a):
+			reached = reached or Game.level_unlocked(int(n))
+		if not reached:
+			words[Campaign.act_name(a)] = a
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		if nd is Label and (nd as Label).is_visible_in_tree():
+			var t := (nd as Label).text
+			for w in words:
+				if str(w) != "" and t.contains(str(w)):
+					bad.append(t)
+		for c in nd.get_children():
+			stack.append(c)
+	return bad
+
+
+## Ein Level mit dem Tipp zu Ende spielen (echte Wische; Regen und Meteor wie der Tipp).
+func _play_level(max_steps: int) -> bool:
+	for i in max_steps:
+		if not Game.in_day() or Game.state.day_won or Game.over:
+			break
+		var act: Dictionary = await Game.search_hint()
+		var typ := str(act.get("type", "twist"))
+		if (typ == "rain" or typ == "meteor" or typ == "strike") and act.has("field"):
+			if Game.use_bonus("strike" if typ == "meteor" else typ, int(act["field"]), [], true):
+				await _settle(8.0)
+				continue
+		if act.is_empty() or typ != "twist":
+			var d := _twist_without_progress()
+			act = {"axis": d[0], "layer": d[1], "turns": d[2], "choice": 0}
+		await _swipe_move(int(act["axis"]), int(act["layer"]), int(act["turns"]))
+		await _settle(8.0, int(act.get("choice", 0)))
+	return Game.state.day_won
+
+
+## Ein Level starten und die Start-Karte mit „Los!“ schließen (echte Eingabe). Wartet auf den Akt-Übergang.
+func _start_lvl(n: int, board: int = 0) -> bool:
+	var dui := ui.day_ui
+	Game.start_level(n, board)
+	var card := await _until_shown(dui.goal_card, 8.0)
+	await _wait(0.3)
+	if card:
+		await _tap(dui.gc_go)
+	await _wait(1.0)
+	ui._coach_dismiss()
+	return card and Game.level_no == n
+
+
+## Eine Drehung, deren Runde ein Ereignis vom Typ t bringt (Simulation, ohne avoid), sonst [].
+func _move_with(t: String, avoid: String = "") -> Array:
+	for m in GameState.MOVES:
+		var r: Dictionary = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))
+		var res: Dictionary = r["result"]
+		if _has_event(res, t) and (avoid == "" or not _has_event(res, avoid)):
+			return m
+	return []
+
+
+## Ein Pool-Brett von Level lv (0 … 7), auf dem nach einer Drehung (depth 2: nach zweien) pred(vorher, Ergebnis)
+## gilt. [Brett, [Drehungen]] oder [-1, []]. pred: func(gs: GameState, r: Dictionary) -> bool.
+func _find_board(lv: int, pred: Callable, depth: int = 1) -> Array:
+	for bi in range(0, mini(8, Campaign.pool_size(lv))):
+		var gs := Campaign.new_state(lv, Campaign.board(lv, bi))
+		for m1 in GameState.MOVES:
+			var r1: Dictionary = gs.simulate(_twist(int(m1[0]), int(m1[1]), int(m1[2])))
+			if pred.call(gs, r1):
+				return [bi, [m1]]
+		if depth < 2:
+			continue
+		for m1 in GameState.MOVES:
+			var r1b: Dictionary = gs.simulate(_twist(int(m1[0]), int(m1[1]), int(m1[2])))
+			var st1: GameState = r1b["state"]
+			for m2 in GameState.MOVES:
+				var r2: Dictionary = st1.simulate(_twist(int(m2[0]), int(m2[1]), int(m2[2])))
+				if pred.call(st1, r2):
+					return [bi, [m1, m2]]
+	return [-1, []]
+
+
+func _p_event(_gs: GameState, r: Dictionary, t: String) -> bool:
+	return _has_event(r["result"], t)
+
+
+func _p_more(gs: GameState, r: Dictionary, k: int) -> bool:
+	return (r["state"] as GameState).count(k) > gs.count(k)
+
+
+func _p_group(gs: GameState, r: Dictionary, k: int) -> bool:
+	return (r["state"] as GameState).biggest9(k) > gs.biggest9(k)
+
+
+## Blitz droht nach dieser Runde, und eine nächste Drehung wendet ihn ab (Wasser an den Wald).
+func _p_bolt(_gs: GameState, r: Dictionary) -> bool:
+	if not _has_event(r["result"], "bolt_warn"):
+		return false
+	var st: GameState = r["state"]
+	for m in GameState.MOVES:
+		var r2: Dictionary = st.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))
+		if _has_event(r2["result"], "bolt_miss") and not _has_event(r2["result"], "bolt"):
+			return true
+	return false
+
+
+## Ein Rudel droht, und der Meteor auf ein Raubtier beendet die Warnung.
+func _p_pack(_gs: GameState, r: Dictionary) -> bool:
+	var st: GameState = r["state"]
+	if st.pack_warn9.is_empty():
+		return false
+	return _pack_breaker(st) >= 0
+
+
+func _pack_breaker(st: GameState) -> int:
+	for f in st.fields:
+		var fd: FieldData = f
+		if fd.kind == FieldData.PRED:
+			var sm: Dictionary = st.simulate({"type": "strike", "field": fd.id, "row": []})
+			if (sm["state"] as GameState).pack_warn9.is_empty():
+				return fd.id
+	return -1
+
+
+## Zwei Drehungen, nach denen ein Ereignis vom Typ t kommt (die erste allein bringt es nicht), sonst [].
+func _seq_with(t: String) -> Array:
+	for m1 in GameState.MOVES:
+		var r1: Dictionary = Game.state.simulate(_twist(int(m1[0]), int(m1[1]), int(m1[2])))
+		var st1: GameState = r1["state"]
+		for m2 in GameState.MOVES:
+			var r2: Dictionary = st1.simulate(_twist(int(m2[0]), int(m2[1]), int(m2[2])))
+			if _has_event(r2["result"], t):
+				return [m1, m2]
+	return []
+
+
+func _swipe_m(m: Array) -> void:
+	_round_types = {}
+	await _swipe_move(int(m[0]), int(m[1]), int(m[2]))
+	await _settle(8.0)
+
+
+## Menü (Feedback 8. November): Hauptseite = Weiter, Schöpfung, Freies Spiel, Laden, Dein Gott + Zahnrad, kein Schalter;
+## „Einstellungen“ zeigt Ton, Erinnerung, Hilfe, Tutorial; der Pfeil führt zurück; die Schalter schalten.
+func _menu_check(dir: String) -> void:
+	await _tap(ui.menu_b)
+	await _until_shown(ui.menu_card, 3.0)
+	await _wait(0.4)
+	await _shot(dir, "00m_menue")
+	var main_ok := ui._menu_main.visible and ui._menu_cont.is_visible_in_tree() and ui._menu_days.is_visible_in_tree() \
+		and ui._menu_free.is_visible_in_tree() and ui._menu_shop.is_visible_in_tree() and ui._menu_god.is_visible_in_tree() \
+		and ui._menu_gear.is_visible_in_tree() and not ui._music_switch.is_visible_in_tree() and not ui._remind_box.is_visible_in_tree()
+	var fits := ui.menu_card.get_global_rect().size.y <= ui._vs().y
+	await _tap(ui._menu_gear)
+	await _wait(0.6)
+	await _shot(dir, "00n_einstellungen")
+	var set_ok := ui.menu_on_settings() and ui._music_switch.is_visible_in_tree() and ui._sfx_switch.is_visible_in_tree() \
+		and ui._remind_box.is_visible_in_tree() and ui._help_tile.is_visible_in_tree() and ui._tutorial_tile.is_visible_in_tree() \
+		and not ui._menu_days.is_visible_in_tree()
+	var m0 := Game.music_on
+	await _tap(ui._music_switch)
+	await _wait(0.3)
+	var toggled := Game.music_on != m0
+	await _tap(ui._music_switch)
+	await _wait(0.3)
+	await _tap(ui._menu_back)
+	await _wait(0.5)
+	_check(main_ok and fits and set_ok and toggled and Game.music_on == m0 and ui._menu_main.visible and not ui.menu_on_settings(),
+		"menu_settings_submenu", "haupt=%s passt=%s einst=%s schalter=%s" % [str(main_ok), str(fits), str(set_ok), str(toggled)])
+	ui._close_modal(true)
+	await _wait(0.3)
+
+
+## Erinnerungs-Plan nach dem Sieg (4 Stufen, 30 min vor der Uhrzeit dieser Sitzung, nie nachts) und „Feste Uhrzeit“
+## in den Einstellungen.
+func _reminder_check(dir: String) -> void:
+	var dui := ui.day_ui
+	var plan: Array = Game.reminder_log
+	var ids: Array = []
+	var cats: Array = []
+	var in_window := true
+	for e in plan:
+		var d: Dictionary = e
+		ids.append(int(d["id"]))
+		cats.append(str(d["cat"]))
+		var m := int(d["hour"]) * 60 + int(d["minute"])
+		in_window = in_window and m >= Balance.REMIND_EARLIEST and m <= Balance.REMIND_LATEST
+	var first: Dictionary = plan[0] if not plan.is_empty() else {}
+	var a_time := "%02d:%02d" % [int(first.get("hour", -1)), int(first.get("minute", -1))]
+	var ok_plan := ids == [101, 102, 104, 107] and cats == ["A", "B", "C", "F"] and in_window and a_time == "17:10"
+	await _tap(dui.wc_home)
+	await _wait(1.0)
+	ui._open_menu()
+	await _until_shown(ui.menu_card, 3.0)
+	await _tap(ui._menu_gear)
+	await _wait(0.5)
+	var sc: ScrollContainer = ui.menu_card.get_meta("scroll")
+	sc.ensure_control_visible(ui._remind_box)
+	await _wait(0.4)
+	await _tap(ui.segment_button(ui._remind_seg, "fest"))
+	await _wait(0.6)
+	sc.ensure_control_visible(ui._remind_box)
+	await _shot(dir, "00o_erinnerung")
+	var fixed_plan: Array = Game.reminder_log
+	var fixed_ok := str(Game.remind["mode"]) == "fest" and not fixed_plan.is_empty() and int((fixed_plan[0] as Dictionary)["hour"]) == 18
+	await _tap(ui.segment_button(ui._remind_seg, "auto"))
+	await _wait(0.4)
+	_check(ok_plan and fixed_ok and str(Game.remind["mode"]) == "auto", "reminder_scheduled",
+		"ids=%s cats=%s A=%s fest=%s" % [str(ids), str(cats), a_time, str(fixed_ok)])
+	ui._close_modal(true)
+
+
+# --- Die Akte: je ein Level, mit den neuen Dingen und den Gefahren als Folgen ------------------------------
+
+func _acts_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	Game.round_resolved.connect(_on_tour_round)
+	# Akt 1 · Level 3: ein Lava-Klumpen grollt (Warnung eine Runde vorher) – Teilen beruhigt; bricht er doch aus,
+	# zählt der Verlust (−1 Fels fliegt zum Chip, der Chip zählt herunter)
+	await _start_lvl(3, 0)
+	await _shot(dir, "01a_level3_vulkan")
+	var wm := _move_with("volcano_warn")
+	if not wm.is_empty():
+		await _swipe_m(wm)
+	var warned := Game.state.volc >= 0
+	var pill_v := _seen_type("volcano_warn")
+	await _shot(dir, "01b_vulkan_grollt")
+	var calm := _move_with("volcano_calm", "erupt")
+	var avoided := false
+	if not calm.is_empty():
+		await _swipe_m(calm)
+		avoided = Game.state.volc < 0 and _seen_type("volcano_calm") and not _seen_type("erupt")
+	_check(warned and pill_v, "volcano_warn", "krater=%d pille=%s zug=%s" % [Game.state.volc, str(pill_v), str(wm)])
+	_check(avoided, "consequence_danger_avoided", "ruhe=%s zug=%s" % [str(avoided), str(calm)])
+	var p_before := Game.state.goal_progress()
+	var lost0 := dui.loss_flown
+	var loss_ok := false
+	var seq := _seq_with("goal_loss")
+	if not seq.is_empty():
+		await _swipe_m(seq[0])
+		var p_mid := Game.state.goal_progress()
+		await _swipe_m(seq[1])
+		for i in 60:
+			if dui.loss_flown > lost0:
+				break
+			await _wait(0.05)
+		await _shot(dir, "01c_verlust")
+		loss_ok = _seen_type("goal_loss") and dui.loss_flown > lost0 and Game.state.goal_progress() < maxi(p_mid, p_before) + 3
+	_check(loss_ok, "goal_loss_cue", "folge=%s chip=%s geflogen=%d" % [str(seq), dui.chip_num.text, dui.loss_flown - lost0])
+	# Akt 2 · Level 5: der Akt-Übergang (Himmel), Dampf wird Regen
+	var acts0 := dui.act_shown
+	var era0 := world.era_name
+	Game.start_level(5, 0)
+	await _wait(1.2)
+	await _shot(dir, "02a_akt2_uebergang")
+	await _until_shown(dui.goal_card, 8.0)
+	_check(dui.act_shown == acts0 + 1 and world.era_name != era0, "act_transition", "aera=%s->%s" % [era0, world.era_name])
+	await _tap(dui.gc_go)
+	await _wait(3.0)
+	ui._coach_dismiss()
+	await _shot(dir, "02b_level5_regen")
+	var fb := _find_board(5, _p_event.bind("steam"), 2)
+	if int(fb[0]) >= 0:
+		await _start_lvl(5, int(fb[0]))
+	var r0 := Game.state.rain
+	_round_types = {}
+	for m in fb[1]:
+		await _swipe_m(m)
+	await _shot(dir, "02c_dampf")
+	_check(int(fb[0]) >= 0 and Game.state.rain > r0 and _seen_type("steam"), "rain_from_steam", "brett=%d regen=%d->%d" % [int(fb[0]), r0, Game.state.rain])
+	# Wasser lebt erst durch das Spiel: tot (6) → Ursuppe (7) → Einzeller (9) → Algen (10)
+	var alive: Array = []
+	for lv in [[6, -1], [7, FieldData.SOUP], [9, FieldData.CELLS], [10, FieldData.ALGAE]]:
+		await _start_lvl(int(lv[0]), 0)
+		var k := int(lv[1])
+		var shown := k < 0
+		for fid in world.views:
+			if k >= 0 and (world.views[fid] as FieldView).get_kind() == k:
+				shown = true
+		alive.append(shown and (k >= 0 or Game.state.count(FieldData.SOUP) + Game.state.count(FieldData.CELLS) == 0))
+		await _shot(dir, "03_wasser_level%d" % int(lv[0]))
+	_check(not alive.has(false), "water_alive", "%s" % str(alive))
+	# Akt 3 · Level 10: Algen machen den Himmel blau
+	var fa := _find_board(10, _p_more.bind(FieldData.ALGAE), 2)
+	if int(fa[0]) > 0:
+		await _start_lvl(10, int(fa[0]))
+	await _wait(2.0)
+	var b0 := world.sky_blue()
+	for m in fa[1]:
+		await _swipe_m(m)
+	await _wait(3.0)
+	await _shot(dir, "03e_himmel_blau")
+	_check(world.sky_blue() > b0 + 0.01, "sky_blue", "blau=%.2f->%.2f" % [b0, world.sky_blue()])
+	# Level 12: trockener Wald → Blitz droht; Wasser daneben (eine andere Drehung) wendet ihn ab
+	var blv := 12
+	var fbo := _find_board(12, _p_bolt)
+	for lv in [18, 16, 13]:
+		if int(fbo[0]) < 0:
+			blv = int(lv)
+			fbo = _find_board(blv, _p_bolt)
+	await _start_lvl(blv, maxi(0, int(fbo[0])))
+	for m in fbo[1]:
+		await _swipe_m(m)
+	var bolt_on := Game.state.bolt >= 0 and _seen_type("bolt_warn")
+	await _shot(dir, "04a_blitz_droht")
+	var save := _move_with("bolt_miss", "bolt")
+	if not save.is_empty():
+		await _swipe_m(save)
+	_check(bolt_on and not save.is_empty() and _seen_type("bolt_miss") and not _seen_type("bolt"), "dry_forest_bolt",
+		"level=%d warnung=%s abgewendet=%s" % [blv, str(bolt_on), str(save)])
+	# Akt 4 · Level 15: Zusammenwachsen – zwei Äcker werden ein Feld (×2), die Gruppe zählt fürs Ziel
+	var fg := _find_board(15, _p_group.bind(FieldData.FIELD), 2)
+	await _start_lvl(15, maxi(0, int(fg[0])))
+	await _shot(dir, "05a_level15_ernte")
+	var mm: Array = fg[1]
+	var big0 := Game.state.biggest9(FieldData.FIELD)
+	if mm.size() > 1:
+		await _swipe_m(mm[0])
+		big0 = Game.state.biggest9(FieldData.FIELD)
+	if not mm.is_empty():
+		await _swipe_m(mm[mm.size() - 1])
+	await _wait(1.0)
+	var masks := 0
+	for fid in world.views:
+		var fv: FieldView = world.views[fid]
+		if fv.get_kind() == FieldData.FIELD and fv.merge_mask() != 0:
+			masks += 1
+	await _shot(dir, "05b_zusammenwachsen")
+	_check(not mm.is_empty() and Game.state.biggest9(FieldData.FIELD) > big0 and masks >= 2 and dui.chip_num.text.begins_with(str(Game.state.biggest9(FieldData.FIELD))),
+		"group_merge", "gruppe=%d->%d naehte=%d chip=%s" % [big0, Game.state.biggest9(FieldData.FIELD), masks, dui.chip_num.text])
+	# Akt 5 · Level 19: Landgang (Fisch an der Wiese → Tiere)
+	var fl := _find_board(19, _p_event.bind("spawn"), 2)
+	await _start_lvl(19, maxi(0, int(fl[0])))
+	var animals0 := Game.state.count(FieldData.ANIMALS)
+	_round_types = {}
+	for m in fl[1]:
+		await _swipe_m(m)
+	await _wait(1.0)
+	await _shot(dir, "06a_landgang")
+	_check(_seen_type("spawn") and Game.state.count(FieldData.ANIMALS) > animals0, "landgang",
+		"brett=%d tiere=%d->%d" % [int(fl[0]), animals0, Game.state.count(FieldData.ANIMALS)])
+	# Akt 6 · Level 23: ein Rudel droht der Herde (Warnung) – der Meteor (echte Eingabe) trennt es
+	var fp := _find_board(23, _p_pack)
+	await _start_lvl(23, maxi(0, int(fp[0])))
+	for m in fp[1]:
+		await _swipe_m(m)
+	var pack_on := not Game.state.pack_warn9.is_empty()
+	await _shot(dir, "07a_rudel")
+	var pred := _pack_breaker(Game.state)
+	var met_ok := false
+	if pred >= 0:
+		await _tap(ui.strike_btn)
+		await _wait(0.4)
+		world.focus_field(pred)
+		await _wait(1.0)
+		var fs := world.field_screen(pred)
+		await _touch(fs["pos"])
+		await _wait(0.5)
+		if ui.bonus_mode == "strike":
+			await _touch(fs["pos"])          # Strafen: noch einmal tippen bestätigt
+		await _settle(8.0)
+		met_ok = Game.state.pack_warn9.is_empty() and (Game.state.fields[pred] as FieldData).kind == FieldData.EMPTY
+	ui._set_bonus_mode("")
+	await _shot(dir, "07b_meteor")
+	_check(pack_on and met_ok, "pack_warn", "rudel=%s meteor=%s feld=%d" % [str(pack_on), str(met_ok), pred])
+	# Level 24: einmal versorgt bleibt versorgt – die Hütte behält ihr Siegel, auch wenn die Tiere wegdrehen
+	await _start_lvl(24, 0)
+	await _need_seal_check(dir)
+	# Akt 7 · Level 30: Ruhe halten
+	await _start_lvl(30, 0)
+	await _shot(dir, "08a_level30_ruhe")
+	_check(dui.chip_caps.text == "Ruhe" and dui.chip_num.text == "0/3", "hold_rest", "chip=%s %s" % [dui.chip_caps.text, dui.chip_num.text])
+	# Wasser dreht mit der Scheibe (Rückmeldung 8. November)
+	await _water_turn_check(dir)
+	Game.round_resolved.disconnect(_on_tour_round)
+
+
+## Level 24: Eine Hütte wird versorgt (Siegel), dann drehen die Tiere weg – sie bleibt satt, der Chip fällt nicht.
+func _need_seal_check(dir: String) -> void:
+	var dui := ui.day_ui
+	var sm := _move_with("need_sealed")
+	var seal_ok := false
+	var stays := false
+	var fid := -1
+	if not sm.is_empty():
+		var held := await _drag_hold(int(sm[0]), int(sm[1]), int(sm[2]))
+		var marks := 0
+		for f in world.views:
+			if (world.views[f] as FieldView).supply_mode() != 0:
+				marks += 1
+		await _shot(dir, "07c_vorschau_versorgt")
+		_check(held and marks >= 1, "supply_preview", "gehalten=%s marken=%d" % [str(held), marks])
+		await _drag_release()
+		await _settle(8.0)
+		for f in Game.state.fields:
+			var fd: FieldData = f
+			if fd.kind == FieldData.HUT and Game.state.satt9(fd.id) and fid < 0:
+				fid = fd.id
+		seal_ok = fid >= 0 and _seen_type("need_sealed")
+		await _shot(dir, "07d_siegel")
+		var p0 := Game.state.goal_progress()
+		# eine Drehung, die die Tiere (die Futter-Quelle) von dieser Hütte wegdreht
+		for m in GameState.MOVES:
+			var r: Dictionary = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))
+			var st: GameState = r["state"]
+			if not _has_event(r["result"], "goal_loss") and st.goal_progress() >= p0 and _pos_moved(fid, m):
+				await _swipe_m(m)
+				break
+		await _wait(0.6)
+		var nf := _field_now(fid)
+		stays = nf >= 0 and Game.state.satt9(nf) and Game.state.goal_progress() >= p0
+		await _shot(dir, "07e_siegel_bleibt")
+	_check(seal_ok and stays, "need_seal_stays", "huette=%d siegel=%s bleibt=%s chip=%s" % [fid, str(seal_ok), str(stays), dui.chip_num.text])
+
+
+## Bewegt die Drehung m das Feld fid? (Dann hat es danach andere Nachbarn.)
+func _pos_moved(fid: int, m: Array) -> bool:
+	var st: GameState = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))["state"]
+	var a: FieldData = st.fields[fid]
+	var b: FieldData = Game.state.fields[fid]
+	return a.p != b.p or a.n != b.n
+
+
+func _field_now(fid: int) -> int:
+	return fid if fid >= 0 and fid < Game.state.fields.size() else -1
+
+
+## Wasser dreht mit (Spec 10.1): Während eine Scheibe gezogen wird, steht das Wellen-Muster der Kacheln still (es dreht
+## mit der Kachel); danach zählt die Deckseite eine Vierteldrehung weiter und alles liegt wieder nahtlos.
+func _water_turn_check(dir: String) -> void:
+	var cap := Vector3i(0, 1, 0)
+	var fid := -1
+	for f in Game.state.fields:
+		var fd: FieldData = f
+		if FieldData.water_family(fd.kind):
+			var wf := world.debug_wave_frame(fd.id)
+			if not wf.is_empty() and (wf["n"] as Vector3i) == cap:
+				fid = fd.id
+				break
+	world.focus_place(cap)
+	await _wait(1.0)
+	var r0 := world.wave_rot(cap)
+	var w0 := world.debug_wave_frame(fid) if fid >= 0 else {}
+	var held := await _drag_hold(1, 1, 1)
+	var w1 := world.debug_wave_frame(fid) if fid >= 0 else {}
+	await _shot(dir, "09a_wasser_dreht_mit")
+	await _drag_release()
+	await _settle(8.0)
+	await _wait(0.8)
+	await _shot(dir, "09b_wasser_danach")
+	var r1 := world.wave_rot(cap)
+	var frozen := not w0.is_empty() and not w1.is_empty() and ((w0["m"] as Vector4) - (w1["m"] as Vector4)).is_zero_approx()
+	_check(fid >= 0 and held and frozen and r1 != r0, "water_turns_with_slice", "feld=%d gehalten=%s steht=%s rot=%d->%d" % [fid, str(held), str(frozen), r0, r1])
+
+
+# --- Laden, 100 Sekunden, Welt des Tages ----------------------------------------------------------------
+
+func _shop_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	dui.show_overview(false)
+	await _wait(0.8)
+	var p0 := Game.points
+	var earned := p0 > Balance.POINTS_START
+	if Game.points < 400:
+		Game.points = 400            # die Tour hat nur ein paar Level gespielt: genug Punkte zum Zeigen
+	await _tap(ui.menu_b)
+	await _until_shown(ui.menu_card, 3.0)
+	await _tap(ui._menu_shop)
+	var open := await _until_shown(ui.shop.card, 3.0)
+	await _wait(0.4)
+	await _shot(dir, "10a_laden")
+	var wunder_ids: Array = []
+	for it in Game.shop_items("wunder"):
+		wunder_ids.append(str((it as Dictionary)["id"]))
+	await _tap(ui.shop.tab_btns["hilfe"])
+	await _wait(0.5)
+	var sh0 := Game.shields()
+	var pts0 := Game.points
+	await _tap(ui.shop.card_of("schutz"))
+	var conf := await _until_shown(ui.shop.confirm, 3.0)
+	await _wait(0.3)
+	await _shot(dir, "10b_kaufen")
+	var line_ok := ui.shop.cf_line.text == "✦ %d → %d" % [pts0, pts0 - 100]
+	await _tap(ui.shop.cf_buy)
+	await _wait(0.8)
+	var bought := Game.shields() == sh0 + 1 and Game.points == pts0 - 100
+	await _tap(ui.shop.tab_btns["gott"])
+	await _wait(0.6)
+	await _tap(ui.shop.card_of("stirnband"))
+	await _wait(0.5)
+	await _tap(ui.shop.god_act)
+	await _until_shown(ui.shop.confirm, 3.0)
+	await _tap(ui.shop.cf_buy)
+	await _wait(1.0)
+	await _shot(dir, "10c_laden_gott")
+	var part := Game.owned.has("stirnband") and str(Game.character.get("kopf", "")) == "stirnband"
+	_check(earned and open and conf and line_ok and bought and part and wunder_ids.has("regen"),
+		"points_shop", "verdient=%d schutz=%d->%d punkte=%d->%d teil=%s wunder=%s" % [p0, sh0, Game.shields(), pts0, Game.points, str(part), str(wunder_ids)])
+	ui._close_modal(true)
+
+
+## 100-Sekunden-Challenge: die Uhr startet erst mit der ersten Drehung; ein Feuer kostet 5 s; die große Wahl-Karte
+## hält die Uhr an; kein Tipp, kein Zurück.
+func _free100_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	dui.show_overview(false)
+	await _wait(0.6)
+	dui.ov_scroll.ensure_control_visible(dui.ov_free)
+	await _wait(0.3)
+	await _tap(dui.ov_free)
+	var fc := await _until_shown(dui.free_card, 3.0)
+	await _wait(0.3)
+	await _shot(dir, "11a_freies_spiel")
+	var row: Button = null
+	for c in (dui.free_card.get_meta("body") as Control).get_children():
+		if c is Button and str((c as Button).get_meta("explain", "")) == "mode_sek100":
+			row = c
+	if row != null:
+		await _tap(row)
+	await _wait(2.0)
+	var waits := Game.sek100 and not Game.sek100_running and is_equal_approx(Game.sek100_left, 100.0)
+	var no_help := not ui.hint_btn.is_visible_in_tree() and not ui.undo_btn.is_visible_in_tree() and ui.sek_chip.visible
+	var mv := Game.state.best_move()
+	await _swipe_move(int(mv.get("axis", 0)), int(mv.get("layer", 1)), int(mv.get("turns", 1)))
+	await _settle(8.0)
+	await _wait(1.0)
+	var runs := Game.sek100_running and Game.sek100_left < 100.0
+	var l0 := Game.sek100_left
+	Game._sek100_fire()           # ein Feuer (wie nach 3 Fehlversuchen)
+	var fire_ok := absf((l0 - Game.sek100_left) - 5.0) < 0.3
+	Game.pending_choice = {"mini": false}     # die große Wahl-Karte ist offen
+	var l1 := Game.sek100_left
+	await _wait(1.2)
+	var paused := is_equal_approx(l1, Game.sek100_left)
+	Game.pending_choice = {}
+	await _shot(dir, "11b_100_sekunden")
+	Game.sek100_left = 0.5
+	await _wait(1.5)
+	var over := await _until_shown(ui.over_card, 4.0)
+	await _wait(0.6)
+	await _shot(dir, "11c_zeit")
+	_check(fc and row != null and waits and no_help and runs and fire_ok and paused and over and ui.over_title.text == "Zeit!" and Game.best_for("sek100") >= 0,
+		"free_100s", "wartet=%s ohne_hilfe=%s laeuft=%s feuer=%s pause=%s ende=%s" % [str(waits), str(no_help), str(runs), str(fire_ok), str(paused), str(over)])
+	ui._close_modal(true)
+
+
+## Nach Level 30: jeden Tag die Welt des Tages (Heute-Karte → Start-Karte).
+func _wdt_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	Game.debug_open_all = false
+	var st: Array = Game.camp["stars"]
+	var wk: Array = Game.camp["won_key"]
+	for i in st.size():
+		if int(st[i]) <= 0:
+			st[i] = 1
+		if int(wk[i]) < 0:
+			wk[i] = Game.today_key()
+	Game.debug_next_day()
+	dui.show_overview(false)
+	await _wait(1.2)
+	var wdt_card := dui.tc_caps.text.begins_with(str(Days.TEXT["wdt"]) + " · ") and dui.tc_go.visible
+	await _shot(dir, "12a_welt_des_tages")
+	await _tap(dui.tc_go)
+	var gcw := await _until_shown(dui.goal_card, 6.0)
+	await _wait(0.6)
+	await _shot(dir, "12b_welt_des_tages_karte")
+	_check(wdt_card and gcw and Game.in_daily_world() and dui.gc_caps.text == dui.tc_caps.text and dui.gc_goal.text != "",
+		"daily_world", "heute=%s karte=%s ziel=%s" % [dui.tc_caps.text, dui.gc_caps.text, dui.gc_goal.text])
+	ui._close_modal(true)
 
 
 # --- Die Schöpfung in 7 Tagen: Übersicht, Ziel-Karte, Tag 1 als Tutorial, Sieg, Fehlversuch, Wahl, Krieg, Smog ---
@@ -737,17 +1508,23 @@ func _on_bonus_round(result: Dictionary, _before: Dictionary) -> void:
 ## Tag 6 schaffen, „Weiterbauen“ (echte Eingabe), dann wie ein Spieler, der lange weiterbaut: 40 echte Wische,
 ## Regen und Meteor über Dock und Feld, Tipp, eine lange Pause, Menü auf und zu, „Zurück“. Danach nimmt das Spiel
 ## noch jede Eingabe an (Wisch, Werkzeug), und kein Bild hat lange gerechnet (Rechenzeit des Spiels je Bild).
+const BONUS_SWIPES := 24        # echte Wische im langen Weiterbauen (Software-Grafik: ~6 s je Wisch)
+
+
 func _bonus_round_tour(dir: String) -> void:
 	var dui := ui.day_ui
 	var open0 := Game.debug_open_all
 	Game.debug_open_all = true
-	Game.start_day(6, 0)
-	await _until_shown(dui.goal_card, 4.0)
+	if Balance.CAMPAIGN_ON:
+		Game.start_level(26, 0)
+	else:
+		Game.start_day(6, 0)
+	await _until_shown(dui.goal_card, 8.0)
 	await _tap(dui.gc_go)
 	await _wait(4.4)
 	await _play_solution(Game.day_board["solution"], 99)
 	if not Game.state.day_won:
-		await _play_day(20)
+		await _play_level(20) if Balance.CAMPAIGN_ON else await _play_day(20)
 	var wc := await _until_shown(dui.win_card, 8.0)
 	await _wait(1.6)
 	var build_btn: Button = dui.wc_next if dui.wc_next.text == str(Days.TEXT["build"]) else (dui.wc_alt if dui.wc_alt.text == str(Days.TEXT["build"]) else null)
@@ -781,7 +1558,7 @@ func _bonus_round_tour(dir: String) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 606
 	var swiped := 0
-	for i in 40:
+	for i in BONUS_SWIPES:
 		var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
 		if i % 4 == 3:
 			var act := Game.state.best_move()
@@ -811,7 +1588,10 @@ func _bonus_round_tour(dir: String) -> void:
 	var rain_info := "%d:%d->%d" % [int(rt["fid"]), rain_left, Game.state.rain]
 	ui._set_bonus_mode("")
 	# Meteor (12 Glauben) über das Dock: ein Feld antippen (zeigt, was getroffen wird), noch einmal tippen bestätigt
-	Game.state.faith = maxi(Game.state.faith, GameState.METEOR_COST)
+	if Game.state.camp:
+		Game.state.meteors = maxi(Game.state.meteors, 1)
+	else:
+		Game.state.faith = maxi(Game.state.faith, GameState.METEOR_COST)
 	Game.state_changed.emit()
 	await _wait(0.4)
 	await _tap(ui.strike_btn)
@@ -878,7 +1658,7 @@ func _bonus_round_tour(dir: String) -> void:
 	var frames_ok := probe.frames > 100 and probe.max_usec < 250000
 	await _wait(0.6)
 	await _shot(dir, "00z_weiterbauen_bedienbar")
-	_check(building and swiped >= 38 and twisted >= 38 and rain_mode and rained and strike_mode and struck and hint_done and menu_open
+	_check(building and swiped >= BONUS_SWIPES - 2 and twisted >= BONUS_SWIPES - 2 and rain_mode and rained and strike_mode and struck and hint_done and menu_open
 		and menu_closed and undone and free_now and accepted and tool_ok and frames_ok and Game.state.day_free_build and not Game.over,
 		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s/%s meteor=%s/%s werkzeuge=%s tipp=%s menue=%s/%s " +
 		"zurueck=%s frei=%s wisch_danach=%s werkzeug=%s bilder=%d rechnen_max=%.0fms langsam=%d bild_max=%.0fms zeit=%.0fs") % [str(building),
@@ -896,7 +1676,10 @@ func _creator_tour(dir: String) -> void:
 	var cc := dui.creator
 	Game.set_character({})
 	ui.refresh_speakers()
-	Game.start_day(1)                    # wie beim ersten Start: Tag 1 läuft schon, die Ziel-Karte wartet
+	if Balance.CAMPAIGN_ON:
+		Game.start_level(1)              # wie beim ersten Start: Level 1 läuft schon, die Start-Karte wartet
+	else:
+		Game.start_day(1)                # wie beim ersten Start: Tag 1 läuft schon, die Ziel-Karte wartet
 	dui.open_creator(false, true)
 	await _wait(1.4)
 	var opened := cc.visible and cc.step == 0 and Game.needs_creator() and not dui.goal_card.visible
@@ -945,7 +1728,7 @@ func _creator_tour(dir: String) -> void:
 	var saved := Character.load_look()
 	_check(opened and rolled and cat and s2 and has_crown and sample and card and not cc.visible and not Game.needs_creator()
 		and str(saved.get("basis", "")) == "katze" and str(saved.get("ton", "")) == "frech" and str(saved.get("kopf", "")) == "krone"
-		and Game.in_day() and Game.day_no == 1 and dui.gc_intro.text.contains(Voice.char_name()), "creator_finish",
+		and Game.in_day() and (Game.day_no == 1 or Game.level_no == 1) and dui.gc_intro.text.contains(Voice.char_name()), "creator_finish",
 		"offen=%s gewuerfelt=%s katze=%s krone=%s probe=%s karte=%s name=%s sek=%.0f intro=%s" % [str(opened), str(rolled), str(cat),
 		str(has_crown), str(sample), str(card), Voice.char_name(), secs, dui.gc_intro.text.left(40)])
 	ui._close_modal(true)

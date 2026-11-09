@@ -8,7 +8,7 @@ extends RefCounted
 #   Hütte → Haus → Dorf → Stadt | Kirche ★, Stadt → Großstadt | Industrie ★, Großstadt → Metropole ★. Wasser: nie.
 #   ★ = fertig: wächst nicht mehr, bildet keine Reihe, bringt jede Drehung Glauben.
 static var MAX_STAGE := 15                # höchste Art-Nummer (alter Name, Oberfläche)
-static var KIND_COUNT := 17
+static var KIND_COUNT := 27
 # Glaube fürs Wachsen nach Stufe (tier) der Art vor dem Wachsen, × Kombo.
 static var GROW_FAITH := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75, 100]
 static var MERGE_POINTS := GROW_FAITH     # alter Name
@@ -70,10 +70,10 @@ static var MONSOON_EVERY := MONSOON_EVERY_FAITH   # alter Name
 static var MONSOON_MAX := 1
 static var STRIKE_COST := 15              # Gewitter (Strafe): kostet Glauben
 static var FLOOD_COST := 40               # Flut (Strafe): kostet Glauben
-# Kaufen mit Münzen, wenn keiner da ist
-static var RAIN_COST := 2
-static var BOLT_COST := 3
-static var MONSOON_COST := 5
+# Kaufen mit Punkten, wenn keiner da ist (freies Spiel; GDPD_PUNKTE_LADEN.md 5.1: war 2 / 3 / 5 Münzen)
+static var RAIN_COST := 25
+static var BOLT_COST := 40
+static var MONSOON_COST := 60
 
 # --- Wahl-Karte -----------------------------------------------------------------------------
 static var CHOICE_TIMEOUT := 6.0          # so lange wartet die Karte, dann gilt der Standard (deine letzte Wahl)
@@ -104,9 +104,9 @@ static var DAY_START_HOUR := 3             # der Spieltag wechselt um 3 Uhr Orts
 static var WIN_GRACE := 3600               # Versuch so kurz vor 3 Uhr begonnen: der Sieg zählt noch für den alten Spieltag
 static var COUNTDOWN_EXACT_HOURS := 8      # mehr als so viele Stunden bis zum neuen Tag: genaue Zeit, sonst „Morgen früh“
 static var SHIELD_MAX := 2                 # Serienschutz: höchstens so viele …
-static var SHIELD_PRICE := 5               # … kaufen für so viele Münzen …
+static var SHIELD_PRICE := 100             # … kaufen für so viele Punkte (war 5 Münzen) …
 static var STREAK_MILESTONE := 7           # … und einer geschenkt alle so viele Tage in Folge
-static var SHIELD_FULL_COINS := 3          # Meilenstein mit vollem Serienschutz: so viele Münzen statt dessen
+static var SHIELD_FULL_COINS := 50         # Meilenstein mit vollem Serienschutz: so viele Punkte statt dessen
 static var STREAK_BIG := [7, 14, 30, 50, 100, 365]   # Meilensteine mit großer Feier
 static var BUILD_COIN_EVERY := 10          # Weiterbauen: 1 Münze je so viele gewachsene Felder …
 static var BUILD_COIN_MAX := 3             # … höchstens so viele je Spieltag
@@ -134,12 +134,44 @@ static var CANCEL_ENTER_PX := 6.0          # Abbrechen-Streifen oben: so weit un
 static var CANCEL_LEAVE_PX := 26.0         # … und erst so weit darunter wieder als „weg“ (kein Flackern)
 static var TILT_MAX := 0.3                # Handy schwenken: so weit (Bogenmaß, ~17°) neigt sich die Ansicht höchstens. 0 = aus
 static var HOLD_TO_ORBIT_SECONDS := 1.0  # so lange auf dem Würfel halten (ohne Bewegen), dann dreht Ziehen die Ansicht
-# Credits: eine Währung für alle Hilfen. Es gibt sie für eine kurze Werbung (später auch im Shop).
-static var HINT_COST := 1                 # Tipp: die lohnendste Drehung leuchtet auf
-static var UNDO_COST := 1                 # einen Schritt zurück
-static var CONTINUE_COST := 2             # nach dem Spielende weiterspielen (einmal pro Spiel)
-static var CREDITS_PER_AD := 1            # so viele Credits bringt eine Werbung
-static var CREDITS_START := 3             # so viele Credits zum Ausprobieren
+# Punkte: die eine Währung für alle Hilfen (GDPD_PUNKTE_LADEN.md; „credits“ ist der alte Name).
+static var HINT_COST := 10                # Tipp: die lohnendste Drehung leuchtet auf (war 1 Münze)
+static var UNDO_COST := 10                # einen Schritt zurück
+static var CONTINUE_COST := 20            # freies Spiel: nach dem Spielende weiterspielen (einmal pro Spiel)
+static var CREDITS_PER_AD := 10           # so viele Punkte bringt ein Video
+static var CREDITS_START := 60            # so viele Punkte zum Start
+
+# --- Punkte und Laden (docs/GDPD_PUNKTE_LADEN.md 10.1) -------------------------------------------------
+static var POINTS_START := 60            # ersetzt CREDITS_START (3)
+static var POINTS_PER_COIN := 20         # Umstellung Münzen → Punkte
+static var POINTS_PER_OLD_STAR := 20     # Umstellung: alte Sterne der 7 Tage
+static var LEVEL_DONE := 30              # Level: 30 + 10 × Sterne + 5 × max(0, Par − Schritte)
+static var LEVEL_PER_STAR := 10
+static var LEVEL_FAST := 5
+static var PAR_PLUS := 4                 # Par = ★★★-Grenze + 4
+static var STREAK_BONUS_STEP := 2        # erster Sieg des Spieltags: +2 × Serie …
+static var STREAK_BONUS_MAX := 10        # … höchstens +10
+static var MILESTONE_POINTS := 50        # 7er-Meilenstein mit vollem Schutz (ersetzt SHIELD_FULL_COINS 3)
+static var MILESTONE_BIG := {14: 50, 30: 100, 50: 150, 100: 300, 365: 500}
+static var MILESTONE_GIFT := {30: "flammenkranz", 100: "sonnengott_gold"}
+static var EXTRA_POINTS := 10
+static var EXTRA_MAX := 3                # je Level, einmalig
+static var BUILD_POINTS_MAX := 20        # Weiterbauen: +1 je neu gewachsenes Feld, höchstens so viele je Spieltag
+static var FREE_PLAY_POINTS := 20        # freies Spiel oder Challenge, einmal je Spieltag
+static var ADS_ON := false
+static var AD_POINTS := 10
+static var AD_MAX := 2
+static var ADS_FROM_DAY := 4             # kein Video-Knopf in den ersten 3 Spieltagen
+static var HINT_FREE_LEVELS := 5         # Level 1–5: Tipp immer gratis
+static var HINT_FREE := 1                # sonst je Level
+static var UNDO_FREE := 1
+static var MIRACLE_STEPS := 2            # gekauftes Wunder zählt so viele Schritte
+static var MIRACLE_PER_KIND := 1         # je Art und Level
+static var HELP_MAX := 3                 # gekaufte Hilfen je Level
+static var CAMPAIGN_LEVELS := 30         # Die Schöpfung: so viele Level (ein neues je Spieltag)
+static var CAMPAIGN_ON := true          # Start in der Schöpfung (Game.start_level) statt in den 7 Tagen; die Oberfläche
+                                         # schaltet das um, sobald sie die Kampagne zeigt
+static var FAST_TRACK_PER_DAY := 3       # Veteranen: so viele neue Level je Spieltag bis schnell_bis
 # Neue Spieler: die ersten Minuten nach dem Tutorial
 static var ONBOARD_MERGES := 2            # so oft selbst etwas wachsen lassen, dann ist die Eingewöhnung vorbei …
 static var ONBOARD_TWISTS := 12           # … oder nach so vielen Drehungen

@@ -74,7 +74,7 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          # Die Tour braucht mit Software-Grafik gut 15 Minuten (mit Ersteller, Serie, Weiterbauen, langer Bonusrunde): genug Luft, damit sie nicht mittendrin abbricht
+          # Die Tour braucht mit Software-Grafik gut 15–20 Minuten (Ersteller, die 7 Akte, Laden, 100 Sekunden, lange Bonusrunde): genug Luft, damit sie nicht mittendrin abbricht
           timeout 1800 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
@@ -85,12 +85,12 @@ jobs:
           if grep -nE "CHECK ok=false" ../shots.log; then echo "Eine Prüfung der Screenshot-Tour ist fehlgeschlagen"; exit 1; fi
           # Die Tour muss ganz durchgelaufen sein, und jede Prüfung muss da sein (ein Abbruch druckt sie nicht)
           grep -qE "^TOUR-DONE checks=[0-9]+ failed=0" ../shots.log || { echo "Die Screenshot-Tour lief nicht bis zum Ende"; exit 1; }
-          for c in creator_finish day_overview day1_goal_card character_coach day1_tutorial goal_chip day1_your_turn no_auto_twist_after_input \
-                   day_success permission_ask continue_mode_no_limit day_locked_until_tomorrow next_day_debug_unlocks day_next \
-                   streak_increments reminder_scheduled daily_world \
-                   day2_rain_reveal day_help resting_row_feedback resting_row_rain no_farming spent_feedback help_once \
-                   overnight_growth bolt_warn day_fail consume_hut extra_task thrive_preview war_preview meteor flood_warn \
-                   kinds_per_day task_chip world_complete free_play supply_preview look_life bonus_round_responsive \
+          for c in creator_finish camp_overview no_spoiler_campaign god_tap_opens l1_goal_card character_coach l1_tutorial_lava \
+                   hud_central l1_your_turn no_auto_twist_after_input stars_generous level_success permission_ask \
+                   continue_mode_no_limit menu_settings_submenu level_locked_until_tomorrow next_day_debug_unlocks carry_world \
+                   streak_increments reminder_scheduled volcano_warn consequence_danger_avoided goal_loss_cue act_transition \
+                   rain_from_steam water_alive sky_blue dry_forest_bolt group_merge landgang pack_warn supply_preview \
+                   need_seal_stays hold_rest water_turns_with_slice points_shop free_100s daily_world bonus_round_responsive \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

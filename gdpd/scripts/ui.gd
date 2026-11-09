@@ -218,6 +218,20 @@ var _menu_rows: Dictionary = {}
 var _menu_cont: Button
 var _menu_days: Button
 var _menu_free_caps: Label
+var _menu_title: Label
+var _menu_main: VBoxContainer
+var _menu_settings: Control
+var _menu_free: Button
+var _menu_shop: Button
+var _menu_god: Button
+var _menu_gear: Button
+var _menu_back: Button
+var _help_tile: Button
+var _tutorial_tile: Button
+var shop: ShopUI
+var sek_chip: PanelContainer
+var sek_label: Label
+var sek_shown := -1.0
 var _music_switch: Button
 var _sfx_switch: Button
 var _ask_switch: Button
@@ -306,7 +320,13 @@ var _coach_in_hud := false    # der Hinweis hängt oben (dann wartet die Meldung
 
 # Erklärung bei langem Drücken: TOOLTIPS[key] = {icon, title, body}; dynamische Teile in _tooltip_for.
 const TOOLTIPS = {
-	"menu": {"icon": "menu", "title": "Menü", "body": "Pause, Spiel, Ton, Hilfe."},
+	"menu": {"icon": "menu", "title": "Menü", "body": "Spielen, Laden, Gott."},
+	"settings": {"icon": "gear", "title": "Einstellungen", "body": "Ton, Erinnerung, Hilfe."},
+	"sek100": {"icon": "timer", "title": "100 Sekunden", "body": "Uhr ab erster Drehung. Feuer: −5 s."},
+	"mode_sek100": {"icon": "timer", "title": "100 Sekunden", "body": "So viel Glauben wie möglich. Feuer: −5 s."},
+	"shop": {"icon": "shop", "title": "Laden", "body": "Wunder, Hilfe, Gott. Nur Schönes."},
+	"menu_days": {"icon": "days", "title": "Die Schöpfung", "body": "Alle Level und Sterne."},
+	"points": {"icon": "points", "title": "Deine Punkte", "body": "Für Level, Serie und Bauen."},
 	"score": {"icon": "faith", "title": "Glaube", "body": "Kommt vom Wachsen und von Wünschen."},
 	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Links Natur, rechts Stadt."},
 	"goal": {"icon": "star", "title": "Vollenden", "body": "Vollende %d fertige Felder."},
@@ -365,7 +385,7 @@ const MODES = [
 	{"key": "einfach", "icon": "meadow", "title": "Einfach", "sub": "Ganze Gruppen wachsen mit", "tint": 1},
 	{"key": "mittel", "icon": "smallforest", "title": "Mittel", "sub": "Auch schräge Reihen zählen", "tint": 2},
 	{"key": "schwer", "icon": "nature", "title": "Schwer", "sub": "Nur gerade Reihen", "tint": 4},
-	{"key": "challenge", "icon": "trophy", "title": "40 Drehungen · Mittel", "sub": "Wie viel Glauben schaffst du?", "tint": 3},
+	{"key": "sek100", "icon": "timer", "title": "100 Sekunden", "sub": "So viel Glauben wie möglich", "tint": 3},
 ]
 
 
@@ -378,6 +398,10 @@ func setup(w: World) -> void:
 	day_ui = DayUI.new()
 	add_child(day_ui)
 	day_ui.build(self)
+	shop = ShopUI.new()
+	add_child(shop)
+	shop.build(self)
+	root.move_child(tip_card, -1)        # Erklärungen bleiben ganz oben
 	world.field_tapped.connect(_on_field_tapped)
 	world.preview_changed.connect(_on_preview)
 	world.deltas_shown.connect(_on_deltas)
@@ -399,6 +423,7 @@ func setup(w: World) -> void:
 	world.cancel_zone = cancel_strip
 	Game.choice_needed.connect(_on_choice_needed)
 	Game.choice_made.connect(_on_choice_made)
+	Game.sek100_changed.connect(_on_sek100)
 	Game.state_changed.connect(refresh)
 	Game.new_game_started.connect(_on_new_game)
 	Game.message.connect(_on_message)
@@ -519,8 +544,8 @@ func _hbox(sep: int) -> HBoxContainer:
 func _fit_top() -> void:
 	if top == null:
 		return
-	top.set_deferred("offset_left", Style.MARGIN)
-	top.set_deferred("offset_right", -Style.MARGIN)
+	top.set_deferred("offset_left", Style.MARGIN + 14)
+	top.set_deferred("offset_right", -Style.MARGIN - 14)
 
 
 func _vbox(sep: int) -> VBoxContainer:
@@ -533,8 +558,8 @@ func _vbox(sep: int) -> VBoxContainer:
 func _build_top() -> void:
 	top = _vbox(10)
 	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	top.offset_left = Style.MARGIN
-	top.offset_right = -Style.MARGIN
+	top.offset_left = Style.MARGIN + 14           # HUD etwas mehr zur Mitte (Wunsch: mehr ins Zentrum)
+	top.offset_right = -Style.MARGIN - 14
 	top.minimum_size_changed.connect(_fit_top)
 	_home_top()
 	root.add_child(top)
@@ -545,7 +570,7 @@ func _build_top() -> void:
 	var lcl := _hbox(0)
 	lcl.custom_minimum_size = Vector2(112, 0)
 	row1.add_child(lcl)
-	menu_b = _icon_button("menu", _open_menu, 52, false, "menu")
+	menu_b = _icon_button("menu", _open_menu, 58, false, "menu")
 	lcl.add_child(menu_b)
 	score_box = _vbox(-18)
 	score_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -582,6 +607,21 @@ func _build_top() -> void:
 	Style.skin(credits_btn, _chip_style(Style.GLASS, 24), Style.box(Style.SURFACE_3, 24, 14, 6), Style.INK)
 	_tap_or_explain(credits_btn, _on_credits_pressed, "credits")
 	rcl.add_child(credits_btn)
+	# 100-Sekunden-Challenge: die Uhr (läuft ab der ersten Drehung, die große Wahl-Karte hält sie an)
+	sek_chip = PanelContainer.new()
+	sek_chip.add_theme_stylebox_override("panel", _chip_style(Style.GLASS, 24))
+	sek_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sek_chip.custom_minimum_size = Vector2(104, 56)
+	var skh := _hbox(6)
+	skh.alignment = BoxContainer.ALIGNMENT_CENTER
+	sek_chip.add_child(skh)
+	skh.add_child(_icon("timer", 30))
+	sek_label = _label("100", 24, Style.INK, Style.W_BLACK)
+	sek_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	skh.add_child(sek_label)
+	_explain_only(sek_chip, "sek100")
+	sek_chip.visible = false
+	rcl.add_child(sek_chip)
 
 	# Zeile 2: Zeitalter · Flammen (Fehlversuche) · Herzen
 	var row2 := _hbox(0)
@@ -1134,33 +1174,46 @@ func _help_row(icon_name: String, tint: Color, title: String, body: String) -> H
 
 
 func _build_menu() -> void:
+	# Zwei Seiten derselben Karte (Feedback 8. November, GDPD_SCHOEPFUNG.md 12): oben das Wichtige, Unwichtiges in
+	# „Einstellungen“. Die Hauptseite passt ohne Scrollen auf ein Handy.
 	menu_card = _modal_card("Menü", true)
-	var inner := _modal_scroll(menu_card, 130.0)
-	var cont := _button("Weiterspielen", "primary")
+	_menu_title = menu_card.get_meta("title")
+	var body: VBoxContainer = menu_card.get_meta("body")
+	_menu_main = _vbox(10)
+	body.add_child(_menu_main)
+	var cont := _button("Weiter", "primary", "play", 60)
 	cont.pressed.connect(_close_modal)
-	inner.add_child(cont)
+	_menu_main.add_child(cont)
 	_menu_cont = cont
-	# Die 7 Tage: zur Übersicht
-	var days := _vbox(8)
-	inner.add_child(days)
-	days.add_child(_caps(str(Days.TEXT["title"])))
-	_menu_days = _mode_row({"key": "tage", "icon": "days", "title": "Tage", "sub": "Alle Tage und deine Sterne", "tint": 1}, false)
-	days.add_child(_menu_days)
-	# Freies Spiel: drei Stufen und die Challenge, je mit Rekord (offen nach Tag 7)
-	var play := _vbox(8)
-	inner.add_child(play)
-	_menu_free_caps = _caps(str(Days.TEXT["free"]))
-	play.add_child(_menu_free_caps)
-	for m in MODES:
-		var md: Dictionary = m
-		play.add_child(_mode_row(md))
-	# Der eigene Charakter und seine Erinnerungen
-	_build_menu_character(inner)
-	_build_menu_reminder(inner)
-	# Einstellungen: Musik und Effekte (Schalter)
+	_menu_days = _nav_row("days", 3, str(Campaign.TEXT["title"]), "Level und Sterne", "star", _on_mode_row.bind("tage"), "menu_days")
+	_menu_main.add_child(_menu_days)
+	_menu_free = _nav_row("trophy", 2, str(Days.TEXT["free"]), "Leicht bis 100 Sekunden", "", _on_menu_free, "day_free")
+	_menu_main.add_child(_menu_free)
+	_menu_shop = _nav_row("shop", 3, "Laden", "Wunder, Hilfe, Gott", "points", _on_menu_shop, "shop")
+	_menu_main.add_child(_menu_shop)
+	_build_menu_character(_menu_main)
+	var line := ColorRect.new()
+	line.color = Style.HAIRLINE
+	line.custom_minimum_size = Vector2(0, 1)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_menu_main.add_child(line)
+	_menu_gear = _button("Einstellungen", "ghost", "gear", 52)
+	_menu_gear.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_menu_gear.add_theme_constant_override("icon_max_width", 28)
+	_menu_gear.pressed.connect(_menu_page.bind(true))
+	_make_holdable(_menu_gear, "settings")
+	_menu_main.add_child(_menu_gear)
+	# Seite 2: Einstellungen (scrollt bei Bedarf)
+	var inner := _modal_scroll(menu_card, 130.0)
+	_menu_settings = menu_card.get_meta("scroll")
+	_menu_back = _button("Menü", "ghost", "back", 48)
+	_menu_back.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_menu_back.add_theme_constant_override("icon_max_width", 24)
+	_menu_back.pressed.connect(_menu_page.bind(false))
+	inner.add_child(_menu_back)
 	var sets := _vbox(8)
 	inner.add_child(sets)
-	sets.add_child(_caps("Einstellungen"))
+	sets.add_child(_caps("Ton"))
 	var group := PanelContainer.new()
 	group.add_theme_stylebox_override("panel", Style.box(Style.SURFACE_2, Style.R_ROW, 14, 4))
 	group.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1169,41 +1222,132 @@ func _build_menu() -> void:
 	group.add_child(gv)
 	_music_switch = _switch(Game.music_on, _on_music_toggled)
 	gv.add_child(_toggle_row("music", "Musik", _music_switch))
-	var line := ColorRect.new()
-	line.color = Style.HAIRLINE
-	line.custom_minimum_size = Vector2(0, 1)
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	gv.add_child(line)
+	var l1 := ColorRect.new()
+	l1.color = Style.HAIRLINE
+	l1.custom_minimum_size = Vector2(0, 1)
+	l1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gv.add_child(l1)
 	_sfx_switch = _switch(Game.sfx_on, _on_sfx_toggled)
 	gv.add_child(_toggle_row("sound", "Effekte", _sfx_switch))
-	var line2 := ColorRect.new()
-	line2.color = Style.HAIRLINE
-	line2.custom_minimum_size = Vector2(0, 1)
-	line2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	gv.add_child(line2)
+	var l2 := ColorRect.new()
+	l2.color = Style.HAIRLINE
+	l2.custom_minimum_size = Vector2(0, 1)
+	l2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gv.add_child(l2)
 	_ask_switch = _switch(Game.always_ask, _on_ask_toggled)
 	var ask_row := _toggle_row("help", "Wahl-Karte immer zeigen", _ask_switch)
 	_make_holdable(ask_row, "always_ask")
 	gv.add_child(ask_row)
-	_ask_rows = [line2, ask_row]      # erst, wenn man schon eine Wahl-Karte gesehen hat
-	# Kacheln: Profil (bald), Hilfe, Tutorial
+	_ask_rows = [l2, ask_row]      # erst, wenn man schon eine Wahl-Karte gesehen hat
+	# Art zu reden (der Gott selbst steht oben auf der Hauptseite)
+	var tb := _vbox(8)
+	inner.add_child(tb)
+	tb.add_child(_caps("Art zu reden"))
+	_tone_seg = _segmented([["lieb", "Lieb"], ["frech", "Frech"], ["streng", "Streng"]], _on_tone_picked)
+	tb.add_child(_tone_seg)
+	_build_menu_reminder(inner)
+	# Kacheln: Hilfe, Tutorial, Profil (bald)
 	var tiles := _hbox(8)
 	inner.add_child(tiles)
+	_help_tile = _menu_tile("Hilfe", "help", _show_help)
+	tiles.add_child(_help_tile)
+	_tutorial_tile = _menu_tile("Tutorial", "round", _restart_tutorial)
+	tiles.add_child(_tutorial_tile)
 	_profile_btn = _menu_tile("Profil", "profile", _on_profile)
 	tiles.add_child(_profile_btn)
 	_profile_btn.visible = false      # Profile gibt es noch nicht
-	tiles.add_child(_menu_tile("Hilfe", "help", _show_help))
-	tiles.add_child(_menu_tile("Tutorial", "round", _restart_tutorial))
 	if OS.is_debug_build():
 		_build_menu_test(inner)
+	_menu_settings.visible = false
+
+
+## Eine Zeile der Hauptseite: Symbol-Kachel, Titel, kurze Zeile, rechts eine Zahl mit Symbol. Meta "num", "num_icon".
+func _nav_row(icon_name: String, tint: int, title: String, sub: String, num_icon: String, cb: Callable, key: String) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, 72)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var n := Style.box(Style.SURFACE_2, Style.R_ROW, 14, 10)
+	Style.skin(b, n, Style.box(Style.SURFACE_3, Style.R_ROW, 14, 10), Style.INK)
+	b.set_meta("sb", n)
+	_tap_or_explain(b, cb, key)
+	var h := _hbox(14)
+	h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	h.offset_left = 12
+	h.offset_right = -16
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(h)
+	var tl := _tile(icon_name, 48, Style.STAGE_TINT[tint])
+	h.add_child(tl)
+	b.set_meta("tile", tl)
+	var tv := _vbox(0)
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(tv)
+	var tl2 := _label(title, 18, Style.INK, Style.W_BOLD)
+	tv.add_child(tl2)
+	b.set_meta("title", tl2)
+	var sl := _label(sub, 14, Style.INK_3, Style.W_BODY)
+	tv.add_child(sl)
+	b.set_meta("sub", sl)
+	var rh := _hbox(4)
+	rh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(rh)
+	var ic := _icon(num_icon if num_icon != "" else "lock", 22)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ic.visible = num_icon != ""
+	rh.add_child(ic)
+	var num := _label("", 18, Style.INK, Style.W_BLACK)
+	num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rh.add_child(num)
+	b.set_meta("num", num)
+	b.set_meta("num_icon", ic)
+	b.set_meta("free_row", {"caps": sl, "num": num})
+	return b
+
+
+## Menü: Hauptseite ↔ Einstellungen (dieselbe Karte, kurz eingeblendet).
+func _menu_page(settings: bool) -> void:
+	_menu_main.visible = not settings
+	_menu_settings.visible = settings
+	_menu_title.text = "Einstellungen" if settings else "Menü"
+	if settings:
+		_refresh_menu_daily()
+	_fit_modal(menu_card)
+	menu_card.size = Vector2.ZERO
+	menu_card.reset_size()
+	menu_card.position = ((_vs() - menu_card.size) * 0.5).round()
+	var page: Control = _menu_settings if settings else _menu_main
+	page.modulate.a = 0.0
+	var tw := _fx(page, "a")
+	tw.tween_property(page, "modulate:a", 1.0, 0.2)
+
+
+func menu_on_settings() -> bool:
+	return _menu_settings != null and _menu_settings.visible
+
+
+func _on_menu_free() -> void:
+	if not Game.free_play_unlocked():
+		_shake(_menu_free)
+		_show_tooltip(_menu_free, "lock", str(Days.TEXT["free"]), Game.free_locked_text())
+		_tip_hide_at = _time + 2.4
+		return
+	_close_modal(true)
+	day_ui._open_free()
+
+
+func _on_menu_shop() -> void:
+	_close_modal(true)
+	shop.open("wunder")
 
 
 ## Menü „Dein Charakter“: Kopfbild, Name, Ton (lieb · frech · streng) und „Ändern“ (der Ersteller).
 func _build_menu_character(inner: VBoxContainer) -> void:
 	var box := _vbox(8)
 	inner.add_child(box)
-	box.add_child(_caps("Dein Charakter"))
 	var b := Button.new()
+	_menu_god = b
 	b.custom_minimum_size = Vector2(0, 76)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	Style.skin(b, Style.box(Style.SURFACE_2, Style.R_ROW, 14, 10), Style.box(Style.SURFACE_3, Style.R_ROW, 14, 10), Style.INK)
@@ -1224,13 +1368,11 @@ func _build_menu_character(inner: VBoxContainer) -> void:
 	h.add_child(tv)
 	_menu_char_name = _label("", 17, Style.INK, Style.W_BOLD)
 	tv.add_child(_menu_char_name)
-	_menu_char_sub = _label("Aussehen, Name und Art zu reden", 14, Style.INK_3, Style.W_BODY)
+	_menu_char_sub = _label("Dein Gott", 14, Style.INK_3, Style.W_BODY)
 	tv.add_child(_menu_char_sub)
 	var ch := _label("Ändern", 15, Style.SUN_DEEP, Style.W_BOLD)
 	ch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(ch)
-	_tone_seg = _segmented([["lieb", "Lieb"], ["frech", "Frech"], ["streng", "Streng"]], _on_tone_picked)
-	box.add_child(_tone_seg)
 
 
 ## Menü „Erinnerung“ (5.7): Automatisch · Feste Uhrzeit · Aus, Uhrzeit, Hinweise zur Erlaubnis.
@@ -1626,7 +1768,7 @@ func _build_over() -> void:
 	over_undo_btn = _button("Einen Zug zurück (%d %s)" % [Balance.UNDO_COST, "Münze" if Balance.UNDO_COST == 1 else "Münzen"], "ghost")
 	over_undo_btn.pressed.connect(_on_over_undo)
 	acts.add_child(over_undo_btn)
-	var home := _button("Alle Tage", "ghost")
+	var home := _button("Zur Übersicht" if Balance.CAMPAIGN_ON else "Alle Tage", "ghost")
 	home.pressed.connect(_on_over_home)
 	acts.add_child(home)
 
@@ -1976,7 +2118,9 @@ func _slot_style(b: Button, selected: bool) -> void:
 ## Zähler-Abzeichen: Anzahl in der Bedeutungsfarbe, „+“ auf Sonne, wenn keiner da ist (kaufen).
 func _set_badge(b: Button, have: int) -> void:
 	var badge: PanelContainer = b.get_meta("badge")
-	var bl: Label = badge.get_child(0)
+	var bl: Label = b.get_meta("cost_label") if b.has_meta("cost_label") else badge.get_child(0)
+	if b.has_meta("cost_label"):
+		((badge.get_child(0) as Control).get_child(0) as Control).visible = false     # Preisschild-Symbol (Glaube) aus
 	var kind: String = str(b.get_meta("kind"))
 	var col: Color = SLOT_COLOR.get(kind, Style.WATER)
 	var before := bl.text
@@ -2308,7 +2452,9 @@ func _sync_slots(animate: bool) -> void:
 	changed = _slot_show(monsoon_btn, not tut and gs.gadgets and (gs.monsoon_unlocked or gs.monsoons > 0), animate) or changed
 	changed = _slot_show(strike_btn, not tut and gs.gadgets and gs.tool_unlocked("strike"), animate) or changed
 	changed = _slot_show(flood_btn, not tut and gs.gadgets and gs.tool_unlocked("flood"), animate) or changed
-	changed = _slot_show(hint_btn, not tut and _known("hint"), animate) or changed
+	changed = _slot_show(hint_btn, not tut and _known("hint") and not Game.sek100, animate) or changed
+	if Game.sek100:
+		changed = _slot_show(undo_btn, false, animate) or changed
 	if changed:
 		_home_dock(animate)
 	if not dock.visible and not tut and not _hud_tut and (day_ui == null or not day_ui.is_open()) and not _dock_any_hidden():
@@ -2320,7 +2466,8 @@ func _sync_slots(animate: bool) -> void:
 	_chip_show(scale_chip, _known("scale"), animate)
 	_chip_show(goal_chip, gs.endless and gs.tool_unlocked("strike"), animate)
 	_chip_show(age_chip, true, animate)
-	_chip_show(credits_btn, _known("coins"), animate)
+	_chip_show(credits_btn, _known("coins") and not Game.sek100, animate)
+	sek_chip.visible = Game.sek100
 	_chip_show(flame_chip, _known("flames"), animate)
 
 
@@ -2331,11 +2478,16 @@ func _sync_day_slots(animate: bool) -> void:
 	var hold_dock := day_ui.held("dock") or day_ui.is_open()
 	score_box.visible = false
 	var changed := false
-	changed = _slot_show(undo_btn, false, animate) or changed
+	var camp := gs.camp
+	var tut := Game.day_tutorial()
+	# Schöpfung: Zurück (1 frei je Level, dann aus dem Vorrat), Blitzschutz (aus dem Laden, nur wo es Blitze gibt)
+	var guard := camp and bool(gs.sys9.get("bolt", false)) and Game.shop_level_seen() >= 12 \
+		and (Game.stock_of("guard") > 0 or _star_zone()) and not gs.miracle_bought.has("guard")
+	changed = _slot_show(undo_btn, camp and not tut, animate) or changed
 	changed = _slot_show(rain_btn, gs.tool_unlocked("rain") and not day_ui.held("rain"), animate) or changed
-	changed = _slot_show(bolt_btn, false, animate) or changed
+	changed = _slot_show(bolt_btn, guard, animate) or changed
 	changed = _slot_show(monsoon_btn, false, animate) or changed
-	changed = _slot_show(strike_btn, gs.tool_unlocked("strike") and not day_ui.held("strike"), animate) or changed
+	changed = _slot_show(strike_btn, (gs.tool_unlocked("strike") or (camp and gs.meteors > 0) or (camp and Game.stock_of("meteor") > 0 and Game.shop_level_seen() >= 23)) and not day_ui.held("strike"), animate) or changed
 	changed = _slot_show(flood_btn, false, animate) or changed
 	changed = _slot_show(hint_btn, true, animate) or changed
 	if changed:
@@ -2351,6 +2503,7 @@ func _sync_day_slots(animate: bool) -> void:
 	_chip_show(goal_chip, false, false)
 	_chip_show(age_chip, false, false)
 	_chip_show(credits_btn, false, false)
+	sek_chip.visible = false
 	_chip_show(hearts_chip, false, false)
 	_chip_show(flame_chip, not gs.no_fire and gs.misses > 0, animate)
 
@@ -2623,7 +2776,7 @@ func _tint_for_icon(icon_name: String) -> Color:
 		"paw":
 			return Style.STAGE_TINT[FieldData.ANIMALS]
 	var si := STAGE_ICON.find(icon_name)
-	if si >= 0:
+	if si >= 0 and si < Style.STAGE_TINT.size():
 		return Style.STAGE_TINT[si]
 	return Style.SURFACE_2
 
@@ -2669,6 +2822,31 @@ func _process(delta: float) -> void:
 		_score_display = target
 	score_label.text = str(int(round(_score_display)))
 	_update_buttons()
+	_sek_tick()
+
+
+## 100-Sekunden-Challenge: die Uhr im Chip; die letzten 10 Sekunden rot; angehalten (große Wahl-Karte) halb blass.
+func _sek_tick() -> void:
+	if sek_chip == null or not sek_chip.visible:
+		return
+	var left := Game.sek100_left
+	var whole := ceilf(left)
+	if whole != sek_shown:
+		sek_shown = whole
+		sek_label.text = str(int(whole))
+		if left <= 10.0 and Game.sek100_running:
+			_number_pop(sek_label, Style.FIRE_DEEP, Style.FIRE_DEEP)
+	sek_label.add_theme_color_override("font_color", Style.FIRE_DEEP if left <= 10.0 else Style.INK)
+	sek_chip.modulate.a = 0.55 if Game.sek100_paused() or not Game.sek100_running else 1.0
+
+
+func _on_sek100(left: float, delta: float) -> void:
+	if delta < 0.0:
+		_shake(sek_chip)
+		_on_message("−5 s", "bad")
+		Style.haptic(Style.HAPTIC_FIRE)
+	elif left > 0.0 and Game.sek100_running and delta == 0.0:
+		_pop(sek_chip, 1.12)
 
 
 ## Lange nichts passiert (nach der Eingewöhnung)? Dann kommt der Tipp dazu.
@@ -2760,8 +2938,14 @@ func refresh() -> void:
 			_world_targets("rain")
 			_rain_mode_text()
 	_sync_slots(settled)
-	_set_badge(rain_btn, gs.rain)
-	_set_badge(bolt_btn, gs.bolts)
+	if gs.camp:
+		_set_badge(rain_btn, gs.rain + Game.stock_of("rain"))
+		_set_badge(bolt_btn, Game.stock_of("guard"))
+		_set_badge(strike_btn, gs.meteors + Game.stock_of("meteor"))
+		_camp_slot_labels(gs)
+	else:
+		_set_badge(rain_btn, gs.rain)
+		_set_badge(bolt_btn, gs.bolts)
 	_set_badge(monsoon_btn, gs.monsoons)
 	if _last_monsoons >= 0 and gs.monsoons > _last_monsoons:
 		_show_gift("monsoon", monsoon_btn)
@@ -2795,12 +2979,13 @@ func refresh() -> void:
 	_pulse(hearts_row, lives == 1 and not Game.over)
 	for i in hearts.size():
 		(hearts[i] as Control).visible = i < maxi(gs.max_lives, 1)
-	_set_cost_badge(strike_btn, strike_cost(), gs.faith >= strike_cost())
+	if not gs.camp:
+		_set_cost_badge(strike_btn, strike_cost(), gs.faith >= strike_cost())
 	# Neue Tage 6–7: der Gewitter-Platz ist der Meteor
 	var slab: Label = strike_btn.get_meta("label", null)
 	if slab != null:
-		slab.text = "Meteor" if _meteor_day() else "Gewitter"
-	var sicon := "meteor" if _meteor_day() else "strike"
+		slab.text = "Meteor" if _meteor_day() or gs.camp else "Gewitter"
+	var sicon := "meteor" if _meteor_day() or gs.camp else "strike"
 	if strike_btn.get_meta("icon_name", "strike") != sicon:
 		strike_btn.set_meta("icon_name", sicon)
 		strike_btn.icon = Style.icon(sicon)
@@ -2925,11 +3110,89 @@ func _slot_btn(kind: String) -> Button:
 	return undo_btn
 
 
+## Schöpfung: Labels der Plätze (Regen heißt in Akt 1 „Wunder“, der Blitz-Platz ist der Blitzschutz).
+func _camp_slot_labels(gs: GameState) -> void:
+	var bl: Label = bolt_btn.get_meta("label", null)
+	if bl != null and bl.text != "Schutz":
+		bl.text = "Schutz"
+		bolt_btn.icon = Style.icon("sparkle_shield")
+	var rl: Label = rain_btn.get_meta("label", null)
+	var wunder := int(gs.day.get("act", 2)) == 1
+	if rl != null:
+		rl.text = "Wunder" if wunder else "Regen"
+	var ri := "miracle" if wunder else "rain"
+	if str(rain_btn.get_meta("icon_name", "rain")) != ri:
+		rain_btn.set_meta("icon_name", ri)
+		rain_btn.icon = Style.icon(ri)
+	var ul: Label = undo_btn.get_meta("label", null)
+	if ul != null:
+		ul.text = "Zurück"
+
+
+## In der ★-Zone (mehr Schritte als die ★★-Grenze) bietet das Dock leere Wunder zum Kauf an (GDPD_PUNKTE_LADEN.md 5.1).
+func _star_zone() -> bool:
+	var gs := Game.state
+	return gs != null and gs.camp and not gs.day_won and gs.steps9() > int(gs.stars9[1])
+
+
+var _stock_mode := false           # das Werkzeug kommt aus dem Vorrat (gekauft, zählt 2 Schritte)
+
+
+## Schöpfung: Regen, Meteor, Blitzschutz. Erst die Ladungen des Levels, dann der Vorrat, in der ★-Zone der Kauf.
+func _camp_tool(kind: String) -> void:
+	var gs := Game.state
+	var id := "regen" if kind == "rain" else ("meteor" if kind == "strike" else "blitzschutz")
+	if kind == "bolt":
+		if Game.stock_of("guard") > 0:
+			if Game.use_stock("guard"):
+				_pop(bolt_btn, 1.2)
+			else:
+				_shake(bolt_btn)
+			return
+		if Game.shop_items("wunder").any(func(it: Dictionary) -> bool: return str(it["id"]) == id) and not Game.over:
+			shop.ask(id, _after_buy_tool.bind(kind))
+		return
+	var have := gs.rain if kind == "rain" else gs.meteors
+	if have > 0 or bonus_mode == kind:
+		_stock_mode = false
+		_set_bonus_mode("" if bonus_mode == kind else kind)
+		return
+	if Game.stock_of(kind) > 0 and not gs.miracle_bought.has("rain" if kind == "rain" else "meteor"):
+		_set_bonus_mode(kind)
+		_stock_mode = true
+		_world_targets(kind)
+		mode_hint.text = "Aus dem Vorrat. Zählt 2 Schritte." if not gs.day_won else "Aus dem Vorrat."
+		return
+	var sold := false
+	for it in Game.shop_items("wunder"):
+		if str((it as Dictionary)["id"]) == id:
+			sold = true
+	if sold and (_star_zone() or gs.day_won) and not gs.miracle_bought.has("rain" if kind == "rain" else "meteor"):
+		shop.ask(id, _after_buy_tool.bind(kind))
+		return
+	_shake(_slot_btn(kind))
+	_on_message(gs.can_bonus(kind, gs.fields[0]), "info")
+
+
+func _after_buy_tool(kind: String) -> void:
+	if kind == "bolt":
+		Game.use_stock("guard")
+		refresh()
+		return
+	refresh()
+	_set_bonus_mode(kind)
+	_stock_mode = true
+	_world_targets(kind)
+
+
 func _on_bonus_pressed(kind: String) -> void:
 	if _blocked():
 		_shake(_slot_btn(kind))
 		return
 	var gs := Game.state
+	if gs.camp and (kind == "rain" or kind == "strike" or kind == "bolt"):
+		_camp_tool(kind)
+		return
 	if kind == "strike" or kind == "flood":
 		# Strafen kosten Glauben (keine Münzen): Reicht er nicht, sagt eine Meldung, wie viel man braucht
 		var cost := strike_cost() if kind == "strike" else Balance.FLOOD_COST
@@ -2949,6 +3212,10 @@ func _on_bonus_pressed(kind: String) -> void:
 ## Keiner da: sagen, wann der nächste kommt, und anbieten, einen zu kaufen.
 func _offer_buy(kind: String) -> void:
 	var gs := Game.state
+	if Game.sek100:
+		_shake(_slot_btn(kind))
+		_on_message("Nicht in der Challenge.", "info")
+		return
 	_buy_kind = kind
 	var cost := _bonus_cost(kind)
 	var title := "Regen" if kind == "rain" else ("Blitz" if kind == "bolt" else "Monsun")
@@ -2997,6 +3264,7 @@ func _on_mode_close() -> void:
 func _set_bonus_mode(kind: String) -> void:
 	var was := bonus_mode
 	bonus_mode = kind
+	_stock_mode = false
 	_pick = -1
 	world.set_pick([])
 	world.tool_mode = kind != ""
@@ -3085,6 +3353,18 @@ func _on_hint_pressed() -> void:
 	if _blocked():
 		_shake(hint_btn)
 		return
+	if Game.in_day() and Game.state.camp and not Game.state.day_won:
+		# Schöpfung: gratis in Level 1–5, einmal je Level und als Rettung; sonst aus dem Vorrat oder kaufen (10 ✦)
+		if Game.hint_cost() == 0:
+			Game.note_hint_used()
+			_day_hint()
+		elif Game.stock_of("tipp") > 0:
+			Game.stock["tipp"] = Game.stock_of("tipp") - 1
+			Game.save_settings()
+			_day_hint()
+		else:
+			shop.ask("tipp", _after_buy_hint)
+		return
 	if Game.in_day():
 		_day_hint()
 		return
@@ -3139,6 +3419,12 @@ func _day_hint_show(act: Dictionary) -> void:
 	_on_message("Kein guter Zug. Dreh einfach.", "info")
 
 
+func _after_buy_hint() -> void:
+	Game.stock["tipp"] = maxi(0, Game.stock_of("tipp") - 1)
+	Game.save_settings()
+	_day_hint()
+
+
 func _hint_gives_rain() -> void:
 	Game.grant("rain")
 	_on_message("Kein Zug passt. Hier, ein Regen!", "reward")
@@ -3161,7 +3447,25 @@ func _on_undo_pressed() -> void:
 		_shake(undo_btn)
 		_on_message("Noch nichts zum Zurücknehmen.", "info")
 		return
+	if Game.state.camp:
+		# 1 frei je Level, dann aus dem Vorrat, sonst kaufen (der Schritt bleibt gezählt)
+		if Game.undo_free_left > 0:
+			Game.undo_free_left -= 1
+			Game.undo()
+		elif Game.stock_of("zurueck") > 0:
+			Game.stock["zurueck"] = Game.stock_of("zurueck") - 1
+			Game.save_settings()
+			Game.undo()
+		else:
+			shop.ask("zurueck", _after_buy_undo)
+		return
 	_pay(Balance.UNDO_COST, "Zurück", Game.undo)
+
+
+func _after_buy_undo() -> void:
+	Game.stock["zurueck"] = maxi(0, Game.stock_of("zurueck") - 1)
+	Game.save_settings()
+	Game.undo()
 
 
 ## Kostet cost Münzen und führt dann action aus. Reicht es nicht, wird erst ein kurzes Video angeboten.
@@ -3716,6 +4020,20 @@ func _on_bolt_drawn(fid: int, row: Array) -> void:
 
 
 func _on_field_tapped(fid: int) -> void:
+	if bonus_mode != "" and _stock_mode:
+		var sk := bonus_mode
+		if Game.over or Game.busy or world.animating:
+			return
+		var f: FieldData = Game.state.fields[fid]
+		var ok := Game.state.rain_ok9(f, true) if sk == "rain" else Game.state.meteor_ok9(f, true)
+		if not ok:
+			world.nudge(fid)
+			_on_message("Hier geht das nicht.", "info")
+			return
+		if Game.use_stock(sk, fid):
+			_bubble(fid, "+2 Schritte" if not Game.state.day_won else Game.praise(), "up", Style.WATER_DEEP)
+		_set_bonus_mode("")
+		return
 	if bonus_mode != "":
 		var kind := bonus_mode
 		if Game.over:
@@ -4380,28 +4698,19 @@ func _open_menu() -> void:
 
 
 func _refresh_menu() -> void:
-	var cur := _current_mode_key()
-	_menu_cont.text = "Zurück" if day_ui.is_open() else "Weiterspielen"
-	var dr: Dictionary = _menu_days.get_meta("free_row")
-	(dr["caps"] as Label).text = "Sterne"
-	(dr["num"] as Label).text = "%d/%d" % [Game.stars_total(), Game.stars_max()]
+	_menu_main.visible = true
+	_menu_settings.visible = false
+	_menu_title.text = "Menü"
+	_menu_cont.text = "Zurück" if day_ui.is_open() else "Weiter"
+	var dn: Label = _menu_days.get_meta("num")
+	dn.text = "%d/%d" % [Game.stars_total(), Game.stars_max()]
+	(_menu_days.get_meta("title") as Label).text = str(Campaign.TEXT["title"]) if Balance.CAMPAIGN_ON else "Tage"
 	var free_ok := Game.free_play_unlocked()
-	_menu_free_caps.text = str(Days.TEXT["free"]) if free_ok else "%s · %s" % [str(Days.TEXT["free"]), str(Days.TEXT["free_locked"])]
-	for key in _menu_rows:
-		var rb: Button = (_menu_rows[key] as Dictionary)["btn"]
-		rb.modulate.a = 1.0 if free_ok else 0.5
-	for key in _menu_rows:
-		var row: Dictionary = _menu_rows[key]
-		var b: Button = row["btn"]
-		var rc: Label = row["caps"]
-		var num: Label = row["num"]
-		var is_cur := str(key) == cur and not Game.tutorial() and not Game.in_day() and not day_ui.is_open()
-		var n: StyleBoxFlat = b.get_meta("sb")
-		n.bg_color = Style.SUN_TINT if is_cur else Style.SURFACE_2
-		rc.text = "Aktuell" if is_cur else "Rekord"
-		rc.add_theme_color_override("font_color", Style.SUN_DEEP if is_cur else Style.INK_3)
-		var best := _mode_best(str(key))
-		num.text = str(best) if best > 0 else "–"
+	(_menu_free.get_meta("num_icon") as Control).visible = not free_ok
+	(_menu_free.get_meta("num") as Label).text = ""
+	(_menu_free.get_meta("sub") as Label).text = "Leicht bis 100 Sekunden" if free_ok else Game.free_locked_text()
+	_menu_free.modulate.a = 1.0 if free_ok else 0.6
+	(_menu_shop.get_meta("num") as Label).text = str(Game.points)
 	_sync_switch(_music_switch, Game.music_on)
 	_sync_switch(_sfx_switch, Game.sfx_on)
 	_sync_switch(_ask_switch, Game.always_ask)
@@ -4456,9 +4765,9 @@ func _on_mode_row(key: String) -> void:
 		return
 	if not Game.free_play_unlocked():
 		var row: Dictionary = _menu_rows.get(key, {})
-		var b: Control = row.get("btn", _menu_free_caps)
+		var b: Control = row.get("btn", _menu_free)
 		_shake(b)
-		_show_tooltip(b, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen.")
+		_show_tooltip(b, "lock", str(Days.TEXT["free"]), Game.free_locked_text())
 		_tip_hide_at = _time + 2.4
 		return
 	if key == _current_mode_key() and _game_running():
@@ -4473,8 +4782,9 @@ func _ask_new_game(key: String) -> void:
 		return
 	_confirm_key = key
 	var day := key.begins_with("day:")
-	(confirm_card.get_meta("title") as Label).text = ("Tag %d starten?" % int(key.substr(4))) if day else "Neues Spiel starten?"
-	_confirm_yes.text = "Ja, Tag %d spielen" % int(key.substr(4)) if day else "Ja, neues Spiel"
+	var word := "Level" if Balance.CAMPAIGN_ON else "Tag"
+	(confirm_card.get_meta("title") as Label).text = ("%s %d starten?" % [word, int(key.substr(4))]) if day else "Neues Spiel starten?"
+	_confirm_yes.text = "Ja, %s %d spielen" % [word, int(key.substr(4))] if day else "Ja, neues Spiel"
 	_open_modal(confirm_card)
 
 
@@ -4501,7 +4811,10 @@ func _on_confirm_back() -> void:
 func _run_new(key: String) -> void:
 	if key.begins_with("day:"):
 		_close_modal(true)
-		Game.start_day(int(key.substr(4)))
+		if Balance.CAMPAIGN_ON:
+			Game.start_level(int(key.substr(4)))
+		else:
+			Game.start_day(int(key.substr(4)))
 	elif key == "tutorial":
 		_close_modal(true)
 		Game.restart_tutorial()
@@ -4634,7 +4947,10 @@ func _on_game_over() -> void:
 	_banner_next = []
 	_toasts.clear()            # die Karte sagt schon alles
 	var died := gs.died()
-	if died:
+	if Game.sek100 and not died:
+		over_title.text = "Zeit!"
+		_set_tile(over_tile, "timer", Style.SUN_TINT)
+	elif died:
 		over_title.text = "Deine Welt ist verbrannt"
 		_set_tile(over_tile, "fire", Style.FIRE_TINT)
 	elif gs.completed:
@@ -5231,6 +5547,7 @@ func _set_cost_badge(b: Button, cost: int, ok: bool) -> void:
 		badge.offset_left = -34
 		badge.offset_right = 14
 	bl.text = "−%d" % cost
+	((badge.get_child(0) as Control).get_child(0) as Control).visible = true
 	var bs: StyleBoxFlat = badge.get_meta("sb")
 	bs.bg_color = Style.SURFACE
 	bs.border_color = SLOT_COLOR.get(str(b.get_meta("kind")), PUNISH) if ok else Style.INK_3

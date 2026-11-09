@@ -37,6 +37,11 @@ const LINES := {
 		"frech": "Zack, eine Wiese!",
 		"streng": "Richtig. Eine Wiese.",
 	},
+	"l1_c1": {
+		"lieb": "Ein Fels! Wie schön!",
+		"frech": "Zack, ein Fels!",
+		"streng": "Richtig. Ein Fels.",
+	},
 	"d1_c2": {
 		"lieb": "Jetzt du! Wisch die leuchtende Reihe.",
 		"frech": "Dein Zug! Wisch die leuchtende Reihe.",
@@ -296,7 +301,7 @@ const LINES := {
 
 ## Gesicht zu einem Schlüssel (Abschnitt 3.5 / 4.2). Fehlt ein Schlüssel: „neutral“.
 const FACE := {
-	"intro": "happy", "d1_demo": "happy", "d1_c1": "happy", "d1_c3": "proud", "d2_c1": "worried", "d2_tool": "cheeky",
+	"intro": "happy", "l1_c1": "happy", "d1_demo": "happy", "d1_c1": "happy", "d1_c3": "proud", "d2_c1": "worried", "d2_tool": "cheeky",
 	"d6_c0": "worried", "d7_c0": "worried",
 	"d2_intro": "happy", "d3_intro": "happy", "d4_intro": "happy", "d5_intro": "worried", "d6_intro": "proud",
 	"d7_intro": "neutral",

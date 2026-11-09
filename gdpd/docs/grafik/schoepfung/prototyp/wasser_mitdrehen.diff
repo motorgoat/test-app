@@ -1,0 +1,123 @@
+--- a/shaders/ground.gdshader
++++ b/shaders/ground.gdshader
+@@ -60,6 +60,10 @@
+ uniform int w_box_n = 0;
+ uniform vec4 w_m = vec4(1.0, 0.0, 0.0, 1.0);   // Wellen in Koordinaten der Würfelseite (alle Wasserfelder einer Seite
+ uniform vec2 w_o = vec2(0.0);                  // teilen dasselbe Wellenmuster): fc = (dot(w_m.xy, uv), dot(w_m.zw, uv)) + w_o
++// Mitdrehen (Prototyp): beim Seitenwechsel einer Kachel blendet ihr altes Wellenmuster in 0,45 s ins neue über
++uniform vec4 w_m_old = vec4(1.0, 0.0, 0.0, 1.0);
++uniform vec2 w_o_old = vec2(0.0);
++uniform float w_fade = 0.0;
+ uniform vec4 w_seg[4];               // Meerengen: Strecke Mitte zu Mitte (Look.water_segs)
+ uniform int w_seg_n = 0;
+ uniform vec3 sun_v = vec3(0.45, 0.6, 0.66);    // Richtung zur Sonne (Kamera-Raum, World)
+@@ -284,6 +288,14 @@
+ 		float hz = wave_h(fc + vec2(w_m.y, w_m.w) * e, t);
+ 		// zweite, quer laufende Welle nur für die Farbe (kein eigenes Gefälle: spart Abtastungen)
+ 		float h1 = texture(n_fbm, fc * 5.3 + vec2(-t * 0.027, t * 0.031)).r;
++		if (w_fade > 0.001) {
++			vec2 fo = vec2(dot(w_m_old.xy, uv), dot(w_m_old.zw, uv)) + w_o_old;
++			h0 = mix(h0, wave_h(fo, t), w_fade);
++			hx = mix(hx, wave_h(fo + vec2(w_m_old.x, w_m_old.z) * e, t), w_fade);
++			hz = mix(hz, wave_h(fo + vec2(w_m_old.y, w_m_old.w) * e, t), w_fade);
++			h1 = mix(h1, texture(n_fbm, fo * 5.3 + vec2(-t * 0.027, t * 0.031)).r, w_fade);
++			fc = mix(fc, fo, step(0.5, w_fade));
++		}
+ 		float inw = 1.0 - smoothstep(-0.006, 0.006, wd);
+ 		vec3 dn = vec3(h0 - hx, 0.0, h0 - hz) * (0.55 / e) * 0.04 * inw;
+ 		wn = dn;
+--- a/scripts/world.gd
++++ b/scripts/world.gd
+@@ -779,7 +779,7 @@
+ 		at[_seam_key(p, n)] = v
+ 		info[fid] = [p, n, Vector3i(t.basis.x.normalized().round()), Vector3i(t.basis.z.normalized().round()), t]
+ 		v.set_cube_frame(t)
+-		_set_wave(v, t, n)
++		_set_wave(v, t, n, wave_ride and moving.is_empty())
+ 	var offs := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1)]
+ 	for fid in views:
+ 		var v: FieldView = views[fid]
+@@ -821,11 +821,22 @@
+ 
+ 
+ ## Wellen in Koordinaten der Würfelseite k (Normale): fc = (Lage[k+1], Lage[k+2]).
+-func _set_wave(v: FieldView, t: Transform3D, n: Vector3i) -> void:
++static var wave_ride := false     # Prototyp: Wasser dreht mit der Scheibe mit
++var _face_q := {}                  # Vierteldrehungen des Wellenmusters je Würfelseite (Normale)
++
++
++func _set_wave(v: FieldView, t: Transform3D, n: Vector3i, fade: bool = false) -> void:
+ 	var k := 0 if n.x != 0 else (1 if n.y != 0 else 2)
+ 	var k1 := (k + 1) % 3
+ 	var k2 := (k + 2) % 3
+-	v.set_wave_frame(Vector4(t.basis.x[k1], t.basis.z[k1], t.basis.x[k2], t.basis.z[k2]), Vector2(t.origin[k1], t.origin[k2]))
++	var m := Vector4(t.basis.x[k1], t.basis.z[k1], t.basis.x[k2], t.basis.z[k2])
++	var o := Vector2(t.origin[k1], t.origin[k2])
++	if wave_ride:
++		var q: int = posmod(int(_face_q.get(n, 0)), 4)
++		for i in q:
++			m = Vector4(-m.z, -m.w, m.x, m.y)
++			o = Vector2(-o.y, o.x)
++	v.set_wave_frame(m, o, fade)
+ 
+ 
+ ## Acker neben Acker: Furchen laufen nur durch, wenn sie zur gemeinsamen Fuge gleich liegen (beide längs oder beide
+@@ -1052,7 +1063,7 @@
+ 	# Nahtlos: nach einem Artwechsel (Welle, Verschmelzen, Effekte) die Nachbarn neu verteilen – nicht mitten in einer Drehung
+ 	if FieldView.seams_dirty and _mode != "twist" and _pivot == null:
+ 		_update_seams()
+-	if _pivot != null and not _tw_views.is_empty():
++	if _pivot != null and not _tw_views.is_empty() and not wave_ride:
+ 		_twist_waves()
+ 	var cam_pos := rig.cam.global_position
+ 	for fid in views:
+@@ -1854,6 +1865,10 @@
+ 
+ func _unparent_pivot(piv: Node3D, axis: int, turns: int) -> void:
+ 	var d := 1 if turns > 0 else -1
++	if wave_ride and turns != 0 and _tw_layer != 0:
++		var cap := Vector3i.ZERO
++		cap[axis] = _tw_layer
++		_face_q[cap] = int(_face_q.get(cap, 0)) - turns
+ 	for cb in piv.get_children():
+ 		var node := cb as Node3D
+ 		node.reparent(cube_root, true)
+--- a/scripts/field_view.gd
++++ b/scripts/field_view.gd
+@@ -673,11 +673,35 @@
+ 
+ ## Wellen in Koordinaten der Würfelseite (World, nach jeder Drehung und während einer Drehung): alle Wasserfelder
+ ## einer Seite teilen ein Muster.
+-func set_wave_frame(m: Vector4, o: Vector2) -> void:
++var _wave_m := Vector4(1.0, 0.0, 0.0, 1.0)
++var _wave_o := Vector2.ZERO
++var _wave_tw: Tween
++
++
++func set_wave_frame(m: Vector4, o: Vector2, fade: bool = false) -> void:
++	var changed := not (m - _wave_m).is_zero_approx() or not (o - _wave_o).is_zero_approx()
++	if fade and changed and is_water_like():
++		_ground.set_shader_parameter("w_m_old", _wave_m)
++		_ground.set_shader_parameter("w_o_old", _wave_o)
++		_ground.set_shader_parameter("w_fade", 1.0)
++		if _wave_tw != null and _wave_tw.is_valid():
++			_wave_tw.kill()
++		_wave_tw = create_tween()
++		_wave_tw.tween_method(_set_wave_fade, 1.0, 0.0, 0.45).set_trans(Tween.TRANS_SINE)
++	_wave_m = m
++	_wave_o = o
+ 	_ground.set_shader_parameter("w_m", m)
+ 	_ground.set_shader_parameter("w_o", o)
+ 
+ 
++func _set_wave_fade(k: float) -> void:
++	_ground.set_shader_parameter("w_fade", k)
++
++
++func is_water_like() -> bool:
++	return get_kind() == 15
++
++
+ ## Lage der Kachel im Würfel (World, nach jeder Drehung): Rauschen am Rand und Muster in Würfel-Koordinaten.
+ func set_cube_frame(t: Transform3D) -> void:
+ 	_ground.set_shader_parameter("cb_x", t.basis.x)

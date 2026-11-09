@@ -11,6 +11,12 @@ uniform float clouds = 1.0;
 uniform float sun_glow = 0.35;
 uniform vec2 sun_uv = vec2(0.22, 0.2);
 uniform float flash = 0.0;
+// PROTOTYP Schöpfung: Glut von unten (Lava beleuchtet Wolken), Dunst (Uratmosphäre), Sterne (Nacht, Akt 4), Asche
+uniform vec3 glow_c : source_color = vec3(1.0, 0.35, 0.08);
+uniform float low_glow = 0.0;
+uniform float haze = 0.0;
+uniform float stars = 0.0;
+uniform float ash = 0.0;
 void fragment() {
 	vec2 uv = UV;
 	float y = 1.0 - uv.y;
@@ -27,6 +33,25 @@ void fragment() {
 	heap *= smoothstep(0.15, 0.35, y) * (1.0 - smoothstep(0.75, 0.95, y));
 	vec3 cc = mix(cloud_c * 0.86, cloud_c, smoothstep(0.3, 0.9, n2));
 	c = mix(c, cc, clamp(cl * 0.4 + heap * 0.55, 0.0, 1.0) * clouds);
+	// Wolken der Urzeit: Unterseiten glühen rot (Lava), Dunst macht alles flach und dicht
+	float under = (1.0 - smoothstep(0.0, 0.55, y));
+	c = mix(c, mix(c, cloud_c * 0.8, 0.6), haze * (0.5 + 0.5 * n));
+	c += glow_c * low_glow * (under * 0.9 + (cl + heap) * under * 0.8) * (0.7 + 0.3 * n2);
+	// Sterne: feste Punkte (Gitter-Zufall), nur im oberen Himmel, leises Funkeln
+	if (stars > 0.0) {
+		vec2 g = uv * vec2(90.0, 46.0);
+		vec2 id = floor(g);
+		float r = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
+		vec2 f = fract(g) - vec2(fract(r * 7.3), fract(r * 3.1)) * 0.6 - 0.2;
+		float st = (1.0 - smoothstep(0.02, 0.08, length(f))) * step(0.86, r);
+		st *= 0.6 + 0.4 * sin(TIME * (1.0 + r * 3.0) + r * 40.0);
+		c += vec3(0.9, 0.93, 1.0) * st * stars * smoothstep(0.25, 0.7, y) * (1.0 - cl * 0.8);
+	}
+	// Asche: dunkle Schlieren, die langsam steigen
+	if (ash > 0.0) {
+		float a = texture(n_fbm, vec2(uv.x * 3.0, uv.y * 1.2 + TIME * 0.01)).r;
+		c = mix(c, c * 0.55, smoothstep(0.55, 0.8, a) * ash);
+	}
 	c += vec3(0.85, 0.88, 1.0) * flash;
 	ALBEDO = c;
 }

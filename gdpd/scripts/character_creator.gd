@@ -418,7 +418,7 @@ func _step_face() -> void:
 			t += " · hat %s nicht" % ("die Sonne" if basis == "sonne" else ("die Wolke" if basis == "wolke" else "das Monster"))
 		_content.add_child(_row_title(t))
 		var fl := _flow()
-		for a_v in Character.ACCESSORIES[slot]:
+		for a_v in Character.acc_list(slot):
 			var ad: Dictionary = a_v
 			var id := String(ad["id"])
 			var chip := _chip(String(ad["title"]), String(look[slot]) == id, _acc_icon(slot, id) if id != "" else null)

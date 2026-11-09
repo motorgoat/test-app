@@ -1,4 +1,4 @@
-# gdpd – Die Schöpfung: Kampagne und Regeln (Spec v1)
+# gdpd – Die Schöpfung: Kampagne und Regeln (Spec v2)
 
 This spec is for implementers, so it is written in English. Every text a player sees is in simple German (du-form),
 as short as possible (2–6 words), and is written here exactly as it should appear.
@@ -10,10 +10,29 @@ as acts, 30 levels along the earth history, one new level per real day (about a 
 twisting, need icons, the own character and coach, streak, reminders, the seamless look, the cancel strip.
 
 **Validated with:** the Python rules model `gdpd_sim/b4/engine9.py` (a generic extension of the cross-checked
-`engine7`/`engine8` geometry and rows), bots `good` (= the hint), `greedy`, `weak` and an oracle `farmer`
-(best of ping-pong, 5 cycle patterns and single-slice play), **300 generated boards per level and bot**, 100
-carry-over chains per act, Weiterbauen farming runs and a group-cap experiment. Pools of 20 boards per level with
-one solution each are exported (section 9.7). Files and re-run: section 18.
+`engine7`/`engine8` geometry and rows), bots `good` (= the hint), `greedy` (the average player), `weak` and an
+oracle `farmer` (best of ping-pong, 5 cycle patterns and single-slice play), **300 generated boards per level and
+bot**, 100 carry-over chains per act, Weiterbauen farming runs and a group-cap experiment. Pools of 20 boards per
+level with one solution each are exported (section 9.9). Files and re-run: section 18.
+
+**What changed in v2 (Philipp's feedback of 8 November, binding):**
+1. **„Kombination bleibt wirksam“ – supply is lasting** (3.2): a need that was supplied once at a round end is
+   *sealed* for that field and kind; twisting the neighbours away does not undo it (people fed once stay fed). Only a
+   danger that changes the field (fire, flood, war, smog, meteor, pack, hunger) clears the seals. When the field grows
+   (Hütte → Dorf → Stadt), the shared needs stay sealed and only the **new** needs must be connected. The need icon
+   turns into a permanent check seal (`need_sealed`, section 11).
+2. **Generous stars** (3.9, 9.2): ★★ is set so the average player (`greedy`) has ★★ or better in ≥ 85 % of games,
+   ★★★ so the good bot gets it in about 40–70 %. Every threshold comes from the simulation.
+3. **Water turns with the slice** (10.1): during a twist the water surface (waves, foam, sparkle, shore) of the moving
+   tiles turns with the slice; it lines up seamlessly again after the twist.
+4. **Clearer menu** (12): the main menu shows only Weiter, Schöpfung, Freies Spiel, Laden, Dein Gott; everything else
+   moves into an „Einstellungen“ submenu.
+5. Consequences for the rules (validated, 9): hungry animals leave their forest behind (Tiere/Raubtiere → Wald) and
+   in levels 20–23 rain on a Wald next to a Wiese lures Tiere out of it, so lost animals can always be made again (no
+   dead ends: before this, 16–38 % of casual games in levels 20–23 got stuck for good); level 19 rain makes Algen at
+   the shore instead of turning the meadows the fish need into forest; satt goals are checked for sticker
+   types at generation (a town on a corner can never touch a church in a centre); a few act-6 targets rose so the
+   campaign still gets harder each day.
 
 **Never spoil:** a level's title, icon, story and reveal card appear only once the level is open. Locked levels
 show a lock or „?“ and „Morgen wartet etwas Neues“. Act names are shown only for acts already reached.
@@ -25,17 +44,20 @@ show a lock or „?“ and „Morgen wartet etwas Neues“. Act names are shown 
 | # | decision | why (one line) |
 |---|---|---|
 | 1 | **30 levels in 7 acts** (4 · 4 · 4 · 3 · 4 · 9 · 2) along the earth history: glowing earth → atmosphere → first life → plants → sun and seasons → life in water and air → animals and people → rest. | Philipp's frame; act 6 is the longest as decided. |
-| 2 | **Three verbs everywhere:** Erschaffen (rows, `once`), Verbinden/Gedeihen (generic needs: one table for lava, water life, plants, animals, people), Zusammenwachsen (groups give strength min(size, 3); double supply grows twice as fast). | One rule set from lava to cities; the task chip always says what to connect. |
-| 3 | **No step limit, no failing; steps are counted.** Stars by steps, points = 20 × stars + 5 per step under par. **Gnade:** from the 1-star zone, every 3 steps without progress +1 Regen/Wunder. | „Man kommt immer weiter“; fewer steps = more points; no dead ends. |
-| 4 | **Dangers only as consequences**, all warned one round ahead: Vulkan (lava clump ≥ 5), Blitz (dry forest group ≥ 3 without water), Hunger (missing food, H = 4, morning reserve 3), Rudel (predator group ≥ 3), Krieg, Smog (warned now), Flut. The timed bolt of v8 is gone. | Philipp: „Blitz nur bei trockenem Wald ohne Wasser daneben“. |
+| 2 | **Three verbs everywhere:** Erschaffen (rows, `once`), Verbinden/Gedeihen (generic needs: one table for lava, water life, plants, animals, people; **a supplied need stays supplied**), Zusammenwachsen (groups give strength min(size, 3); double supply grows twice as fast). | One rule set from lava to cities; the task chip always says what to connect. |
+| 3 | **No step limit, no failing; steps are counted.** Stars by steps with **generous thresholds** (★★ for ≥ 85 % of average players, ★★★ for ~55 % of good play), points = 30 + 10 × stars + 5 per step under par (s3 + 4). **Gnade:** from the 1-star zone, every 3 steps without progress +1 Regen/Wunder. | „Man kommt immer weiter“; fewer steps = more points; no dead ends. |
+| 4 | **Dangers only as consequences**, all warned one round ahead: Vulkan (lava clump ≥ 5), Blitz (dry forest group ≥ 3 without water), Hunger (food never connected, H = 4, morning reserve 3; once fed never hungry), Rudel (predator group ≥ 3), Krieg, Smog (warned now), Flut. The timed bolt of v8 is gone. | Philipp: „Blitz nur bei trockenem Wald ohne Wasser daneben“. |
 | 5 | **Progress drops on losses:** `make` = made − lost; a danger on a made goal field is −1 with a „−1 Tier“ cue; growing up or a consume is no loss. | Backlog „Ziel-Fortschritt zählt Verluste ab“. |
 | 6 | **Water is dead at first**; life appears only by play: rain → Ursuppe, warmth → Einzeller, rows → Algen → Fische; the sky turns blue with the algae. | Backlog „Wasser ist am Anfang tot“. |
 | 7 | **The world carries over within an act** (yesterday's end world, overnight growth, fitted to the level's start composition, repaired to the start rules, else the pool board); each act starts on a fresh pool board. | „Die echte Welt von gestern weiterführen“, while every start stays validated. |
 | 8 | **People grow only where the next level is fed** („Wächst bald“ until then); animals in the people levels 24–28 are herded (no animal hunger), animal hunger is the theme of levels 20–23 and 29–30. | Without it towns grew and starved in a loop (sim: 5–15 starvations per game). |
-| 9 | **Points are the only currency** (1 old coin = 20 points), spent in a fair shop (shield 100, miracles 25/50 max one per level, cosmetics, later worlds); hint free in levels 1–5 and after a stall. | Backlog „Punkte sind die Währung“. |
+| 9 | **Points are the only currency** (1 old coin = 20 points), spent in a fair shop; formula `30 + 10 × stars + 5 × max(0, s3 + 4 − steps)`; details in `GDPD_PUNKTE_LADEN.md` (binding for points and shop); hint free in levels 1–5 and after a stall. | Backlog „Punkte sind die Währung“. |
 | 10 | **Veterans:** everybody starts at level 1, players with old progress get a fast track (3 new levels per Spieltag up to their equivalent level), old stars become points, the Welt des Tages stays open for those who finished the old 7 days. | Nobody loses a daily habit; the story still starts at the beginning. |
 | 11 | **After level 30:** Welt des Tages from 14 templates (one strong level per act, 266 worlds), replays, later packs Insel/Wüste/Winter. | The streak keeps its meaning. |
 | 12 | Backlog UI items: HUD centred and +15 %, tap the god to open it, cancel strip stays, **100-Sekunden-Challenge** replaces „40 Drehungen“ in free play. | `NAECHSTE_SCHRITTE.md`. |
+| 13 | **Lasting supply** („Kombination bleibt wirksam“): needs seal at a round end and stay sealed until a danger changes the field; growing keeps shared seals, only new needs are asked. | Feedback 8 November; validated: fewer starvations, no farming gain (9.6, 9.7). |
+| 14 | **Water turns with the slice** (frozen wave frame during a twist, quarter-turn counter per face, 0.3 s fade for side tiles). | Feedback 8 November; prototype and measurements in `GDPD_SCHOEPFUNG_GRAFIK.md` 0.5. |
+| 15 | **Menu: 5 entries + „Einstellungen“ submenu** (Ton, Erinnerung, Wahl-Karte, Hilfe, Tutorial, Profil, Test). | Feedback 8 November. |
 
 ---
 
@@ -44,12 +66,12 @@ show a lock or „?“ and „Morgen wartet etwas Neues“. Act names are shown 
 | verb (player word) | rule | where it starts |
 |---|---|---|
 | **Erschaffen** („Bring 3 gleiche in eine Reihe.“) | 3 equal fields in a **new** straight row on one face: the target field grows to the next kind of the level's row table. `once` (every row grows only once), `standing`, `broken`, cascades and the whole-face bonus as in v8. A *consume* row changes the 2 other fields too (3 Tiere → 1 Hütte + 2 Wiesen). | level 1 |
-| **Verbinden / Gedeihen** (task chip shows what to connect, e.g. „Gib den Tieren Futter“) | a kind with **needs** grows (or makes something next to it) when its neighbours meet the needs for **G = 2** round ends in a row; living kinds starve when the needs stay unmet for **H = 4** round ends (warned at H − 1). Neighbours = the 4 stickers around a field, **across cube edges too**. | level 2 (lava cools at the water) |
+| **Verbinden / Gedeihen** (task chip shows what to connect, e.g. „Gib den Tieren Futter“) | a kind with **needs** is *satt* once every need has been supplied by its neighbours at a round end; **a supplied need stays supplied** (sealed, „Kombination bleibt wirksam“). Satt fields grow (or make something next to it) after **G = 2** satt round ends; living kinds that were **never** fully supplied starve after **H = 4** round ends (warned at H − 1). Neighbours = the 4 stickers around a field, **across cube edges too**. | level 2 (lava cools at the water) |
 | **Zusammenwachsen** (seen, not explained in words: merge look + `×2` badge) | equal kinds that touch form one **group** (forest, field, lake, herd, town). A source group gives **strength = min(size, CAP = 3)** to every field it touches; the supply of a need is the **sum of the strengths of the distinct source groups** touching the field. | level 6 (2 Lava together = enough heat); taught as a task in level 15 |
 
 Four principles that hold in every level:
 1. **Dangers are consequences of play, never a timer.** Each danger has an exact trigger in the world state and is
-   **warned one round ahead** (section 3.6). Good play avoids all of them (validated, section 13).
+   **warned one round ahead** (section 3.6). Good play avoids all of them (validated, section 9).
 2. **No step limit, no failing.** Steps (= twists) are counted, never limited; fewer steps = more stars and points.
    A level cannot be lost; a danger costs fields and therefore steps. **No dead ends:** every kind a task counts can be
    (re)made in that level, and from the 1-star zone on the game gives help (Gnade, 3.5).
@@ -84,8 +106,8 @@ ladder (for icons and sorting; no rule uses it).
 | 26 | `seed` | Saat | `seed` | 4 | food | row of 3 Wiesen (act 4); rain on Wiese (act 4) or on Wiese next to people (act 6+) | – | Wiese (fire, smog) |
 | 3 | `field` | Acker (reif) | `field` | 5 | food | Saat with ☀ + 💧 (Gedeihen); rain on Saat | 🍞 Nahrung (`food`) | Wiese (fire, smog) |
 | 24 | `birds` | Vögel | `birds` | 6 | animal | Wald with 🐟🐟 (Gedeihen); row of 3 Wälder (level 18) | – | Wiese (fire), Wald (smog) |
-| 5 | `animals` | Tiere (Pflanzenfresser) | `animals` | 6 | animal | fish next to a meadow for 2 rounds (Landgang, level 19); row of 3 Wälder (act 6) | 🍖 Beute (`prey`), 🍞 Nahrung | Erde (hunger), Wiese (fire, pack), Wald (smog) |
-| 25 | `pred` | Raubtiere | `pred` | 7 | animal | row of 3 Tiere (level 21–22) | – | Wiese (hunger), Wald (smog) |
+| 5 | `animals` | Tiere (Pflanzenfresser) | `animals` | 6 | animal | fish next to a meadow for 2 rounds (Landgang, level 19); row of 3 Wälder (act 6); rain on a Wald next to a Wiese (levels 20–23) | 🍖 Beute (`prey`), 🍞 Nahrung | Wald (hunger: they move on), Wiese (fire, pack), Wald (smog) |
+| 25 | `pred` | Raubtiere | `pred` | 7 | animal | row of 3 Tiere (level 21–22) | – | Wald (hunger), Wald (smog) |
 | 6 | `hut` | Hütte | `hut` | 8 | people | row of 3 Tiere (consume: the other 2 become Wiese) | – | Wiese (fire, war, flood) |
 | 8 | `village` | Dorf | `village` | 9 | people | Hütte with 🍞 for 2 rounds (only if the Dorf would be satt) | – | Hütte (hunger, fire, war) |
 | 9 | `town` | Stadt | `town` | 10 | people | Dorf with 🍞🔨 for 2 rounds (only if the Stadt would be satt) | – | Dorf (hunger, war) |
@@ -109,25 +131,50 @@ Exactly v8 (`GDPD_BALANCE_2.md` 4.2): straight rows only, `once` for every row (
 `standing`/`broken`, max 6 cascades, kinds outside the level's `rows` set are silent (`still` reasons as v8 plus
 `water_life` „Wasser wächst durch Leben“). The row table (`next`) and the consume table are per level (section 4).
 
-### 3.2 Gedeihen (generic thriving)
+### 3.2 Gedeihen (generic thriving, lasting supply)
 
 `thrive[k] = {needs: {need: amount}, up: kind | null, spawn: [on_kinds, into, after] | null, down: kind | null,
-G: int (default 2)}`. At step 9 of the round (3.8), on one snapshot of the board:
+G: int (default 2)}`. Per field the state keeps `fed`, `hungry` and **`best`** = `{need: best supply seen at a round
+end}` (empty for a new kind). At step 10 of the round (3.8), on one snapshot of the board:
 
-- **satt** = every need has `supply(f, need) ≥ amount`, the field is not burning and not in a war front.
-- satt → `hungry = 0`, `fed += 1`; when `fed ≥ G`:
-  - `up`: the field becomes `up` (event `thrive`). **People** (Hütte, Dorf) only grow when the next level would be
-    satt on that spot (`up_ok`); otherwise `fed` stays at G and the field shows „Wächst bald“ with the missing icon of
-    the next level.
-  - `spawn` (Landgang): the lowest-id neighbour of a kind in `on_kinds` becomes `into` (event `spawn`), the field
-    itself becomes `after` (a fish that went ashore leaves algae behind).
-- not satt → `fed = 0`; only if `down` is set: `hungry += 1`; at `hungry == H − 1` event `hunger_warn`; at
-  `hungry ≥ H` the field falls to `down` (event `starve`, a loss if it was a made goal field).
+1. **Seal** (`seal_step`, first): for every thriver that is not burning and not in a war front and every need:
+   `best[need] = max(best[need], supply(f, need))`. When `best[need]` reaches the amount for the first time, the
+   need is **sealed** (event `need_sealed`). All fields are measured first, then written (one snapshot).
+2. **satt** = for every need `max(supply(f, need), best[need]) ≥ amount`, and the field is not burning and not in a
+   war front. So a need counts if it is supplied now (the preview shows it at once) or was supplied at any earlier
+   round end of this field and kind. **Moving neighbours away never makes a field un-satt** („Kombination bleibt
+   wirksam“).
+3. satt → `hungry = 0`, `fed += 1` (`+2` when every need except ☀ is supplied twice over: `rich`, the group bonus,
+   3.3); when `fed ≥ G`:
+   - `up`: the field becomes `up` (event `thrive`). **People** (Hütte, Dorf) only grow when the next level would be
+     satt on that spot (`up_ok`: needs the next level shares with this one count with their seals, new needs must be
+     supplied now); otherwise `fed` stays at G and the field shows „Wächst bald“ with the missing icon of the next
+     level. So a grown field is born satt and never starves.
+   - `spawn` (Landgang): the lowest-id neighbour of a kind in `on_kinds` becomes `into` (event `spawn`), the field
+     itself becomes `after` (a fish that went ashore leaves algae behind; its seals are cleared with the kind).
+4. not satt (some need was **never** supplied) → `fed = 0`; only if `down` is set: `hungry += 1`; at
+   `hungry == H − 1` event `hunger_warn`; at `hungry ≥ H` the field falls to `down` (event `starve`, a loss if it was
+   a made goal field).
+5. **Seals and kind changes:** a rise (row, thriving, spawn target, rain) keeps the seals of the needs the new kind
+   also has (`Hütte 🍞` → `Dorf 🍞🔨`: 🍞 stays sealed, only 🔨 is new); every other kind change clears them: a danger
+   (`fall`: fire, eruption, hunger, war, flood, smog, pack, meteor), a consume row, a spawn's `after`. Seals belong to
+   the field and move with it.
+
 - **Vorrat (morning reserve):** fields with a `down` that are on the start board begin with `hungry = −GRACE` (3), so
-  nothing starves in the first 4 + 3 rounds; fields made during play start at 0.
-- `fed` / `hungry` belong to the field and move with it; they reset when the field changes kind.
+  nothing starves in the first 4 + 3 rounds; fields made during play start at 0. Start boards have no seals.
+- `fed` / `hungry` / `best` belong to the field and move with it; they reset when the field changes kind (rise:
+  shared seals kept, see 5).
 - Special needs: `sun` = 1 if the field is on the **sun face** (face 0, +y, the top face in the start view), else 0;
-  `wet` = the **number** of water-family neighbours (so „💧💧“ means 2 water neighbours).
+  `wet` = the **number** of water-family neighbours (so „💧💧“ means 2 water neighbours). Both seal like any need
+  (a Saat that once lay in the sun keeps ☀).
+- Why lasting supply is safe (simulation, 9.6): farming cannot use it, because a seal only counts once per field and
+  kind, and growth by thriving still needs G satt rounds; the danger triggers (lava clump, dry forest, pack, church
+  contact, industry contact, crowded face) do not look at seals at all.
+
+**Player view.** A need icon above a field shows `have/need` while open (`🍞 1/2`); when the need is sealed it turns
+into a small gold check seal that stays (also while twisting and in the preview). A satt field shows the gold ring
+for good. When the field grows, the shared seals stay and only the new need icons appear. Help line (coach, first time
+a seal appears): „Versorgt bleibt versorgt.“ (4 words).
 
 ### 3.3 Zusammenwachsen (groups and strength)
 
@@ -168,11 +215,11 @@ G: int (default 2)}`. At step 9 of the round (3.8), on one snapshot of the board
 | Saat | ☀ 1, 💧 1 | Acker | 14–15, 25–30 |
 | Wald | 🐟 2 | Vögel | 18 |
 | Fische | 🦶 1 | spawn: the meadow becomes Tiere, the fish field Algen | 19 |
-| Tiere | 🌾 1 | – (starve → Erde) | 20–30 |
-| Raubtiere | 🍖 1 | – (starve → Wiese) | 21–23 |
+| Tiere | 🌾 1 | – (starve → Wald) | 20–30 |
+| Raubtiere | 🍖 1 | – (starve → Wald) | 21–23 |
 | Hütte | 🍞 1 | Dorf (level 26+) | 24–30 |
 | Dorf | 🍞 1, 🔨 1 | Stadt (level 27+); starve → Hütte | 26–30 |
-| Stadt | STADT_NEEDS | starve → Dorf | 27–30 |
+| Stadt | 🍞 1, 🔨 1, 🙏 1 | – (starve → Dorf; level 30: no starving) | 27–30 |
 
 ### 3.5 Tools: Regen / Wunder, Meteor, Gnade
 
@@ -184,8 +231,8 @@ G: int (default 2)}`. At step 9 of the round (3.8), on one snapshot of the board
 | 2 | Lava → Fels (level 5), Wasser at the shore (a non-water neighbour) → Ursuppe (6–8), Fels → Erde |
 | 3 | Moos → Farn, Erde → Moos; level 9: shore water → Ursuppe |
 | 4 | level 13: Wiese → Wald, Erde → Wiese; levels 14–15: Saat → Acker, Wiese → Saat |
-| 5 | Wiese → Wald |
-| 6–7 | levels 20–23: Erde → Wiese; 24: Erde → Wiese, Wiese → Wald; 25–30: Saat → Acker, Wiese next to people → Saat, other Wiese → Wald |
+| 5 | levels 16–18: Wiese → Wald; level 19: Wasser at the shore → Algen (v2: rain must not turn the meadows the fish need into forest) |
+| 6–7 | levels 20–23: Erde → Wiese, **Wald next to a Wiese → Tiere** („Regen lockt Tiere“, v2: no dead ends); 24: Erde → Wiese, Wiese → Wald; 25–30: Saat → Acker, Wiese next to people → Saat, other Wiese → Wald |
 
   Rain on a burning field puts out every fire on that face; on the warned bolt field it cancels the strike; a field
   made by rain may complete a row (counts as usual). Charges: `rain_start`, +1 every `rain_every` steps, max 3; in
@@ -203,7 +250,7 @@ G: int (default 2)}`. At step 9 of the round (3.8), on one snapshot of the board
 |---|---|---|---|---|---|
 | **Vulkan** | 3–8 | a Lava group of ≥ **5** (no crater resting) | `volcano_warn` on the crater (the member with most lava neighbours, ties: lowest id): smoke | `erupt`: up to **3** non-water, non-lava neighbours of the group (crater first, then by id) become Lava; the group rests 2 rounds | split the clump, cool lava at the water, rain on lava |
 | **Blitz** | 12–19, 29–30 | a **dry forest**: a Wald group of ≥ **3** where no member touches water | `bolt_warn` on the member of the biggest dry group with most flammable neighbours (ties: LCG, v8) | the field burns if it is still in a dry group; fire spreads each round to flammable, non-wet, non-fresh neighbours, then burns down (Wald → Erde in act 3, → Wiese later; Farn → Erde; Tiere, Hütte, Saat, Acker → Wiese; Dorf → Hütte) | keep forests near water or small; move water next to it; rain |
-| **Hunger** | 20–30 | a thriver with `down` is not satt | `hunger_warn` at `hungry = H − 1` (3), pulsing icon | `starve` at H (4): Tiere → Erde, Raubtiere → Wiese, Dorf → Hütte, Stadt → Dorf (Hütte never) | bring food; people grow only where the next level is fed |
+| **Hunger** | 20–29 | a thriver with `down` has a need that was **never** supplied (lasting supply, 3.2: once fed, it never starves) | `hunger_warn` at `hungry = H − 1` (3), pulsing icon | `starve` at H (4): Tiere → Wald, Raubtiere → Wald („die Tiere ziehen weiter“: 3 Wald in a row make Tiere again), Dorf → Hütte, Stadt → Dorf (Hütte never) | connect food once; people grow only where the next level is fed |
 | **Rudel** | 23 | a Raubtier group of ≥ **3** touches Tiere | `pack_warn` on the threatened Tiere | every warned Tiere still next to the pack becomes Wiese | keep predators apart; meteor |
 | **Krieg** | 27–30 | a Kirche touches a Kirche | `war_start` (no damage) | as v8: the front falls one level per round and spreads | separate the churches; meteor on one |
 | **Smog** | 28–30 | an Industrie touches nature | `smog_warn` on its best nature neighbour (Tiere/Vögel > Wald/Farn > Acker/Saat > Wiese/Moos) | that field withers one step if still next to the industry | keep industry away from nature, next to Fels/Wasser/towns |
@@ -216,7 +263,7 @@ There is no danger on a timer. The bolt of v8 (every E twists) is replaced by th
 | type | progress | used in |
 |---|---|---|
 | `make` kinds n | made − lost: every field that becomes a goal kind by a row, thriving, spawn or rain counts +1 and is marked `mk`; a danger that changes an `mk` field counts −1 (`goal_loss`). Growing up, being consumed by a row or a fish leaving for land clears `mk` without a loss | 1–14, 16, 18–19 |
-| `satt` kind n | number of fields of the kind that are satt at the end of the round (drops by itself when one starves) | 20–29 |
+| `satt` kind n | number of fields of the kind that are satt at the end of the round; with lasting supply it only drops when a danger changes a satt field (or an unfed one starves) | 20–29 |
 | `group` kind n | size of the biggest group of the kind | 15, 17 |
 | `hold` [sub-goals] k | rounds in a row in which all sub-goals hold and **no damage** happened (warnings are allowed) | 30 |
 
@@ -227,14 +274,21 @@ round (or tool use) in which all sub-goals are met.
 
 1. Rows (creation, `once`, consume). 2. `steps += 1`; `fresh −= 1`. 3. Fire spreads and burns down. 4. Blitz
 (strike or new warning). 5. Vulkan (eruption or new warning). 6. Smog. 7. Flut. 8. Krieg. 9. Rudel. 10. Gedeihen
-(satt / grow / spawn / hunger / starve; steam rain). 11. Glaube → meteor charges. 12. Rain refill every N steps.
+(first `seal_step` on one snapshot, then satt / grow / spawn / hunger / starve; steam rain). 11. Glaube → meteor charges. 12. Rain refill every N steps.
 13. Goal check (hold counter, Gnade). Tools (rain, meteor) are no step: rows of the tool, then the goal check.
 
 ### 3.9 Steps, stars, points
 
 - `steps` = twists. Stars: ★★★ if steps ≤ s3, ★★ if ≤ s2, else ★ (always at least ★ when the level is done).
-- **Points** of a level = **20 × stars + 5 × max(0, par − steps)**, `par = s2 + 4`. A replay pays only the improvement
-  over the best result so far; the Welt des Tages pays fully once per Spieltag.
+- **Generous thresholds (v2, feedback „sehr schwer, 2 Sterne zu bekommen“)**, set per level from 100 simulated
+  boards and checked on 300 (`stars10.py`): **s2** = the smallest step count at which the average player (`greedy`)
+  has ★★ or better in **≥ 85 %** of all its games and the good bot in ≥ 98 %; **s3** = the step count at which the
+  good bot gets ★★★ in about **55 %** of its games (kept inside 40–70 % where the step distribution allows). The
+  table in 4.2 holds the result; the star ring in the HUD shows the next threshold („★★★ bis 5“).
+- **Points** of a level (binding source: `GDPD_PUNKTE_LADEN.md` 2.1) = **30 + 10 × stars + 5 × max(0, par − steps)**,
+  `par = s3 + 4` (par hangs on s3, so the generous ★★ thresholds never become a points source). A replay pays only
+  the improvement over the best result so far; the Welt des Tages pays fully once per Spieltag. The model
+  (`engine9.points`) and the pools use this formula.
 - Points are the only currency (section 6).
 
 ---
@@ -258,40 +312,41 @@ pulsing). Locked acts and levels show only a lock / „?“ (no title, no icon).
 
 ### 4.2 Level table (texts, goal, stars)
 
-Goal types and counting: 3.7. Stars: ★★★ / ★★ thresholds in steps (★ = done). `par` = ★★ + 4 (points, 3.9).
+Goal types and counting: 3.7. Stars: ★★★ / ★★ thresholds in steps (★ = done), v2 generous thresholds from the
+simulation (3.9, 9.2). `par` = ★★★ + 4 (points, 3.9).
 
 | # | act | title | story (card) | task chip | goal (exact) | new (reveal caps · line) | stars ★★★/★★ ≤ | par |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 1 | Glut | „Die Erde glüht.“ | „Mach 6 Felsen“ | make Fels 6 | „Neu: Drehen“ · „Bring 3 gleiche in eine Reihe.“ | 4 / 6 | 10 |
-| 2 | 1 | Abkühlen | „Das Meer kühlt die Glut.“ | „Mach 11 Felsen“ | make Fels 11 | „Neu: Abkühlen“ · „Lava zwischen zwei Wasser“ | 4 / 5 | 9 |
-| 3 | 1 | Vulkan | „Die Glut bricht aus.“ | „Mach 16 Felsen“ | make Fels 16 | „Neu: Vulkan“ · „Zu viel Lava bricht aus“ | 5 / 7 | 11 |
-| 4 | 1 | Urkontinent | „Land entsteht.“ | „Lass 11 Erde entstehen“ | make Erde 11 | „Neu: Land“ · „3 Felsen werden Erde“ | 5 / 6 | 10 |
-| 5 | 2 | Atmosphäre | „Dampf wird Himmel.“ | „Lass 14 Erde entstehen“ | make Erde 14 | „Neu: Regen“ · „Dampf macht Wolken“ | 4 / 6 | 10 |
-| 6 | 2 | Urmeer | „Das Meer wird reich.“ | „Mach 10 Ursuppe“ | make Ursuppe 10 | „Neu: Ursuppe“ · „Wasser braucht Glut und Fels“ | 5 / 7 | 11 |
-| 7 | 2 | Erstes Leben | „Der erste Funke.“ | „Erschaffe 5 Einzeller“ | make Einzeller 5 | „Neu: Leben“ · „Ursuppe braucht viel Wärme“ | 4 / 6 | 10 |
-| 8 | 2 | Leben teilt sich | „Leben teilt sich.“ | „Erschaffe 11 Einzeller“ | make Einzeller 11 | „Neu: Teilen“ · „Leben weckt Leben“ | 5 / 7 | 11 |
-| 9 | 3 | Algen | „Grün im Meer.“ | „Lass 5 Algen wachsen“ | make Algen 5 | „Neu: Algen“ · „3 Einzeller werden Algen“ | 4 / 6 | 10 |
-| 10 | 3 | Blauer Himmel | „Der Himmel wird blau.“ | „Lass 9 Moos wachsen“ | make Moos 9 | „Neu: Moos“ · „Algen machen das Land grün“ | 5 / 6 | 10 |
-| 11 | 3 | Farne | „Grün wird höher.“ | „Lass 7 Farne wachsen“ | make Farn 7 | „Neu: Farne“ · „3 Moos werden Farn“ | 6 / 8 | 12 |
-| 12 | 3 | Wälder | „Die ersten Wälder.“ | „Lass 7 Wälder wachsen“ | make Wald 7 | „Neu: Blitz“ · „Trockener Wald brennt“ | 6 / 7 | 11 |
-| 13 | 4 | Tag und Nacht | „Die Sonne geht auf.“ | „Lass 12 Wälder wachsen“ | make Wald 12 | „Neu: Sonne“ · „Oben ist Tag“ | 5 / 6 | 10 |
-| 14 | 4 | Saat | „Korn reift im Sommer.“ | „Lass 5 Felder reifen“ | make Acker 5 | „Neu: Saat“ · „Saat braucht Sonne und Wasser“ | 5 / 8 | 12 |
-| 15 | 4 | Ernte | „Zeit der Ernte.“ | „Mach ein Feld aus 6“ | group Acker 6 | „Neu: Zusammenwachsen“ · „Gleiche wachsen zusammen“ | 5 / 8 | 12 |
-| 16 | 5 | Fische | „Leben im Meer.“ | „Erschaffe 6 Fische“ | make Fische 6 | „Neu: Fische“ · „3 Algen werden Fisch“ | 5 / 6 | 10 |
-| 17 | 5 | Schwärme | „Fische ziehen zusammen.“ | „Mach einen Schwarm aus 5“ | group Fische 5 | „Neu: Schwarm“ · „Fische schwimmen zusammen“ | 5 / 8 | 12 |
-| 18 | 5 | Vögel | „Leben in der Luft.“ | „Lass 6 Vögel nisten“ | make Vögel 6 | „Neu: Vögel“ · „Vögel brauchen Fische“ | 5 / 7 | 11 |
-| 19 | 5 | Landgang | „Raus aus dem Wasser.“ | „Bring 6 Tiere an Land“ | make Tiere 6 | „Neu: Landgang“ · „Fische gehen an Land“ | 6 / 7 | 11 |
-| 20 | 6 | Futter | „Die Tiere haben Hunger.“ | „Gib 6 Tieren Futter“ | satt Tiere 6 | „Neu: Hunger“ · „Tiere brauchen Pflanzen“ | 3 / 5 | 9 |
-| 21 | 6 | Raubtiere | „Jäger und Gejagte.“ | „Mach 3 Raubtiere satt“ | satt Raubtiere 3 | „Neu: Raubtiere“ · „Raubtiere brauchen Tiere“ | 4 / 6 | 10 |
-| 22 | 6 | Nahrungskette | „Jeder frisst jeden.“ | „Mach alle satt“ | satt Raubtiere 3 + satt Tiere 4 | „Neu: Nahrungskette“ · „Jeder braucht sein Futter“ | 3 / 5 | 9 |
-| 23 | 6 | Meteor | „Ein Stein fällt vom Himmel.“ | „Rette 6 Tiere“ | satt Tiere 6 | „Neu: Meteor“ · „Rudel jagen Herden“ | 2 / 3 | 7 |
-| 24 | 6 | Menschen | „Die ersten Menschen.“ | „Versorge 3 Hütten“ | satt Hütte 3 | „Neu: Menschen“ · „3 Tiere werden Hütte“ | 5 / 11 | 15 |
-| 25 | 6 | Ackerbau | „Die Menschen säen.“ | „Versorge 4 Hütten“ | satt Hütte 4 | „Neu: Ackerbau“ · „Regen neben Hütten: Saat“ | 4 / 6 | 10 |
-| 26 | 6 | Dörfer | „Aus Hütten werden Dörfer.“ | „Mach 4 Dörfer satt“ | satt Dorf 4 | „Neu: Dörfer“ · „Dorf braucht Nahrung und Arbeit“ | 3 / 8 | 12 |
-| 27 | 6 | Glaube | „Die Menschen glauben.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ | 3 / 5 | 9 |
-| 28 | 6 | Städte | „Rauch über den Städten.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Fabriken“ · „Zu viel Stadt: Flut!“ | 3 / 6 | 10 |
-| 29 | 7 | Gleichgewicht | „Alles im Gleichgewicht.“ | „Mach alle satt“ | satt Stadt 2 + satt Tiere 3 | „Neu: Gleichgewicht“ · „Menschen und Tiere satt“ | 4 / 9 | 13 |
-| 30 | 7 | Der siebte Tag | „Und es war gut.“ | „Halte 3 Runden Ruhe“ | hold [satt Stadt 2 + satt Tiere 3] 3 | „Der siebte Tag“ · „Lass deine Welt ruhen“ | 7 / 11 | 15 |
+| 1 | 1 | Glut | „Die Erde glüht.“ | „Mach 6 Felsen“ | make Fels 6 | „Neu: Drehen“ · „Bring 3 gleiche in eine Reihe.“ | 4 / 6 | 8 |
+| 2 | 1 | Abkühlen | „Das Meer kühlt die Glut.“ | „Mach 11 Felsen“ | make Fels 11 | „Neu: Abkühlen“ · „Lava zwischen zwei Wasser“ | 4 / 7 | 8 |
+| 3 | 1 | Vulkan | „Die Glut bricht aus.“ | „Mach 16 Felsen“ | make Fels 16 | „Neu: Vulkan“ · „Zu viel Lava bricht aus“ | 5 / 9 | 9 |
+| 4 | 1 | Urkontinent | „Land entsteht.“ | „Lass 11 Erde entstehen“ | make Erde 11 | „Neu: Land“ · „3 Felsen werden Erde“ | 5 / 7 | 9 |
+| 5 | 2 | Atmosphäre | „Dampf wird Himmel.“ | „Lass 14 Erde entstehen“ | make Erde 14 | „Neu: Regen“ · „Dampf macht Wolken“ | 5 / 7 | 9 |
+| 6 | 2 | Urmeer | „Das Meer wird reich.“ | „Mach 10 Ursuppe“ | make Ursuppe 10 | „Neu: Ursuppe“ · „Wasser braucht Glut und Fels“ | 4 / 7 | 8 |
+| 7 | 2 | Erstes Leben | „Der erste Funke.“ | „Erschaffe 5 Einzeller“ | make Einzeller 5 | „Neu: Leben“ · „Ursuppe braucht viel Wärme“ | 5 / 8 | 9 |
+| 8 | 2 | Leben teilt sich | „Leben teilt sich.“ | „Erschaffe 11 Einzeller“ | make Einzeller 11 | „Neu: Teilen“ · „Leben weckt Leben“ | 5 / 6 | 9 |
+| 9 | 3 | Algen | „Grün im Meer.“ | „Lass 5 Algen wachsen“ | make Algen 5 | „Neu: Algen“ · „3 Einzeller werden Algen“ | 5 / 7 | 9 |
+| 10 | 3 | Blauer Himmel | „Der Himmel wird blau.“ | „Lass 9 Moos wachsen“ | make Moos 9 | „Neu: Moos“ · „Algen machen das Land grün“ | 5 / 8 | 9 |
+| 11 | 3 | Farne | „Grün wird höher.“ | „Lass 7 Farne wachsen“ | make Farn 7 | „Neu: Farne“ · „3 Moos werden Farn“ | 6 / 10 | 10 |
+| 12 | 3 | Wälder | „Die ersten Wälder.“ | „Lass 7 Wälder wachsen“ | make Wald 7 | „Neu: Blitz“ · „Trockener Wald brennt“ | 6 / 8 | 10 |
+| 13 | 4 | Tag und Nacht | „Die Sonne geht auf.“ | „Lass 12 Wälder wachsen“ | make Wald 12 | „Neu: Sonne“ · „Oben ist Tag“ | 5 / 6 | 9 |
+| 14 | 4 | Saat | „Korn reift im Sommer.“ | „Lass 5 Felder reifen“ | make Acker 5 | „Neu: Saat“ · „Saat braucht Sonne und Wasser“ | 6 / 9 | 10 |
+| 15 | 4 | Ernte | „Zeit der Ernte.“ | „Mach ein Feld aus 6“ | group Acker 6 | „Neu: Zusammenwachsen“ · „Gleiche wachsen zusammen“ | 6 / 12 | 10 |
+| 16 | 5 | Fische | „Leben im Meer.“ | „Erschaffe 6 Fische“ | make Fische 6 | „Neu: Fische“ · „3 Algen werden Fisch“ | 6 / 11 | 10 |
+| 17 | 5 | Schwärme | „Fische ziehen zusammen.“ | „Mach einen Schwarm aus 5“ | group Fische 5 | „Neu: Schwarm“ · „Fische schwimmen zusammen“ | 6 / 16 | 10 |
+| 18 | 5 | Vögel | „Leben in der Luft.“ | „Lass 6 Vögel nisten“ | make Vögel 6 | „Neu: Vögel“ · „Vögel brauchen Fische“ | 5 / 9 | 9 |
+| 19 | 5 | Landgang | „Raus aus dem Wasser.“ | „Bring 6 Tiere an Land“ | make Tiere 6 | „Neu: Landgang“ · „Fische gehen an Land“ | 5 / 8 | 9 |
+| 20 | 6 | Futter | „Die Tiere haben Hunger.“ | „Gib 6 Tieren Futter“ | satt Tiere 6 | „Neu: Hunger“ · „Tiere brauchen Pflanzen“ | 3 / 5 | 7 |
+| 21 | 6 | Raubtiere | „Jäger und Gejagte.“ | „Mach 3 Raubtiere satt“ | satt Raubtiere 3 | „Neu: Raubtiere“ · „Raubtiere brauchen Tiere“ | 4 / 12 | 8 |
+| 22 | 6 | Nahrungskette | „Jeder frisst jeden.“ | „Mach alle satt“ | satt Raubtiere 3 + satt Tiere 5 | „Neu: Nahrungskette“ · „Jeder braucht sein Futter“ | 4 / 8 | 8 |
+| 23 | 6 | Meteor | „Ein Stein fällt vom Himmel.“ | „Rette 6 Tiere“ | satt Tiere 6 | „Neu: Meteor“ · „Rudel jagen Herden“ | 2 / 4 | 6 |
+| 24 | 6 | Menschen | „Die ersten Menschen.“ | „Versorge 3 Hütten“ | satt Hütte 3 | „Neu: Menschen“ · „3 Tiere werden Hütte“ | 5 / 14 | 9 |
+| 25 | 6 | Ackerbau | „Die Menschen säen.“ | „Versorge 5 Hütten“ | satt Hütte 5 | „Neu: Ackerbau“ · „Regen neben Hütten: Saat“ | 5 / 11 | 9 |
+| 26 | 6 | Dörfer | „Aus Hütten werden Dörfer.“ | „Mach 4 Dörfer satt“ | satt Dorf 4 | „Neu: Dörfer“ · „Dorf braucht Nahrung und Arbeit“ | 5 / 10 | 9 |
+| 27 | 6 | Glaube | „Die Menschen glauben.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ | 3 / 6 | 7 |
+| 28 | 6 | Städte | „Rauch über den Städten.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Fabriken“ · „Zu viel Stadt: Flut!“ | 5 / 13 | 9 |
+| 29 | 7 | Gleichgewicht | „Alles im Gleichgewicht.“ | „Mach alle satt“ | satt Stadt 2 + satt Tiere 4 | „Neu: Gleichgewicht“ · „Menschen und Tiere satt“ | 5 / 14 | 9 |
+| 30 | 7 | Der siebte Tag | „Und es war gut.“ | „Halte 3 Runden Ruhe“ | hold [satt Stadt 2 + satt Tiere 3] 3 | „Der siebte Tag“ · „Lass deine Welt ruhen“ | 6 / 16 | 10 |
 
 ### 4.3 Level rules (start board, systems, the new thing)
 
@@ -317,18 +372,18 @@ Start board = counts on the 54 fields (rest Wasser), placed by sticker type (½ 
 | 16 | Algen 15, Wiese 8, Wald 6, Fels 4, Wasser 21 | rows Algen→Fische; rain Wiese→Wald; charges 1 +1/5; dangers/tools: Blitz | rows Algen → Fische |
 | 17 | Algen 10, Wiese 8, Wald 6, Fische 4, Fels 4, Wasser 22 | rows Algen→Fische; rain Wiese→Wald; charges 1 +1/5; dangers/tools: Blitz | group goal in water |
 | 18 | Wald 10, Algen 9, Wiese 8, Fische 3, Fels 2, Wasser 22 | rows Wald→Vögel, Algen→Fische; Wald 🐟🐟→Vögel; rain Wiese→Wald; charges 1 +1/5; dangers/tools: Blitz | Wald with 🐟🐟 → Vögel |
-| 19 | Algen 10, Wiese 10, Wald 6, Fische 3, Vögel 2, Wasser 23 | rows Algen→Fische; Fische 🦶→spawn Tiere; rain Wiese→Wald; charges 1 +1/5; dangers/tools: Blitz | spawn: fish + meadow → Tiere |
-| 20 | Erde 10, Tiere 7, Fels 6, Wald 3, Wiese 3, Wasser 25 | rows Erde→Wiese, Wald→Tiere; Tiere 🌾→–, starve→Erde; rain Erde→Wiese; charges 1 +1/5 | needs + hunger for animals |
-| 21 | Tiere 10, Erde 7, Wiese 5, Fels 4, Wald 3, Wasser 25 | rows Erde→Wiese, Wald→Tiere, Tiere→Raubtiere; Tiere 🌾→–, starve→Erde; Raubtiere 🍖→–, starve→Wiese; rain Erde→Wiese; charges 1 +1/5 | predators need prey |
-| 22 | Tiere 7, Erde 7, Wiese 4, Fels 4, Raubtiere 3, Wald 3, Wasser 26 | rows Erde→Wiese, Wald→Tiere, Tiere→Raubtiere; Tiere 🌾→–, starve→Erde; Raubtiere 🍖→–, starve→Wiese; rain Erde→Wiese; charges 1 +1/5 | two satt goals at once |
-| 23 | Tiere 8, Erde 7, Raubtiere 4, Wiese 4, Wald 3, Fels 3, Wasser 25 | rows Erde→Wiese, Wald→Tiere; Tiere 🌾→–, starve→Erde; Raubtiere 🍖→–, starve→Wiese; rain Erde→Wiese; charges 1 +1/5; dangers/tools: Rudel, Meteor ×1 | danger Rudel; Meteor tool |
+| 19 | Algen 10, Wiese 10, Wald 6, Fische 3, Vögel 2, Wasser 23 | rows Algen→Fische; Fische 🦶→spawn Tiere; rain Wasser(shore)→Algen; charges 1 +1/5; dangers/tools: Blitz | spawn: fish + meadow → Tiere |
+| 20 | Erde 10, Tiere 7, Fels 6, Wald 3, Wiese 3, Wasser 25 | rows Erde→Wiese, Wald→Tiere; Tiere 🌾→–, starve→Wald; rain Erde→Wiese, Wald(meadow)→Tiere; charges 1 +1/5 | needs + hunger for animals |
+| 21 | Tiere 10, Erde 7, Wiese 5, Fels 4, Wald 3, Wasser 25 | rows Erde→Wiese, Wald→Tiere, Tiere→Raubtiere; Tiere 🌾→–, starve→Wald; Raubtiere 🍖→–, starve→Wald; rain Erde→Wiese, Wald(meadow)→Tiere; charges 1 +1/5 | predators need prey |
+| 22 | Tiere 7, Erde 7, Wiese 4, Fels 4, Raubtiere 3, Wald 3, Wasser 26 | rows Erde→Wiese, Wald→Tiere, Tiere→Raubtiere; Tiere 🌾→–, starve→Wald; Raubtiere 🍖→–, starve→Wald; rain Erde→Wiese, Wald(meadow)→Tiere; charges 1 +1/5 | two satt goals at once |
+| 23 | Tiere 8, Erde 7, Raubtiere 4, Wiese 4, Wald 3, Fels 3, Wasser 25 | rows Erde→Wiese, Wald→Tiere; Tiere 🌾→–, starve→Wald; Raubtiere 🍖→–, starve→Wald; rain Erde→Wiese, Wald(meadow)→Tiere; charges 1 +1/5; dangers/tools: Rudel, Meteor ×1 | danger Rudel; Meteor tool |
 | 24 | Tiere 13, Wald 10, Wiese 2, Wasser 29 | rows Wald→Tiere, Tiere→Hütte; consume Tiere (others → Wiese); Hütte 🍞→–; rain Erde→Wiese, Wiese→Wald; charges 1 +1/5; dangers/tools: Blitz | 3 Tiere → Hütte (consume); Hütte 🍞 |
-| 25 | Wiese 10, Wald 6, Hütte 5, Tiere 2, Erde 2, Wasser 29 | rows Wald→Tiere; Hütte 🍞→–; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Blitz | rain Wiese next to people → Saat → Acker |
-| 26 | Wiese 7, Wald 6, Hütte 5, Tiere 4, Acker 3, Fels 3, Saat 2, Wasser 24 | rows Wald→Tiere; Hütte 🍞→Dorf; Dorf 🍞🔨→–, starve→Hütte; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Blitz | Hütte → Dorf (🍞🔨) |
-| 27 | Wald 7, Dorf 6, Acker 4, Tiere 4, Kirche 3, Fels 3, Wiese 3, Wasser 24 | rows Wald→Tiere; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Krieg, Glaube→Meteor | Kirche, Krieg, Glaube → Meteor; Stadt |
-| 28 | Wald 7, Acker 5, Tiere 4, Stadt 3, Kirche 3, Wiese 3, Dorf 2, Industrie 1, Wasser 26 | rows Wald→Tiere; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Krieg, Smog, Flut, Glaube→Meteor | Smog, Flut |
-| 29 | Wald 7, Tiere 6, Wiese 6, Stadt 3, Acker 3, Dorf 2, Kirche 2, Industrie 1, Wasser 24 | rows Wald→Tiere; Tiere 🌾→–, starve→Erde; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Blitz, Krieg, Smog, Flut, Glaube→Meteor | two satt goals, all systems |
-| 30 | Tiere 6, Wiese 6, Wald 6, Acker 4, Stadt 3, Kirche 2, Fels 2, Dorf 1, Wasser 24 | rows Wald→Tiere; Tiere 🌾→–, starve→Erde; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Krieg, Glaube→Meteor | hold goal (3 rounds, no damage) |
+| 25 | Wiese 10, Hütte 6, Wald 6, Tiere 2, Erde 2, Wasser 28 | rows Wald→Tiere; Hütte 🍞→–; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Blitz | rain Wiese next to people → Saat → Acker |
+| 26 | Wiese 9, Wald 7, Hütte 5, Tiere 4, Acker 3, Wasser 26 | rows Wald→Tiere; Hütte 🍞→Dorf; Dorf 🍞🔨→–, starve→Hütte; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Blitz | Hütte → Dorf (🍞🔨) |
+| 27 | Wald 8, Dorf 6, Acker 4, Tiere 4, Kirche 3, Wiese 3, Wasser 26 | rows Wald→Tiere; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Krieg, Glaube→Meteor | Kirche, Krieg, Glaube → Meteor; Stadt |
+| 28 | Wald 8, Acker 6, Stadt 4, Tiere 4, Kirche 3, Industrie 1, Wasser 28 | rows Wald→Tiere; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Krieg, Smog, Flut, Glaube→Meteor | Smog, Flut |
+| 29 | Wald 9, Tiere 6, Acker 4, Stadt 3, Kirche 2, Industrie 1, Wasser 29 | rows Wald→Tiere; Tiere 🌾→–, starve→Wald; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt, starve→Hütte; Stadt 🍞🔨🙏→–, starve→Dorf; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Blitz, Krieg, Smog, Flut, Glaube→Meteor | two satt goals, all systems |
+| 30 | Wald 7, Tiere 6, Wiese 6, Stadt 4, Acker 4, Kirche 2, Wasser 25 | rows Wald→Tiere; Tiere 🌾→–; Hütte 🍞→Dorf; Dorf 🍞🔨→Stadt; Stadt 🍞🔨🙏→–; Saat ☀💧→Acker; rain Saat→Acker, Wiese(people)→Saat, Wiese(nopeople)→Wald; charges 2 +1/3; dangers/tools: Krieg, Glaube→Meteor | hold goal (3 rounds, no damage) |
 
 ### 4.4 Notes per level
 
@@ -338,12 +393,21 @@ Start board = counts on the 54 fields (rest Wasser), placed by sticker type (½ 
   (0 in act 1–2, 1–3 later), no church touches a church, group goals start with no group bigger than 1, no single twist
   wins. Levels 3 and 23: half of the pool boards start with the danger already built (a lava clump of 5 / a pack of
   3), so the new danger shows after the first twist.
+- **Reachable satt goals (v2):** for every satt goal kind on the start board, at least `target` of its fields must be
+  able to touch a source of each need by **sticker type** (corner stickers only ever touch edge stickers, edge stickers
+  touch corners and centres, centres touch edges; partners on the same cubie never change). Without this rule 12 % of
+  the level-30 boards could never get 2 satt towns (a church in a centre, towns on corners).
+- **Targets raised in v2** (lasting supply made act 6 short, median 3 steps): 22 Tiere 4 → 5, 25 Hütten 4 → 5
+  (6 on the board), 26 Dörfer 3 → 4, 28 Städte 2 → 3, 29 Tiere 3 → 4. Tried and rejected (too hard for the average
+  player): 21 Raubtiere 4, 27 Städte 3, 29 Städte 3.
 - **Visible kinds:** at most 6 besides water on every start board (the user's „nicht zu viele verschiedene Felder“);
   at most 3 growable kinds (row kinds with ≥ 3 fields + thrivers with a result).
 - **Overnight growth inside an act** (carry, section 5): level 27 `[[Hütte, Dorf]]`, level 28 `[[Dorf, Stadt]]`,
   level 30 `[[Saat, Acker]]`; all other levels only fit the composition (the wave shows the changed fields).
 - **No dead ends:** every counted kind has a way to be (re)made in its level (rows, thriving, rain): e.g. level 20
-  has Wald → Tiere rows although the task is feeding, level 27 lets Hütte grow to Dorf again; plus Gnade (3.5).
+  has Wald → Tiere rows although the task is feeding, and rain on a Wald next to a Wiese lures Tiere out (the
+  Gnade charges therefore always have a use), level 27 lets Hütte grow to Dorf again; plus Gnade (3.5). Checked with
+  a casual bot without a step cap (9.8).
 - **Sun face** (levels 13–15, 25–30 for Saat): face 0 in `GameState.FACE_NORMALS` (+y). The camera starts with it
   on top; the art shows the sun above it (section 10).
 
@@ -354,7 +418,9 @@ Start board = counts on the 54 fields (rest Wasser), placed by sticker type (½ 
 **Decision: yes, within an act; a new act starts on a fresh, validated board.** The player's world of yesterday is
 the start of today's level (the backlog item „die echte Welt von gestern weiterführen“), so building feels
 continuous; the first level of an act is a pool board because the era changes the whole look (and a validated board
-resets any mess). Validated by simulation: CARRY_LINE.
+resets any mess). Validated by simulation (9.4): over 100 chains per act the carried worlds are done as fast as
+fresh boards (medians ± 1 step); the pool board is used instead in level 25 (58 %: yesterday's Hütten mostly stand
+fed next to food, which the start rules forbid), 28 (10 %) and 23 (3 %), elsewhere in 0–1 %.
 
 **Algorithm (`Campaign.carry(prev_board, level, seed)`, model `b4/carry9.py`, deterministic):**
 1. `prev_board` = the 54 kinds by **slot** at the end of the last session of the previous level (after Weiterbauen),
@@ -379,31 +445,20 @@ world. „Nochmal · mehr Sterne“ replays the **same** start board (it was the
 
 ## 6. Points and the shop
 
-**One currency: Punkte** (coins are merged: 1 old coin = 20 points).
+**Binding source: `GDPD_PUNKTE_LADEN.md`** (one currency „Punkte“, 1 old coin = 20 points, the level formula of 3.9,
+daily caps, the shop catalogue with Wunder / Hilfe / Gott / Welten, fairness rules, save keys and migration of coins).
+This spec only owns the inputs it needs from the campaign:
 
-| source | points | cap |
-|---|---|---|
-| level done | 20 × stars + 5 × max(0, par − steps) | replays pay only the improvement |
-| Welt des Tages | same formula | once per Spieltag |
-| Weiterbauen | +1 per new growth (a row, or a field reaching a kind by thriving for the first time); +10 per extra task | 30 per Spieltag |
-| streak milestone (every 7 days) | +50 (when shields are full; else +1 shield as now) | – |
+- the star thresholds `stars = [s3, s2]` per level (4.2, from the simulation, 9.2) and `par = s3 + 4`;
+- which tools a level gives for free (rain charges, steam, Gnade, meteor from faith: section 3.5) – those are never
+  steps; a **bought** miracle counts 2 steps and at most one per kind and level (`GDPD_PUNKTE_LADEN.md` 1, 6);
+- the hint is free in levels 1–5 and after 3 steps without progress (the model's `weak` bot uses exactly that, 9.1);
+- Weiterbauen pays +1 per *new* growth only (a row, or a field reaching a kind by thriving for the first time); with
+  lasting supply a field that becomes satt again after a danger does not pay again (9.6).
 
-Typical income (model, good bot): POINTS_LINE.
-
-| shop item (`Shop.ITEMS`) | price | rule |
-|---|---|---|
-| Serienschutz | 100 | max 2 held (as now) |
-| Wunder: Regen | 25 | +1 Regen in the current level, max 1 per level; no step |
-| Wunder: Meteor | 50 | +1 Meteor (from level 23), max 1 per level |
-| Tipp | 10 | the hint is **free** in levels 1–5 and after 3 steps without progress (never a pay-wall on the core verb) |
-| Zurück | 5 | one step back |
-| Teile für deinen Gott (Hut, Krone, Flügel, …) | 150–300 | cosmetic |
-| Skins (Spaghettimonster-Farben, Gold, Nacht) | 500 | cosmetic |
-| Themes / neue Welten (Insel, Wüste, Winter) | 1500 | the Welt des Tages also uses them for free once a week (no pay-wall) |
-
-Fairness rules: twisting, rain charges from the level, Gnade and the hint after a stall are free; bought miracles
-never give more than one extra charge per level; stars and points stay comparable because bought miracles are no
-steps but are limited to one per kind per level.
+Typical income (model, 300 boards per level, 9.2): good bot 74 points per level, average player 65, casual 43, so
+about 2 200 / 1 950 / 1 300 points over the 30 levels (level points only; streak, extras and the Welt des Tages
+come on top, `GDPD_PUNKTE_LADEN.md` 9).
 
 ---
 
@@ -411,13 +466,16 @@ steps but are limited to one per kind per level.
 
 As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays won, stars frozen. New:
 - **Extra tasks**: the chip becomes „Extra: …“ – `make` and `group` goals: target + 2, then + 4; `satt` goals:
-  target + 1; `hold`: + 2 rounds. Each extra: +10 points and a small celebration. At most 2 extras, then
-  „Bau weiter“ (free building, +1 per new growth).
+  target + 1; `hold`: + 2 rounds. Each extra: points and a small celebration; then „Bau weiter“ (free building,
+  points per new growth). Amounts and daily caps: `GDPD_PUNKTE_LADEN.md` 3–4 (binding).
+- **Lasting supply in Weiterbauen:** seals stay as in the level; a field that becomes satt again after a danger
+  pays nothing again (like „every row grows only once“).
 - **Extras of the world** (things to do that are not on the task, shown as small icons in the dock):
   act 1–2 „Vulkan zähmen“ (cool the biggest lava group), act 3 „Himmel ganz blau“ (sky_blue = 1), act 4
   „Großes Feld“ (a 6-field Acker), act 5 „Großer Schwarm“, act 6 „Herde“ / „Großstadt-Viertel“, act 7 „Paradies“
-  (every living field satt). Each +10 once per level; pure fun, never needed.
-- **Farming pays nothing:** WEITER_LINE.
+  (every living field satt). Each pays once per level (`GDPD_PUNKTE_LADEN.md` 3); pure fun, never needed.
+- **Farming pays nothing:** the best ping-pong gives 0.01–0.20 new growths per twist after the win, honest building
+  0.07–1.06, about five times more (9.6).
 - The world after Weiterbauen is what the next level of the act starts from (section 5).
 
 ---
@@ -438,11 +496,308 @@ As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays
 
 ---
 
-## 9. Validation (TBD)
+## 9. Validation (Python model, `gdpd_sim/b4`, v2 rules)
+
+### 9.1 Method
+
+- **Rules:** `engine9.py` with `lasting = True` (3.2) on every level; `levels9.py` = the 30 levels of section 4,
+  star thresholds from `stars10.json`.
+- **Boards:** `levels9.generate(n, seed)` (comp by sticker type, swap hill-climb to the start rules incl. the
+  sticker-type check for satt goals, 4.4), seeds 1–300 per level, the same seeds for every bot.
+- **Bots** (the model's stand-ins for players):
+  - `good` = the hint: tools first (rain/meteor when they raise the value), then 1-ply over the 27 twists and 2-ply
+    on the best 6 (27 after 4 steps without progress); never back to one of the last 8 boards. Value = 100 ×
+    progress + thriving and supply potential (needs met or sealed, next-level needs of people, chain distance to
+    the goal kinds) + danger penalties. Cap 40 steps.
+  - `greedy` = **the average player**: the same value, 1-ply only, uses the rain/meteor button when it helps, does
+    not undo to a board it saw in the last 4 steps. Cap 50.
+  - `weak` = a casual player: half the time a random twist that makes a row or a new satt field, otherwise any
+    twist; rain now and then on a random spot; after 3 steps without progress it takes the free hint (one good-bot
+    step) half the time. Cap 80. `weaklong` = the same without a practical cap (300) to prove „no dead ends“.
+  - `farmer` (oracle) = the best of `pp` (every slice back and forth), `cyc` (rot4, m m m2, pp2, A B A′ B′,
+    A A′ B B′ from the 4 best slices) and `slice` (one slice only, best of its 3 moves each step, with rain), horizon
+    30 steps.
+- A level is never lost: the caps only end the simulation; „done ≤ 40“ means done within 40 steps.
+- **Stars** (`stars10.py`, on a first run with 100 boards per level and bot): s3 = the step count where the good
+  bot's ★★★ share is closest to 55 % (40–70 % where possible), s2 = the smallest count where `greedy` has ★★ or
+  better in ≥ 85 % of all its games and `good` in ≥ 98 %, capped at 2 × s3 + 4. Then everything was re-run on 300
+  boards with these thresholds (the tables below). Levels 20–23 (and the act-6 chains) were re-run after adding the
+  „Regen lockt Tiere“ valve (`redo10.sh`, merged by `merge10.py`); every table includes it. Level 23 is the only
+  level whose pool boards may be solved in 2 steps (the meteor story beat), so ★★★ there means 2 steps.
+- **Targets:** good bot done ≥ 98 % within 40 steps on every level; medians rising slowly through the campaign;
+  good ★★★ 40–70 %; greedy ★★ or better ≈ 85 %; weak mostly ★–★★ and always done eventually; farmers never
+  better than honest play; good play loses no goal fields.
+
+### 9.2 Main metrics (300 generated boards per level and bot, current thresholds)
+
+| # | title | ★★★ / ★★ ≤ | good: done ≤40, median steps (p25–p75, p90) | good ★★★/★★/★ % | greedy: done ≤50, median | greedy ★★★/★★/★ % | weak: done ≤80, median | weak ★★★/★★/★ % | good losses/game | dangers per good game |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Glut | 4 / 6 | 100 %, 4 (4–5, 5) | 52/48/0 | 100 %, 5 | 30/62/8 | 100 %, 9 | 0/8/92 | 0.00 | – |
+| 2 | Abkühlen | 4 / 7 | 100 %, 5 (4–5, 5) | 49/51/0 | 100 %, 5 | 18/79/3 | 100 %, 10 | 0/11/89 | 0.00 | – |
+| 3 | Vulkan | 5 / 9 | 100 %, 6 (5–7, 8) | 26/72/2 | 100 %, 8 | 6/81/13 | 100 %, 14 | 0/8/92 | 0.05 | eruptions 0.8 |
+| 4 | Urkontinent | 5 / 7 | 100 %, 6 (5–6, 7) | 31/66/3 | 100 %, 6 | 16/75/9 | 100 %, 14 | 0/0/100 | 0.02 | eruptions 0.5 |
+| 5 | Atmosphäre | 5 / 7 | 100 %, 5 (5–6, 6) | 67/32/0 | 100 %, 5 | 76/24/0 | 100 %, 17 | 0/0/100 | 0.01 | eruptions 0.6 |
+| 6 | Urmeer | 4 / 7 | 100 %, 4 (4–5, 6) | 51/48/0 | 100 %, 5 | 41/54/5 | 100 %, 12 | 0/6/94 | 0.00 | – |
+| 7 | Erstes Leben | 5 / 8 | 100 %, 5 (4–6, 7) | 57/42/0 | 100 %, 6 | 38/53/9 | 100 %, 12 | 0/8/92 | 0.00 | – |
+| 8 | Leben teilt sich | 5 / 6 | 100 %, 5 (5–5, 5) | 97/3/0 | 100 %, 5 | 75/19/6 | 100 %, 12 | 0/1/98 | 0.00 | – |
+| 9 | Algen | 5 / 7 | 100 %, 5 (4–5, 6) | 81/18/1 | 100 %, 5 | 61/29/10 | 100 %, 10 | 2/13/85 | 0.00 | – |
+| 10 | Blauer Himmel | 5 / 8 | 100 %, 5 (5–6, 7) | 57/42/2 | 100 %, 6 | 33/48/19 | 100 %, 11 | 0/12/88 | 0.00 | – |
+| 11 | Farne | 6 / 10 | 100 %, 7 (6–8, 9) | 49/51/0 | 100 %, 8 | 28/68/4 | 100 %, 13 | 0/10/90 | 0.00 | – |
+| 12 | Wälder | 6 / 8 | 100 %, 7 (6–7, 8) | 44/54/2 | 100 %, 7 | 26/64/10 | 100 %, 14 | 0/0/100 | 0.00 | – |
+| 13 | Tag und Nacht | 5 / 6 | 100 %, 5 (5–5, 6) | 80/19/1 | 100 %, 5 | 64/32/5 | 100 %, 12 | 0/1/99 | 0.00 | – |
+| 14 | Saat | 6 / 9 | 100 %, 6 (5–7, 8) | 67/33/1 | 99 %, 7 | 35/53/11 | 100 %, 11 | 0/15/85 | 0.00 | – |
+| 15 | Ernte | 6 / 12 | 100 %, 6 (5–8, 11) | 56/40/4 | 100 %, 8 | 36/51/13 | 100 %, 15 | 1/22/76 | 0.00 | – |
+| 16 | Fische | 6 / 11 | 100 %, 6 (5–7, 8) | 65/32/2 | 92 %, 7 | 39/42/11 | 99 %, 12 | 1/36/62 | 0.00 | – |
+| 17 | Schwärme | 6 / 16 | 99 %, 6 (5–8, 11) | 55/43/1 | 92 %, 10 | 21/48/23 | 100 %, 20 | 0/33/66 | 0.00 | – |
+| 18 | Vögel | 5 / 9 | 100 %, 5 (4–7, 7) | 54/45/1 | 100 %, 6 | 34/55/11 | 100 %, 12 | 2/20/78 | 0.00 | – |
+| 19 | Landgang | 5 / 8 | 100 %, 5 (4–6, 7) | 64/35/1 | 100 %, 6 | 32/57/11 | 100 %, 13 | 0/4/96 | 0.00 | – |
+| 20 | Futter | 3 / 5 | 100 %, 3 (3–4, 5) | 56/42/2 | 99 %, 4 | 34/54/11 | 100 %, 10 | 0/7/93 | 0.00 | – |
+| 21 | Raubtiere | 4 / 12 | 100 %, 4 (3–5, 6) | 63/37/0 | 93 %, 5 | 41/42/10 | 100 %, 15 | 0/31/69 | 0.00 | starve 0.1 |
+| 22 | Nahrungskette | 4 / 8 | 100 %, 4 (3–5, 5) | 72/28/0 | 99 %, 5 | 44/48/8 | 100 %, 15 | 1/12/87 | 0.00 | – |
+| 23 | Meteor | 2 / 4 | 100 %, 2 (2–3, 3) | 51/46/3 | 100 %, 3 | 33/54/12 | 100 %, 8 | 0/5/95 | 0.00 | – |
+| 24 | Menschen | 5 / 14 | 100 %, 5 (5–7, 8) | 52/48/0 | 95 %, 8 | 21/61/13 | 100 %, 12 | 2/76/22 | 0.00 | – |
+| 25 | Ackerbau | 5 / 11 | 100 %, 5 (4–6, 7) | 69/31/0 | 100 %, 7 | 34/51/15 | 100 %, 11 | 1/51/48 | 0.00 | – |
+| 26 | Dörfer | 5 / 10 | 100 %, 5 (4–6, 7) | 70/29/0 | 99 %, 6 | 38/48/13 | 100 %, 12 | 3/25/73 | 0.00 | – |
+| 27 | Glaube | 3 / 6 | 100 %, 3 (3–4, 5) | 71/28/1 | 100 %, 4 | 38/53/8 | 100 %, 8 | 2/26/72 | 0.00 | – |
+| 28 | Städte | 5 / 13 | 100 %, 5 (4–6, 9) | 66/34/0 | 98 %, 7 | 37/46/16 | 99 %, 13 | 10/41/49 | 0.00 | starve 0.3, smogged 2.1 |
+| 29 | Gleichgewicht | 5 / 14 | 100 %, 5 (4–7, 9) | 51/49/0 | 94 %, 9 | 24/47/23 | 100 %, 15 | 3/43/54 | 0.00 | starve 0.6, smogged 3.0 |
+| 30 | Der siebte Tag | 6 / 16 | 100 %, 7 (5–8, 10) | 47/53/0 | 99 %, 9 | 24/64/12 | 100 %, 9 | 7/87/6 | 0.00 | – |
+
+**Whole campaign (9 000 games per bot):**
+
+| bot (player) | ★★★ | ★★ or better | done (any stars) | stars per level | points per level |
+|---|---|---|---|---|---|
+| good (the hint, a strong player) | 59 % | 99 % | 100 % | 2.58 | 74 |
+| greedy (average player) | 36 % | 88 % | 99 % | 2.22 | 65 |
+| weak (casual, half random) | 1 % | 22 % | 100 % | 1.23 | 43 |
+
+### 9.3 Farmers (300 boards per level, oracle, horizon 30)
+
+| # | title | farmer done ≤30 | farmer median | good median | farmer ★★★ % | boards where the farmer is faster than the good bot | farmer pts / good pts | best farmer (pp / cyc / slice) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Glut | 100 % | 15 | 4 | 0 | 0 of 300 | 40 / 73 | 0 / 53 / 247 |
+| 2 | Abkühlen | 100 % | 16 | 5 | 3 | 1 of 300 | 43 / 72 | 0 / 130 / 170 |
+| 3 | Vulkan | 89 % | 17 | 6 | 0 | 3 of 300 | 36 / 66 | 5 / 240 / 55 |
+| 4 | Urkontinent | 96 % | 18 | 6 | 0 | 1 of 300 | 39 / 68 | 4 / 141 / 155 |
+| 5 | Atmosphäre | 100 % | 15 | 5 | 0 | 0 of 300 | 40 / 76 | 0 / 1 / 299 |
+| 6 | Urmeer | 100 % | 12 | 4 | 5 | 1 of 300 | 43 / 72 | 0 / 63 / 237 |
+| 7 | Erstes Leben | 78 % | 12 | 5 | 2 | 0 of 300 | 34 / 75 | 0 / 10 / 290 |
+| 8 | Leben teilt sich | 100 % | 9 | 5 | 22 | 1 of 300 | 52 / 80 | 0 / 0 / 300 |
+| 9 | Algen | 97 % | 22 | 5 | 0 | 1 of 300 | 39 / 79 | 0 / 51 / 249 |
+| 10 | Blauer Himmel | 100 % | 18 | 5 | 2 | 0 of 300 | 41 / 73 | 0 / 8 / 292 |
+| 11 | Farne | 100 % | 15 | 7 | 0 | 0 of 300 | 40 / 71 | 0 / 1 / 299 |
+| 12 | Wälder | 23 % | 18 | 7 | 0 | 1 of 300 | 10 / 71 | 0 / 80 / 220 |
+| 13 | Tag und Nacht | 100 % | 18 | 5 | 0 | 0 of 300 | 40 / 77 | 0 / 0 / 300 |
+| 14 | Saat | 67 % | 13 | 6 | 4 | 2 of 300 | 30 / 76 | 0 / 10 / 290 |
+| 15 | Ernte | 34 % | 15 | 6 | 2 | 3 of 300 | 15 / 73 | 0 / 43 / 257 |
+| 16 | Fische | 6 % | 18 | 6 | 0 | 0 of 300 | 2 / 75 | 18 / 282 / 0 |
+| 17 | Schwärme | 5 % | 17 | 6 | 0 | 1 of 300 | 2 / 72 | 162 / 138 / 0 |
+| 18 | Vögel | 25 % | 13 | 5 | 2 | 1 of 300 | 12 / 73 | 3 / 108 / 189 |
+| 19 | Landgang | 51 % | 12 | 5 | 0 | 0 of 300 | 21 / 76 | 1 / 79 / 220 |
+| 20 | Futter | 79 % | 8 | 3 | 6 | 0 of 300 | 40 / 73 | 0 / 22 / 278 |
+| 21 | Raubtiere | 8 % | 6 | 4 | 3 | 3 of 300 | 5 / 75 | 127 / 130 / 43 |
+| 22 | Nahrungskette | 20 % | 7 | 4 | 2 | 0 of 300 | 11 / 77 | 0 / 61 / 239 |
+| 23 | Meteor | 100 % | 5 | 2 | 13 | 0 of 300 | 52 / 72 | 0 / 30 / 270 |
+| 24 | Menschen | 10 % | 13 | 5 | 2 | 2 of 300 | 5 / 72 | 115 / 182 / 3 |
+| 25 | Ackerbau | 17 % | 11 | 5 | 2 | 3 of 300 | 9 / 77 | 2 / 118 / 180 |
+| 26 | Dörfer | 24 % | 12 | 5 | 4 | 2 of 300 | 12 / 78 | 31 / 200 / 69 |
+| 27 | Glaube | 57 % | 3 | 3 | 29 | 4 of 300 | 39 / 76 | 87 / 167 / 46 |
+| 28 | Städte | 15 % | 13 | 5 | 5 | 0 of 300 | 9 / 76 | 118 / 182 / 0 |
+| 29 | Gleichgewicht | 15 % | 10 | 5 | 3 | 5 of 300 | 8 / 71 | 17 / 281 / 2 |
+| 30 | Der siebte Tag | 12 % | 5 | 7 | 11 | 6 of 300 | 10 / 71 | 266 / 17 / 17 |
+
+### 9.4 Carry-over chains (100 chains per act, good bot)
+
+| # | title | carried world: done ≤40 | carried median | fresh pool-style board median | fallback to the pool board |
+|---|---|---|---|---|---|
+| 1 | Glut | 100 % | 4 | 4 | 0 of 100 |
+| 2 | Abkühlen | 100 % | 5 | 5 | 0 of 100 |
+| 3 | Vulkan | 100 % | 6 | 6 | 0 of 100 |
+| 4 | Urkontinent | 100 % | 6 | 6 | 0 of 100 |
+| 5 | Atmosphäre | 100 % | 5 | 5 | 0 of 100 |
+| 6 | Urmeer | 100 % | 5 | 4 | 0 of 100 |
+| 7 | Erstes Leben | 100 % | 5 | 5 | 0 of 100 |
+| 8 | Leben teilt sich | 100 % | 5 | 5 | 0 of 100 |
+| 9 | Algen | 100 % | 5 | 5 | 0 of 100 |
+| 10 | Blauer Himmel | 100 % | 5 | 5 | 0 of 100 |
+| 11 | Farne | 100 % | 7 | 7 | 0 of 100 |
+| 12 | Wälder | 100 % | 6 | 7 | 0 of 100 |
+| 13 | Tag und Nacht | 100 % | 5 | 5 | 0 of 100 |
+| 14 | Saat | 100 % | 6 | 6 | 0 of 100 |
+| 15 | Ernte | 100 % | 6 | 6 | 0 of 100 |
+| 16 | Fische | 100 % | 6 | 6 | 0 of 100 |
+| 17 | Schwärme | 93 % | 7 | 6 | 0 of 100 |
+| 18 | Vögel | 100 % | 5 | 5 | 0 of 100 |
+| 19 | Landgang | 100 % | 5 | 5 | 0 of 100 |
+| 20 | Futter | 100 % | 3 | 3 | 0 of 100 |
+| 21 | Raubtiere | 100 % | 4 | 4 | 0 of 100 |
+| 22 | Nahrungskette | 100 % | 4 | 4 | 1 of 100 |
+| 23 | Meteor | 100 % | 3 | 2 | 3 of 100 |
+| 24 | Menschen | 100 % | 6 | 5 | 0 of 100 |
+| 25 | Ackerbau | 100 % | 5 | 5 | 58 of 100 |
+| 26 | Dörfer | 100 % | 4 | 5 | 0 of 100 |
+| 27 | Glaube | 100 % | 3 | 3 | 0 of 100 |
+| 28 | Städte | 100 % | 4 | 5 | 10 of 100 |
+| 29 | Gleichgewicht | 100 % | 5 | 5 | 0 of 100 |
+| 30 | Der siebte Tag | 100 % | 7 | 7 | 0 of 100 |
+
+### 9.5 Group bonus CAP (100 boards per level, good bot: median steps / done ≤ 40)
+
+| # | title | CAP 1 (no bonus) | CAP 2 | **CAP 3** | CAP 9 (no cap) |
+|---|---|---|---|---|---|
+| 6 | Urmeer | 8 / 100 % | 5 / 100 % | 4 / 100 % | 4 / 100 % |
+| 7 | Erstes Leben | 10 / 100 % | 5 / 100 % | 5 / 100 % | 5 / 100 % |
+| 10 | Blauer Himmel | 7 / 100 % | 5 / 100 % | 5 / 100 % | 5 / 100 % |
+| 15 | Ernte | 6 / 100 % | 6 / 100 % | 6 / 100 % | 6 / 100 % |
+| 18 | Vögel | 7 / 100 % | 6 / 100 % | 6 / 100 % | 6 / 100 % |
+| 26 | Dörfer | 5 / 100 % | 5 / 100 % | 5 / 100 % | 5 / 100 % |
+| 28 | Städte | 5 / 100 % | 5 / 100 % | 5 / 100 % | 5 / 100 % |
+
+### 9.6 Weiterbauen: does farming pay? (40 boards per level, 20 twists after the good bot's win; new growth per twist)
+
+| # | title | honest | best ping-pong | random |
+|---|---|---|---|---|
+| 1 | Glut | 0.24 | 0.04 | 0.07 |
+| 2 | Abkühlen | 0.20 | 0.08 | 0.18 |
+| 3 | Vulkan | 0.18 | 0.07 | 0.17 |
+| 4 | Urkontinent | 1.06 | 0.20 | 0.60 |
+| 5 | Atmosphäre | 0.62 | 0.15 | 0.35 |
+| 6 | Urmeer | 0.61 | 0.12 | 0.34 |
+| 7 | Erstes Leben | 0.38 | 0.08 | 0.15 |
+| 8 | Leben teilt sich | 0.20 | 0.04 | 0.04 |
+| 9 | Algen | 0.20 | 0.03 | 0.05 |
+| 10 | Blauer Himmel | 0.16 | 0.05 | 0.07 |
+| 11 | Farne | 0.22 | 0.06 | 0.08 |
+| 12 | Wälder | 0.42 | 0.09 | 0.17 |
+| 13 | Tag und Nacht | 0.24 | 0.07 | 0.11 |
+| 14 | Saat | 0.41 | 0.05 | 0.06 |
+| 15 | Ernte | 0.40 | 0.06 | 0.09 |
+| 16 | Fische | 0.15 | 0.02 | 0.02 |
+| 17 | Schwärme | 0.14 | 0.03 | 0.03 |
+| 18 | Vögel | 0.25 | 0.05 | 0.07 |
+| 19 | Landgang | 0.57 | 0.09 | 0.16 |
+| 20 | Futter | 0.17 | 0.03 | 0.04 |
+| 21 | Raubtiere | 0.17 | 0.03 | 0.02 |
+| 22 | Nahrungskette | 0.13 | 0.03 | 0.01 |
+| 23 | Meteor | 0.09 | 0.03 | 0.02 |
+| 24 | Menschen | 0.26 | 0.04 | 0.04 |
+| 25 | Ackerbau | 0.07 | 0.01 | 0.01 |
+| 26 | Dörfer | 0.13 | 0.03 | 0.04 |
+| 27 | Glaube | 0.28 | 0.03 | 0.11 |
+| 28 | Städte | 0.15 | 0.03 | 0.04 |
+| 29 | Gleichgewicht | 0.17 | 0.03 | 0.05 |
+| 30 | Der siebte Tag | 0.10 | 0.03 | 0.03 |
+
+### 9.7 Lasting supply on / off (100 boards per level; same bots, `lasting = false` = v1 rule)
+
+| # | title | good: median steps lasting / not lasting | good starvations per game lasting / not | greedy done ≤50 lasting / not | greedy median lasting / not |
+|---|---|---|---|---|---|
+| 2 | Abkühlen | 5 / 5 | 0.00 / 0.00 | 100 % / 100 % | 5 / 6 |
+| 6 | Urmeer | 4 / 6 | 0.00 / 0.00 | 100 % / 100 % | 5 / 6 |
+| 13 | Tag und Nacht | 5 / 5 | 0.00 / 0.00 | 100 % / 100 % | 5 / 6 |
+| 18 | Vögel | 5 / 5 | 0.00 / 0.00 | 100 % / 100 % | 6 / 7 |
+| 20 | Futter | 3 / 4 | 0.00 / 0.02 | 99 % / 100 % | 4 / 5 |
+| 21 | Raubtiere | 4 / 4 | 0.09 / 0.25 | 93 % / 90 % | 5 / 5 |
+| 22 | Nahrungskette | 4 / 5 | 0.02 / 0.22 | 99 % / 92 % | 5 / 6 |
+| 23 | Meteor | 2 / 3 | 0.00 / 0.00 | 100 % / 100 % | 3 / 3 |
+| 24 | Menschen | 5 / 7 | 0.00 / 0.00 | 95 % / 84 % | 8 / 10 |
+| 25 | Ackerbau | 5 / 6 | 0.00 / 0.00 | 100 % / 98 % | 7 / 8 |
+| 26 | Dörfer | 5 / 7 | 0.00 / 0.00 | 99 % / 85 % | 6 / 9 |
+| 27 | Glaube | 3 / 4 | 0.00 / 0.37 | 100 % / 93 % | 4 / 6 |
+| 28 | Städte | 5 / 10 | 0.31 / 2.04 | 98 % / 56 % | 7 / 20 |
+| 29 | Gleichgewicht | 5 / 10 | 0.64 / 2.74 | 94 % / 59 % | 9 / 16 |
+| 30 | Der siebte Tag | 7 / 10 | 0.00 / 0.00 | 99 % / 68 % | 9 / 17 |
+
+### 9.8 No dead ends (100 boards per level, weak bot without a step cap)
+
+| # | title | weak done ≤80 | weak, no step cap (≤300): done | median steps | p90 |
+|---|---|---|---|---|---|
+| 17 | Schwärme | 100 % | 100 % | 20 | 33 |
+| 19 | Landgang | 100 % | 100 % | 13 | 16 |
+| 20 | Futter | 100 % | 100 % | 10 | 17 |
+| 21 | Raubtiere | 100 % | 100 % | 15 | 25 |
+| 22 | Nahrungskette | 100 % | 100 % | 15 | 23 |
+| 23 | Meteor | 100 % | 100 % | 8 | 13 |
+| 29 | Gleichgewicht | 100 % | 100 % | 15 | 24 |
+
+### 9.9 Pools (`gdpd_sim/b4/kampagne_schoepfung_b4.json`, 20 boards per level)
+
+| # | boards | solved_in (median) | ★★★/★★/★ of the solutions | farmer finishes within 30 (by the filter never ★★★, never faster than the solution) | rejected (gen / kinds / bot / farm / tut) |
+|---|---|---|---|---|---|
+| 1 | 20 | 4.0 | 11/9/0 | 20 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 2 | 20 | 5.0 | 8/12/0 | 20 of 20 | 0 / 0 / 0 / 1 / 0 |
+| 3 | 20 | 6.0 | 8/12/0 | 19 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 4 | 20 | 6.0 | 9/11/0 | 19 of 20 | 0 / 0 / 1 / 0 / 0 |
+| 5 | 20 | 5.0 | 14/6/0 | 20 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 6 | 20 | 4.5 | 10/10/0 | 20 of 20 | 0 / 0 / 1 / 1 / 0 |
+| 7 | 20 | 5.0 | 12/8/0 | 13 of 20 | 0 / 0 / 0 / 2 / 0 |
+| 8 | 20 | 5.0 | 18/2/0 | 20 of 20 | 0 / 0 / 0 / 7 / 0 |
+| 9 | 20 | 5.0 | 14/6/0 | 19 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 10 | 20 | 6.0 | 8/12/0 | 20 of 20 | 0 / 0 / 1 / 1 / 0 |
+| 11 | 20 | 6.0 | 12/8/0 | 20 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 12 | 20 | 6.0 | 13/7/0 | 3 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 13 | 20 | 5.0 | 17/3/0 | 20 of 20 | 0 / 0 / 1 / 0 / 0 |
+| 14 | 20 | 7.0 | 8/12/0 | 12 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 15 | 20 | 6.0 | 14/6/0 | 6 of 20 | 0 / 0 / 1 / 1 / 0 |
+| 16 | 20 | 6.0 | 16/4/0 | 0 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 17 | 20 | 6.0 | 12/8/0 | 1 of 20 | 0 / 0 / 2 / 2 / 0 |
+| 18 | 20 | 6.0 | 7/13/0 | 4 of 20 | 0 / 0 / 0 / 1 / 0 |
+| 19 | 20 | 5.0 | 15/5/0 | 12 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 20 | 20 | 4.0 | 7/13/0 | 14 of 20 | 0 / 0 / 4 / 0 / 0 |
+| 21 | 20 | 4.0 | 14/6/0 | 1 of 20 | 0 / 0 / 0 / 0 / 0 |
+| 22 | 20 | 4.0 | 12/8/0 | 3 of 20 | 0 / 0 / 1 / 0 / 0 |
+| 23 | 20 | 2.5 | 10/10/0 | 20 of 20 | 0 / 0 / 4 / 4 / 0 |
+| 24 | 20 | 5.5 | 10/10/0 | 1 of 20 | 0 / 0 / 0 / 2 / 0 |
+| 25 | 20 | 5.0 | 16/4/0 | 4 of 20 | 0 / 0 / 1 / 1 / 0 |
+| 26 | 20 | 5.0 | 13/7/0 | 2 of 20 | 0 / 0 / 1 / 0 / 0 |
+| 27 | 20 | 3.0 | 12/8/0 | 5 of 20 | 0 / 0 / 5 / 3 / 0 |
+| 28 | 20 | 5.5 | 10/10/0 | 1 of 20 | 0 / 0 / 2 / 0 / 0 |
+| 29 | 20 | 5.5 | 10/10/0 | 2 of 20 | 0 / 0 / 1 / 2 / 0 |
+| 30 | 20 | 7.0 | 8/12/0 | 0 of 20 | 0 / 0 / 0 / 2 / 0 |
+
+### 9.10 What the numbers mean for the game
+
+- **Every level is completable and nothing gets stuck.** The good bot finishes every level (99–100 % within 40
+  steps), the average player 92–100 % within 50, the casual bot 99–100 % within 80, and without a step cap 100 % on
+  the riskiest levels (9.8). Before the „Regen lockt Tiere“ valve, 16–38 % of casual games in levels 20–23 stayed
+  stuck even after 300 steps (the animals had starved into forests and rows were out of reach).
+- **Stars (feedback „sehr schwer, 2 Sterne“):** over the campaign the average player gets ★★ or better in **88 %**
+  of levels (the v1 thresholds on the same games: 68 %), the good bot ★★★ in **59 %** (v1: 49 %), the casual bot
+  finishes every level and gets ★★ in 22 % (v1: 8 %). Outliers to watch with real players: ★★★ is easy (> 70 % for the good bot) in levels
+  8, 9, 13, 22, 26, 27 because good solutions cluster on one step count (level 8: 97 % at exactly 5; s3 − 1 would
+  give < 25 %); ★★★ is harder (< 40 %) in 3 and 4 (volcano boards). ★★ is below 85 % for the average player in 16,
+  17, 21, 24, 28 and 29 (69–83 %), mostly because of the cap `2 × s3 + 4` (a long tail of the 1-ply bot). Follow-up
+  if real players confirm it: level 8 target 11 → 12 Einzeller; level 17 Schwarm 5 → 4.
+- **Difficulty curve:** the good-bot median stays at 3–7 steps (lasting supply shortened act 6, so targets rose,
+  4.4) and the casual bot's at 8–20. The curve is carried by the number of systems in play (1 in act 1 → 6–7 in
+  acts 6–7: hunger, predators, people, faith, war, smog, flood) rather than by step counts, which fits one new
+  level per real day of a few minutes each.
+- **Lasting supply is a big relief exactly where Philipp felt it** (9.7): in levels 24–30 the average player
+  finishes 94–99 % instead of 56–98 %, with half the steps in 28–30 (7–9 instead of 16–20); starvations per good
+  game drop from 2.0–2.7 to 0.3–0.6 in 28–29. In acts 1–5 it changes little (needs there are fulfilled in place).
+- **Farmers never beat honest play:** the oracle farmer earns 2–52 points per level against the good bot's 66–80
+  and finishes in fewer steps than the good bot on at most 6 of 300 boards (level 30, where ping-pong simply
+  „rests“). Its ★★★ share is above 10 % only in levels 8, 23, 27, 30 (solutions that need a single slice: the
+  `slice` farmer is honest play limited to one slice); the exported pools exclude every board where the farmer gets
+  ★★★ or is faster. In Weiterbauen, ping-pong yields about a fifth of the new growth of honest building (9.6), and
+  with `once` and one-time pay per (field, kind) lasting supply adds nothing to farm.
+- **Dangers are avoidable:** the good bot loses ≤ 0.05 goal fields per game everywhere. Eruptions in act 1
+  (0.5–0.8 per game) are the lesson of level 3 (half of its boards start with the clump); smog in 28–29 costs 2–3
+  nature fields per game but no goal field; starvation stays ≤ 0.6 per game. The casual bot meets them all
+  (eruptions, fires, hunger, wars), which is the intended consequence of careless play.
+- **Group bonus:** without it (CAP 1) the heat/algae levels need about twice the steps (level 6: 8 vs 4, level 7:
+  10 vs 5); CAP 2 already gives the full effect and CAP 3 / 9 change nothing measurable, so CAP 3 keeps the bonus
+  readable (`×2`, `×3`) while one huge group can never feed everything.
+- **Carry-over works** (9.4): carried worlds are as fast as fresh boards (medians ± 1). The pool board is used
+  instead in level 25 (58 %: yesterday's Hütten mostly stand fed next to food, which the start rules forbid), 28
+  (10 %) and 23 (3 %); everywhere else 0–1 %.
 
 ---
 
 ## 10. Era visuals (hooks for the art track)
+
+The art spec for all of this is `GDPD_SCHOEPFUNG_GRAFIK.md` (binding for looks, shaders and the water fix; it builds on
+`GDPD_GRAFIK.md`). This section is the contract between rules and visuals.
 
 The world look follows the earth history. `Campaign.era(level)` returns one dictionary; `World.set_era(era, blend_s)`
 blends to it (2 s at a level start, 0 s on load). Everything stays inside the seamless diorama look of
@@ -467,6 +822,47 @@ continuous furrows, one lake, one herd, one town (the seam rule of `GDPD_GRAFIK.
 „self“; extend it to the new kinds). A group with strength ≥ 2 shows a small number badge on its biggest field while
 a need line points to it (`×2`, `×3`). Twisting them apart splits the look at once.
 
+### 10.1 Water turns with the slice (feedback 8 November: „Das Wasser muss sich auch mitdrehen“)
+
+**Bug today:** `World._twist_waves()` recomputes the wave frame (`w_m`, `w_o`, set by `FieldView.set_wave_frame`) of
+the moving cap face every frame from its rotating transform, in cube-face coordinates. So the waves, foam and sparkle
+stay fixed in space while the tiles, models and shore shapes turn: the water looks like it stands still under a
+turning frame. Side tiles keep their old frame during the twist and jump to the target face's frame at the end.
+
+**Rule:** water is part of the tile. Everything drawn on a moving tile turns with the slice: wave normals, colour
+variation, foam band, sparkle pattern, shore line and depth gradient (`ground.gdshader` water branch and the old
+object-space `water.gdshader` pond). Only light-dependent terms stay in world space (Fresnel to the sky, the sun glint
+direction, cloud shadows).
+
+**Implementation contract** (same solution as the prototype in `GDPD_SCHOEPFUNG_GRAFIK.md` 0.5, `wasser_mitdrehen.diff`, where the
+counter is called `_face_q[normal]` and the fade 0.45 s; the prototype's names and timing win):
+1. *Face wave frames with a quarter-turn counter.* `World` keeps `wave_rot[face]` (0–3) and `wave_shift[face]`
+   (Vector2). `_set_wave(view, t, n)` builds the face frame as today and then applies `wave_rot` / `wave_shift` of
+   that face, so all water fields of one face still share one pattern (the seamless „one lake“ look of
+   `GDPD_GRAFIK.md`).
+2. *During a twist* (`_begin_twist` → `_finish_twist`/cancel): the wave frame of **every** moving view (cap and side
+   tiles) is **frozen** at its value from the twist start (no `_twist_waves()` updates). The pattern is then in tile
+   space and turns exactly with the slice, like the models.
+3. *Cap face at the end of the twist:* the cap face turned by `turns` quarter turns around its own normal, so
+   `wave_rot[cap] += turns` (sign by axis direction) and `wave_shift[cap]` is rotated with it. The new face frame equals
+   the frozen frame the tiles carried: **no jump**, and the 9 cap tiles line up as before. Cancel (drag back to the
+   strip) leaves the counters unchanged.
+4. *Side tiles at the end of the twist:* the 12 side stickers changed faces. Their frozen frame differs from the
+   destination face's frame, so they **cross-fade** for 0.3 s: the shader gets `w_m_old`/`w_o_old` and `w_mix`
+   (0 → 1, tween); while `w_mix < 1` it evaluates the wave terms for both frames and mixes them (2× samples only on
+   these 12 tiles for 0.3 s). The shore shape needs no fade: it comes from the neighbour masks (tile space), which
+   `_update_seams()` refreshes after the twist as today.
+5. *Seams across the moving cut* stay neutral during the twist (closed shores, as built), so no water edge slides
+   along a frozen neighbour.
+6. Free play, campaign, preview ghost twists and the tour's `auto_twist` all use the same path.
+
+**Checks:** tour check `water_turns_with_slice` (section 15): on a board with water on the cap face and on a side
+face, read `w_m`/`w_o` of a cap tile at twist start, at 50 % and at the end (+0.4 s): unchanged during the twist,
+and after the twist equal to the face frame (`World.debug_wave_frame(fid)`), `wave_rot` of that face changed by the
+turns; a side tile's `w_mix` reaches 1 within 0.4 s; two shots (mid-twist, after) show waves and foam turned with the
+tiles. Unit test `wave_frame_rot` (`tests/test_models.gd`): four quarter turns of a face bring `wave_rot` back to 0
+and the frame back to the start value.
+
 ---
 
 ## 11. Event contract (rules → UI / visuals)
@@ -481,7 +877,8 @@ where they exist (`merge` for `grow`, `burn` for `burnt`, …, `GDPD_BALANCE_2.m
 | `thrive` | field, from, kind, first | rise animation | per kind: „Lava wird Fels“, „Ursuppe lebt!“, „Moos wird Farn“, „Saat reift“, „Vögel nisten“, „Hütte wird Dorf“, „Dorf wird Stadt“ |
 | `spawn` | field (fish), target, kind | an animal climbs from the water onto the meadow | „Landgang!“ |
 | `steam` | field | steam puff, a cloud joins the sky | „+1 Regen“ (first time per level) |
-| `satt_new` / `satt_lost` | field, missing | gold ring / ring fades | goal kind only: „Tier satt!“, „Hütte satt!“ … |
+| `satt_new` / `satt_lost` | field, missing | gold ring (stays) / ring breaks (only by a danger: the field changed kind) | goal kind only: „Tier satt!“, „Hütte satt!“ … |
+| `need_sealed` | field, kind, need | the need icon flips into a gold check seal that stays | first time per level: „Versorgt bleibt versorgt.“ |
 | `hunger_warn` | field, kind | pulsing missing icon, sad tint | „Hunger!“ · „Bring Futter“ |
 | `starve` | field, from, kind | sink animation, dust | „Verhungert“ |
 | `goal_loss` | field, kind, cause, progress | red „−1“ flies from the field to the goal chip, chip shakes | „−1 Fels“ / „−1 Tier“ (kind name) |
@@ -502,7 +899,7 @@ where they exist (`merge` for `grow`, `burn` for `burnt`, …, `GDPD_BALANCE_2.m
 | `hold` | rounds, target, ok | rest ring around the chip fills (act 7) | „Ruhe hält“ / „Unruhe!“ |
 | `era` | act, level, sky_blue, life | `World.set_era` | – |
 
-State for HUD and field views after every round: per field `fed`, `hungry`, `need_state()` (met / missing with
+State for HUD and field views after every round: per field `fed`, `hungry`, `best` (seals), `need_state()` (met / sealed / missing with
 amounts: `{"food": [1, 2]}` = has 1 of 2), `burning`, `fresh`, `mk` (counts for the goal), group id and strength;
 global `bolt`, `volc`, `pack_warn`, `smog_warn`, `war_on`, `front`, `flood_warn`, `faith`, `rain`, `meteors`,
 `held`, task progress per sub-goal, `steps`. Non-blocking overlays use `MOUSE_FILTER_IGNORE`.
@@ -526,6 +923,20 @@ warning) and `merge` (`[[kind, size_before, size_after], …]` for groups the tw
   view, change parts and colours, change the tone. Same sheet as the creator, „Fertig“ saves. Tour check
   `god_tap_opens`.
 - **Cancel strip at the bottom:** stays as built (compact, near the bottom centre). Tour check stays.
+- **Clearer menu (feedback 8 November: „Die unwichtigen Einstellungen in einem Untermenü“).** `ui.gd::_build_menu`
+  becomes two pages of the same modal card (no new window, slide left/right, 0.2 s):
+
+  | page | entries (top to bottom, player texts) |
+  |---|---|
+  | **Menü** (main) | „Weiter“ (primary button, closes the menu; „Zurück“ on the overview) · „Schöpfung“ (the campaign overview with acts, levels and stars; replaces „Tage“) · „Freies Spiel“ (one row; opens the mode list with records: Leicht, Mittel, Schwer, 100 Sekunden) · „Laden“ (shop, shows the points `⭐ 340`) · „Dein Gott“ (portrait + name; opens the character sheet, same as tapping the god on the overview) · at the bottom a quiet row with a gear icon: „Einstellungen“ |
+  | **Einstellungen** (sub) | back arrow „Menü“ · caps „Ton“: Musik, Effekte (switches) · caps „Erinnerung“: Automatisch / Feste Uhrzeit / Aus + time (as built) · „Wahl-Karte immer zeigen“ (switch, only once a card was seen) · tiles: „Hilfe“, „Tutorial nochmal“, „Profil“ (hidden until it exists) · caps „Test“ (debug builds only: Tag weiter, Erinnerung in 10 s, Serie zurück) |
+
+  Rules: the main page fits on one phone screen without scrolling at 1080 × 2340 (5 entries + the gear row); every
+  entry has an icon; no setting is reachable only from the main page; the hold-help texts (`HELP_TEXT`) get the new
+  keys `settings` („Einstellungen“ · „Ton, Erinnerung, Hilfe.“) and `shop`; `menu` becomes „Spielen, Laden, Gott.“
+  Tour check `menu_settings_submenu`: the main page shows exactly the 5 entries + the gear row and no switch; tapping
+  „Einstellungen“ shows Musik/Effekte/Erinnerung/Hilfe/Tutorial; the back arrow returns; the settings still toggle
+  (`Game.music_on` changes).
 - **Free play: „100-Sekunden-Challenge“ replaces „40 Drehungen“.** Rules = free play Mittel (or the chosen level),
   a 100 s clock that starts with the first twist (not before), no twist limit, score = Glaube at the end. A fire
   costs 5 s (pill „−5 s“), the choice card pauses the clock (the pill choice does not), no Tipp and no Zurück. Record
@@ -580,8 +991,9 @@ pools (`data/kampagne_schoepfung.json`) take that role (section 8). Tests: `test
    `decode(encode(b)) == b` for every pool board.
 2. **groups / strength**: same-kind groups across cube edges; strength = min(size, CAP); supply sums distinct groups,
    never the same group twice (a city next to two fields of one 3-group gets 3, not 6).
-3. **thrive generic**: up after G satt rounds; spawn (fish + meadow → animals, fish → algae); hunger warning at H − 1,
-   starve at H (Tiere → Erde, Dorf → Hütte, Stadt → Dorf), Hütte never starves; `fed`/`hungry` move with the field.
+3. **thrive generic** (lasting supply, 3.2): up after G satt rounds; spawn (fish + meadow → animals, fish → algae); hunger warning at H − 1,
+   starve at H (Tiere → Wald, Dorf → Hütte, Stadt → Dorf) only while a need was never supplied, Hütte never starves;
+   `fed`/`hungry`/`best` move with the field.
 4. **cooling + steam**: lava with 2 water neighbours becomes Fels after 2 rounds; with `steam_rain` +1 rain (max 3).
 5. **volcano**: a lava group of 5 warns; still ≥ 5 at the next round end → up to 3 neighbours become lava, made Fels
    among them count as `goal_loss`; splitting the group → `volcano_calm`; craters rest 2 rounds.
@@ -600,6 +1012,19 @@ pools (`data/kampagne_schoepfung.json`) take that role (section 8). Tests: `test
 14. **unlock30 / fasttrack / migrate_v3**: one new level per Spieltag (3 on the fast track), clock rules unchanged.
 15. **texts9**: every new player text ≤ 6 words (existing test: ≤ 8), no locked title appears anywhere (no spoiler).
 16. **free_100s**: clock starts at the first twist, −5 s per fire, paused by the card, no hint/undo.
+17. **lasting_supply** (v2): a Hütte next to a Tiere field at a round end gets 🍞 sealed (`need_sealed` once); twisting
+    the Tiere away keeps it satt for 5 more rounds (no `hunger_warn`); a fire on it clears the seals; a Hütte that
+    grows to Dorf keeps 🍞 sealed and only shows 🔨; a Dorf whose 🔨 was never supplied starves at H; a field that never
+    had food starves as before; `best` moves with the field through 4 quarter turns.
+18. **lasting_preview**: `preview(move)` never lists a sealed field under „satt lost“; `satt_set()` after any twist is
+    a superset of the one before unless a danger event changed a field.
+19. **stars_v2**: the `stars` of every level equal `data/kampagne_schoepfung.json` `config[n].stars` (the simulated
+    thresholds); points of the pool solutions match `points`.
+20. **starve_to_forest / rain_lure**: in levels 20–23 and 29 a starving Tiere/Raubtiere becomes Wald (not Erde);
+    `goal_loss` only for made goal fields; in levels 20–23 rain on a Wald with a Wiese neighbour makes Tiere, on a Wald
+    without one it is not offered (`rain_ok` false); level 19 rain turns shore water into Algen.
+21. **satt_reachable**: every pool board of a level with a satt goal has at least `target` goal fields whose sticker
+    type can touch a source of each need (4.4).
 
 ## 15. Tour checks (`main.gd`; add the names to the list in `.github/workflows/gdpd.yml` when they exist)
 
@@ -618,12 +1043,16 @@ pools (`data/kampagne_schoepfung.json`) take that role (section 8). Tests: `test
 | `landgang` | level 19: a fish next to a meadow for 2 rounds → animals appear on the meadow, the fish field becomes algae |
 | `hunger_warn` | level 20: an animal without plants pulses „Hunger!“ at round 3 and starves at round 4 (−1 cue is not shown for satt goals, the chip simply drops) |
 | `pack_warn` | level 23: a pack of 3 warns; the meteor on one predator cancels it |
-| `town_needs_group` | level 27: a town next to one Acker shows 🍞 1/2; joining a second Acker makes it satt |
+| `group_strength` | level 6: a Wasser next to one Lava shows 🔥 1/2; a twist that joins a second Lava to that one (a pair) shows 🔥 2/2 and the seal; after the round end the Wasser keeps the seal when the pair is twisted away |
 | `hold_rest` | level 30: holding the state fills the rest ring; a warning resets it |
 | `carry_world` | win level 1, next Spieltag (test button): level 2 starts with yesterday's Fels where they were (≥ 50 % of fields keep their kind) |
 | `no_step_limit` | any level: 40 twists without winning never fails the level; the star ring shows ★ |
 | `points_shop` | win → points fly to the header; the shop sells a shield for 100 |
 | `hud_central`, `god_tap_opens`, `free_100s` | section 12 |
+| `need_seal_stays` | level 24: feed a Hütte once (seal icon appears), twist the animals away: the seal and the gold ring stay, the chip does not drop; shot |
+| `water_turns_with_slice` | section 10.1 (frozen wave frame during the twist, `wave_rot` after, side tiles fade in 0.4 s; two shots) |
+| `menu_settings_submenu` | section 12 (main page = 5 entries + gear row, settings page, back) |
+| `stars_generous` | level 1 board 0 solved by the pool solution: the win card shows the stars of `points`; the star ring shows the v2 thresholds |
 | `no_spoiler_campaign` | overview: locked levels show only a lock/„?“, never a title or icon |
 
 Existing checks that change: `kinds_per_day` → `kinds_per_level`, `task_chip` (two sub-goals, step counter),
@@ -635,11 +1064,13 @@ Existing checks that change: `kinds_per_day` → `kinds_per_level`, `task_chip` 
 
 Same method as v8 (`GDPD_BALANCE_2.md` 13/15), which found 0 mismatches over 11 359 steps:
 
-1. **Cases** (`b4/xcheck9.py gen cases9.json 600`): 600 cases over all 30 levels (20 per level), styles round-robin:
+1. **Cases** (`b4/xcheck9.py gen cases9.json 600`, generated with the v2 rules: 600 cases, 16 382 recorded steps, plus
+   `cases9_pool.json` with the 600 pool solutions): 600 cases over all 30 levels (20 per level), styles round-robin:
    random twists, ping-pong farming, good-bot actions, random with many tools (rain and meteor on random legal
    fields), plus the 600 pool solutions. Each case: `level`, `seed`, `kinds` (board string), `actions`
    (`["twist", [a, l, t]]`, `["rain", f]`, `["meteor", f]`) up to 40 actions.
-2. **Record** after every action: kinds by field id, positions, `fed`, `hungry`, `burning`, `fresh`, `mk`, `bolt`,
+2. **Record** after every action: kinds by field id, positions, `fed`, `hungry`, `best` (the seals, as sorted
+   `[need, value]` pairs per field), `burning`, `fresh`, `mk`, `bolt`,
    `volc`, `crater_rest`, `pack_warn`, `smog_warn`, `war_on`, `front`, `flood_warn`, `faith`, `meteors`, `rain`,
    `twists`, `won`, `made − lost` per goal kind, progress per sub-goal, `held`, the satt set, group labels
    (canonical: the smallest field id per group), and the event types in order.
@@ -656,7 +1087,12 @@ Same method as v8 (`GDPD_BALANCE_2.md` 13/15), which found 0 mismatches over 11 
    cases of the levels that use only the ported systems (levels 1–5 first, then 6–12, …).
 6. **Determinism**: the only random choice is the bolt tie-break (model LCG, as v8); everything else uses sorted field
    ids. Group labels, `supply` and the eruption order are deterministic by field id.
-7. **Performance check**: `test_bonus_stress`-style: 3000 random twists on level 28 in Weiterbauen, every round
+7. **Lasting supply first-class in the comparison:** `best` is compared after every action (sorted `[need, value]`
+   pairs per field), and the event list must contain the same `need_sealed` events in the same order; a mismatch in
+   `best` with equal kinds is the typical port bug (sealing measured after instead of before the thriving pass, or a
+   rise that forgets to carry shared seals). Additional targeted cases: `t_lasting.py` scenarios (Hütte fed once,
+   Acker twisted away, 4 rounds still satt; seals cleared by a fire; Hütte → Dorf keeps 🍞).
+8. **Performance check**: `test_bonus_stress`-style: 3000 random twists on level 28 in Weiterbauen, every round
    < 30 ms on desktop (groups are recomputed once per round, cached until a kind or position changes).
 
 ---
@@ -666,26 +1102,30 @@ Same method as v8 (`GDPD_BALANCE_2.md` 13/15), which found 0 mismatches over 11 
 | file | change |
 |---|---|
 | `scripts/field_data.gd` | 10 new kinds (17–26), `KIND_COUNT` 27, names/plurals/icons, `WATERS`, `LIVING`, Stein shown as „Fels“ |
-| `scripts/game_state.gd` | campaign path (`camp = true` when the level config has `thrive`): groups + strength cache, generic `supply`/`satt`/`thrive` with `up`/`spawn`/`down`, `up_ok`, `rich` (double supply grows twice as fast), Vorrat (`hungry = −3` in the morning), dangers `volcano`, `bolt9` (dry forest), `pack`, `smog9` (warned), goal types `make` (made − lost, `mk` per field), `group`, `hold`, mercy, steam rain, points; clone/undo/save carry the new arrays. v8 days keep their path until removed |
+| `scripts/game_state.gd` | campaign path (`camp = true` when the level config has `thrive`): groups + strength cache, generic `supply`/`satt`/`thrive` with `up`/`spawn`/`down`, **lasting supply** (`best` per field, `seal_step`, `eff`, seals carried on a rise, cleared on any other kind change), `up_ok`, `rich` (double supply grows twice as fast), Vorrat (`hungry = −3` in the morning), dangers `volcano`, `bolt9` (dry forest), `pack`, `smog9` (warned), goal types `make` (made − lost, `mk` per field), `group`, `hold`, mercy, steam rain, points; clone/undo/save carry the new arrays (`best` included: an undo restores the seals of that moment). v8 days keep their path until removed |
 | `scripts/campaign.gd` (new, replaces `days.gd` for the campaign) | the level table (section 4) as config dictionaries, pools, `carry()`, `era()`, texts of `texts9.py`, unlock over 30 levels, fast track, WdT templates |
 | `scripts/daily.gd` | `next_new_level`, `level_unlocked` over 30 levels; fast track (3 per Spieltag while `level < schnell_bis`); WdT template list of section 8 |
-| `scripts/shop.gd` (new) + `ui.gd` | points header chip, shop sheet (section 6), coin migration |
+| `scripts/shop.gd` (new) + `ui.gd` | points header chip, shop sheet and coin migration (`GDPD_PUNKTE_LADEN.md`); menu with 5 entries + „Einstellungen“ submenu (section 12) |
 | `scripts/game.gd` | world save/carry (`[kampagne] welt`, `start`), Weiterbauen extras, points, mercy pill, 100-s challenge mode |
-| `scripts/world.gd`, `look.gd`, `field_view.gd`, `models.gd`, shaders | era visuals (section 10), new kind models (lava cracks, soup, cells glow, algae, fish schools, moss, fern, seed rows, birds, predators), merge look for all kinds, sun face light, `×2` badge |
+| `scripts/world.gd`, `look.gd`, `field_view.gd`, `models.gd`, shaders | water turns with the slice (10.1: no `_twist_waves()`, `wave_rot`/`_face_q` per face, side-tile fade), need seal icon (gold check, stays), era visuals (section 10), new kind models (lava cracks, soup, cells glow, algae, fish schools, moss, fern, seed rows, birds, predators), merge look for all kinds, sun face light, `×2` badge |
 | `scripts/day_ui.gd` | two-sub-goal chip, step counter + star ring, `−1` cue, reveal cards and coach lines of section 4, HUD centred (section 12) |
-| `data/kampagne_schoepfung.json` | the pools of section 9.7 (copy from `gdpd_sim/b4/kampagne_schoepfung_b4.json`) |
+| `data/kampagne_schoepfung.json` | the pools of section 9.9 (copy from `gdpd_sim/b4/kampagne_schoepfung_b4.json`) |
 | `tests/test_rules.gd`, `tests/xcheck9.gd`, `scripts/main.gd`, `.github/workflows/gdpd.yml` | sections 14–16 |
 
 ## 18. Files (scratch) and how to re-run
 
 Scratchpad: `/tmp/claude-0/-home-user-test-app/3861a76b-89b3-5028-950e-8c56bdad2d34/scratchpad/gdpd_sim/b4/`
 
-- `engine9.py` (rules), `levels9.py` (the 30 levels, generator with the swap hill-climb), `texts9.py` (player texts),
-  `bot9.py` (good/greedy/weak), `farm9.py` (pp/cyc/slice/farmer), `carry9.py` (carry-over), `run9.py`
-  (`python3 run9.py gen:300 all good,greedy,weak '{}' out.json`; `chain:100`; `pool:<file>`; overrides
-  `'{"27": {"cap": 1}}'`), `cont9.py` (Weiterbauen farming), `tune9.py` / `sweep9.py` (quick variant sweeps),
-  `stars9.py` (star thresholds from a run), `export9.py` (pools), `xcheck9.py` (Godot cross-check cases),
-  `mk_doc.py` (the tables of this spec), `final9.sh` (the whole validation pipeline).
-- Results: `res_main.json/log` (good/greedy/weak, 300 boards × 30 levels), `res_farm.json/log`, `res_chain.json/log`,
-  `cont.log`, `res_cap{1,2,3,9}.json/log`, `export.log`, pools `kampagne_schoepfung_b4.json`, cross-check cases
-  `cases9.json`, `cases9_pool.json`.
+- `engine9.py` (rules; v2: lasting supply `best`/`seal_step`/`eff`, flag `lasting`), `levels9.py` (the 30 levels,
+  generator with the swap hill-climb and the sticker-type check, `STARS` from `stars10.json`), `texts9.py` (player
+  texts), `bot9.py` (good / greedy / weak / weaklong), `farm9.py` (pp / cyc / slice / farmer), `carry9.py`
+  (carry-over), `run9.py` (`python3 run9.py gen:300 all good,greedy,weak '{}' out.json`; `chain:100`;
+  `pool:<file>`; overrides `'{"all": {"lasting": false}}'`, `'{"27": {"cap": 1}}'`), `cont9.py` (Weiterbauen
+  farming), `tune9.py` (quick variant sweeps), `stars10.py` (generous star thresholds from a run →
+  `stars10.json`), `export9.py` (pools), `xcheck9.py` (Godot cross-check cases, records `best`), `t_lasting.py`
+  (sanity checks of 3.2), `mk_doc.py` + `fill10.py` (the tables of this spec), `final10.sh` (the whole validation
+  pipeline), `redo10.sh` + `merge10.py` (re-run of levels 20–23 after the rain valve, merged into the `res_*` files).
+- Results (v2): `res_main.json/log` (good/greedy/weak, 300 boards × 30 levels), `res_farm.json/log`,
+  `res_chain.json/log`, `cont.log`, `res_cap{1,2,3,9}.json/log`, `res_nolast.json/log`, `res_weaklong.json/log`,
+  `export.log`, pools `kampagne_schoepfung_b4.json`, cross-check cases `cases9.json`, `cases9_pool.json`; the
+  threshold run `q3.json`. v1 (spec v1, before the feedback of 8 November): `v1/` and `old_v1/`.

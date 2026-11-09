@@ -137,8 +137,16 @@ static func render_image(host: Node, l: Dictionary, expr: String = "happy", px: 
 
 # --- Aussehen ---------------------------------------------------------------------------------------------
 
+var allow_shop := false          # Laden: auch nicht gekaufte Teile zeigen (Anprobieren, Vorschau)
+
+
 func set_look(l: Dictionary) -> void:
 	look = Character.sanitize(l)
+	if allow_shop:
+		for slot in Character.ACC_SLOTS:
+			var a := String(l.get(slot, ""))
+			if a != "" and Character.shop_slot(a) == slot and (slot != "hals" or Character.has_neck(String(look["basis"]))):
+				look[slot] = a
 	_bd = Character.base(look)
 	for c in _spinner.get_children():
 		_spinner.remove_child(c)

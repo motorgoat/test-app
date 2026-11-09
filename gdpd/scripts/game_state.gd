@@ -265,9 +265,32 @@ func _reset(seed_value: int, endless_mode: bool, lvl: int, with_hearts: bool) ->
 	flood_warn = {}
 	extra_level = 0
 	_satt0 = {}
+	camp = false
+	level_no = 0
+	rows9 = {}
+	consume9 = {}
+	thrive9 = {}
+	rain9 = []
+	burn9 = {}
+	goal9 = []
+	goal_kinds9 = {}
+	chain9 = {}
+	sys9 = {}
+	volc = -1
+	pack_warn9 = {}
+	smog_warn9 = {}
+	meteors = 0
+	held9 = []
+	extra_steps = 0
+	miracle_bought = {}
+	trace9 = []
+	paid9 = {}
+	build_new9 = 0
 	made = []
+	lost9 = []
 	for k in FieldData.KIND_COUNT:
 		made.append(0)
+		lost9.append(0)
 	day_limit = 0
 	gift_twists = 0
 	day_won = false
@@ -371,6 +394,10 @@ func _apply_day_rules(cfg: Dictionary, seed_value: int, extra_twists: int) -> vo
 ## Welche Art bildet heute eine Reihe? (Nicht Wasser, nicht fertig, und ihre nächste Art ist freigeschaltet.)
 func _rebuild_rules() -> void:
 	_row_ok = []
+	if camp:
+		for k in FieldData.KIND_COUNT:
+			_row_ok.append(rows9.has(k))
+		return
 	if v8:
 		for k in FieldData.KIND_COUNT:
 			_row_ok.append(rows8.has(k) and next8.has(k))
@@ -562,6 +589,39 @@ func clone() -> GameState:
 	gs._eq0 = _eq0               # nur gelesen (wird bei jedem Zug neu angelegt)
 	gs._still_told = _still_told.duplicate()
 	gs._still_calm = _still_calm
+	gs.camp = camp
+	if camp:
+		gs.level_no = level_no
+		gs.rows9 = rows9              # nur gelesen
+		gs.consume9 = consume9        # nur gelesen
+		gs.thrive9 = thrive9          # nur gelesen
+		gs.rain9 = rain9              # nur gelesen
+		gs.burn9 = burn9              # nur gelesen
+		gs.goal9 = goal9              # nur gelesen
+		gs.goal_kinds9 = goal_kinds9  # nur gelesen
+		gs.chain9 = chain9            # nur gelesen
+		gs.sys9 = sys9                # nur gelesen
+		gs.cap9 = cap9
+		gs.stars9 = stars9
+		gs.par9 = par9
+		gs.lost9 = lost9.duplicate()
+		gs.volc = volc
+		gs.pack_warn9 = pack_warn9.duplicate()
+		gs.smog_warn9 = smog_warn9.duplicate()
+		gs.meteors = meteors
+		gs.held9 = held9.duplicate()
+		gs.peak9 = peak9
+		gs.gain_at9 = gain_at9
+		gs.extra_steps = extra_steps
+		gs.bolt_guard9 = bolt_guard9
+		gs.miracle_bought = miracle_bought.duplicate()
+		gs.trace9 = trace9.duplicate()
+		gs.st9 = st9.duplicate()
+		gs.paid9 = paid9.duplicate()
+		gs.build_new9 = build_new9
+		gs._won_told = _won_told
+		gs._need_told = _need_told
+		gs._era_last = _era_last
 	for f in fields:
 		gs.fields.append(f.copy())
 	gs.rebuild_index()
@@ -569,6 +629,8 @@ func clone() -> GameState:
 
 
 func rebuild_index() -> void:
+	_nb_ok = false
+	_grp_ok = false
 	_index.clear()
 	for f in fields:
 		_index[pos_key(f.p, f.n)] = f
@@ -887,6 +949,8 @@ func complete_goal() -> int:
 ## Werkzeug schon aufgedeckt? Gewitter mit dem ersten fertigen Feld, Flut mit dem ersten Smog.
 ## An einem Tag: Regen ab Tag 2, Gewitter an Tag 7, Blitz, Monsun und Flut nie.
 func tool_unlocked(kind: String) -> bool:
+	if camp:
+		return tool_in_level9(kind)
 	if not day.is_empty():
 		if kind == "rain":
 			return int(day.get("rain_start", 0)) > 0 or rain_every > 0
@@ -975,7 +1039,7 @@ func _open_turn() -> void:
 	_goal0 = goal_progress()
 	_still_told = {}
 	_still_calm = false
-	if v8:
+	if v8 or camp:
 		_satt0 = {}
 		for i in satt_ids():
 			_satt0[int(i)] = true
@@ -1051,6 +1115,8 @@ func _still_rows(ev: Array, focus: Dictionary, changed: Dictionary, late: bool) 
 
 ## Warum wächst diese Reihe (Art k, key = line_key) nicht? "" = nichts zu sagen (sie stand schon so da).
 func _still_why(k: int, diag: bool, key: int) -> String:
+	if camp:
+		return _still_why9(k, diag, key)
 	var diag_ok := not diag or (diagonals and FieldData.tier(k) >= diag_from)
 	if _eq0.has(key):
 		# Stand schon vor dem Zug genau so da und wurde nur mitgedreht: Hinweis nur, wenn sie sonst wachsen würde
@@ -1225,6 +1291,8 @@ func next_of(k: int, option: int = 0) -> int:
 
 ## Erklärung für das lange Drücken auf ein Feld dieser Art (heutige Regeln).
 func kind_help(k: int) -> String:
+	if camp:
+		return kind_help9(k)
 	if v8:
 		return kind_help8(k)
 	var c := clampi(k, 0, FieldData.KIND_COUNT - 1)
@@ -1476,6 +1544,8 @@ func resolve_merges(ev: Array, late: bool = false) -> int:
 ## Gibt {"events", "gain" (Glaube durchs Wachsen), "faith" (Änderung), "income", "loss", "grew", "card",
 ##       "bonus_gained", "new_age", "w", "zone", "completed"} zurück.
 func end_round(ans: Dictionary = {}) -> Dictionary:
+	if camp:
+		return _end_round9(ans)
 	if v8:
 		return _end_round8(ans)
 	_open_turn()
@@ -2163,6 +2233,8 @@ func play(action: Dictionary, ans: Dictionary = {}) -> Dictionary:
 			var row: Array = action.get("row", [])
 			apply_rotation(int(action["axis"]), int(action["layer"]), turns, row)
 		return end_round(ans)
+	if camp:
+		return _play_tool9(t, int(action["field"]), bool(action.get("bought", false)))
 	var fid := int(action["field"])
 	var f: FieldData = fields[fid]
 	var brow: Array = action.get("row", [])
@@ -2198,11 +2270,11 @@ func rain_targets() -> Dictionary:
 		return out
 	var useful := rain_spots()
 	for f in fields:
-		if f.burning or (v8 and f.id == bolt):
+		if f.burning or ((v8 or camp) and f.id == bolt):
 			out[f.id] = "fire"
 		elif useful.has(f.id):
 			out[f.id] = "useful"
-		elif (rain_to8(f) >= 0) if v8 else rain_grows(f.kind):
+		elif rain_to9(f) >= 0 if camp else ((rain_to8(f) >= 0) if v8 else rain_grows(f.kind)):
 			out[f.id] = "grow"
 	return out
 
@@ -2217,6 +2289,8 @@ func rain_grows(k: int) -> bool:
 
 ## Geht Regen auf dieses Feld? (Brennt es, löscht er; sonst muss es wachsen können.)
 func rain_ok(f: FieldData) -> bool:
+	if camp:
+		return rain_ok9(f)
 	if v8:
 		return f.burning or f.id == bolt or rain_to8(f) >= 0
 	return f.burning or rain_grows(f.kind)
@@ -2233,16 +2307,19 @@ func rain_spots() -> Dictionary:
 	if rain <= 0:
 		return out
 	for f in fields:
-		if f.burning or (v8 and f.id == bolt):
+		if f.burning or ((v8 or camp) and f.id == bolt):
 			out[f.id] = "fire"
 			continue
-		if v8:
+		if camp:
+			if rain_to9(f) < 0:
+				continue
+		elif v8:
 			if rain_to8(f) < 0:
 				continue
 		elif not rain_grows(f.kind):
 			continue
 		var was: int = f.kind
-		f.kind = rain_to8(f) if v8 else int(RAIN_NEXT[was])
+		f.kind = rain_to9(f) if camp else (rain_to8(f) if v8 else int(RAIN_NEXT[was]))
 		var hit := false
 		for ln in lines({f.id: true}):
 			var lk := line_key(ln)
@@ -2256,6 +2333,8 @@ func rain_spots() -> Dictionary:
 
 ## "" = geht, sonst der Grund, warum nicht (einfaches Deutsch).
 func can_bonus(kind: String, f: FieldData) -> String:
+	if camp:
+		return _can_bonus9(kind, f)
 	if v8:
 		return _can_bonus8(kind, f)
 	if kind == "rain":
@@ -2398,14 +2477,24 @@ func is_day() -> bool:
 ## Art des Ziels: "make" (so viele Felder wachsen zu einer Art), "wishes" (Wünsche erfüllen), "faith" (Glauben
 ## sammeln; mit goal_green() auch die Waage im Grünen). "" im freien Spiel.
 func goal_type() -> String:
+	if camp:
+		return str((goal9[0] as Dictionary)["type"]) if not goal9.is_empty() else ""
 	return str(day.get("goal_type", ""))
 
 
 func goal_target() -> int:
+	if camp:
+		return target9()
 	return int(day.get("goal_target", 0))
 
 
 func goal_kinds() -> Array:
+	if camp:
+		var ks: Array = []
+		for st in sub_status9():
+			if int((st as Dictionary)["kind"]) >= 0 and not ks.has(int((st as Dictionary)["kind"])):
+				ks.append(int((st as Dictionary)["kind"]))
+		return ks
 	return day.get("goal_kinds", [])
 
 
@@ -2416,6 +2505,8 @@ func goal_green() -> bool:
 ## Fortschritt zum Ziel: make = so oft ist ein Feld zu der Art gewachsen (Reihe, Seite, Kette, Regen, Wunsch;
 ## Fallen zählt nicht ab, der Fortschritt geht nie zurück), wishes = erfüllte Wünsche, faith = Glaube.
 func goal_progress() -> int:
+	if camp:
+		return progress9()
 	var t := goal_type()
 	if t == "make":
 		var c := 0
@@ -2444,6 +2535,11 @@ func balance_green() -> bool:
 
 ## Ist das Ziel des Tages gerade erreicht?
 func goal_met() -> bool:
+	if camp:
+		for i in goal9.size():
+			if not _sub_met9(i):
+				return false
+		return not goal9.is_empty()
 	if not is_day() or goal_target() <= 0:
 		return false
 	if goal_progress() < goal_target():
@@ -2455,7 +2551,7 @@ func goal_met() -> bool:
 
 ## Drehungen, die an diesem Tag noch bleiben (-1 = keine Grenze: Weiterbauen).
 func twists_left() -> int:
-	if day_free_build:
+	if day_free_build or camp:
 		return -1
 	return maxi(0, day_limit - used_twists())
 
@@ -2469,6 +2565,11 @@ func start_free_build() -> void:
 	no_war = false
 	build_made0 = total_made()
 	extra_level = 0
+	if camp:
+		build_new9 = 0
+		while extra_level < extra_max() and _extra_met9(extra_level + 1):
+			extra_level += 1
+		return
 	while extra_level < extra_max() and goal_progress() >= extra_target():
 		extra_level += 1          # schon beim Sieg übertroffen: die nächste Extra-Aufgabe liegt darüber
 
@@ -2485,6 +2586,8 @@ func total_made() -> int:
 func build_growth() -> int:
 	if not day_free_build:
 		return 0
+	if camp:
+		return build_new9
 	return maxi(0, total_made() - build_made0)
 
 
@@ -2498,6 +2601,8 @@ func used_twists() -> int:
 func stars() -> int:
 	if not day_won:
 		return 0
+	if camp:
+		return stars_for9(stars9, day_won_at)
 	return Days.stars_for(day, day_won_at)
 
 
@@ -2507,6 +2612,8 @@ func stars() -> int:
 func day_status() -> Dictionary:
 	if not is_day():
 		return {}
+	if camp:
+		return level_status9()
 	return {"day": day_no, "type": goal_type(), "kinds": goal_kinds(), "target": goal_target(),
 		"progress": goal_progress(), "met": goal_met(), "green": balance_green(), "need_green": goal_green(),
 		"twists": used_twists(), "limit": day_limit, "left": twists_left(), "won": day_won, "lost": day_lost,
@@ -2697,7 +2804,7 @@ func _day_option(action: Dictionary, w: Array) -> Dictionary:
 func best_day_action(twist_only: bool = false) -> Dictionary:
 	if not is_day() or is_over():
 		return {}
-	if v8:
+	if v8 or camp:
 		return _best_day_action8(twist_only)
 	var w := goal_weights()
 	var now_v := goal_value(self, w)
@@ -2857,11 +2964,16 @@ func people8(k: int) -> bool:
 
 ## Bedürfnisse einer Art heute ([] wenn keine Menschen).
 func need_list(k: int) -> Array:
+	if camp:
+		var r: Variant = thrive9.get(k)
+		return ((r as Dictionary)["needs"] as Dictionary).keys() if r != null else []
 	return needs8.get(k, [])
 
 
 ## Was hat ein Menschen-Feld, was fehlt ihm? {"met": [...], "missing": [...]} (Namen: food, work, faith, water).
 func need_state(f: FieldData) -> Dictionary:
+	if camp:
+		return need_state9(f)
 	var have := {}
 	for g in neighbors(f):
 		have[(g as FieldData).kind] = true
@@ -2881,6 +2993,8 @@ func need_state(f: FieldData) -> Dictionary:
 
 ## Satt: alle Bedürfnisse erfüllt, brennt nicht, steht nicht an der Kriegsfront.
 func satt(f: FieldData) -> bool:
+	if camp:
+		return satt9(f.id)
 	if not v8 or not people8(f.kind) or not needs8.has(f.kind):
 		return false
 	if f.burning or front.has(f.id):
@@ -2889,6 +3003,8 @@ func satt(f: FieldData) -> bool:
 
 
 func satt_ids() -> Array:
+	if camp:
+		return satt_ids9()
 	var out: Array = []
 	for f in fields:
 		if satt(f):
@@ -2899,6 +3015,8 @@ func satt_ids() -> Array:
 ## Zustand eines Felds für Anzeige und Felder-Ansicht: {"people", "satt", "met", "missing", "fed", "hungry", "grow_after",
 ## "shrink_after", "burning", "fresh", "front", "bolt", "wet"}.
 func field_state8(f: FieldData) -> Dictionary:
+	if camp:
+		return field_state9(f)
 	var ns := need_state(f) if people8(f.kind) else {"met": [], "missing": []}
 	return {"people": people8(f.kind), "satt": satt(f), "met": ns["met"], "missing": ns["missing"], "fed": f.fed,
 		"hungry": f.hungry, "grow_after": int(day.get("grow_after", 2)), "shrink_after": int(day.get("shrink_after", 4)),
@@ -3227,6 +3345,8 @@ func _round_tail8(ev: Array) -> void:
 
 ## Weiterbauen: so viele Extra-Aufgaben gibt es (Tage 1–3: drei, Tage 4–7: eine; freies Spiel/alte Tage: keine).
 func extra_max() -> int:
+	if camp:
+		return extra_max9()
 	if not v8:
 		return 0
 	return int(day.get("extras", 3 if day_no <= 3 else 1))
@@ -3234,11 +3354,19 @@ func extra_max() -> int:
 
 ## Ziel der nächsten Extra-Aufgabe (Aufgabe + 1, + 2, + 3).
 func extra_target() -> int:
+	if camp:
+		var sub: Dictionary = goal9[0] if not goal9.is_empty() else {"type": "make", "target": 0}
+		return int(sub["target"]) + _extra_add9(sub, extra_level + 1)
 	return goal_target() + extra_level + 1
 
 
 ## Bedürfnisse der Ziel-Art (Gedeihen-Tage), sonst [].
 func goal_needs() -> Array:
+	if camp:
+		for st in sub_status9():
+			if str((st as Dictionary)["type"]) == "satt" or str((st as Dictionary)["type"]) == "hold":
+				return need_list(int((st as Dictionary)["kind"])).duplicate()
+		return []
 	if not v8 or goal_type() != "satt" or goal_kinds().is_empty():
 		return []
 	return need_list(int(goal_kinds()[0])).duplicate()
@@ -3247,7 +3375,7 @@ func goal_needs() -> Array:
 func goal_need_icons() -> Array:
 	var out: Array = []
 	for n in goal_needs():
-		out.append(str(NEED_ICON.get(str(n), "info")))
+		out.append(str(NEED_ICON9.get(str(n), "info")) if camp else str(NEED_ICON.get(str(n), "info")))
 	return out
 
 
@@ -3268,6 +3396,8 @@ func rain_to8(f: FieldData) -> int:
 
 
 func meteor_ok(f: FieldData) -> bool:
+	if camp:
+		return meteor_ok9(f)
 	return v8 and bool(day.get("meteor", false)) and faith >= METEOR_COST and f.kind != FieldData.WATER
 
 
@@ -3384,6 +3514,8 @@ func _gives8(k: int) -> String:
 ## Game.preview; ohne post rechnet preview8 sie selbst): so zählen Verschmelzen (3 Tiere → Hütte), Krieg und Wachsen mit.
 ## Wer durch Wachsen eine Stufe höher kommt (und dort noch etwas braucht), verliert nichts.
 func preview8(axis: int, layer: int, turns: int, post: GameState = null) -> Dictionary:
+	if camp:
+		return preview9(axis, layer, turns, post)
 	var t := clone()
 	t.moved = {}
 	t._turn_open = true
@@ -3595,6 +3727,8 @@ func _danger_value8() -> float:
 
 ## Wert des Stands für das Ziel des Tages (bot8.state_value).
 func value8() -> float:
+	if camp:
+		return value9()
 	if day_won and not day_free_build:
 		return 1e6 - 1000.0 * float(twists)
 	var v := 0.0
@@ -3630,7 +3764,7 @@ func _best_day_action8(twist_only: bool) -> Dictionary:
 ## null, wenn der Tag nicht nach den neuen Regeln läuft (dann am Stück: best_day_action). Die Suche läuft nie auf
 ## einem zweiten Thread: Godot 4.3 liest die const-Tabellen (MOVES, FieldData …) nicht threadsicher.
 func day_search(twist_only: bool = false) -> DaySearch8:
-	if not v8 or not is_day() or is_over():
+	if not (v8 or camp) or not is_day() or is_over():
 		return null
 	return DaySearch8.new(self, twist_only)
 
@@ -3655,6 +3789,7 @@ class DaySearch8 extends RefCounted:
 	var _ci := 0                   # Kandidat für den Blick voraus
 	var _m2 := 0
 	var _v2b := -INF
+	var _width := 6
 
 	func _init(state: GameState, twist_only: bool) -> void:
 		gs = state
@@ -3663,11 +3798,18 @@ class DaySearch8 extends RefCounted:
 		if twist_only:
 			return
 		_base = gs.value8()
+		if gs.camp and gs.twists - gs.gain_at9 >= 4:
+			_width = 27              # festgefahren: jede erste Drehung mit Blick voraus (bot9 stall breaker)
 		if gs.rain > 0:
 			for f in gs.fields:
 				if gs.rain_ok(f):
 					_tools.append({"type": "rain", "field": f.id})
-		if bool(gs.day.get("meteor", false)) and gs.faith >= GameState.METEOR_COST:
+		if gs.camp:
+			if gs.meteors > 0:
+				for f in gs.fields:
+					if GameState.METEOR_T9.has(f.kind):
+						_tools.append({"type": "strike", "field": f.id})
+		elif bool(gs.day.get("meteor", false)) and gs.faith >= GameState.METEOR_COST:
 			for f in gs.fields:
 				if f.kind == FieldData.CHURCH or f.kind == FieldData.INDUSTRY:
 					_tools.append({"type": "strike", "field": f.id})
@@ -3692,7 +3834,7 @@ class DaySearch8 extends RefCounted:
 					_best_tv = v
 					_best_t = {"type": str(a["type"]), "field": int(a["field"]), "value": v, "progress": st.goal_progress()}
 				return
-			var need := 6.0 if gs.rain <= 1 else 3.0
+			var need := 6.0 if (gs.rain + gs.meteors) <= 1 else 3.0
 			if not _best_t.is_empty() and _best_tv > _base + need:
 				_best_t["choice"] = -1
 				_best_t["card"] = -1
@@ -3718,7 +3860,7 @@ class DaySearch8 extends RefCounted:
 				return
 			_phase = 2
 			return
-		if _ci >= mini(6, _scored.size()):
+		if _ci >= mini(_width, _scored.size()):
 			_finish()
 			return
 		var c: Array = _scored[_ci]
@@ -3751,3 +3893,2136 @@ class DaySearch8 extends RefCounted:
 			"value": float(_pick[0]), "steps": 1 if ps.goal_progress() > _p0 or ps.day_won else 2, "points": 0,
 			"progress": ps.goal_progress()}
 		done = true
+
+
+# =============================================================================
+# Die Schöpfung (docs/GDPD_SCHOEPFUNG.md v2): die Kampagne mit 30 Leveln in 7 Akten.
+# Port von engine9.py (gegen das Modell geprüft: tests/test_rules.gd test_xcheck9, tests/xcheck9.gd).
+# Drei Verben: Erschaffen (3 gleiche in einer neuen Reihe, once), Gedeihen (Bedürfnisse aus den Nachbarn, auch über
+# die Würfelkante; einmal versorgt bleibt versorgt), Zusammenwachsen (gleiche Arten, die sich berühren, sind eine
+# Gruppe; sie gibt jedem Nachbarn die Stärke min(Größe, 3)). Gefahren nur als Folge, je eine Runde vorher gewarnt.
+# Kein Schritt-Limit, kein Verlieren; Sterne nach Schritten.
+# Ablauf einer Runde (3.8): 1 Reihen  2 Schritte +1, Rauch −1  3 Feuer  4 Blitz  5 Vulkan  6 Smog  7 Flut  8 Krieg
+#   9 Rudel  10 Gedeihen (erst versiegeln)  11 Glaube → Meteor  12 Regen  13 Ziel (Ruhe, Gnade)
+# Werkzeuge (Regen, Meteor) sind kein Schritt: Reihen des Werkzeugs, dann das Ziel.
+# Ereignisse (Vertrag 11): Dictionaries mit "type" (alte Namen, wo es sie gibt: merge, burn, polluted);
+# trace9 hält dieselben Ereignisse mit den Namen des Modells (grow, burnt, smog …) für den Abgleich.
+# =============================================================================
+
+const B9 = {"G": 2, "H": 4, "GRACE": 3, "CAP": 3, "VOLC_AT": 5, "ERUPT_MAX": 3, "DRY_AT": 3, "PACK_AT": 3,
+	"FLOOD_AT": 5, "FRESH": 2, "CRATER_REST": 2, "RAIN_MAX": 3, "MERCY_EVERY": 3, "METEOR_FAITH": 12, "FAITH_STEP": 3,
+	"MAX_CASCADES": 6}
+## Menschen-Stufe (Glaube, Krieg, „wächst nur, wenn die nächste Stufe satt wäre“).
+const LEVEL9 = {FieldData.HUT: 0, FieldData.VILLAGE: 1, FieldData.TOWN: 2}
+const PEOPLE9 = [FieldData.HUT, FieldData.VILLAGE, FieldData.TOWN]
+## Die Sonnenseite (☀): Seite 0 (+y, oben in der Start-Ansicht).
+const SUN_FACE := 0
+const WAR_DOWN9 = {FieldData.TOWN: FieldData.VILLAGE, FieldData.VILLAGE: FieldData.HUT, FieldData.HUT: FieldData.MEADOW}
+const SMOG_DOWN9 = {FieldData.ANIMALS: FieldData.FOREST, FieldData.BIRDS: FieldData.FOREST, FieldData.FOREST: FieldData.MEADOW,
+	FieldData.FERN: FieldData.MOSS, FieldData.MOSS: FieldData.EMPTY, FieldData.MEADOW: FieldData.EMPTY,
+	FieldData.SEED: FieldData.MEADOW, FieldData.FIELD: FieldData.MEADOW, FieldData.PRED: FieldData.FOREST}
+## Smog trifft zuerst das wertvollste Natur-Feld neben der Industrie.
+const SMOG_T9 = {FieldData.ANIMALS: 4, FieldData.BIRDS: 4, FieldData.PRED: 4, FieldData.FOREST: 3, FieldData.FERN: 3,
+	FieldData.FIELD: 2, FieldData.SEED: 2, FieldData.MEADOW: 1, FieldData.MOSS: 1}
+const LOW9 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FIELD, FieldData.SEED, FieldData.HUT, FieldData.MOSS]
+## Worüber Lava beim Ausbruch fließt.
+const ERUPTS9 = [FieldData.STONE, FieldData.EMPTY, FieldData.MOSS, FieldData.FERN, FieldData.FOREST, FieldData.MEADOW]
+const CITY_W9 = {FieldData.VILLAGE: 1, FieldData.TOWN: 2, FieldData.INDUSTRY: 2}
+## Schaden (Ruhe-Ziel „hold“: eine Runde ohne diese Ereignisse; Warnungen sind erlaubt). Namen wie im Modell.
+const DAMAGE9 = ["starve", "burnt", "erupt", "war_hit", "flood", "smog", "pack_hunt", "goal_loss", "bolt", "ignite"]
+## Bedürfnis → Arten, die es geben (3.4). sun und wet sind besonders (Sonnenseite, Zahl der Wasser-Nachbarn).
+const SOURCES9 = {"heat": [FieldData.LAVA], "mineral": [FieldData.STONE], "spark": [FieldData.LAVA, FieldData.CELLS],
+	"algae": [FieldData.ALGAE], "fish": [FieldData.FISH], "shore": [FieldData.MEADOW],
+	"plants": [FieldData.MEADOW, FieldData.FOREST], "prey": [FieldData.ANIMALS],
+	"food": [FieldData.ANIMALS, FieldData.FIELD], "work": [FieldData.FOREST, FieldData.STONE, FieldData.INDUSTRY],
+	"faith": [FieldData.CHURCH]}
+## Bedürfnis → Symbol (icons/<name>.svg; fehlt eins, nimmt die Oberfläche ein Ersatz-Symbol).
+const NEED_ICON9 = {"heat": "heat", "mineral": "mineral", "spark": "spark", "algae": "algae", "fish": "fishneed",
+	"shore": "shore", "plants": "plants", "prey": "prey", "food": "hunger", "work": "trade", "faith": "faith",
+	"sun": "sun", "wet": "rain"}
+const NEED_NAME9 = {"heat": "Wärme", "mineral": "Fels", "spark": "Leben", "algae": "Algen", "fish": "Fische",
+	"shore": "Ufer", "plants": "Futter", "prey": "Beute", "food": "Nahrung", "work": "Arbeit", "faith": "Glaube",
+	"sun": "Sonne", "wet": "Wasser"}
+## Gekaufte Wunder (GDPD_PUNKTE_LADEN.md 1, 4): zählen 2 Schritte, je Art höchstens eins je Level.
+const MIRACLE_STEPS := 2
+## Meteor-Ziele, die der Tipp prüft (wie bot9.METEOR_T).
+const METEOR_T9 = [FieldData.CHURCH, FieldData.INDUSTRY, FieldData.PRED, FieldData.LAVA, FieldData.TOWN,
+	FieldData.VILLAGE, FieldData.STONE]
+const _LW9 = {0: 8.0, 1: 6.0, 2: 2.5, 3: 1.0, 4: 0.4}
+
+var camp := false               # dieser Versuch ist ein Level der Schöpfung (setup_level)
+var level_no := 0               # 1 … 30 (0 = kein Level)
+var rows9: Dictionary = {}      # Art → nächste Art einer Reihe (nur Arten, die heute Reihen bilden)
+var consume9: Dictionary = {}   # Art → was die 2 anderen Felder einer Reihe werden (3 Tiere → 1 Hütte + 2 Wiesen)
+var thrive9: Dictionary = {}    # Art → {"needs": {Bedürfnis: Menge}, "up", "down", "spawn": [] | [on, into, after], "G"}
+var rain9: Array = []           # [[Art, Bedingung, Ergebnis]] (Bedingung: "", shore, people, nopeople, sun, meadow)
+var burn9: Dictionary = {}      # Art → was nach dem Brand übrig ist (nur diese Arten brennen)
+var goal9: Array = []           # Teilziele: {"type": make|satt|group|hold, "kinds", "kind", "target", "subs"}
+var sys9: Dictionary = {}       # Schalter des Levels: volcano, bolt, pack, war, smog, flood, faith, steam_rain, lasting, mercy
+var cap9 := 3                   # Gruppen-Stärke höchstens so viel
+var stars9: Array = [4, 6]      # [★★★ bis, ★★ bis] Schritte
+var par9 := 8                   # Punkte: 5 je Schritt unter Par (Par = ★★★ + 4)
+var lost9: Array = []           # Art → so viele gemachte Ziel-Felder sind durch eine Gefahr gefallen
+var goal_kinds9: Dictionary = {}
+var chain9: Dictionary = {}     # Art → Schritte bis zu einer Ziel-Art (für den Tipp; nur gelesen)
+var volc := -1                  # gewarnter Krater (bricht aus, wenn die Lava-Gruppe dann noch ≥ 5 ist)
+var pack_warn9: Dictionary = {} # Tiere-Feld → true: das Rudel jagt es in der nächsten Runde
+var smog_warn9: Dictionary = {} # Natur-Feld → Industrie-Feld: welkt in der nächsten Runde
+var meteors := 0                # Meteor-Ladungen (Level 23: eine; ab 27 aus Glauben)
+var held9: Array = []           # Ruhe-Ziel: so viele Runden in Folge hält alles
+var peak9 := 0
+var gain_at9 := 0               # Schritt des letzten neuen Fortschritts (Gnade)
+var extra_steps := 0            # gekaufte Wunder: je MIRACLE_STEPS Schritte
+var bolt_guard9 := 0            # Blitzschutz aus dem Laden: so viele Runden schlägt kein Blitz ein (0 = aus)
+var miracle_bought: Dictionary = {}   # Werkzeug → true: in diesem Level schon ein gekauftes benutzt
+var trace9: Array = []          # Ereignis-Namen der letzten Aktion wie im Modell (engine9 ev)
+var st9: Dictionary = {}        # Zähler (Bot, Auswertung)
+var paid9: Dictionary = {}      # Weiterbauen: (Feld, Art) schon bezahlt (erstes Gedeihen zu einer Art)
+var build_new9 := 0             # Weiterbauen: neu gewachsen seit dem Sieg (Reihen + erstes Gedeihen)
+var _won_told := false
+var _need_told := false
+var _era_last := ""             # zuletzt gemeldete Ära (Ereignis era, wenn sich Himmel oder Leben ändern)
+var _grp_lab := PackedInt32Array()
+var _grp_size := PackedInt32Array()
+var _grp_ok := false
+var _nb_ids: Array = []
+var _nb_ok := false
+
+static var _SLOT9 := {}               # pos_key → Platz-Nummer (Reihenfolge wie beim Aufbau, = Modell POS)
+static var _FACE_KEYS9: Array = []    # Seite → 9 pos_keys in Platz-Reihenfolge (= Modell FACE_SLOTS)
+
+
+static func _build_cache9() -> void:
+	if not _SLOT9.is_empty():
+		return
+	var i := 0
+	for x in [-1, 0, 1]:
+		for y in [-1, 0, 1]:
+			for z in [-1, 0, 1]:
+				var p := Vector3i(x, y, z)
+				for a in 3:
+					if p[a] == 0:
+						continue
+					_SLOT9[pos_key(p, unit(a, p[a]))] = i
+					i += 1
+	_FACE_KEYS9 = []
+	for nv in FACE_NORMALS:
+		var keys: Array = []
+		for x in [-1, 0, 1]:
+			for y in [-1, 0, 1]:
+				for z in [-1, 0, 1]:
+					var p := Vector3i(x, y, z)
+					var nn: Vector3i = nv
+					if p[axis_of(nn)] == nn[axis_of(nn)]:
+						keys.append(pos_key(p, nn))
+		_FACE_KEYS9.append(keys)
+
+
+## Platz eines Felds (0 … 53, wie die Felder-Reihenfolge beim Aufbau; im Modell pos[f]).
+func slot9(f: FieldData) -> int:
+	_build_cache9()
+	return int(_SLOT9[pos_key(f.p, f.n)])
+
+
+## Die 9 Feld-IDs einer Seite in Platz-Reihenfolge (die Mitte an Index 4).
+func face_ids9(fc: int) -> Array:
+	_build_cache9()
+	var out: Array = []
+	for k in _FACE_KEYS9[fc]:
+		out.append((_index[k] as FieldData).id)
+	return out
+
+
+# --- Aufbau --------------------------------------------------------------------------------
+
+## Ein Level der Schöpfung: cfg = Campaign.config(n) (die Level-Daten aus data/kampagne_schoepfung.json),
+## kinds = 54 Arten (Feld-ID-Reihenfolge), seed_value = Seed des Bretts (Blitz-Zufall wie im Modell).
+func setup_level(cfg: Dictionary, kinds: Array, seed_value: int = 1) -> void:
+	_reset(seed_value if seed_value != 0 else 1, true, 2, false)
+	_apply_level_rules(cfg, seed_value)
+	for i in mini(kinds.size(), fields.size()):
+		(fields[i] as FieldData).kind = int(kinds[i])
+	_grp_ok = false
+	_init_fields9()
+
+
+func _apply_level_rules(cfg: Dictionary, seed_value: int) -> void:
+	day = cfg.duplicate(true)
+	camp = true
+	level_no = int(cfg.get("level", 0))
+	day_no = 0
+	diagonals = false
+	easy = false
+	once = true
+	no_fire = true
+	calm = false
+	gadgets = true
+	sys_wishes = false
+	sys_scale = false
+	sys_income = false
+	sys_war = false
+	no_war = false
+	sys_smog = false
+	sys_regrow = false
+	sys_strike = false
+	sys_flood = false
+	sys_bolts = false
+	sys_monsoon = false
+	sys_gift = false
+	choices_on = {}
+	unlocked = {}
+	use_lcg = true
+	lcg = (seed_value * 7919 + 17) & 0x7fffffff
+	rows9 = {}
+	var nx: Dictionary = cfg.get("next", {})
+	for k in cfg.get("rows", []):
+		if nx.has(str(int(k))):
+			rows9[int(k)] = int(nx[str(int(k))])
+	consume9 = {}
+	var cs: Dictionary = cfg.get("consume", {})
+	for key in cs:
+		consume9[int(str(key))] = int(cs[key])
+	thrive9 = {}
+	var th: Dictionary = cfg.get("thrive", {})
+	for key in th:
+		var r: Dictionary = th[key]
+		var needs := {}
+		var nd: Dictionary = r.get("needs", {})
+		for n in nd:
+			needs[str(n)] = int(nd[n])
+		var sp: Array = []
+		if r.get("spawn") is Array:
+			var s0: Array = r["spawn"]
+			var on: Array = []
+			for k in s0[0]:
+				on.append(int(k))
+			sp = [on, int(s0[1]), int(s0[2]) if s0[2] != null else -1]
+		thrive9[int(str(key))] = {"needs": needs, "up": int(r["up"]) if r.get("up") != null else -1,
+			"down": int(r["down"]) if r.get("down") != null else -1, "spawn": sp,
+			"G": int(r["G"]) if r.get("G") != null else int(B9["G"])}
+	rain9 = []
+	for item in cfg.get("rain", []):
+		var it: Array = item
+		rain9.append([int(it[0]), str(it[1]) if it[1] != null else "", int(it[2])])
+	burn9 = {}
+	var bn: Dictionary = cfg.get("burn", {})
+	for key in bn:
+		burn9[int(str(key))] = int(bn[key])
+	goal9 = []
+	goal_kinds9 = {}
+	for g in cfg.get("goal", []):
+		var sub := _goal_sub9(g)
+		goal9.append(sub)
+		if str(sub["type"]) == "make":
+			for k in sub["kinds"]:
+				goal_kinds9[int(k)] = true
+	sys9 = {"volcano": bool(cfg.get("volcano", false)), "bolt": bool(cfg.get("bolt", false)),
+		"pack": bool(cfg.get("pack", false)), "war": bool(cfg.get("war", false)), "smog": bool(cfg.get("smog", false)),
+		"flood": bool(cfg.get("flood", false)), "faith": bool(cfg.get("faith", false)),
+		"steam_rain": bool(cfg.get("steam_rain", false)), "lasting": bool(cfg.get("lasting", true)),
+		"mercy": bool(cfg.get("mercy", true))}
+	cap9 = int(cfg.get("cap", B9["CAP"]))
+	var sv: Array = cfg.get("stars", [4, 6])
+	stars9 = [int(sv[0]), int(sv[1])]
+	par9 = int(cfg.get("par", stars9[0] + 4))
+	rain = int(cfg.get("rain_start", 0))
+	rain_every = int(cfg.get("rain_every", 0))
+	next_rain = rain_every
+	meteors = int(cfg.get("meteor_start", 0))
+	faith = 0
+	bolts = 0
+	day_limit = 0
+	lost9 = []
+	for k in FieldData.KIND_COUNT:
+		lost9.append(0)
+	held9 = []
+	for g in goal9:
+		held9.append(0)
+	volc = -1
+	pack_warn9 = {}
+	smog_warn9 = {}
+	peak9 = 0
+	gain_at9 = 0
+	extra_steps = 0
+	bolt_guard9 = 0
+	miracle_bought = {}
+	paid9 = {}
+	build_new9 = 0
+	_won_told = false
+	_need_told = false
+	st9 = {"rows": 0, "thr": 0, "spawn": 0, "starve": 0, "lost": 0, "burnt": 0, "strikes": 0, "bolt_warns": 0,
+		"volc_warns": 0, "eruptions": 0, "cooled": 0, "wars": 0, "war_hits": 0, "smogged": 0, "flooded": 0,
+		"floods": 0, "pack_hunts": 0, "rains": 0, "mercy": 0, "meteors": 0, "steam": 0, "consumed": 0,
+		"hunger_warns": 0}
+	chain9 = _chain_dist9()
+	_rebuild_rules()
+
+
+static func _goal_sub9(g: Variant) -> Dictionary:
+	var a: Array = g
+	var t := str(a[0])
+	if t == "hold":
+		var subs: Array = []
+		for x in a[1]:
+			subs.append(_goal_sub9(x))
+		return {"type": t, "subs": subs, "target": int(a[2]), "kinds": [], "kind": -1}
+	if t == "make":
+		var ks: Array = []
+		for k in a[1]:
+			ks.append(int(k))
+		return {"type": t, "kinds": ks, "kind": int(ks[0]) if not ks.is_empty() else -1, "target": int(a[2])}
+	return {"type": t, "kind": int(a[1]), "kinds": [int(a[1])], "target": int(a[2])}
+
+
+## Felder am Morgen: Vorrat (wer schon da ist und verhungern kann, hat 3 Runden extra), Glaube-Stufe neben Kirchen.
+func _init_fields9() -> void:
+	for f in fields:
+		f.fed = 0
+		f.hungry = 0
+		f.burning = false
+		f.fresh = 0
+		f.best = {}
+		f.mk = false
+		f.crater_rest = 0
+		f.maxlvl = -1
+		f.flvl = -1
+	if bool(sys9.get("faith", false)):
+		for f in fields:
+			if LEVEL9.has(f.kind) and _next_to9(f.id, FieldData.CHURCH):
+				f.flvl = int(LEVEL9[f.kind])
+	for f in fields:
+		var r: Variant = thrive9.get(f.kind)
+		if r != null and int((r as Dictionary)["down"]) >= 0:
+			f.hungry = -int(B9["GRACE"])
+	ever = {}
+	for f in fields:
+		ever[f.kind] = true
+	_satt0 = {}
+	for i in satt_ids9():
+		_satt0[int(i)] = true
+	_era_last = _era_key9(era9())
+
+
+# --- Nachbarn, Gruppen, Angebot ------------------------------------------------------------
+
+## Nachbar-IDs aller Felder (gilt bis zur nächsten Drehung).
+func _nbs9() -> Array:
+	if not _nb_ok:
+		if not _cache_ready:
+			_build_cache()
+		_nb_ids.resize(fields.size())
+		for f in fields:
+			var ids := PackedInt32Array()
+			for k in _NEI[pos_key(f.p, f.n)]:
+				ids.append((_index[k] as FieldData).id)
+			_nb_ids[f.id] = ids
+		_nb_ok = true
+	return _nb_ids
+
+
+func nb9(fid: int) -> PackedInt32Array:
+	return _nbs9()[fid]
+
+
+func _next_to9(fid: int, k: int) -> bool:
+	for g in nb9(fid):
+		if (fields[g] as FieldData).kind == k:
+			return true
+	return false
+
+
+## Ein Wasser-Nachbar (Wasser-Familie)?
+func wet9(fid: int) -> bool:
+	for g in nb9(fid):
+		if FieldData.water_family((fields[g] as FieldData).kind):
+			return true
+	return false
+
+
+func _groups9() -> void:
+	if _grp_ok:
+		return
+	var nbs := _nbs9()
+	var n := fields.size()
+	_grp_lab.resize(n)
+	_grp_lab.fill(-1)
+	_grp_size = PackedInt32Array()
+	for f in n:
+		if _grp_lab[f] >= 0:
+			continue
+		var k: int = (fields[f] as FieldData).kind
+		var lab := _grp_size.size()
+		_grp_lab[f] = lab
+		var todo: Array = [f]
+		var c := 0
+		while not todo.is_empty():
+			var h: int = todo.pop_back()
+			c += 1
+			for g in nbs[h]:
+				if _grp_lab[g] < 0 and (fields[g] as FieldData).kind == k:
+					_grp_lab[g] = lab
+					todo.append(g)
+		_grp_size.append(c)
+	_grp_ok = true
+
+
+## Gruppe (gleiche Art, über Kanten verbunden): Nummer und Größe.
+func group_id9(fid: int) -> int:
+	_groups9()
+	return _grp_lab[fid]
+
+
+func gsize9(fid: int) -> int:
+	_groups9()
+	return _grp_size[_grp_lab[fid]]
+
+
+## Die Felder der Gruppe von fid (aufsteigende IDs).
+func members9(fid: int) -> Array:
+	_groups9()
+	var lab := _grp_lab[fid]
+	var out: Array = []
+	for g in fields.size():
+		if _grp_lab[g] == lab:
+			out.append(g)
+	return out
+
+
+## Größte Gruppe der Art k (0: keine).
+func biggest9(k: int) -> int:
+	_groups9()
+	var best_n := 0
+	for f in fields:
+		if f.kind == k:
+			best_n = maxi(best_n, _grp_size[_grp_lab[f.id]])
+	return best_n
+
+
+## Stärke einer Quell-Gruppe: min(Größe, 3).
+func strength9(fid: int) -> int:
+	return mini(gsize9(fid), cap9)
+
+
+## Angebot eines Bedürfnisses an einem Feld: Summe der Stärken der VERSCHIEDENEN Quell-Gruppen daneben
+## (sun: 1 auf der Sonnenseite, wet: Zahl der Wasser-Nachbarn).
+func supply9(fid: int, need: String) -> int:
+	if need == "sun":
+		return 1 if face_index(fields[fid]) == SUN_FACE else 0
+	if need == "wet":
+		var w := 0
+		for g in nb9(fid):
+			if FieldData.water_family((fields[g] as FieldData).kind):
+				w += 1
+		return w
+	var src: Array = SOURCES9.get(need, [])
+	_groups9()
+	var seen := {}
+	var tot := 0
+	for g in nb9(fid):
+		if src.has((fields[g] as FieldData).kind):
+			var lab := _grp_lab[g]
+			if not seen.has(lab):
+				seen[lab] = true
+				tot += mini(_grp_size[lab], cap9)
+	return tot
+
+
+## Was zählt: das Angebot jetzt oder das beste je an einem Rundenende gesehene (versiegelt, „bleibt versorgt“).
+func eff9(fid: int, need: String) -> int:
+	var cur := supply9(fid, need)
+	var f: FieldData = fields[fid]
+	if bool(sys9.get("lasting", true)) and f.best.has(need):
+		return maxi(cur, int(f.best[need]))
+	return cur
+
+
+## Ist das Bedürfnis need dieses Felds versiegelt (einmal versorgt, bleibt versorgt)?
+func sealed9(fid: int, need: String) -> bool:
+	var f: FieldData = fields[fid]
+	var r: Variant = thrive9.get(f.kind)
+	if r == null or not bool(sys9.get("lasting", true)):
+		return false
+	var nd: Dictionary = (r as Dictionary)["needs"]
+	return nd.has(need) and int(f.best.get(need, 0)) >= int(nd[need])
+
+
+func satt9(fid: int) -> bool:
+	var f: FieldData = fields[fid]
+	var r: Variant = thrive9.get(f.kind)
+	if r == null:
+		return false
+	if f.burning or front.has(fid):
+		return false
+	var nd: Dictionary = (r as Dictionary)["needs"]
+	for n in nd:
+		if eff9(fid, str(n)) < int(nd[n]):
+			return false
+	return true
+
+
+func satt_ids9() -> Array:
+	var out: Array = []
+	for f in fields:
+		if thrive9.has(f.kind) and satt9(f.id):
+			out.append(f.id)
+	return out
+
+
+## Jedes Bedürfnis (außer ☀) doppelt erfüllt: wächst doppelt so schnell (Zusammenwachsen lohnt sich).
+func _rich9(fid: int, rule: Dictionary) -> bool:
+	var nd: Dictionary = rule["needs"]
+	for n in nd:
+		if str(n) != "sun" and eff9(fid, str(n)) < 2 * int(nd[n]):
+			return false
+	return true
+
+
+## Menschen wachsen nur, wo die nächste Stufe satt wäre: gemeinsame (versiegelte) Bedürfnisse zählen, neue müssen
+## jetzt da sein.
+func up_ok9(fid: int, nk: int) -> bool:
+	var r: Variant = thrive9.get(nk)
+	if r == null:
+		return true
+	var f: FieldData = fields[fid]
+	var k: int = f.kind
+	var b: Dictionary = f.best if bool(sys9.get("lasting", true)) else {}
+	f.kind = nk
+	_grp_ok = false
+	var ok := true
+	var nd: Dictionary = (r as Dictionary)["needs"]
+	for n in nd:
+		if maxi(supply9(fid, str(n)), int(b.get(n, 0))) < int(nd[n]):
+			ok = false
+			break
+	f.kind = k
+	_grp_ok = false
+	return ok
+
+
+## Zustand der Bedürfnisse eines Felds für Anzeige und Vorschau: {"met", "sealed", "missing" (Namen),
+## "have": {Bedürfnis: [hat, braucht]}}. met = zählt (jetzt da oder versiegelt); sealed ⊆ met.
+func need_state9(f: FieldData) -> Dictionary:
+	var met: Array = []
+	var sealed: Array = []
+	var miss: Array = []
+	var have := {}
+	var r: Variant = thrive9.get(f.kind)
+	if r == null:
+		return {"met": met, "sealed": sealed, "missing": miss, "have": have}
+	var nd: Dictionary = (r as Dictionary)["needs"]
+	for n in nd:
+		var ns := str(n)
+		var amt := int(nd[n])
+		var e := eff9(f.id, ns)
+		have[ns] = [mini(e, 99), amt]
+		if e >= amt:
+			met.append(ns)
+			if sealed9(f.id, ns):
+				sealed.append(ns)
+		else:
+			miss.append(ns)
+	return {"met": met, "sealed": sealed, "missing": miss, "have": have}
+
+
+# --- Arten ändern (alles läuft hier durch: Gruppen, Ziel-Buchhaltung, Siegel) -------------------
+
+func _setk9(f: FieldData, nk: int) -> void:
+	if f.kind != nk:
+		f.kind = nk
+		_grp_ok = false
+		f.best = {}             # eine neue Art beginnt ohne Siegel (rise9 behält gemeinsame)
+
+
+## Wachsen (Reihe, Gedeihen, Landgang, Regen): zählt für Ziel-Arten, nie als Verlust. Gemeinsame Bedürfnisse bleiben
+## versiegelt („nur die neuen Bedürfnisse“).
+func _rise9(f: FieldData, nk: int) -> void:
+	var old: Dictionary = f.best
+	_setk9(f, nk)
+	if not old.is_empty():
+		var r: Variant = thrive9.get(nk)
+		if r != null:
+			var keep := {}
+			var nd: Dictionary = (r as Dictionary)["needs"]
+			for n in old:
+				if nd.has(n):
+					keep[n] = old[n]
+			f.best = keep
+	made[nk] = int(made[nk]) + 1
+	f.mk = goal_kinds9.has(nk)
+	f.fed = 0
+	f.hungry = 0
+
+
+## Weiterbauen: ein Feld erreicht durch Gedeihen eine Art zum ersten Mal → +1 neu gewachsen (wieder satt zählt nie).
+func _pay_thrive9(fid: int, k: int) -> void:
+	if not day_free_build:
+		return
+	var key := fid * 32 + k
+	if not paid9.has(key):
+		paid9[key] = true
+		build_new9 += 1
+
+
+## Fallen durch eine Gefahr (Feuer, Ausbruch, Hunger, Krieg, Flut, Smog, Rudel, Meteor): ein gemachtes Ziel-Feld
+## zählt −1 (goal_loss).
+func _fall9(f: FieldData, nk: int, cause: String, ev: Array) -> void:
+	var k: int = f.kind
+	if f.mk:
+		lost9[k] = int(lost9[k]) + 1
+		st9["lost"] = int(st9["lost"]) + 1
+		f.mk = false
+		_ev9(ev, "goal_loss", {"type": "goal_loss", "field": f.id, "kind": k, "cause": cause,
+			"progress": progress9(), "cue": "−1 %s" % FieldData.kind_name(k)})
+	f.mk = false
+	_setk9(f, nk)
+	f.fed = 0
+	f.hungry = 0
+	f.burning = false
+	front.erase(f.id)
+
+
+func _ev9(ev: Array, model_name: String, e: Dictionary) -> void:
+	trace9.append(model_name)
+	ev.append(e)
+
+
+# --- Erschaffen: Reihen, ganze Seiten, Verbrauch ---------------------------------------------
+
+func _resolve_faces9(ev: Array, locked: Dictionary) -> void:
+	for fc in 6:
+		var ids := face_ids9(fc)
+		var k: int = (fields[int(ids[0])] as FieldData).kind
+		if not rows9.has(k):
+			continue
+		var same := true
+		var touched := false
+		for i in ids:
+			if (fields[int(i)] as FieldData).kind != k:
+				same = false
+			if moved.has(int(i)):
+				touched = true
+		if not same or not touched:
+			continue
+		var nk: int = int(rows9[k])
+		var face: Array = []
+		for i in ids:
+			face.append(fields[int(i)])
+		_spend_face(face)
+		for i in ids:
+			var h: FieldData = fields[int(i)]
+			_rise9(h, nk)
+			h.burning = false
+			locked[h.id] = true
+		_grew += 1
+		st9["rows"] = int(st9["rows"]) + 1
+		if day_free_build:
+			build_new9 += 1
+		_ev9(ev, "face", {"type": "face", "field": int(ids[4]), "fields": ids.duplicate(), "points": 0, "stage": nk,
+			"kind": nk, "from": k})
+
+
+## Reihen, in denen sich gerade etwas verändert hat, wachsen (once: jede Reihe nur einmal), dann Kettenreaktionen.
+func _resolve_merges9(ev: Array) -> void:
+	var locked := {}
+	_resolve_faces9(ev, locked)
+	var focus := moved.duplicate()
+	var touched := moved.duplicate()
+	for fid in locked:
+		touched[fid] = true
+	var changed := locked.duplicate()
+	var done := {}
+	var told := {}
+	for pass_i in int(B9["MAX_CASCADES"]):
+		if focus.is_empty():
+			break
+		var found: Array = []
+		for ln in lines(focus):
+			var lk := line_key(ln)
+			if pass_i == 0:
+				if not counts(ln):
+					if (broken.has(lk) or spent.has(lk)) and not standing.has(lk) and not told.has(lk):
+						told[lk] = true
+						ev.append({"type": "repeat", "fields": [(ln[0] as FieldData).id, (ln[1] as FieldData).id,
+							(ln[2] as FieldData).id], "spent": spent.has(lk) and not broken.has(lk)})
+					continue
+			elif spent.has(lk):
+				continue
+			found.append([ln, (ln[0] as FieldData).kind])
+		if found.is_empty():
+			break
+		var last_focus := focus
+		focus = {}
+		for item in found:
+			var line: Array = item[0]
+			var k: int = item[1]
+			var skip := false
+			var free: Array = []
+			for i in 3:
+				var fd: FieldData = line[i]
+				if fd.kind != k or locked.has(fd.id):
+					skip = true
+				if not done.has(fd.id):
+					free.append(i)
+			if skip or free.is_empty():
+				continue
+			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
+			if not free.has(ti):
+				ti = 1 if free.has(1) else int(free[0])
+			var mid: FieldData = line[ti]
+			var nk: int = int(rows9.get(k, k))
+			mid.burning = false
+			spent[line_key(line)] = true
+			if nk == k:
+				continue
+			_rise9(mid, nk)
+			focus[mid.id] = true
+			touched[mid.id] = true
+			changed[mid.id] = true
+			_grew += 1
+			st9["rows"] = int(st9["rows"]) + 1
+			if day_free_build:
+				build_new9 += 1
+			var others: Array = []
+			for g in line:
+				if (g as FieldData).id != mid.id:
+					others.append((g as FieldData).id)
+			var eaten: Array = []
+			if consume9.has(k):
+				for g in line:
+					var o: FieldData = g
+					if o.id != mid.id and o.kind == k:
+						_setk9(o, int(consume9[k]))
+						o.mk = false
+						o.burning = false
+						o.fed = 0
+						o.hungry = 0
+						locked[o.id] = true
+						done[o.id] = true
+						eaten.append(o.id)
+						st9["consumed"] = int(st9["consumed"]) + 1
+				locked[mid.id] = true
+			_ev9(ev, "grow", {"type": "merge", "field": mid.id, "others": others, "points": 0, "combo": 1,
+				"stage": nk, "kind": nk, "from": k, "late": false, "consume": not eaten.is_empty(), "eaten": eaten})
+			if not eaten.is_empty():
+				ev.append({"type": "consume", "field": mid.id, "others": eaten, "from": k, "kind": nk,
+					"left": int(consume9[k])})
+	_still_rows(ev, touched, changed, false)
+
+
+# --- Gedeihen (3.2): versiegeln, satt, wachsen, Landgang, Hunger --------------------------------
+
+## Rundenende: das beste Angebot je Bedürfnis merken (alle Felder auf einem Stand gemessen, dann geschrieben).
+func _seal_step9(ev: Array) -> void:
+	if not bool(sys9.get("lasting", true)) or thrive9.is_empty():
+		return
+	var upd: Array = []
+	for f in fields:
+		var r: Variant = thrive9.get(f.kind)
+		if r == null or f.burning or front.has(f.id):
+			continue
+		var b: Dictionary = f.best
+		var nb: Dictionary = {}
+		var any := false
+		var nd: Dictionary = (r as Dictionary)["needs"]
+		for n in nd:
+			var cur := supply9(f.id, str(n))
+			var was := int(b.get(n, 0))
+			if cur > was:
+				if not any:
+					nb = b.duplicate()
+					any = true
+				nb[n] = cur
+				if was < int(nd[n]) and int(nd[n]) <= cur:
+					_ev9(ev, "need_sealed", {"type": "need_sealed", "field": f.id, "kind": f.kind, "need": str(n),
+						"icon": str(NEED_ICON9.get(str(n), "info")), "first": not _need_told})
+					_need_told = true
+		if any:
+			upd.append([f, nb])
+	for item in upd:
+		(item[0] as FieldData).best = item[1]
+
+
+func _thrive_step9(ev: Array) -> void:
+	if thrive9.is_empty():
+		return
+	var H := int(B9["H"])
+	_seal_step9(ev)
+	var ok := {}
+	for f in fields:
+		if thrive9.has(f.kind):
+			ok[f.id] = satt9(f.id)
+	for f in fields:
+		var k: int = f.kind
+		if not ok.has(f.id) or not thrive9.has(k):
+			if not thrive9.has(k):
+				f.fed = 0
+				f.hungry = 0
+			continue
+		var rule: Dictionary = thrive9[k]
+		var up := int(rule["up"])
+		var sp: Array = rule["spawn"]
+		var G := int(rule["G"])
+		if bool(ok[f.id]):
+			f.hungry = 0
+			f.fed += 2 if (up >= 0 or not sp.is_empty()) and _rich9(f.id, rule) else 1
+			if f.fed >= G:
+				if up >= 0 and LEVEL9.has(k) and not up_ok9(f.id, up):
+					pass            # „Wächst bald“: Menschen wachsen erst, wenn die nächste Stufe satt wäre
+				elif up >= 0:
+					var first := int(made[up]) == 0
+					_rise9(f, up)
+					_pay_thrive9(f.id, up)
+					_grew += 1
+					st9["thr"] = int(st9["thr"]) + 1
+					_ev9(ev, "thrive", {"type": "thrive", "field": f.id, "from": k, "kind": up, "first": first})
+					if k == FieldData.LAVA and bool(sys9.get("steam_rain", false)):
+						rain = mini(int(B9["RAIN_MAX"]), rain + 1)
+						st9["steam"] = int(st9["steam"]) + 1
+						_ev9(ev, "steam", {"type": "steam", "field": f.id, "rain": rain})
+					if k == FieldData.LAVA:
+						st9["cooled"] = int(st9["cooled"]) + 1
+				elif not sp.is_empty():
+					var on: Array = sp[0]
+					var cand: Array = []
+					for g in nb9(f.id):
+						if on.has((fields[g] as FieldData).kind):
+							cand.append(int(g))
+					if not cand.is_empty():
+						cand.sort()
+						var tg: FieldData = fields[int(cand[0])]
+						_rise9(tg, int(sp[1]))
+						_pay_thrive9(tg.id, int(sp[1]))
+						_grew += 1
+						st9["spawn"] = int(st9["spawn"]) + 1
+						_ev9(ev, "spawn", {"type": "spawn", "field": f.id, "target": tg.id, "kind": int(sp[1]),
+							"after": int(sp[2])})
+						if int(sp[2]) >= 0:
+							_setk9(f, int(sp[2]))
+							f.mk = false
+						f.fed = 0
+		else:
+			f.fed = 0
+			if int(rule["down"]) < 0:
+				continue
+			f.hungry += 1
+			if f.hungry == H - 1:
+				st9["hunger_warns"] = int(st9["hunger_warns"]) + 1
+				_ev9(ev, "hunger_warn", {"type": "hunger_warn", "field": f.id, "kind": k,
+					"missing": need_state9(f)["missing"]})
+			if f.hungry >= H:
+				var dn := int(rule["down"])
+				_fall9(f, dn, "hunger", ev)
+				st9["starve"] = int(st9["starve"]) + 1
+				_ev9(ev, "starve", {"type": "starve", "field": f.id, "from": k, "kind": dn})
+
+
+# --- Gefahren (3.6): Folgen, je eine Runde vorher gewarnt ----------------------------------------
+
+func flammable9(k: int) -> bool:
+	return burn9.has(k)
+
+
+func _fire_step9(ev: Array) -> void:
+	var old: Array = []
+	for f in fields:
+		if f.burning:
+			old.append(f)
+	var nw := {}
+	for f in old:
+		for g in nb9((f as FieldData).id):
+			var h: FieldData = fields[g]
+			if flammable9(h.kind) and not h.burning and h.fresh == 0 and not wet9(h.id):
+				nw[h.id] = true
+	for f in old:
+		var fd: FieldData = f
+		var k: int = fd.kind
+		var nk := int(burn9.get(k, k))
+		_fall9(fd, nk, "fire", ev)
+		fd.fresh = int(B9["FRESH"]) + 1
+		st9["burnt"] = int(st9["burnt"]) + 1
+		stats["fires"] = int(stats["fires"]) + 1
+		_ev9(ev, "burnt", {"type": "burn", "field": fd.id, "from": k, "kind": nk})
+	var ids: Array = nw.keys()
+	ids.sort()
+	for i in ids:
+		(fields[int(i)] as FieldData).burning = true
+		_ev9(ev, "ignite", {"type": "ignite", "field": int(i)})
+
+
+## Trockener Wald: ein Wald in einer Wald-Gruppe von mindestens 3, an der kein Feld Wasser berührt.
+func dry9(fid: int) -> bool:
+	if (fields[fid] as FieldData).kind != FieldData.FOREST:
+		return false
+	if gsize9(fid) < int(B9["DRY_AT"]):
+		return false
+	for g in members9(fid):
+		if wet9(int(g)):
+			return false
+	return true
+
+
+func _bolt_step9(ev: Array) -> void:
+	if bolt_guard9 > 0:
+		# Blitzschutz (GDPD_PUNKTE_LADEN.md 5.1): keine Warnung, kein Einschlag, solange er hält
+		bolt_guard9 -= 1
+		if bolt >= 0:
+			_ev9(ev, "bolt_miss", {"type": "bolt_miss", "field": bolt, "guard": true})
+			bolt = -1
+		return
+	if bolt >= 0:
+		var f: FieldData = fields[bolt]
+		bolt = -1
+		if dry9(f.id) and not f.burning and f.fresh == 0:
+			f.burning = true
+			st9["strikes"] = int(st9["strikes"]) + 1
+			_ev9(ev, "bolt", {"type": "bolt", "field": f.id})
+		else:
+			_ev9(ev, "bolt_miss", {"type": "bolt_miss", "field": f.id})
+		return
+	var top_a := -1
+	var top_b := -1
+	var best_ids: Array = []
+	for f in fields:
+		if f.kind == FieldData.FOREST and not f.burning and f.fresh == 0 and dry9(f.id):
+			var n := 0
+			for g in nb9(f.id):
+				if flammable9((fields[g] as FieldData).kind):
+					n += 1
+			var a := gsize9(f.id)
+			if a > top_a or (a == top_a and n > top_b):
+				top_a = a
+				top_b = n
+				best_ids = [f.id]
+			elif a == top_a and n == top_b:
+				best_ids.append(f.id)
+	if not best_ids.is_empty():
+		best_ids.sort()
+		bolt = int(best_ids[_rand(best_ids.size())])
+		st9["bolt_warns"] = int(st9["bolt_warns"]) + 1
+		_ev9(ev, "bolt_warn", {"type": "bolt_warn", "field": bolt, "fields": members9(bolt)})
+
+
+func _volcano_step9(ev: Array) -> void:
+	var A := int(B9["VOLC_AT"])
+	for f in fields:
+		if f.crater_rest > 0:
+			f.crater_rest -= 1
+	if volc >= 0:
+		var c := volc
+		volc = -1
+		if (fields[c] as FieldData).kind == FieldData.LAVA and gsize9(c) >= A:
+			var grp := members9(c)
+			var gset := {}
+			for g in grp:
+				gset[int(g)] = true
+			var order: Array = [c]
+			for g in grp:
+				if int(g) != c:
+					order.append(int(g))
+			var near: Array = []
+			for h in order:
+				for g in nb9(int(h)):
+					if not gset.has(g) and ERUPTS9.has((fields[g] as FieldData).kind) and not near.has(g):
+						near.append(g)
+			var hit := near.slice(0, int(B9["ERUPT_MAX"]))
+			for g in hit:
+				var fd: FieldData = fields[int(g)]
+				var k: int = fd.kind
+				_fall9(fd, FieldData.LAVA, "volcano", ev)
+				_ev9(ev, "erupt", {"type": "erupt", "crater": c, "field": fd.id, "from": k, "kind": FieldData.LAVA})
+			st9["eruptions"] = int(st9["eruptions"]) + 1
+			for g in members9(c):
+				(fields[int(g)] as FieldData).crater_rest = int(B9["CRATER_REST"]) + 1
+		else:
+			_ev9(ev, "volcano_calm", {"type": "volcano_calm", "crater": c})
+		return
+	var cand: Array = []
+	for f in fields:
+		if f.kind == FieldData.LAVA and f.crater_rest == 0 and gsize9(f.id) >= A:
+			var n := 0
+			for g in nb9(f.id):
+				if (fields[g] as FieldData).kind == FieldData.LAVA:
+					n += 1
+			cand.append([gsize9(f.id), n, f.id])
+	if not cand.is_empty():
+		cand.sort_custom(func(x, y): return int(x[0]) > int(y[0]) or (int(x[0]) == int(y[0]) and (int(x[1]) > int(y[1]) or (int(x[1]) == int(y[1]) and int(x[2]) < int(y[2])))))
+		volc = int(cand[0][2])
+		st9["volc_warns"] = int(st9["volc_warns"]) + 1
+		_ev9(ev, "volcano_warn", {"type": "volcano_warn", "crater": volc, "field": volc, "fields": members9(volc)})
+
+
+func _pack_step9(ev: Array) -> void:
+	var A := int(B9["PACK_AT"])
+	if not pack_warn9.is_empty():
+		var hunt: Array = []
+		for i in pack_warn9:
+			var f: FieldData = fields[int(i)]
+			if f.kind != FieldData.ANIMALS:
+				continue
+			for g in nb9(f.id):
+				if (fields[g] as FieldData).kind == FieldData.PRED and gsize9(g) >= A:
+					hunt.append(f.id)
+					break
+		hunt.sort()
+		for i in hunt:
+			var fd: FieldData = fields[int(i)]
+			_fall9(fd, FieldData.MEADOW, "pack", ev)
+			st9["pack_hunts"] = int(st9["pack_hunts"]) + 1
+			_ev9(ev, "pack_hunt", {"type": "pack_hunt", "field": fd.id, "from": FieldData.ANIMALS, "kind": FieldData.MEADOW})
+		pack_warn9 = {}
+		if not hunt.is_empty():
+			return
+	var warn := {}
+	for f in fields:
+		if f.kind == FieldData.PRED and gsize9(f.id) >= A:
+			for g in nb9(f.id):
+				if (fields[g] as FieldData).kind == FieldData.ANIMALS:
+					warn[g] = true
+	if not warn.is_empty():
+		pack_warn9 = warn
+		var ws: Array = warn.keys()
+		ws.sort()
+		_ev9(ev, "pack_warn", {"type": "pack_warn", "fields": ws})
+
+
+func _smog_step9(ev: Array) -> void:
+	var old := smog_warn9
+	smog_warn9 = {}
+	var ks: Array = old.keys()
+	ks.sort()
+	for i in ks:
+		var f: FieldData = fields[int(i)]
+		var ind: FieldData = fields[int(old[i])]
+		if ind.kind == FieldData.INDUSTRY and SMOG_DOWN9.has(f.kind) and nb9(ind.id).has(f.id):
+			var k: int = f.kind
+			_fall9(f, int(SMOG_DOWN9[k]), "smog", ev)
+			st9["smogged"] = int(st9["smogged"]) + 1
+			_ev9(ev, "smog", {"type": "polluted", "industry": ind.id, "field": f.id, "from": k, "kind": f.kind})
+	for f in fields:
+		if f.kind != FieldData.INDUSTRY:
+			continue
+		var best_g := -1
+		for g in nb9(f.id):
+			var k: int = (fields[g] as FieldData).kind
+			if SMOG_T9.has(k) and not smog_warn9.has(g):
+				if best_g < 0 or int(SMOG_T9[k]) > int(SMOG_T9[(fields[best_g] as FieldData).kind]):
+					best_g = g
+		if best_g >= 0:
+			smog_warn9[best_g] = f.id
+			_ev9(ev, "smog_warn", {"type": "smog_warn", "industry": f.id, "field": best_g})
+
+
+## Stadt-Gewicht einer Seite (Dorf 1, Stadt 2, Industrie 2): ab 5 steigt das Meer.
+func city_weight9(fc: int) -> int:
+	var w := 0
+	for i in face_ids9(fc):
+		w += int(CITY_W9.get((fields[int(i)] as FieldData).kind, 0))
+	return w
+
+
+func _flood_step9(ev: Array) -> void:
+	var over := {}
+	for fc in 6:
+		if city_weight9(fc) >= int(B9["FLOOD_AT"]):
+			over[fc] = true
+	for fc in 6:
+		if not (over.has(fc) and flood_warn.has(fc)):
+			continue
+		var hit: Array = []
+		for i in face_ids9(fc):
+			var g: FieldData = fields[int(i)]
+			if LOW9.has(g.kind) and wet9(g.id):
+				hit.append(g)
+		for g in hit:
+			var fd: FieldData = g
+			var k: int = fd.kind
+			_fall9(fd, FieldData.WATER, "flood", ev)
+			st9["flooded"] = int(st9["flooded"]) + 1
+			_ev9(ev, "flood", {"type": "flood", "face": fc, "field": fd.id, "from": k, "kind": FieldData.WATER})
+		st9["floods"] = int(st9["floods"]) + 1
+	flood_warn = over
+	for fc in 6:
+		if over.has(fc):
+			_ev9(ev, "flood_warn", {"type": "flood_warn", "face": fc, "fields": face_ids9(fc)})
+
+
+func church_touch9() -> Array:
+	var out: Array = []
+	for f in fields:
+		if f.kind != FieldData.CHURCH:
+			continue
+		if _next_to9(f.id, FieldData.CHURCH):
+			out.append(f.id)
+	return out
+
+
+func _war_step9(ev: Array) -> void:
+	var ch := church_touch9()
+	if ch.is_empty():
+		if war_on:
+			_ev9(ev, "war_end", {"type": "war_end"})
+		war_on = false
+		front = {}
+		return
+	var base := {}
+	for i in ch:
+		for g in nb9(int(i)):
+			if LEVEL9.has((fields[g] as FieldData).kind):
+				base[g] = true
+	if not war_on:
+		war_on = true
+		front = base.duplicate()
+		st9["wars"] = int(st9["wars"]) + 1
+		var fr: Array = base.keys()
+		fr.sort()
+		_ev9(ev, "war_start", {"type": "war_start", "churches": ch, "front": fr})
+		return
+	var hit: Array = []
+	for i in front:
+		if LEVEL9.has((fields[int(i)] as FieldData).kind):
+			hit.append(int(i))
+	hit.sort()
+	for i in hit:
+		var f: FieldData = fields[int(i)]
+		var k: int = f.kind
+		_fall9(f, int(WAR_DOWN9[k]), "war", ev)
+		st9["war_hits"] = int(st9["war_hits"]) + 1
+		_ev9(ev, "war_hit", {"type": "war_hit", "field": f.id, "from": k, "kind": f.kind})
+	var grow := base.duplicate()
+	for i in front:
+		for g in nb9(int(i)):
+			if LEVEL9.has((fields[g] as FieldData).kind):
+				grow[g] = true
+	var nf := {}
+	for i in front:
+		if LEVEL9.has((fields[int(i)] as FieldData).kind):
+			nf[int(i)] = true
+	for i in grow:
+		if LEVEL9.has((fields[int(i)] as FieldData).kind):
+			nf[int(i)] = true
+	front = nf
+
+
+# --- Die Runde ------------------------------------------------------------------------------
+
+func _end_round9(ans: Dictionary) -> Dictionary:
+	_open_turn()
+	answers = ans.duplicate()
+	trace9 = []
+	var twist := _rotated
+	var ev: Array = _pre_ev.duplicate(true)
+	_pre_ev = []
+	var p0 := sub_values9()
+	var faith_before := faith
+	_resolve_merges9(ev)
+	moved = {}
+	tapped = -1
+	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
+	var income := 0
+	if twist:
+		twists += 1
+		for f in fields:
+			if f.fresh > 0:
+				f.fresh -= 1
+		_fire_step9(ev)
+		if bool(sys9["bolt"]):
+			_bolt_step9(ev)
+		if bool(sys9["volcano"]):
+			_volcano_step9(ev)
+		if bool(sys9["smog"]):
+			_smog_step9(ev)
+		if bool(sys9["flood"]):
+			_flood_step9(ev)
+		if bool(sys9["war"]):
+			_war_step9(ev)
+		if bool(sys9["pack"]):
+			_pack_step9(ev)
+		_thrive_step9(ev)
+		if bool(sys9["faith"]):
+			for f in fields:
+				if LEVEL9.has(f.kind) and int(LEVEL9[f.kind]) > f.flvl and _next_to9(f.id, FieldData.CHURCH):
+					f.flvl = int(LEVEL9[f.kind])
+					income += int(B9["FAITH_STEP"])
+			faith += income
+			if income > 0:
+				faith_earned += income
+				ev.append({"type": "income", "faith": income})
+			while faith >= int(B9["METEOR_FAITH"]):
+				faith -= int(B9["METEOR_FAITH"])
+				meteors += 1
+				_ev9(ev, "meteor_ready", {"type": "meteor_ready", "meteors": meteors})
+		if rain_every > 0 and twists % rain_every == 0:
+			var r0 := rain
+			rain = mini(int(B9["RAIN_MAX"]), rain + 1)
+			if rain > r0:
+				got["rain"] = 1
+		if rain_every > 0:
+			next_rain = (twists / rain_every + 1) * rain_every
+	broken = _broke_now if _rotated else {}
+	_broke_now = {}
+	_rotated = false
+	_check_goal9(ev, true)
+	_tail9(ev, p0)
+	if twist and _grew == 0:
+		var note := false
+		for e in ev:
+			if _EV8_NOTE.has(str(e["type"])) or ["need_sealed", "steam", "spawn", "erupt", "volcano_warn",
+					"pack_warn", "pack_hunt", "smog_warn", "hunger_warn", "goal_loss", "level_progress", "mercy",
+					"meteor_ready"].has(str(e["type"])):
+				note = true
+		if not note:
+			var mid_id: int = int(last_row[1]) if last_row.size() == 3 else -1
+			ev.append({"type": "miss", "count": 0, "field": mid_id, "why": _miss_why(ev), "counted": false})
+	return _close9(ev, got, faith - faith_before, income)
+
+
+## Werkzeug (kein Schritt): Regen auf ein Feld (Regen-Tabelle des Levels, löscht Feuer, hebt die Blitz-Warnung auf)
+## oder Meteor (ein Feld wird Erde). bought: ein gekauftes Wunder aus dem Vorrat (zählt MIRACLE_STEPS Schritte).
+## Blitzschutz aus dem Laden: die nächsten 5 Runden kein Blitz; eine Warnung erlischt. Zählt im Level 2 Schritte, je
+## Level einmal. false, wenn es hier keinen Blitz gibt oder er schon benutzt wurde.
+func guard_bolt9() -> bool:
+	if not camp or not bool(sys9.get("bolt", false)) or miracle_bought.has("guard"):
+		return false
+	miracle_bought["guard"] = true
+	if not day_won:
+		extra_steps += MIRACLE_STEPS
+	bolt_guard9 = 5
+	bolt = -1
+	return true
+
+
+func _play_tool9(kind: String, fid: int, bought: bool) -> Dictionary:
+	var f: FieldData = fields[fid]
+	var t := "meteor" if kind == "strike" else kind
+	var legal := rain_ok9(f, bought) if t == "rain" else meteor_ok9(f, bought)
+	if not legal:
+		return {"events": [], "gain": 0, "faith": 0, "income": 0, "loss": 0, "grew": 0, "card": -1, "card_field": -1,
+			"bonus_gained": {}, "new_age": false, "w": 0, "zone": "ok", "completed": false, "day": day_status(),
+			"trace": [], "refused": true, "bonus": {"kind": kind, "field": fid, "fields": [], "stages": {}}}
+	_open_turn()
+	trace9 = []
+	var ev: Array = []
+	var p0 := sub_values9()
+	if bought:
+		miracle_bought[t] = true
+		if not day_won:
+			extra_steps += MIRACLE_STEPS
+		ev.append({"type": "bought_miracle", "kind": t, "steps": MIRACLE_STEPS if not day_won else 0})
+	if t == "rain":
+		_remember_before()
+		if not bought:
+			rain -= 1
+		st9["rains"] = int(st9["rains"]) + 1
+		stats["rains"] = int(stats["rains"]) + 1
+		if f.id == bolt and not f.burning:
+			bolt = -1
+			_ev9(ev, "bolt_cancel", {"type": "bolt_cancel", "field": f.id})
+		elif f.burning:
+			for i in face_ids9(face_index(f)):
+				var g: FieldData = fields[int(i)]
+				if g.burning:
+					g.burning = false
+					_ev9(ev, "rain_out", {"type": "rain_out", "field": g.id})
+		else:
+			var nk := rain_to9(f)
+			var k: int = f.kind
+			tapped = f.id
+			_rise9(f, nk)
+			if f.id == volc and nk != FieldData.LAVA:
+				volc = -1
+			moved[f.id] = true
+			_ev9(ev, "rain", {"type": "rain", "field": f.id, "from": k, "kind": nk})
+		_resolve_merges9(ev)
+		moved = {}
+		tapped = -1
+		_check_goal9(ev, false)
+	else:
+		if not bought:
+			meteors -= 1
+		st9["meteors"] = int(st9["meteors"]) + 1
+		stats["strikes"] = int(stats["strikes"]) + 1
+		var k2: int = f.kind
+		_fall9(f, FieldData.EMPTY, "meteor", ev)
+		f.fresh = 0
+		if f.id == bolt:
+			bolt = -1
+		_ev9(ev, "meteor", {"type": "meteor", "field": f.id, "from": k2, "kind": FieldData.EMPTY, "cost": 0})
+		if kind == "strike":
+			ev.append({"type": "strike", "field": f.id, "hit": [{"field": f.id, "from": k2, "kind": FieldData.EMPTY}],
+				"cost": 0, "faith": 0, "meteor": true})
+		_check_goal9(ev, false)
+	_tail9(ev, p0)
+	var res := _close9(ev, {"rain": 0, "bolt": 0, "monsoon": 0}, 0, 0)
+	turn -= 1
+	res["bonus"] = {"kind": kind, "field": fid, "fields": [fid], "stages": {fid: f.kind}}
+	return res
+
+
+## Nach jeder Aktion: satt neu/verloren, Fortschritt je Teilziel, Ruhe, Sieg, Extra-Aufgaben im Weiterbauen.
+func _tail9(ev: Array, p0: Array) -> void:
+	var now := {}
+	for i in satt_ids9():
+		now[int(i)] = true
+	for i in now:
+		if not _satt0.has(i):
+			var fk: int = (fields[int(i)] as FieldData).kind
+			ev.append({"type": "satt_new", "field": int(i), "kind": fk, "goal": _satt_goal_kind9(fk)})
+	for i in _satt0:
+		if not now.has(i):
+			var f: FieldData = fields[int(i)]
+			ev.append({"type": "satt_lost", "field": int(i), "kind": f.kind, "missing": need_state9(f)["missing"],
+				"burning": f.burning, "front": front.has(f.id)})
+	_satt0 = now
+	if day_free_build:
+		for i in goal9.size():
+			var sub: Dictionary = goal9[i]
+			if str(sub["type"]) == "hold":
+				var okh := _hold_ok9(sub)
+				held9[i] = int(held9[i]) + 1 if okh else 0
+	var p1 := sub_values9()
+	for i in p1.size():
+		if int(p1[i]) != int(p0[i]):
+			var sub2: Dictionary = goal9[i]
+			ev.append({"type": "level_progress", "sub": i, "value": int(p1[i]), "target": int(sub2["target"]),
+				"delta": int(p1[i]) - int(p0[i]), "kind": int(sub2.get("kind", -1))})
+			if str(sub2["type"]) == "hold":
+				ev.append({"type": "hold", "rounds": int(p1[i]), "target": int(sub2["target"]), "ok": int(p1[i]) > int(p0[i])})
+	var gp := goal_progress()
+	if gp != _goal0:
+		ev.append({"type": "goal", "progress": gp, "was": _goal0, "target": goal_target(), "met": goal_met()})
+		_goal0 = gp
+	if day_won and not _won_told:
+		_won_told = true
+		ev.append({"type": "day_won", "day": level_no, "level": level_no, "twists": used_twists(), "steps": day_won_at,
+			"stars": stars(), "points": level_points()})
+	if day_free_build:
+		while extra_level < extra_max() and _extra_met9(extra_level + 1):
+			extra_level += 1
+			ev.append({"type": "extra", "level": extra_level, "target": extra_target(), "max": extra_max(),
+				"done": extra_level >= extra_max(), "text": extra_text9(extra_level + 1)})
+	for f in fields:
+		ever[f.kind] = true
+	var er := era9()
+	var ek := _era_key9(er)
+	if ek != _era_last:
+		_era_last = ek
+		er["type"] = "era"
+		ev.append(er)
+
+
+static func _era_key9(e: Dictionary) -> String:
+	return "%d|%.2f|%d" % [int(e.get("act", 0)), float(e.get("sky_blue", 0.0)), int(e.get("life", 0))]
+
+
+func _close9(ev: Array, got: Dictionary, delta: int, income: int) -> Dictionary:
+	last_grew = _grew
+	_turn_open = false
+	_eq0 = {}
+	_church0 = {}
+	_pre_gain = 0
+	moved = {}
+	tapped = -1
+	turn += 1
+	return {"events": ev, "gain": 0, "faith": delta, "income": income, "loss": 0, "grew": _grew, "card": -1,
+		"card_field": -1, "bonus_gained": got, "new_age": false, "w": 0, "zone": "ok", "completed": false,
+		"day": day_status(), "trace": trace9.duplicate()}
+
+
+# --- Ziel, Gnade, Sterne, Punkte (3.7, 3.9) ---------------------------------------------------
+
+## Schritte, die für Sterne und Punkte zählen: Drehungen + 2 je gekauftem Wunder.
+func steps9() -> int:
+	return maxi(0, twists - gift_twists) + extra_steps      # die Vorführung von Level 1 kostet keinen Schritt
+
+
+func sub_progress9(sub: Dictionary) -> int:
+	var t := str(sub["type"])
+	if t == "make":
+		var c := 0
+		for k in sub["kinds"]:
+			c += int(made[int(k)]) - int(lost9[int(k)])
+		return c
+	if t == "satt":
+		var n := 0
+		var k2 := int(sub["kind"])
+		for f in fields:
+			if f.kind == k2 and satt9(f.id):
+				n += 1
+		return n
+	if t == "group":
+		return biggest9(int(sub["kind"]))
+	return 0
+
+
+## Fortschritt je Teilziel (hold: Runden in Folge).
+func sub_values9() -> Array:
+	var out: Array = []
+	for i in goal9.size():
+		var sub: Dictionary = goal9[i]
+		out.append(int(held9[i]) if str(sub["type"]) == "hold" else sub_progress9(sub))
+	return out
+
+
+func _sub_met9(i: int) -> bool:
+	var sub: Dictionary = goal9[i]
+	if str(sub["type"]) == "hold":
+		return int(held9[i]) >= int(sub["target"])
+	return sub_progress9(sub) >= int(sub["target"])
+
+
+func _hold_ok9(sub: Dictionary) -> bool:
+	for x in sub["subs"]:
+		if sub_progress9(x) < int((x as Dictionary)["target"]):
+			return false
+	for t in trace9:
+		if DAMAGE9.has(str(t)):
+			return false
+	return true
+
+
+## Summe über die Teilziele von min(Fortschritt, Ziel).
+func progress9() -> int:
+	var p := 0
+	var vals := sub_values9()
+	for i in goal9.size():
+		p += mini(int(vals[i]), int((goal9[i] as Dictionary)["target"]))
+	return p
+
+
+func target9() -> int:
+	var t := 0
+	for sub in goal9:
+		t += int((sub as Dictionary)["target"])
+	return t
+
+
+func _check_goal9(ev: Array, round_end: bool) -> void:
+	if day_won:
+		return
+	if round_end:
+		for i in goal9.size():
+			var sub: Dictionary = goal9[i]
+			if str(sub["type"]) == "hold":
+				held9[i] = int(held9[i]) + 1 if _hold_ok9(sub) else 0
+	var p := progress9()
+	var s := steps9()
+	if p > peak9:
+		gain_at9 = s
+	peak9 = maxi(peak9, p)
+	# Gnade (keine Sackgasse): ab der ★-Zone alle 3 Schritte ohne neuen Fortschritt +1 Regen/Wunder
+	var me := int(B9["MERCY_EVERY"])
+	if round_end and bool(sys9.get("mercy", true)) and s > int(stars9[1]) and rain < int(B9["RAIN_MAX"]) \
+			and s - gain_at9 >= me and (s - gain_at9) % me == 0:
+		rain += 1
+		st9["mercy"] = int(st9["mercy"]) + 1
+		_ev9(ev, "mercy", {"type": "mercy", "rain": rain})
+	var all_met := not goal9.is_empty()
+	for i in goal9.size():
+		if not _sub_met9(i):
+			all_met = false
+	if all_met:
+		day_won = true
+		day_won_at = s
+
+
+## Gnade greift gerade (★-Zone, mindestens 3 Schritte ohne Fortschritt): der Rettungs-Tipp ist gratis.
+func rescue() -> bool:
+	return camp and not day_won and steps9() > int(stars9[1]) and steps9() - gain_at9 >= int(B9["MERCY_EVERY"])
+
+
+static func stars_for9(st: Array, steps: int) -> int:
+	if steps <= int(st[0]):
+		return 3
+	if steps <= int(st[1]):
+		return 2
+	return 1
+
+
+## Punkte eines Levels (GDPD_PUNKTE_LADEN.md 2.1): 30 + 10 × Sterne + 5 × max(0, Par − Schritte).
+static func points_for9(stars_n: int, steps: int, par: int) -> int:
+	if stars_n <= 0:
+		return 0
+	return Balance.LEVEL_DONE + Balance.LEVEL_PER_STAR * stars_n + Balance.LEVEL_FAST * maxi(0, par - steps)
+
+
+func level_points() -> int:
+	if not day_won:
+		return 0
+	return points_for9(stars(), day_won_at, par9)
+
+
+## Die nächste Sterne-Grenze für den Ring im HUD: [Sterne, bis Schritt] oder [] (nur noch ★).
+func next_star_line() -> Array:
+	var s := steps9()
+	if s < int(stars9[0]):
+		return [3, int(stars9[0])]
+	if s < int(stars9[1]):
+		return [2, int(stars9[1])]
+	return []
+
+
+func _satt_goal_kind9(k: int) -> bool:
+	for sub in goal9:
+		var sd: Dictionary = sub
+		var subs: Array = sd["subs"] if str(sd["type"]) == "hold" else [sd]
+		for x in subs:
+			if str((x as Dictionary)["type"]) == "satt" and int((x as Dictionary)["kind"]) == k:
+				return true
+	return false
+
+
+## Weiterbauen (7): Extra-Aufgaben. make/group: Ziel + 2, dann + 4; satt: + 1, dann + 2; hold: + 2, dann + 4 Runden.
+func extra_max9() -> int:
+	return 2
+
+
+func _extra_add9(sub: Dictionary, n: int) -> int:
+	var t := str(sub["type"])
+	if t == "satt":
+		return n
+	return 2 * n
+
+
+func _extra_met9(n: int) -> bool:
+	var vals := sub_values9()
+	for i in goal9.size():
+		var sub: Dictionary = goal9[i]
+		if int(vals[i]) < int(sub["target"]) + _extra_add9(sub, n):
+			return false
+	return true
+
+
+func extra_text9(n: int) -> String:
+	if n > extra_max9():
+		return "Bau weiter"
+	var sub: Dictionary = goal9[0] if not goal9.is_empty() else {}
+	if sub.is_empty():
+		return "Bau weiter"
+	return "Extra: %s" % Campaign.chip_text(level_no, int(sub["target"]) + _extra_add9(sub, n))
+
+
+# --- Werkzeuge -------------------------------------------------------------------------------
+
+## Was Regen aus diesem Feld macht (-1: nichts). Erste passende Zeile der Regen-Tabelle des Levels.
+func rain_to9(f: FieldData) -> int:
+	for item in rain9:
+		var it: Array = item
+		if int(it[0]) != f.kind:
+			continue
+		var cond := str(it[1])
+		if cond == "shore":
+			var any_land := false
+			for g in nb9(f.id):
+				if not FieldData.water_family((fields[g] as FieldData).kind):
+					any_land = true
+			if not any_land:
+				continue
+		elif cond == "people":
+			var pe := false
+			for g in nb9(f.id):
+				if PEOPLE9.has((fields[g] as FieldData).kind):
+					pe = true
+			if not pe:
+				continue
+		elif cond == "nopeople":
+			var pe2 := false
+			for g in nb9(f.id):
+				if PEOPLE9.has((fields[g] as FieldData).kind):
+					pe2 = true
+			if pe2:
+				continue
+		elif cond == "sun":
+			if face_index(f) != SUN_FACE:
+				continue
+		elif cond == "meadow":
+			if not _next_to9(f.id, FieldData.MEADOW):
+				continue
+		return int(it[2])
+	return -1
+
+
+func rain_ok9(f: FieldData, bought: bool = false) -> bool:
+	if not bought and rain <= 0:
+		return false
+	if bought and miracle_bought.has("rain"):
+		return false
+	return f.burning or f.id == bolt or rain_to9(f) >= 0
+
+
+func meteor_ok9(f: FieldData, bought: bool = false) -> bool:
+	if not bought and meteors <= 0:
+		return false
+	if bought and miracle_bought.has("meteor"):
+		return false
+	return not FieldData.water_family(f.kind)
+
+
+## Gibt es dieses Werkzeug in diesem Level (Regen ab Level 2 mit Dampf/Wolken, Meteor ab Level 23)?
+func tool_in_level9(kind: String) -> bool:
+	if kind == "rain":
+		return not rain9.is_empty()
+	if kind == "meteor" or kind == "strike":
+		return int(day.get("meteor_start", 0)) > 0 or bool(sys9.get("faith", false))
+	return false
+
+
+func _can_bonus9(kind: String, f: FieldData) -> String:
+	if kind == "rain":
+		if rain <= 0:
+			return "Noch kein Regen." if rain_every <= 0 else "Regen in %d Drehungen." % maxi(1, next_rain - twists)
+		if not rain_ok9(f):
+			return "Hier wirkt kein Regen."
+		return ""
+	if kind == "meteor" or kind == "strike":
+		if meteors <= 0:
+			return "Kein Meteor bereit."
+		if FieldData.water_family(f.kind):
+			return "Nicht auf Wasser."
+		return ""
+	return "Heute nicht."
+
+
+# --- Anzeige ---------------------------------------------------------------------------------
+
+## Zustand eines Felds für Felder-Ansicht und HUD (Vertrag 11).
+func field_state9(f: FieldData) -> Dictionary:
+	var ns := need_state9(f)
+	var r: Variant = thrive9.get(f.kind)
+	var dn := int((r as Dictionary)["down"]) if r != null else -1
+	var up := int((r as Dictionary)["up"]) if r != null else -1
+	var wait := false
+	if r != null and up >= 0 and LEVEL9.has(f.kind) and f.fed >= int((r as Dictionary)["G"]) and satt9(f.id):
+		wait = not up_ok9(f.id, up)
+	return {"thriver": r != null, "people": LEVEL9.has(f.kind), "living": FieldData.LIVING.has(f.kind),
+		"satt": satt9(f.id), "met": ns["met"], "sealed": ns["sealed"], "missing": ns["missing"], "have": ns["have"],
+		"fed": f.fed, "hungry": f.hungry, "grow_after": int(B9["G"]), "shrink_after": int(B9["H"]) if dn >= 0 else -1,
+		"up": up, "down": dn, "waits": wait, "burning": f.burning, "fresh": f.fresh, "front": front.has(f.id),
+		"bolt": f.id == bolt, "wet": wet9(f.id), "mk": f.mk, "group": group_id9(f.id), "size": gsize9(f.id),
+		"strength": strength9(f.id), "crater": f.id == volc, "crater_rest": f.crater_rest, "dry": dry9(f.id),
+		"pack": pack_warn9.has(f.id), "smog": smog_warn9.has(f.id), "sun": face_index(f) == SUN_FACE}
+
+
+## Teilziele für den Chip: [{"type", "kind", "kinds", "value", "target", "met", "icon"}].
+func sub_status9() -> Array:
+	var out: Array = []
+	var vals := sub_values9()
+	for i in goal9.size():
+		var sub: Dictionary = goal9[i]
+		var k := int(sub.get("kind", -1))
+		if str(sub["type"]) == "hold" and not (sub["subs"] as Array).is_empty():
+			k = int(((sub["subs"] as Array)[0] as Dictionary)["kind"])
+		out.append({"type": str(sub["type"]), "kind": k, "kinds": sub.get("kinds", []), "value": int(vals[i]),
+			"target": int(sub["target"]), "met": _sub_met9(i), "icon": FieldData.kind_icon(maxi(0, k))})
+	return out
+
+
+## Die Ära für die Darstellung (World.set_era): Akt, Level, Blau des Himmels, Leben im Wasser.
+func era9() -> Dictionary:
+	var e := Campaign.era(level_no)
+	var algae := count(FieldData.ALGAE)
+	if int(e.get("act", 0)) == 3:
+		e["sky_blue"] = clampf(maxf(0.25, float(algae) / 8.0), 0.0, 1.0)
+	var life := 0
+	for k in [FieldData.CELLS, FieldData.ALGAE, FieldData.FISH]:
+		if count(k) > 0:
+			life = maxi(life, [FieldData.CELLS, FieldData.ALGAE, FieldData.FISH].find(k) + 1)
+	e["life"] = life
+	return e
+
+
+# --- Vorschau beim Ziehen (11, erweitert GDPD_BALANCE_2.md 4.6) --------------------------------
+
+## Vorschau einer Drehung: v8-Schlüssel (satt_new, satt_lost, need_met, need_lost, rows, war_risk, flood_risk,
+## fire_risk) plus goal_delta (je Teilziel nach der ganzen Runde, Verluste eingerechnet), volcano_risk, bolt_risk,
+## pack_risk, smog_risk, hunger, merge ([[Art, Größe vorher, Größe nachher]]), sealed (versiegelte Felder, die
+## nie als „satt verloren“ gelten).
+func preview9(axis: int, layer: int, turns: int, post: GameState = null) -> Dictionary:
+	var t := clone()
+	t.moved = {}
+	t._turn_open = true
+	t._broke_now = {}
+	t.apply_rotation(axis, layer, turns)
+	if post == null:
+		post = clone()
+		post.apply_rotation(axis, layer, turns)
+		post.end_round()
+	var before := {}
+	for i in satt_ids9():
+		before[int(i)] = true
+	var after := {}
+	for i in post.satt_ids9():
+		after[int(i)] = true
+	var sn: Array = []
+	var sl: Array = []
+	for i in after:
+		if not before.has(i):
+			sn.append(int(i))
+	for i in before:
+		if not after.has(i) and (post.fields[int(i)] as FieldData).kind == (fields[int(i)] as FieldData).kind:
+			sl.append(int(i))
+	sn.sort()
+	sl.sort()
+	var met := {}
+	var lost := {}
+	for f in t.fields:
+		if not thrive9.has(f.kind):
+			continue
+		var a: Array = t.need_state9(f)["met"]
+		var b: Array = need_state9(fields[f.id])["met"] if (fields[f.id] as FieldData).kind == f.kind else []
+		var gained: Array = []
+		var gone: Array = []
+		for n in a:
+			if not b.has(n):
+				gained.append(n)
+		for n in b:
+			if not a.has(n):
+				gone.append(n)
+		if not gained.is_empty():
+			met[f.id] = gained
+		if not gone.is_empty():
+			lost[f.id] = gone
+	var rws: Array = []
+	for ln in t.lines(t.moved):
+		if t.counts(ln):
+			rws.append([(ln[0] as FieldData).id, (ln[1] as FieldData).id, (ln[2] as FieldData).id, (ln[0] as FieldData).kind])
+	var gd: Array = []
+	var v0 := sub_values9()
+	var v1 := post.sub_values9()
+	for i in v0.size():
+		gd.append([int(v0[i]), int(v1[i]), int((goal9[i] as Dictionary)["target"])])
+	var fire: Array = []
+	for f in t.fields:
+		if not f.burning:
+			continue
+		for g in t.nb9(f.id):
+			var h: FieldData = t.fields[g]
+			if t.flammable9(h.kind) and not h.burning and h.fresh == 0 and not t.wet9(h.id) and not fire.has(h.id):
+				fire.append(h.id)
+	fire.sort()
+	var bolt_risk: Array = []
+	if bool(sys9["bolt"]):
+		for f in t.fields:
+			if f.kind == FieldData.FOREST and t.dry9(f.id) and not dry9(f.id):
+				bolt_risk.append(f.id)
+	var volcano_risk := -1
+	if bool(sys9["volcano"]):
+		volcano_risk = post.volc if post.volc >= 0 else -1
+		for e in post.trace9:
+			if str(e) == "erupt":
+				volcano_risk = maxi(volcano_risk, 0)
+	var hunger: Array = []
+	for f in post.fields:
+		var r: Variant = post.thrive9.get(f.kind)
+		if r != null and int((r as Dictionary)["down"]) >= 0 and f.hungry >= int(B9["H"]) - 1:
+			hunger.append(f.id)
+	var fr: Array = []
+	if bool(sys9["flood"]):
+		for fc in 6:
+			if t.city_weight9(fc) >= int(B9["FLOOD_AT"]):
+				fr.append(fc)
+	var mg: Array = []
+	for k in _group_kinds9():
+		var b0 := biggest9(int(k))
+		var b1 := t.biggest9(int(k))
+		if b0 != b1:
+			mg.append([int(k), b0, b1])
+	var sealed: Array = []
+	for f in fields:
+		if not f.best.is_empty() and satt9(f.id):
+			sealed.append(f.id)
+	return {"satt_new": sn, "satt_lost": sl, "need_met": met, "need_lost": lost, "rows": rws,
+		"war_risk": bool(sys9["war"]) and not t.church_touch9().is_empty(), "flood_risk": fr, "fire_risk": fire,
+		"goal_delta": gd, "volcano_risk": volcano_risk, "bolt_risk": bolt_risk,
+		"pack_risk": bool(sys9["pack"]) and not post.pack_warn9.is_empty(),
+		"smog_risk": post.smog_warn9.keys(), "hunger": hunger, "merge": mg, "sealed": sealed}
+
+
+## Arten, deren Gruppen für Ziel oder Angebot zählen (für die merge-Vorschau).
+func _group_kinds9() -> Array:
+	var out := {}
+	for sub in goal9:
+		var sd: Dictionary = sub
+		var subs: Array = sd["subs"] if str(sd["type"]) == "hold" else [sd]
+		for x in subs:
+			if str((x as Dictionary)["type"]) == "group":
+				out[int((x as Dictionary)["kind"])] = true
+	for k in thrive9:
+		var nd: Dictionary = (thrive9[k] as Dictionary)["needs"]
+		for n in nd:
+			for src in SOURCES9.get(str(n), []):
+				out[int(src)] = true
+	return out.keys()
+
+
+# --- Tipp (wie der Bot „good“ des Modells, bot9.py) -------------------------------------------
+
+func _chain_dist9() -> Dictionary:
+	var targets := {}
+	var subs: Array = []
+	for sub in goal9:
+		var sd: Dictionary = sub
+		if str(sd["type"]) == "hold":
+			subs.append_array(sd["subs"])
+		else:
+			subs.append(sd)
+	for x in subs:
+		var xd: Dictionary = x
+		if str(xd["type"]) == "make":
+			for k in xd["kinds"]:
+				targets[int(k)] = true
+		else:
+			targets[int(xd["kind"])] = true
+	var edges: Array = []
+	for k in rows9:
+		edges.append([int(k), int(rows9[k])])
+	for k in thrive9:
+		var r: Dictionary = thrive9[k]
+		if int(r["up"]) >= 0:
+			edges.append([int(k), int(r["up"])])
+		var sp: Array = r["spawn"]
+		if not sp.is_empty():
+			edges.append([int(k), int(sp[1])])
+			for o in sp[0]:
+				edges.append([int(o), int(sp[1])])
+	for item in rain9:
+		edges.append([int(item[0]), int(item[2])])
+	for x in subs:
+		var xd: Dictionary = x
+		if str(xd["type"]) != "satt":
+			continue
+		var r2: Variant = thrive9.get(int(xd["kind"]))
+		if r2 == null:
+			continue
+		for n in (r2 as Dictionary)["needs"]:
+			for src in SOURCES9.get(str(n), []):
+				if int(src) != int(xd["kind"]):
+					edges.append([int(src), int(xd["kind"])])
+	var dist := {}
+	for k in targets:
+		dist[k] = 0
+	var changed := true
+	while changed:
+		changed = false
+		for e in edges:
+			var a := int(e[0])
+			var b := int(e[1])
+			if dist.has(b) and not targets.has(a) and (not dist.has(a) or int(dist[a]) > int(dist[b]) + 1):
+				dist[a] = int(dist[b]) + 1
+				changed = true
+	return dist
+
+
+func _pairs9() -> float:
+	var w := {}
+	for k in rows9:
+		var nk := int(rows9[k])
+		if chain9.has(nk):
+			w[int(k)] = float(_LW9.get(int(chain9[nk]) + 1, 0.1))
+	if w.is_empty():
+		return 0.0
+	if not _cache_ready:
+		_build_cache()
+	var v := 0.0
+	var i := 0
+	var n := _LINES.size()
+	while i < n:
+		if _LINES[i + 3] == 0:
+			var a: int = (_index[_LINES[i]] as FieldData).kind
+			var b: int = (_index[_LINES[i + 1]] as FieldData).kind
+			var c: int = (_index[_LINES[i + 2]] as FieldData).kind
+			var k := -1
+			if a == b and c != a:
+				k = a
+			elif a == c and b != a:
+				k = a
+			elif b == c and a != b:
+				k = b
+			if k >= 0:
+				v += float(w.get(k, 0.0))
+		i += 4
+	return v
+
+
+func _frac_met9(fid: int, rule: Dictionary) -> float:
+	var tot := 0
+	var got := 0
+	var nd: Dictionary = rule["needs"]
+	for n in nd:
+		tot += int(nd[n])
+		got += mini(int(nd[n]), eff9(fid, str(n)))
+	return float(got) / float(tot) if tot > 0 else 1.0
+
+
+func _thrive_value9(satt_kinds: Dictionary) -> float:
+	var v := 0.0
+	var G := int(B9["G"])
+	var H := int(B9["H"])
+	for f in fields:
+		var k: int = f.kind
+		var r: Variant = thrive9.get(k)
+		if r == null:
+			continue
+		var rule: Dictionary = r
+		var ok := satt9(f.id)
+		if satt_kinds.has(k):
+			v += 25.0 if ok else 10.0 * _frac_met9(f.id, rule) - 3.0 * float(f.hungry)
+			if not ok and int(rule["down"]) >= 0 and f.hungry >= H - 1:
+				v -= 12.0
+			continue
+		var prod := int(rule["up"])
+		var sp: Array = rule["spawn"]
+		if prod < 0 and not sp.is_empty():
+			prod = int(sp[1])
+		var w := 0.0
+		if prod >= 0 and chain9.has(prod):
+			w = float(_LW9.get(int(chain9[prod]) + 1, 0.1))
+		if w > 0.0:
+			if ok:
+				v += w * (4.0 + 3.0 * float(mini(f.fed, G)))
+			else:
+				v += w * 2.0 * _frac_met9(f.id, rule)
+			if LEVEL9.has(k) and ok and thrive9.has(prod):
+				v += w * 3.0 * _frac_met9(f.id, thrive9[prod])
+		if int(rule["down"]) >= 0 and not ok:
+			v -= 3.0 * float(f.hungry) + (8.0 if f.hungry >= H - 1 else 0.0)
+	return v
+
+
+func _danger_value9() -> float:
+	var v := 0.0
+	for f in fields:
+		if f.burning:
+			v -= 6.0
+			for x in nb9(f.id):
+				var h: FieldData = fields[x]
+				if flammable9(h.kind) and not h.burning and not wet9(h.id) and h.fresh == 0:
+					v -= 5.0 + (10.0 if FieldData.LIVING.has(h.kind) else 0.0)
+	if bolt >= 0:
+		v -= 6.0
+		for x in nb9(bolt):
+			if flammable9((fields[x] as FieldData).kind) and not wet9(x):
+				v -= 3.0
+	if volc >= 0:
+		var grp := {}
+		for g in members9(volc):
+			grp[int(g)] = true
+		var near := {}
+		for h in grp:
+			for x in nb9(int(h)):
+				if not grp.has(x) and ERUPTS9.has((fields[x] as FieldData).kind):
+					near[x] = true
+		var n := 0
+		for x in near:
+			if (fields[int(x)] as FieldData).mk or (fields[int(x)] as FieldData).kind == FieldData.STONE:
+				n += 1
+		v -= 10.0 + 6.0 * float(n)
+	if bool(sys9["volcano"]):
+		for f in fields:
+			if f.kind == FieldData.LAVA and gsize9(f.id) == int(B9["VOLC_AT"]) - 1:
+				v -= 0.5
+	v -= 8.0 * float(pack_warn9.size())
+	v -= 5.0 * float(smog_warn9.size())
+	if bool(sys9["war"]):
+		if war_on:
+			v -= 30.0
+		v -= 15.0 * float(church_touch9().size())
+	if bool(sys9["flood"]):
+		for fc in 6:
+			var cw := city_weight9(fc)
+			if cw >= int(B9["FLOOD_AT"]):
+				var n2 := 0
+				for i in face_ids9(fc):
+					var g: FieldData = fields[int(i)]
+					if LOW9.has(g.kind) and wet9(g.id):
+						n2 += 1
+				v -= 25.0 + 10.0 * float(n2)
+			elif cw == int(B9["FLOOD_AT"]) - 1:
+				v -= 3.0
+	return v
+
+
+## Wert eines Stands für den Tipp (bot9.state_value).
+func value9() -> float:
+	if day_won and not day_free_build:
+		return 1e6 - 1000.0 * float(twists)
+	var v := 100.0 * float(progress9())
+	var satt_kinds := {}
+	var subs: Array = []
+	for sub in goal9:
+		var sd: Dictionary = sub
+		if str(sd["type"]) == "hold":
+			subs.append_array(sd["subs"])
+		else:
+			subs.append(sd)
+	for x in subs:
+		var xd: Dictionary = x
+		var t := str(xd["type"])
+		if t == "satt":
+			satt_kinds[int(xd["kind"])] = true
+			v += 12.0 * float(mini(count(int(xd["kind"])), int(xd["target"]) + 1))
+		elif t == "group":
+			var k := int(xd["kind"])
+			_groups9()
+			var sizes := {}
+			for f in fields:
+				if f.kind == k:
+					sizes[_grp_lab[f.id]] = _grp_size[_grp_lab[f.id]]
+			var ss: Array = sizes.values()
+			ss.sort()
+			ss.reverse()
+			if ss.size() > 1:
+				v += 15.0 * float(ss[1])
+			v += 3.0 * float(count(k))
+	for i in goal9.size():
+		if str((goal9[i] as Dictionary)["type"]) == "hold":
+			v += 60.0 * float(held9[i])
+			for tt in trace9:
+				if DAMAGE9.has(str(tt)):
+					v -= 20.0
+					break
+	v += _thrive_value9(satt_kinds)
+	v += _danger_value9()
+	v += 2.0 * float(mini(rain, 3)) + 4.0 * float(meteors)
+	return v + _pairs9()
+
+
+## Die Rekord-Zeile eines Stands wie xcheck9.py (für den Abgleich mit dem Modell): eine Zeile Text.
+func record9() -> String:
+	var kinds := PackedStringArray()
+	var pos := PackedStringArray()
+	var fed := PackedStringArray()
+	var hun := PackedStringArray()
+	var brn := PackedStringArray()
+	var frs := PackedStringArray()
+	var mk := PackedStringArray()
+	var cr := PackedStringArray()
+	var bst := PackedStringArray()
+	var grp := PackedStringArray()
+	_groups9()
+	var canon := {}
+	for f in fields:
+		if not canon.has(_grp_lab[f.id]):
+			canon[_grp_lab[f.id]] = f.id
+	for f in fields:
+		kinds.append(str(f.kind))
+		pos.append(str(slot9(f)))
+		fed.append(str(f.fed))
+		hun.append(str(f.hungry))
+		brn.append("1" if f.burning else "0")
+		frs.append(str(f.fresh))
+		mk.append("1" if f.mk else "0")
+		cr.append(str(f.crater_rest))
+		var ks: Array = f.best.keys()
+		ks.sort()
+		var parts := PackedStringArray()
+		for n in ks:
+			parts.append("%s=%d" % [str(n), int(f.best[n])])
+		bst.append("/".join(parts))
+		grp.append(str(canon[_grp_lab[f.id]]))
+	var pw: Array = pack_warn9.keys()
+	pw.sort()
+	var sw_keys: Array = smog_warn9.keys()
+	sw_keys.sort()
+	var sw := PackedStringArray()
+	for i in sw_keys:
+		sw.append("%d:%d" % [int(i), int(smog_warn9[i])])
+	var fr: Array = front.keys()
+	fr.sort()
+	var fw: Array = flood_warn.keys()
+	fw.sort()
+	var md := PackedStringArray()
+	var ls := PackedStringArray()
+	for k in FieldData.KIND_COUNT:
+		md.append(str(int(made[k])))
+		ls.append(str(int(lost9[k])))
+	var pr := PackedStringArray()
+	for v in sub_values9():
+		pr.append(str(int(v)))
+	var sa := PackedStringArray()
+	for i in satt_ids9():
+		sa.append(str(int(i)))
+	var tr := PackedStringArray()
+	for e in trace9:
+		tr.append(str(e))
+	var out := PackedStringArray([",".join(kinds), ",".join(pos), ",".join(fed), ",".join(hun), ",".join(brn),
+		",".join(frs), ",".join(mk), str(bolt), str(volc), ",".join(cr), _ids_str9(pw), ",".join(sw),
+		"1" if war_on else "0", _ids_str9(fr), _ids_str9(fw), str(faith), str(meteors), str(rain), str(twists),
+		"1" if day_won else "0", ",".join(md), ",".join(ls), ",".join(pr), ",".join(sa), ",".join(bst),
+		",".join(grp), ",".join(tr)])
+	return "|".join(out)
+
+
+static func _ids_str9(a: Array) -> String:
+	var out := PackedStringArray()
+	for v in a:
+		out.append(str(int(v)))
+	return ",".join(out)
+
+
+## Die Welt als Brett-Text nach Plätzen (für den Spielstand: [kampagne] welt, Campaign.carry).
+func slot_board9() -> String:
+	_build_cache9()
+	var by_slot: Array = []
+	by_slot.resize(fields.size())
+	for f in fields:
+		by_slot[slot9(f)] = f.kind
+	var s := ""
+	for k in by_slot:
+		s += FieldData.code_of(int(k))
+	return s
+
+
+func _still_why9(k: int, diag: bool, key: int) -> String:
+	if _eq0.has(key):
+		return "standing" if rows9.has(k) and not diag else ""
+	if rows9.has(k):
+		if diag:
+			return "diag"
+		if broken.has(key):
+			return "repeat"
+		if spent.has(key):
+			return "spent"
+		if standing.has(key):
+			return "standing"
+		return "other"
+	if k == FieldData.WATER:
+		return "water"
+	if FieldData.water_family(k):
+		return "water_life"
+	if k == FieldData.CHURCH or k == FieldData.INDUSTRY:
+		return "finished"
+	if thrive9.has(k):
+		return "people" if LEVEL9.has(k) else "thrive"
+	if k == FieldData.STONE:
+		return "stone"
+	return "done"
+
+
+## Langes Drücken auf ein Feld in einem Level: was es heute tut (kurz).
+func kind_help9(k: int) -> String:
+	var name := FieldData.kind_name(k)
+	if rows9.has(k):
+		return "%s. 3 in einer Reihe: %s." % [name, FieldData.kind_name(int(rows9[k]))]
+	var r: Variant = thrive9.get(k)
+	if r != null:
+		var ns: Array = []
+		for n in ((r as Dictionary)["needs"] as Dictionary):
+			ns.append(str(NEED_NAME9.get(str(n), n)))
+		var last := str(ns.pop_back())
+		var list := last if ns.is_empty() else ", ".join(PackedStringArray(ns)) + " und " + last
+		return "%s. Braucht %s." % [name, list]
+	return str(FieldData.KIND_HELP[clampi(k, 0, FieldData.KIND_COUNT - 1)])
+
+
+## Zusammenfassung für die Oberfläche (Ziel-Chip mit bis zu zwei Teilzielen, Schritte, Sterne-Ring, Gefahren).
+func level_status9() -> Dictionary:
+	return {"level": level_no, "day": level_no, "camp": true, "type": goal_type(), "kinds": goal_kinds(),
+		"target": goal_target(), "progress": goal_progress(), "met": goal_met(), "subs": sub_status9(),
+		"twists": twists, "steps": steps9(), "limit": 0, "left": -1, "won": day_won, "lost": "", "won_at": day_won_at,
+		"stars": stars(), "stars_at": stars9.duplicate(), "par": par9, "points": level_points(),
+		"next_star": next_star_line(), "free_build": day_free_build, "growth": build_growth(), "v8": false,
+		"extra_level": extra_level, "extra_max": extra_max(), "extra_target": extra_target(),
+		"extra_text": extra_text9(extra_level + 1), "needs": goal_needs(), "need_icons": goal_need_icons(),
+		"bolt": bolt, "volc": volc, "pack_warn": pack_warn9.keys(), "smog_warn": smog_warn9.keys(), "war_on": war_on,
+		"front": front.keys(), "flood_warn": flood_warn.keys(), "faith": faith, "rain": rain, "meteors": meteors,
+		"held": held9.duplicate(), "rescue": rescue(), "no_war": false}

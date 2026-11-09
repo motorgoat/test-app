@@ -12,6 +12,7 @@ class TwistRing extends Control:
 	var left := 0
 	var limit := 1
 	var warn := false
+	var steps_mode := false        # Schöpfung: die Zahl sind die Schritte, der Ring füllt sich bis zur Sterne-Grenze
 
 	func _init() -> void:
 		custom_minimum_size = Vector2(46, 46)
@@ -32,6 +33,8 @@ class TwistRing extends Control:
 		var k := clampf(float(left) / float(limit), 0.0, 1.0)
 		if k > 0.0:
 			var col := Style.SUN if warn else Style.LEAF
+			if steps_mode and limit <= left and not warn:
+				col = Color(Style.INK, 0.25)
 			draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * k, 48, col, 5.0, true)
 		var f := Style.black()
 		var fs := 19
@@ -133,6 +136,15 @@ var ov_streak_num: Label
 var ov_shield_chip: PanelContainer
 var ov_shield_num: Label
 var ov_coin_num: Label
+var ov_coin_chip: PanelContainer
+var ov_char_btn: Button           # Antippen des eigenen Gottes öffnet ihn (ansehen, ändern, Art zu reden)
+var ov_days_box: VBoxContainer    # die 7 Tage (alte Oberfläche)
+var ov_acts_box: VBoxContainer    # die Schöpfung: 7 Akte mit ihren Leveln
+var ov_acts: Array = []           # je Akt: {"panel", "tile", "caps", "name", "stars", "levels": [{"btn", "num", "lock", "stars", "n"}]}
+var chip2: HBoxContainer          # zweites Teilziel im Chip (🐺 1/2 · 🦌 3/4)
+var chip2_icon: TextureRect
+var chip2_num: Label
+var _loss_gen := 0
 var today_card: PanelContainer
 var tc_tile: PanelContainer
 var tc_caps: Label
@@ -194,6 +206,8 @@ var win_card: PanelContainer
 var wc_title: Label
 var wc_stars: Array = []
 var wc_used: Label
+var wc_points: VBoxContainer       # Schöpfung: die Punkte-Zeilen (GDPD_PUNKTE_LADEN.md 2.4)
+var wc_total_pts: Label
 var wc_row: HBoxContainer
 var wc_days: HBoxContainer
 var wc_total: Label
@@ -308,13 +322,14 @@ func build(owner_ui: GameUI) -> void:
 	Game.round_resolved.connect(_on_round)
 	if ui.world != null:
 		ui.world.preview_changed.connect(_on_preview_chip)
+		ui.world.loss_shown.connect(_on_loss_shown)
 
 
 ## Beim Start der App: Noch kein eigener Charakter → erst der Ersteller (unter einer Minute), dann beim ersten Start
 ## gleich Tag 1 (Ziel-Karte), sonst die Übersicht. Mit Charakter: erster Start → Tag 1, sonst die Übersicht.
 func startup() -> void:
 	if Game.needs_creator():
-		open_creator(false, Game.first_launch or (Game.in_day() and Game.day_no == 1 and Game.stars_of(1) == 0))
+		open_creator(false, Game.first_launch or (Game.in_day() and (Game.day_no == 1 or Game.level_no == 1) and Game.stars_total() == 0))
 		Game.first_launch = false
 		return
 	if Game.in_day() and Game.first_launch:
@@ -417,7 +432,7 @@ func _build_chip() -> void:
 	row1.move_child(chip, ui.score_box.get_index() + 1)
 	var h := ui._hbox(12)
 	chip.add_child(h)
-	chip_tile = ui._tile("meadow", 52, Style.STAGE_TINT[1], 0.32)
+	chip_tile = ui._tile("meadow", 60, Style.STAGE_TINT[1], 0.32)
 	h.add_child(chip_tile)
 	var v := ui._vbox(-6)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -434,6 +449,18 @@ func _build_chip() -> void:
 	v.add_child(chip_caps)
 	chip_num = ui._label("0/8", 34, Style.INK, Style.W_BLACK)
 	v.add_child(chip_num)
+	# Zweites Teilziel (Level 22, 29, 30): Symbol und Zahl neben dem ersten
+	chip2 = ui._hbox(4)
+	chip2.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip2.visible = false
+	h.add_child(chip2)
+	chip2_icon = ui._icon("animals", 40)
+	chip2_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip2.add_child(chip2_icon)
+	chip2_num = ui._label("0/4", 30, Style.INK, Style.W_BLACK)
+	chip2_num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip2.add_child(chip2_num)
 	var sep := ColorRect.new()
 	sep.color = Style.HAIRLINE
 	sep.custom_minimum_size = Vector2(1, 44)
@@ -445,6 +472,7 @@ func _build_chip() -> void:
 	rv.alignment = BoxContainer.ALIGNMENT_CENTER
 	h.add_child(rv)
 	ring = TwistRing.new()
+	ring.custom_minimum_size = Vector2(54, 54)
 	rv.add_child(ring)
 	ring_caps = ui._caps("Drehungen")
 	ring_caps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -522,7 +550,7 @@ func _build_overview() -> void:
 	topbar.offset_right = -Style.MARGIN
 	topbar.offset_top = ui._insets.x + Style.TOP_GAP
 	overview.add_child(topbar)
-	topbar.add_child(ui._icon_button("menu", ui._open_menu, 52, false, "menu"))
+	topbar.add_child(ui._icon_button("menu", ui._open_menu, 56, false, "menu"))
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -539,10 +567,22 @@ func _build_overview() -> void:
 	topbar.add_child(ov_shield_chip)
 	ov_shield_chip.mouse_filter = Control.MOUSE_FILTER_STOP
 	ov_shield_chip.gui_input.connect(_on_shield_chip_input)
-	var coc := _top_chip("coin", "0")
+	var coc := _top_chip("points" if Balance.CAMPAIGN_ON else "coin", "0")
 	ov_coin_num = coc[2]
+	ov_coin_chip = coc[0]
 	topbar.add_child(coc[0])
-	ui._explain_only(coc[0], "day_coins")
+	ui._explain_only(ov_coin_chip, "day_coins")
+	ov_coin_chip.mouse_filter = Control.MOUSE_FILTER_STOP
+	ov_coin_chip.gui_input.connect(_on_points_chip_input)
+	# Mitte: rechts so viel Platz wie links (Menü), damit die Chips mittig stehen (HUD mehr ins Zentrum)
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	topbar.add_child(sp2)
+	var pad_r := Control.new()
+	pad_r.custom_minimum_size = Vector2(56, 0)
+	pad_r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	topbar.add_child(pad_r)
 	# Darunter alles in einer Spalte, die bei kleinen Bildschirmen scrollt
 	ov_scroll = ScrollContainer.new()
 	ov_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -576,6 +616,14 @@ func _build_overview() -> void:
 	crow.add_child(cv)
 	ov_char = ui._speaker(92, 0, Color("#FFF4DF"))
 	cv.add_child(ov_char)
+	ov_char_btn = Button.new()
+	ov_char_btn.flat = true
+	ov_char_btn.focus_mode = Control.FOCUS_NONE
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		ov_char_btn.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	ov_char_btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ov_char_btn.pressed.connect(_on_char_tap)
+	ov_char.add_child(ov_char_btn)
 	ov_name = ui._caps("", Style.INK_2)
 	ov_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cv.add_child(ov_name)
@@ -595,10 +643,13 @@ func _build_overview() -> void:
 	_build_today_card()
 	# 3. Diese Woche
 	_build_week()
-	# 4. Die 7 Tage (4 + 3) und „Freies Spiel“
+	# 4. Die 7 Tage (4 + 3) – oder die Schöpfung (7 Akte mit ihren Leveln) – und „Freies Spiel“
+	ov_days_box = ui._vbox(14)
+	ov_box.add_child(ov_days_box)
 	var head := ui._hbox(8)
 	ov_box.add_child(head)
-	var hcaps := ui._caps(str(Days.TEXT["title"]), Style.INK_3)
+	ov_box.move_child(head, ov_days_box.get_index())
+	var hcaps := ui._caps(str(Campaign.TEXT["title"]) if Balance.CAMPAIGN_ON else str(Days.TEXT["title"]), Style.INK_3)
 	hcaps.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hcaps.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(hcaps)
@@ -610,7 +661,7 @@ func _build_overview() -> void:
 	sh.add_child(ov_stars)
 	ui._explain_only(head, "day_stars")
 	var grid := ui._vbox(12)
-	ov_box.add_child(grid)
+	ov_days_box.add_child(grid)
 	var r1 := ui._hbox(12)
 	r1.alignment = BoxContainer.ALIGNMENT_CENTER
 	grid.add_child(r1)
@@ -620,6 +671,12 @@ func _build_overview() -> void:
 	for n in range(1, Days.count() + 1):
 		var row: HBoxContainer = r1 if n <= 4 else r2
 		row.add_child(_day_tile(n))
+	ov_acts_box = ui._vbox(12)
+	ov_box.add_child(ov_acts_box)
+	for a in range(1, 8):
+		ov_acts_box.add_child(_act_tile(a))
+	ov_days_box.visible = not Balance.CAMPAIGN_ON
+	ov_acts_box.visible = Balance.CAMPAIGN_ON
 	ov_free = ui._button(str(Days.TEXT["free"]), "secondary", "trophy", 56)
 	ui._tap_or_explain(ov_free, _on_free_pressed, "day_free", false)
 	ov_box.add_child(ov_free)
@@ -778,6 +835,76 @@ func _day_tile(n: int) -> Button:
 	return b
 
 
+## Ein Akt der Schöpfung (ein Genesis-Tag): Kopf (Symbol, „Tag 1“, Name – nur, wenn erreicht), darunter die Level
+## als Kacheln mit Nummer und Sternen. Gesperrt: nur ein Schloss oder „?“ (nie Titel oder Symbol).
+func _act_tile(a: int) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := Style.lift(Style.box(Style.SURFACE, Style.R_CARD, 16, 14), 1)
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_PASS
+	p.set_meta("sb", sb)
+	var v := ui._vbox(10)
+	p.add_child(v)
+	var h := ui._hbox(12)
+	v.add_child(h)
+	var tl := ui._tile("lock", 46, Style.SURFACE_3, 0.32)
+	h.add_child(tl)
+	var tv := ui._vbox(-2)
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(tv)
+	var caps := ui._caps(str(Campaign.TEXT["act_caps"]) % a)
+	tv.add_child(caps)
+	var nm := ui._label("?", 19, Style.INK, Style.W_BLACK)
+	tv.add_child(nm)
+	var sh := ui._hbox(3)
+	h.add_child(sh)
+	var si := ui._icon("star", 18)
+	si.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sh.add_child(si)
+	var sl := ui._label("0", 15, Style.INK_2, Style.W_BLACK)
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sh.add_child(sl)
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 8)
+	flow.add_theme_constant_override("v_separation", 8)
+	flow.mouse_filter = Control.MOUSE_FILTER_PASS
+	v.add_child(flow)
+	var lv: Array = []
+	for n in Campaign.act_levels(a):
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(58, 66)
+		b.focus_mode = Control.FOCUS_NONE
+		var nsb := Style.box(Style.SURFACE_2, 18, 4, 4)
+		Style.skin(b, nsb, Style.box(Style.SURFACE_3, 18, 4, 4), Style.INK)
+		b.set_meta("sb", nsb)
+		ui._tap_or_explain(b, _on_level_tile.bind(int(n)), "day_lvl_%d" % int(n))
+		var bv := ui._vbox(0)
+		bv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		bv.alignment = BoxContainer.ALIGNMENT_CENTER
+		bv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(bv)
+		var num := ui._label(str(n), 19, Style.INK, Style.W_BLACK)
+		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		bv.add_child(num)
+		var lk := ui._icon("lock", 22)
+		lk.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		bv.add_child(lk)
+		var sr := ui._hbox(0)
+		sr.alignment = BoxContainer.ALIGNMENT_CENTER
+		sr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bv.add_child(sr)
+		var stars: Array = []
+		for i in 3:
+			var st := ui._icon("star_empty", 14)
+			sr.add_child(st)
+			stars.append(st)
+		lv.append({"btn": b, "num": num, "lock": lk, "stars": stars, "n": int(n)})
+		flow.add_child(b)
+	ov_acts.append({"panel": p, "tile": tl, "caps": caps, "name": nm, "stars": sl, "levels": lv, "act": a})
+	return p
+
+
 ## Karte mit gleichem Aussehen wie die Dialoge von GameUI, aber ohne Titelzeile.
 func _card() -> Array:
 	var c := PanelContainer.new()
@@ -923,6 +1050,9 @@ func _build_win_card() -> void:
 		wc_stars.append(full)
 	wc_used = _center(ui._label("", 16, Style.INK_2, Style.W_LABEL))
 	v.add_child(wc_used)
+	wc_points = ui._vbox(2)
+	wc_points.visible = false
+	v.add_child(wc_points)
 	# Nach Tag 7: die sieben Tage und alle Sterne
 	wc_days = ui._hbox(6)
 	wc_days.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1124,8 +1254,12 @@ func show_overview(animate: bool = true) -> void:
 		var tw := ui._fx(overview, "v")
 		tw.tween_property(overview, "modulate:a", 1.0, 0.25)
 	var tiles: Array = [today_card]
-	for t in ov_tiles:
-		tiles.append((t as Dictionary)["btn"])
+	if Balance.CAMPAIGN_ON:
+		for t in ov_acts:
+			tiles.append((t as Dictionary)["panel"])
+	else:
+		for t in ov_tiles:
+			tiles.append((t as Dictionary)["btn"])
 	ui._stagger_in(tiles, Vector2.ZERO, 0.9, 0.04)
 	_pulse_current()
 	Game.replan_reminders()       # jede Rückkehr zur Übersicht: der Plan passt zum Stand
@@ -1145,6 +1279,10 @@ func hide_overview() -> void:
 func _fill_overview() -> void:
 	_today = Game.today_info()
 	var ti := _today
+	ov_days_box.visible = not Balance.CAMPAIGN_ON
+	ov_acts_box.visible = Balance.CAMPAIGN_ON
+	if Balance.CAMPAIGN_ON:
+		_fill_acts(ti)
 	var cur := Game.current_day()
 	var all_done := Game.world_done
 	var nn := Game.next_new_day()
@@ -1179,7 +1317,7 @@ func _fill_overview() -> void:
 		b.set_meta("morgen", morgen)
 	ov_stars.text = "%d/%d" % [Game.stars_total(), Game.stars_max()]
 	var free_ok := Game.free_play_unlocked()
-	ov_free.text = str(Days.TEXT["free"]) if free_ok else "%s · %s" % [str(Days.TEXT["free"]), str(Days.TEXT["free_locked"])]
+	ov_free.text = str(Days.TEXT["free"]) if free_ok else "%s · %s" % [str(Days.TEXT["free"]), Game.free_locked_text().trim_suffix(".")]
 	ov_free.icon = Style.icon("trophy" if free_ok else "lock")
 	ov_free.modulate.a = 1.0 if free_ok else 0.6
 	# Kopfzeile: Serie, Serienschutz, Münzen
@@ -1189,12 +1327,20 @@ func _fill_overview() -> void:
 	ov_streak_num.add_theme_color_override("font_color", Style.SUN_DEEP if streak > 0 else Style.INK_3)
 	ov_shield_chip.visible = bool(ti.get("shields_visible", false))
 	ov_shield_num.text = str(int(ti.get("shields", 0)))
-	ov_coin_num.text = str(Game.credits)
+	ov_coin_num.text = str(Game.points)
 	ov_name.text = Voice.char_name()
 	var new_char := _char_banner          # alter Spielstand: einmal „Neu: Dein eigener Gott!“ nach dem Ersteller
 	_char_banner = false
 	ov_banner.visible = (Game.tutorial_done and Game.stars_total() == 0) or new_char
 	ov_banner_label.text = "Neu: Dein eigener Gott!" if new_char else str(Days.TEXT["banner_new"])
+	if Balance.CAMPAIGN_ON:
+		var thanks := Game.take_thanks()
+		var fast := str(ti.get("fast_line", ""))
+		ov_banner.visible = new_char or thanks > 0 or fast != ""
+		if thanks > 0:
+			ov_banner_label.text = str(Campaign.TEXT["thanks"]) % thanks
+		elif fast != "":
+			ov_banner_label.text = fast
 	_fill_today(ti)
 	_fill_week(ti.get("week", []) as Array, streak, int(ti.get("best", 0)))
 	ov_debug.visible = OS.is_debug_build()
@@ -1217,7 +1363,9 @@ func _fill_today(ti: Dictionary) -> void:
 		ui._set_tile(tc_tile, "check", Style.LEAF_TINT)
 	else:
 		var ic := "star"
-		if day >= 1 and day <= Days.count():
+		if bool(ti.get("camp", false)):
+			ic = str(ti.get("icon", "star"))
+		elif day >= 1 and day <= Days.count():
 			ic = str(Days.config(day).get("icon", "star"))
 		if state == "wdt":
 			ic = "trophy"
@@ -1253,8 +1401,7 @@ func _fill_week(week: Array, streak: int, best: int) -> void:
 func _ov_say_state() -> void:
 	var come := Game.take_comeback()
 	var state := str(_today.get("state", "new"))
-	var nn := Game.next_new_day()
-	var tag := str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
+	var tag := _next_tag()
 	if come == "saved" or come == "lost":
 		_ov_say("comeback_" + come, {})
 		if come == "lost":
@@ -1279,6 +1426,20 @@ func _ov_say_state() -> void:
 	_ov_said_key = said
 
 
+## Was als Nächstes kommt, für die Sätze des Charakters: „Tag 2: Pflanzen“ – in der Schöpfung nie verraten: das offene
+## Level heißt beim Namen, ein gesperrtes ist „etwas Neues“.
+func _next_tag() -> String:
+	if Balance.CAMPAIGN_ON:
+		var ln := Game.next_new_level()
+		if ln > Campaign.COUNT:
+			return str(Days.TEXT["wdt_tag"])
+		if Game.level_unlocked(ln):
+			return str(Campaign.config(ln).get("title", ""))
+		return "etwas Neues"
+	var nn := Game.next_new_day()
+	return str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
+
+
 func _ov_say(key: String, args: Dictionary) -> void:
 	ov_say.text = Voice.line(key, args)
 	ui._speak(ov_char, Voice.face(key), "", Style.SURFACE, overview.visible)
@@ -1296,9 +1457,110 @@ func _pulse_current() -> void:
 	for t in ov_tiles:
 		var b: Button = (t as Dictionary)["btn"]
 		ui._pulse(b, false)
+	for a in ov_acts:
+		for l in (a as Dictionary)["levels"]:
+			ui._pulse((l as Dictionary)["btn"], false)
 	ui._pulse(tc_go, false)
 	if tc_go.visible:
 		get_tree().create_timer(0.6).timeout.connect(ui._pulse.bind(tc_go, true))
+
+
+## Die Akte und ihre Level füllen. Erreichte Akte zeigen Namen und Symbol, Level Nummer und Sterne; gesperrte nur
+## ein Schloss (das nächste neue, morgen: Mond). Das aktuelle Level hat einen goldenen Rand.
+func _fill_acts(ti: Dictionary) -> void:
+	var ov := Game.campaign_overview()
+	var cur := int(ov.get("current", 1))
+	var nn := Game.next_new_level()
+	var tomorrow := Game.new_level_tomorrow()
+	var acts: Array = ov.get("acts", [])
+	for i in ov_acts.size():
+		var t: Dictionary = ov_acts[i]
+		var at: Dictionary = acts[i] if i < acts.size() else {}
+		var reached := str(at.get("icon", "lock")) != "lock"
+		(t["name"] as Label).text = str(at.get("name", "?"))
+		(t["name"] as Label).add_theme_color_override("font_color", Style.INK if reached else Style.INK_3)
+		var ic := str(at.get("icon", "lock"))
+		ui._set_tile(t["tile"], ic, ui._tint_for_icon(ic) if reached else Style.SURFACE_3)
+		var sum := 0
+		var lvs: Array = at.get("levels", [])
+		var has_cur := false
+		for j in (t["levels"] as Array).size():
+			var l: Dictionary = (t["levels"] as Array)[j]
+			var lt: Dictionary = lvs[j] if j < lvs.size() else {}
+			var n := int(l["n"])
+			var open := bool(lt.get("open", false))
+			var st := int(lt.get("stars", 0))
+			sum += st
+			var morgen := not open and tomorrow and n == nn
+			var is_cur := open and n == cur and str(ti.get("state", "")) == "new"
+			has_cur = has_cur or (open and n == cur)
+			(l["num"] as Label).visible = open
+			var lk: TextureRect = l["lock"]
+			lk.visible = not open
+			lk.texture = Style.icon("moon" if morgen else "lock")
+			lk.modulate.a = 0.8 if morgen else 0.45
+			for k in 3:
+				var sr: TextureRect = (l["stars"] as Array)[k]
+				sr.visible = open
+				sr.texture = Style.icon("star" if k < st else "star_empty")
+			var b: Button = l["btn"]
+			var nsb: StyleBoxFlat = b.get_meta("sb")
+			nsb.bg_color = (Style.SUN_TINT if is_cur else Style.SURFACE_2) if open else (Color("#EEF0FA") if morgen else Color(Style.SURFACE_2, 0.7))
+			nsb.border_color = Style.SUN
+			nsb.set_border_width_all(3 if is_cur else 0)
+			b.set_meta("current", is_cur)
+			b.set_meta("morgen", morgen)
+			b.set_meta("open", open)
+		(t["stars"] as Label).text = "%d/%d" % [sum, 3 * (t["levels"] as Array).size()]
+		(t["stars"] as Label).get_parent().visible = reached
+		var psb: StyleBoxFlat = (t["panel"] as Control).get_meta("sb")
+		psb.bg_color = Style.SURFACE if reached else Color(Style.SURFACE, 0.6)
+		psb.border_color = Style.SUN
+		psb.set_border_width_all(2 if has_cur else 0)
+		(t["caps"] as Label).add_theme_color_override("font_color", Style.SUN_DEEP if has_cur else Style.INK_3)
+
+
+## Das Level-Kärtchen n (Tour, Tests).
+func level_btn(n: int) -> Button:
+	for a in ov_acts:
+		for l in (a as Dictionary)["levels"]:
+			if int((l as Dictionary)["n"]) == n:
+				return (l as Dictionary)["btn"]
+	return null
+
+
+func _on_level_tile(n: int) -> void:
+	var b := level_btn(n)
+	if not Game.level_unlocked(n):
+		if b != null:
+			ui._shake(b)
+		Style.haptic(Style.HAPTIC_TAP)
+		if b != null and bool(b.get_meta("morgen", false)):
+			_ov_say("day_wait", {})
+			_ov_said_key = "day_wait"
+			Game.message.emit(Daily.countdown_text(Game.game_now()), "info")
+			return
+		if b != null:
+			ui._show_tooltip(b, "lock", "Level %d" % n, Game.level_locked_text(n))
+			ui._tip_hide_at = ui._time + 2.4
+		return
+	ui.ask_day(n)
+
+
+## Antippen des eigenen Gottes in der Übersicht öffnet ihn (ansehen, ändern, Art zu reden).
+func _on_char_tap() -> void:
+	ui._pop(ov_char, 1.06)
+	open_creator(true)
+
+
+func _on_points_chip_input(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (ev as InputEventMouseButton).pressed:
+		_on_points_chip()
+
+
+func _on_points_chip() -> void:
+	if ui.shop != null:
+		ui.shop.open(ui.shop.tab)
 
 
 func _on_tile(n: int) -> void:
@@ -1373,6 +1635,9 @@ func _on_shield_chip_input(ev: InputEvent) -> void:
 
 
 func _open_shield() -> void:
+	if Balance.CAMPAIGN_ON and ui.shop != null:
+		ui.shop.open("hilfe")          # der Laden, Serienschutz unter „Hilfe“ (GDPD_PUNKTE_LADEN.md 7.1)
+		return
 	var have := Game.shields()
 	sc_text.text = str(Days.TEXT["shield_text"]) % have
 	sc_buy.text = str(Days.TEXT["shield_buy"]) % Balance.SHIELD_PRICE
@@ -1401,7 +1666,7 @@ func _on_shield_buy() -> void:
 func _on_free_pressed() -> void:
 	if not Game.free_play_unlocked():
 		ui._shake(ov_free)
-		ui._show_tooltip(ov_free, "lock", str(Days.TEXT["free"]), "Erst die 7 Tage schaffen.")
+		ui._show_tooltip(ov_free, "lock", str(Days.TEXT["free"]), Game.free_locked_text())
 		ui._tip_hide_at = ui._time + 2.6
 		return
 	_open_free()
@@ -1418,7 +1683,8 @@ func _open_free() -> void:
 	# Läuft noch ein freies Spiel? Dann geht es dort weiter.
 	var gs := Game.state
 	free_continue.visible = gs != null and not Game.in_day() and not Game.over and gs.twists > 0
-	free_continue.text = "Weiterspielen · %s" % Game.level_name() if gs != null and gs.endless else "Weiterspielen · 40 Drehungen"
+	free_continue.text = "Weiterspielen · 100 Sekunden" if Game.sek100 else ("Weiterspielen · %s" % Game.level_name() if gs != null and gs.endless else "Weiterspielen")
+	free_continue.visible = free_continue.visible and not (Game.sek100 and Game.sek100_done)
 	ui._open_modal(free_card)
 
 
@@ -1460,9 +1726,29 @@ func _on_day_started(info: Dictionary) -> void:
 	_info = info
 	_satt_said = false
 	_smog_said = false
+	_sealed_said = false
+	_steam_said = false
+	steps_shown = -1
 	var n := int(info["day"])
 	# Neues fliegt erst nach „Los!“ an seinen Platz (beim ersten Besuch)
 	_hold = {}
+	if bool(info.get("camp", false)):
+		var rv := _reveal9(info)
+		if not rv.is_empty() and str(rv[2]) != "chip" and not Game.coach_seen.has("lvl_rev_%d" % n):
+			_hold[str(rv[2])] = true
+		if Game.day_tutorial():
+			_hold["dock"] = true
+		_fill_goal_card(info)
+		ui.refresh()
+		ui.world.focus_place(Vector3i(0, 1, 0))
+		# Ein neuer Akt (Genesis-Tag): erst der Übergang (3 s, ohne Text), dann die Ziel-Karte
+		if Campaign.first_of_act(n) and n > 1 and not bool(info.get("wdt", false)) and not Game.coach_seen.has("act_%d" % int(info.get("act", 0))):
+			Game.coach_seen["act_%d" % int(info.get("act", 0))] = true
+			Game.save_settings()
+			_act_then_card(info.get("era", {}), _end_gen)
+			return
+		_open_goal_card.call_deferred()
+		return
 	if REVEAL.has(n) and not Game.coach_seen.has("day_rev_%d" % n):
 		var target := str((REVEAL[n] as Array)[2])
 		if target != "chip":
@@ -1475,8 +1761,48 @@ func _on_day_started(info: Dictionary) -> void:
 	_open_goal_card.call_deferred()
 
 
+var act_shown := 0                 # Tour: so viele Akt-Übergänge liefen
+
+
+func _act_then_card(era: Dictionary, gen: int) -> void:
+	act_shown += 1
+	ui.top.visible = false
+	await ui.world.act_transition(era)
+	if gen != _end_gen:
+		return
+	ui.top.visible = true
+	_open_goal_card()
+
+
+## Was in Level n neu ist und wohin es nach „Los!“ fliegt: [Symbol, Titel, Ziel ("rain" | "strike" | "chip")] oder [].
+func _reveal9(info: Dictionary) -> Array:
+	var nw: Dictionary = info.get("new", {})
+	if nw.is_empty() or int(info.get("day", 0)) <= 1:
+		return []
+	var title := str(nw.get("title", ""))
+	var target := "chip"
+	var icon := str(nw.get("icon", "star"))
+	if title.contains("Regen"):
+		target = "rain"
+		icon = "rain"
+	elif title.contains("Meteor"):
+		target = "strike"
+		icon = "meteor"
+	elif title.contains("Blitz"):
+		icon = "lightning"
+	elif title.contains("Vulkan"):
+		icon = "volcano"
+	elif title.contains("Sonne"):
+		icon = "sun"
+	elif title.contains("Hunger"):
+		icon = "hunger"
+	if Style.icon(icon) == null:
+		icon = "star"
+	return [icon, title, target]
+
+
 func _open_goal_card() -> void:
-	if not Game.in_day() or Game.over or creator_open():
+	if not Game.in_day() or Game.over or creator_open() or is_open():
 		return
 	ui._open_modal(goal_card, false)
 	if gc_new.visible:
@@ -1501,6 +1827,9 @@ func _fit_caps() -> void:
 
 
 func _fill_goal_card(info: Dictionary) -> void:
+	if bool(info.get("camp", false)):
+		_fill_goal_card9(info)
+		return
 	var n := int(info["day"])
 	gc_caps.text = str(Days.TEXT["day_title"]) % [n, str(info.get("title", ""))]
 	var intro := str(info.get("intro", ""))
@@ -1550,6 +1879,46 @@ func _fill_goal_card(info: Dictionary) -> void:
 	gc_mercy.text = str(Days.TEXT["mercy"]) % mercy
 
 
+## Ziel-Karte eines Levels der Schöpfung: Akt und Level, die Geschichte (der Charakter erzählt), die Aufgabe, kein
+## Limit (Schritte zählen), die Sterne-Grenzen, das Neue.
+func _fill_goal_card9(info: Dictionary) -> void:
+	var n := int(info["day"])
+	var wdt := bool(info.get("wdt", false))
+	gc_caps.text = str(info.get("caps", "")) if wdt else "%s · %s · Level %d" % [str(Campaign.TEXT["act_caps"]) % int(info.get("act", 1)),
+		str(info.get("act_name", "")), n]
+	var intro := str(info.get("story", ""))
+	if wdt:
+		intro = Voice.line("wdt_open")
+	elif n == 1 and bool(info.get("first_visit", false)):
+		intro = "%s %s" % [Voice.line("intro"), intro]
+	gc_intro.text = intro
+	ui._speak(gc_speaker, "happy", "", Style.SURFACE, false)
+	var gi := _goal_icon(info)
+	ui._set_tile(gc_goal_tile, gi, ui._tint_for_icon(gi))
+	gc_goal.text = str(info.get("goal_text", ""))
+	gc_limit.text = "Ohne Limit. Schritte zählen."
+	gc_rule.visible = false
+	var demo := demo_due()
+	var nw: Dictionary = info.get("new", {})
+	gc_new.visible = not nw.is_empty() or demo
+	if demo:
+		ui._set_tile(gc_new_tile, "hand", Style.SURFACE)
+		gc_new_title.text = str(nw.get("title", Days.TEXT["demo_title"]))
+		gc_new_text.text = str(nw.get("text", Days.TEXT["demo_text"]))
+	elif gc_new.visible:
+		var rv := _reveal9(info)
+		var ic := str(rv[0]) if not rv.is_empty() else "star"
+		ui._set_tile(gc_new_tile, ic, Style.SURFACE)
+		gc_new_title.text = str(nw.get("title", ""))
+		gc_new_text.text = str(nw.get("text", ""))
+	gc_go.text = str(Days.TEXT["go_demo"]) if demo else str(Days.TEXT["go"])
+	var st: Array = info.get("stars", [0, 0])
+	gc_star_label.text = "bis %d · ★★ bis %d" % [int(st[0]), int(st[1])]
+	var best := int(info.get("best_stars", 0))
+	gc_mercy.visible = best > 0
+	gc_mercy.text = "Dein Bestes: %d %s · %d Schritte" % [best, "Stern" if best == 1 else "Sterne", int(info.get("best_twists", 0))]
+
+
 ## Zeigt die Hand gleich den ersten Zug vor? Nur ganz am Anfang: Tag 1 auf dem Tutorial-Brett, solange die
 ## Vorführung noch nie eine Wiese gezeigt hat (oder „Tutorial“ im Menü / ein ausdrücklich gewähltes Brett 0).
 func demo_due() -> bool:
@@ -1591,6 +1960,9 @@ func _on_go() -> void:
 		ui.world.focus_place(Vector3i(0, 1, 0))
 		return
 	var delay := 0.35
+	if bool(_info.get("camp", false)):
+		_go9(n)
+		return
 	var on: Dictionary = _info.get("overnight", {})
 	if not on.is_empty():
 		# „Neuer Morgen“ (GDPD_BALANCE_2.md 5.6): kurz oben, blockiert nichts (die Welle zeigt die World)
@@ -1604,6 +1976,47 @@ func _on_go() -> void:
 		delay += 1.95
 	if not Game.coach_seen.has("day_coach_%d" % n):
 		get_tree().create_timer(delay).timeout.connect(_first_coach.bind(n, _end_gen))
+
+
+## „Los!“ in einem Level: „Neuer Morgen“ (die Welt von gestern wuchs über Nacht), das Neue fliegt an seinen Platz,
+## dann sagt der Charakter einmal, was zu tun ist.
+func _go9(n: int) -> void:
+	var delay := 0.35
+	var on: Dictionary = _info.get("overnight", {})
+	if not on.is_empty():
+		ui._show_banner("still", str(on.get("caps", "")), str(on.get("line", "")), "up")
+		ui.world.overnight_wave()
+		delay += 1.8
+	var rv := _reveal9(_info)
+	if not rv.is_empty() and not Game.coach_seen.has("lvl_rev_%d" % n) and not bool(_info.get("wdt", false)):
+		Game.coach_seen["lvl_rev_%d" % n] = true
+		Game.save_settings()
+		get_tree().create_timer(delay).timeout.connect(_reveal_fly9.bind(rv, _end_gen))
+		delay += 1.95
+	if not Game.coach_seen.has("lvl_coach_%d" % n) and not bool(_info.get("wdt", false)):
+		get_tree().create_timer(delay).timeout.connect(_first_coach9.bind(n, _end_gen))
+
+
+func _first_coach9(n: int, gen: int) -> void:
+	if gen != _end_gen or not Game.in_day() or Game.over:
+		return
+	var line := coach_line(0)
+	if line == "":
+		return
+	Game.coach_seen["lvl_coach_%d" % n] = true
+	Game.save_settings()
+	var gi := _goal_icon(_info)
+	if str(_reveal9(_info)[2] if not _reveal9(_info).is_empty() else "") == "rain" and ui.rain_btn.is_visible_in_tree():
+		ui._place_coach(ui.rain_btn, "rain", line, "happy")
+		ui._coach_until = ui._time + 6.0
+		return
+	_show_lane(line, "Deine Aufgabe", gi, ui._tint_for_icon(gi), 7.0, "happy")
+
+
+func _reveal_fly9(rv: Array, gen: int) -> void:
+	if gen != _end_gen or not Game.in_day():
+		return
+	_reveal_card(str(rv[0]), str(rv[1]), str(rv[2]), gen)
 
 
 ## Die erste Hinweis-Zeile eines Tages (einmal): zeigt auf das Neue oder steht in der Spur.
@@ -1636,7 +2049,15 @@ func _reveal_fly(n: int, gen: int) -> void:
 	if gen != _end_gen or not Game.in_day():
 		return
 	var r: Array = REVEAL[n]
-	var icon_name := str(r[0])
+	_reveal_card(str(r[0]), str(r[1]), str(r[2]), gen)
+
+
+var reveal_shown := ""             # Tour: Titel der letzten aufgedeckten Sache
+
+
+func _reveal_card(icon_name: String, title: String, target_key: String, gen: int) -> void:
+	reveal_shown = title
+	var r: Array = [icon_name, title, target_key]
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", Style.card(28, 3, 22, 18))
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1655,23 +2076,23 @@ func _reveal_fly(n: int, gen: int) -> void:
 	card.position = (Vector2(vs.x * 0.5, vs.y * 0.44) - card.size * 0.5).round()
 	card.pivot_offset = card.size * 0.5
 	card.scale = Vector2.ZERO
-	card.set_meta("reveal", n)
+	card.set_meta("reveal", title)
 	var tw := card.create_tween()
 	tw.tween_property(card, "scale", Vector2.ONE, 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(1.0)
-	tw.tween_callback(_reveal_go.bind(card, n, gen))
+	tw.tween_callback(_reveal_go.bind(card, target_key, gen))
 	Style.haptic(Style.HAPTIC_MERGE)
 
 
-func _reveal_go(card: PanelContainer, n: int, gen: int) -> void:
+func _reveal_go(card: PanelContainer, target_key: String, gen: int) -> void:
 	if not is_instance_valid(card):
 		return
 	if gen != _end_gen:
 		card.queue_free()
 		return
-	var target := _reveal_target(str((REVEAL[n] as Array)[2]))
+	var target := _reveal_target(target_key)
 	# Damit das Ziel einen Platz hat, wird es schon sichtbar (das Fliegen landet dort)
-	_hold.erase(str((REVEAL[n] as Array)[2]))
+	_hold.erase(target_key)
 	ui.refresh()
 	var to_c := target.get_global_rect().get_center() if target != null else ui._vs() * Vector2(0.5, 0.1)
 	var from_c := card.position + card.size * 0.5
@@ -1718,6 +2139,8 @@ func refresh_hud() -> void:
 		return
 	var st := gs.day_status()
 	var building := bool(st.get("free_build", false))
+	if building:
+		chip2.visible = false
 	ring.visible = not building
 	ring_caps.visible = not building
 	grow_box.visible = building
@@ -1744,6 +2167,10 @@ func refresh_hud() -> void:
 		_last_left = -1
 		_last_progress = int(st.get("progress", 0))
 		return
+	if bool(st.get("camp", false)):
+		_refresh_hud9(gs, st)
+		return
+	chip2.visible = false
 	var target := int(st.get("target", 0))
 	var prog := int(st.get("progress", 0))
 	var left := int(st.get("left", 0))
@@ -1766,6 +2193,7 @@ func refresh_hud() -> void:
 		var gi := _goal_icon(_info if not _info.is_empty() else Game.day_info())
 		ui._set_tile(chip_tile, gi, ui._tint_for_icon(gi))
 	_fit_caps()
+	ring.steps_mode = false
 	var warn := left <= 3 and not bool(st.get("won", false))
 	ring.set_value(left, int(st.get("limit", 1)), warn)
 	_chip_sb.bg_color = Style.SUN_TINT if warn else (Style.FIRE_TINT if waage else Style.GLASS)
@@ -1789,6 +2217,92 @@ func refresh_hud() -> void:
 		_warned_fire = false
 
 
+## Kopfzeile eines Levels: das Ziel (bis zu zwei Teilziele), daneben die Schritte im Ring – er füllt sich bis zur
+## nächsten Sterne-Grenze („★★★ bis 5“), danach zeigt er nur noch die Schritte. Fällt der Fortschritt (Verlust),
+## wackelt der Chip.
+var steps_shown := -1
+
+
+func _refresh_hud9(gs: GameState, st: Dictionary) -> void:
+	var subs: Array = st.get("subs", [])
+	var s0: Dictionary = subs[0] if not subs.is_empty() else {}
+	var hold := str(s0.get("type", "")) == "hold"
+	var t0 := int(s0.get("target", st.get("target", 0)))
+	var v0 := int(s0.get("value", st.get("progress", 0)))
+	chip_num.text = "%d/%d" % [mini(v0, t0), t0]
+	chip_num.remove_theme_color_override("font_color")
+	chip_caps.text = _goal_noun(gs) if not hold else "Ruhe"
+	chip_caps.add_theme_color_override("font_color", Style.LEAF_DEEP if bool(s0.get("met", false)) else Style.INK_3)
+	_fit_caps()
+	var gi := str(s0.get("icon", _goal_icon(_info)))
+	if hold:
+		gi = "moon"
+	if Style.icon(gi) == null:
+		gi = "star"
+	ui._set_tile(chip_tile, gi, ui._tint_for_icon(gi))
+	chip2.visible = subs.size() > 1
+	if subs.size() > 1:
+		var s1: Dictionary = subs[1]
+		chip2_icon.texture = Style.icon(str(s1.get("icon", "animals")))
+		chip2_num.text = "%d/%d" % [mini(int(s1["value"]), int(s1["target"])), int(s1["target"])]
+		chip2_num.add_theme_color_override("font_color", Style.LEAF_DEEP if bool(s1.get("met", false)) else Style.INK)
+	# Schritte und die nächste Sterne-Grenze (kein Limit)
+	var steps := int(st.get("steps", 0))
+	var ns: Array = st.get("next_star", [])
+	if ns.is_empty():
+		ring.set_value(steps, maxi(1, steps), false)
+		ring_caps.text = "Schritte"
+	else:
+		ring.set_value(steps, int(ns[1]), int(ns[0]) < 3)
+		ring_caps.text = (str(Campaign.TEXT["star_next"]) if int(ns[0]) == 3 else str(Campaign.TEXT["star_next2"])) % int(ns[1])
+	ring.steps_mode = true
+	if steps_shown >= 0 and steps != steps_shown:
+		ui._pop(ring, 1.08)
+	steps_shown = steps
+	_chip_sb.bg_color = Style.LEAF_TINT if bool(st.get("rescue", false)) else Style.GLASS
+	ui._pulse(ring, false)
+	var prog := int(st.get("progress", 0))
+	if _last_progress >= 0 and prog > _last_progress:
+		ui._pop(chip, 1.1)
+		ui._number_pop(chip_num, Style.LEAF_DEEP)
+		ui._ripple(chip_tile, Style.LEAF)
+	elif _last_progress >= 0 and prog < _last_progress:
+		ui._shake(chip)
+		ui._number_pop(chip_num, Style.FIRE_DEEP)
+	_last_progress = prog
+
+
+## Verlust (GDPD_SCHOEPFUNG_GRAFIK.md 6): die rote Plakette „−1“ fliegt vom Feld zum Ziel-Chip, der Chip wackelt.
+var loss_flown := 0                 # Tour: so viele Plaketten sind angekommen
+
+
+func _on_loss_shown(fid: int, kind: int, _cause: String, _progress: Variant) -> void:
+	if not Game.in_day() or not chip.visible:
+		return
+	var fs := ui.world.field_screen(fid)
+	var from := fs["pos"] as Vector2 if bool(fs.get("visible", false)) else ui._vs() * Vector2(0.5, 0.45)
+	var pl := PanelContainer.new()
+	pl.add_theme_stylebox_override("panel", Style.lift(Style.box(Style.FIRE, 18, 12, 4), 2))
+	pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := ui._label(str(Campaign.TEXT["loss"]) % FieldData.kind_name(maxi(0, kind)), 20, Color.WHITE, Style.W_BLACK)
+	pl.add_child(l)
+	fx_layer.add_child(pl)
+	pl.reset_size()
+	pl.position = from - pl.size * 0.5
+	var to := chip.get_global_rect().get_center()
+	var tw := ui._fly(pl, from, to, 0.7, 90.0, 0.6)
+	tw.tween_callback(_loss_land.bind(pl))
+
+
+func _loss_land(pl: Control) -> void:
+	if is_instance_valid(pl):
+		pl.queue_free()
+	loss_flown += 1
+	ui._shake(chip)
+	ui._number_pop(chip_num, Style.FIRE_DEEP)
+	Style.haptic(Style.HAPTIC_FIRE)
+
+
 ## Beim Drehen (Vorschau): Ändert die Drehung den Fortschritt, zeigt der Chip „1→2/3“ (grün) oder „2→1/3“ (rot), auch
 ## wenn das betroffene Feld gerade nicht im Bild ist. Nach dem Loslassen stellt refresh_hud den Chip wieder her.
 var chip_ghost := 0              # +1 / -1: der Chip zeigt gerade einen Vorschau-Wert (Tests, Tour)
@@ -1802,7 +2316,7 @@ func _on_preview_chip(info: Dictionary) -> void:
 			refresh_hud()
 		return
 	var gs := Game.state
-	if gs.day_free_build or not ["make", "satt"].has(gs.goal_type()):
+	if gs.day_free_build or not ["make", "satt", "group"].has(gs.goal_type()):
 		return
 	var post: GameState = info["state"]
 	var cur := gs.goal_progress()
@@ -1827,6 +2341,9 @@ func _goal_noun(gs: GameState) -> String:
 		return FieldData.kind_plural(k) if gs.goal_target() != 1 else FieldData.kind_name(k)
 	if t == "wishes":
 		return "Wünsche"
+	if t == "group":
+		var gk := gs.goal_kinds()
+		return "%s zusammen" % FieldData.kind_plural(int(gk[0]) if not gk.is_empty() else FieldData.FIELD)
 	if t == "satt":
 		var sk := gs.goal_kinds()
 		var kk := int(sk[0]) if not sk.is_empty() else FieldData.HUT
@@ -1897,6 +2414,84 @@ func _pill8(result: Dictionary) -> void:
 	ui._show_banner(kind, caps, line, str(p[1]))
 
 
+## Schöpfung: eine kurze Pille für das wichtigste Ereignis der Runde (Vertrag 11, höchstens eine je Runde).
+const PILL9_RANK = {"goal_loss": 10, "erupt": 9, "volcano_warn": 9, "bolt": 8, "bolt_warn": 8, "pack_warn": 8, "pack_hunt": 7,
+	"hunger_warn": 7, "starve": 7, "smog_warn": 6, "polluted": 6, "war_start": 9, "flood_warn": 8, "flood": 7, "war_hit": 6,
+	"extra": 10, "need_sealed": 5, "spawn": 5, "mercy": 5, "meteor_ready": 4, "volcano_calm": 4, "bolt_cancel": 4,
+	"thrive": 3, "steam": 3, "satt_new": 2, "hold": 2}
+const PILL9_ICON = {"goal_loss": "down", "erupt": "volcano", "volcano_warn": "volcano", "volcano_calm": "check",
+	"bolt": "fire", "bolt_warn": "lightning", "bolt_cancel": "rain", "pack_warn": "pred", "pack_hunt": "pred",
+	"hunger_warn": "hunger", "starve": "hunger", "smog_warn": "smog", "polluted": "smog", "spawn": "animals",
+	"steam": "rain", "meteor_ready": "meteor", "mercy": "spark", "need_sealed": "check", "thrive": "up",
+	"satt_new": "check", "hold": "moon", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood",
+	"extra": "star"}
+const PILL9_WAR = ["goal_loss", "erupt", "volcano_warn", "bolt", "bolt_warn", "pack_warn", "pack_hunt", "hunger_warn",
+	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood"]
+var _sealed_said := false
+var _steam_said := false
+var pill9_last := ""                 # Tour: Typ der letzten Pille
+
+
+func _pill9(result: Dictionary) -> void:
+	if not Game.in_day() or not Game.state.camp:
+		return
+	var best: Dictionary = {}
+	var rank := -1
+	for e0 in result.get("events", []):
+		var e: Dictionary = e0
+		var t := str(e.get("type", ""))
+		if not PILL9_RANK.has(t):
+			continue
+		if t == "need_sealed" and _sealed_said:
+			continue
+		if t == "steam" and _steam_said:
+			continue
+		if t == "satt_new" and (_satt_said or not Game.state.goal_kinds().has(int(e.get("kind", -1)))):
+			continue
+		if t == "thrive" and not bool(e.get("first", true)):
+			continue
+		if t == "hold" and not bool(e.get("ok", true)) and int(e.get("rounds", 0)) == 0 and rank >= 0:
+			continue
+		var r := int(PILL9_RANK[t])
+		if r > rank:
+			rank = r
+			best = e
+	if best.is_empty():
+		return
+	var tt := str(best["type"])
+	var caps := ""
+	var line := ""
+	if Campaign.PILL.has(tt):
+		caps = str((Campaign.PILL[tt] as Array)[0])
+		line = str((Campaign.PILL[tt] as Array)[1])
+	match tt:
+		"goal_loss":
+			caps = str(Campaign.TEXT["loss"]) % FieldData.kind_name(int(best.get("kind", 0)))
+		"thrive":
+			caps = str(Campaign.THRIVE_PILL.get(int(best.get("from", -1)), ""))
+		"satt_new":
+			_satt_said = true
+			caps = str(Days.TEXT["satt_goal"]) % FieldData.kind_name(int(best.get("kind", FieldData.HUT))) + "!"
+		"need_sealed":
+			_sealed_said = true
+		"steam":
+			_steam_said = true
+		"hold":
+			caps = str(Campaign.TEXT["rest"] if bool(best.get("ok", true)) else Campaign.TEXT["unrest"])
+		"extra":
+			caps = str(Days.TEXT["extra_done"])
+			line = str(Game.state.day_status().get("extra_text", ""))
+		"war_start", "war_hit", "flood_warn", "flood":
+			caps = str(Days.TEXT.get(tt, caps))
+	if caps == "":
+		return
+	if line == "":
+		line = caps
+		caps = ""
+	pill9_last = tt
+	ui._show_banner("war" if PILL9_WAR.has(tt) else "still", caps, line, str(PILL9_ICON.get(tt, "info")))
+
+
 func _goal_icon(info: Dictionary) -> String:
 	var gi := str(info.get("goal_icon", "star"))
 	if Style.icon(gi) == null:
@@ -1921,12 +2516,11 @@ func _on_day_progress(_status: Dictionary) -> void:
 		if _goal_field >= 0:
 			ui.world.focus_field(_goal_field)
 		var c: Array = _info.get("coach", [])
-		_show_lane(coach_line(1), "", "meadow", Style.LEAF_TINT, 2.4, coach_face(1))
+		_show_lane(coach_line(1), "", _goal_icon(_info) if bool(_info.get("camp", false)) else "meadow", Style.LEAF_TINT, 2.4, coach_face(1))
 		get_tree().create_timer(2.6).timeout.connect(_tut_your_turn.bind(_end_gen))
 	elif _tut == 2 and p >= 2:
 		_tut = 3
-		var c2: Array = _info.get("coach", [])
-		_show_lane(coach_line(3) if c2.size() > 3 else "", "", "check", Style.LEAF_TINT, 2.8, coach_face(3))
+		_show_lane(coach_line(3), "", "check", Style.LEAF_TINT, 2.8, coach_face(3))
 
 
 func _tut_your_turn(gen: int) -> void:
@@ -1939,8 +2533,8 @@ func _tut_your_turn(gen: int) -> void:
 		ui._dock_in(0.0)
 	if _tut != 2:
 		return
-	var c: Array = _info.get("coach", [])
-	_show_lane(coach_line(2) if c.size() > 2 else "", "Du bist dran", "meadow", Style.LEAF_TINT, INF, coach_face(2))
+	var ic := _goal_icon(_info) if bool(_info.get("camp", false)) else "meadow"
+	_show_lane(coach_line(2), "Du bist dran", ic, Style.LEAF_TINT, INF, coach_face(2))
 
 
 func _on_move_done(kind: String) -> void:
@@ -1971,6 +2565,7 @@ func _on_round(result: Dictionary, _before: Dictionary) -> void:
 	if lane.visible and _lane_until != INF:
 		_hide_lane()
 	_pill8(result)
+	_pill9(result)
 	# Der Charakter lobt ab und zu (höchstens alle 10 s, jede 4. Runde mit Wachstum; nie im Tutorial)
 	var grew := false
 	for e0 in result.get("events", []):
@@ -2010,12 +2605,20 @@ func _on_choice_made(_info_c: Dictionary) -> void:
 ## Satz i der Tages-Hinweise im Ton des eigenen Charakters ("" = gibt es nicht).
 func coach_line(i: int) -> String:
 	var c: Array = _info.get("coach", [])
+	if bool(_info.get("camp", false)):
+		# Level 1 auf dem Lehr-Brett: die Sätze des Tutorials (Fels statt Wiese); sonst nur der Satz des Levels
+		if Game.day_tutorial() or (int(_info.get("day", 0)) == 1 and _tut > 0):
+			var keys := ["d1_c0", "l1_c1", "d1_c2", "d1_c3"]
+			return Voice.line(str(keys[i])) if i >= 0 and i < keys.size() else ""
+		return str(c[0]) if i == 0 and not c.is_empty() else ""
 	if i < 0 or i >= c.size():
 		return ""
 	return Voice.day_coach(int(_info.get("day", 0)), i, str(c[i]))
 
 
 func coach_face(i: int) -> String:
+	if bool(_info.get("camp", false)):
+		return ["happy", "happy", "happy", "proud"][clampi(i, 0, 3)]
 	return Voice.day_face(int(_info.get("day", 0)), i)
 
 
@@ -2125,6 +2728,22 @@ func _unlock_input() -> void:
 
 ## Halten: Erklärungen für den Ziel-Chip, die Kacheln und „Kein Krieg!“.
 func tooltip(key: String) -> Dictionary:
+	if key.begins_with("day_lvl_"):
+		var ln := int(key.substr(8))
+		if not Game.level_unlocked(ln):
+			return {"icon": "lock", "title": "Level %d" % ln, "body": Game.level_locked_text(ln)}
+		var lc := Campaign.config(ln)
+		var lst := Game.level_stars(ln)
+		var lb := "%s. %s" % [str(lc.get("story", "")), Campaign.goal_line(lc)]
+		if lst > 0:
+			lb += " Dein Bestes: %d %s." % [lst, "Stern" if lst == 1 else "Sterne"]
+		return {"icon": str(Campaign.ICON.get(int(lc.get("act", 1)), "star")), "title": "Level %d · %s" % [ln, str(lc.get("title", ""))], "body": lb}
+	if key == "day_goal" and Game.in_day() and Game.state.camp:
+		var inf := Game.day_info()
+		var sst: Dictionary = inf.get("status", {})
+		if Game.state.day_free_build:
+			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Limit. Neues Wachsen: +1 ✦."}
+		return {"icon": _goal_icon(inf), "title": "Deine Aufgabe", "body": "%s. Schritte: %d." % [str(inf.get("goal_text", "")), int(sst.get("steps", 0))]}
 	if key == "day_goal":
 		if not Game.in_day():
 			return {}
@@ -2146,7 +2765,7 @@ func tooltip(key: String) -> Dictionary:
 	if key == "day_week":
 		return {"icon": "streak", "title": str(Days.TEXT["week"]), "body": "Flamme: geschafft. Schild: gerettet. Kreis: verpasst."}
 	if key == "day_coins":
-		return {"icon": "coin", "title": "Münzen", "body": "Du hast %d." % Game.credits}
+		return {"icon": "points", "title": "Deine Punkte", "body": "Du hast %d. Antippen: Laden." % Game.points}
 	if key == "day_stars":
 		return {"icon": "star", "title": "Sterne", "body": "%d von %d." % [Game.stars_total(), Game.stars_max()]}
 	if key == "day_free":
@@ -2187,6 +2806,7 @@ func _show_win(info: Dictionary, gen: int) -> void:
 	var wdt := bool(info.get("wdt", false))
 	var complete := bool(info.get("world_complete", false))
 	var got := int(info.get("stars", 0))
+	var camp := bool(info.get("camp", false))
 	wc_title.text = str(Days.TEXT["complete"]) if complete else (str(Days.TEXT["won"]) % n if not wdt else "%s geschafft!" % str(Days.TEXT["wdt"]))
 	var used := int(info.get("used", 0))
 	var three := int((Game.state.day.get("stars", [0, 0]) as Array)[0])
@@ -2194,7 +2814,14 @@ func _show_win(info: Dictionary, gen: int) -> void:
 		wc_used.text = str(Days.TEXT["won_more"]) % [used, three]       # was der 3. Stern braucht
 	else:
 		wc_used.text = str(Days.TEXT["won_in"]) % used
-	wc_days.visible = complete
+	wc_points.visible = camp
+	if camp:
+		if not wdt and not complete:
+			wc_title.text = "%s geschafft!" % str(info.get("title", "Level %d" % n))
+		three = int(Game.state.stars9[0])
+		wc_used.text = "%d Schritte · ★★★ bis %d" % [used, three] if got < 3 else "%d Schritte" % used
+		_fill_points(info)
+	wc_days.visible = complete and not bool(info.get("camp", false))
 	wc_total.visible = complete
 	wc_free_line.visible = complete
 	wc_total.text = str(Days.TEXT["stars_total"]) % [int(info.get("stars_total", 0)), int(info.get("stars_max", 21))]
@@ -2214,7 +2841,7 @@ func _show_win(info: Dictionary, gen: int) -> void:
 		wc_alt.set_meta("act", "free")
 		wc_alt.visible = true
 	elif next_open and nxt > 0 and not wdt:
-		wc_next.text = str(Days.TEXT["next"]) % [nxt, str(Days.config(nxt).get("title", ""))]
+		wc_next.text = "Weiter: Level %d" % nxt if camp else str(Days.TEXT["next"]) % [nxt, str(Days.config(nxt).get("title", ""))]
 		wc_next.icon = null
 		wc_next.set_meta("act", "next")
 		wc_next.set_meta("next", nxt)
@@ -2252,6 +2879,64 @@ func _show_win(info: Dictionary, gen: int) -> void:
 	if counted:
 		get_tree().create_timer(0.85 + 0.28 * got).timeout.connect(_streak_step.bind(si, gen))
 	Style.haptic(Style.HAPTIC_COMBO)
+
+
+## Die Punkte-Zeilen der Sieg-Karte: je eine Zeile (Symbol, Wort, +Punkte), zum Schluss die Summe.
+const WIN_LINE = {"win_done": ["check", "Geschafft"], "win_stars": ["star", "Sterne"], "win_fast": ["lightning", "Schnell"],
+	"win_streak": ["streak", "Serie"], "win_better": ["up", "Besser"], "win_same": ["check", "Gleich gut"]}
+
+
+func _fill_points(info: Dictionary) -> void:
+	for c in wc_points.get_children():
+		c.queue_free()
+	var lines: Array = info.get("lines", [])
+	if lines.is_empty():
+		lines = [["win_done", int(info.get("paid", 0))]]
+	var total := 0
+	var i := 0
+	for l0 in lines:
+		var l: Array = l0
+		var key := str(l[0])
+		var pts := int(l[1])
+		total += pts
+		var row := ui._hbox(8)
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var d: Array = WIN_LINE.get(key, ["points", key])
+		row.add_child(ui._icon(str(d[0]), 22))
+		var tl := ui._label(str(d[1]), 17, Style.INK_2, Style.W_BOLD)
+		tl.custom_minimum_size = Vector2(120, 0)
+		tl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(tl)
+		var pl := ui._label("+%d" % pts if pts > 0 else "–", 17, Style.SUN_DEEP, Style.W_BLACK)
+		pl.custom_minimum_size = Vector2(56, 0)
+		pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(pl)
+		wc_points.add_child(row)
+		row.modulate.a = 0.0
+		var tw := row.create_tween()
+		tw.tween_interval(0.5 + 0.25 * i)
+		tw.tween_property(row, "modulate:a", 1.0, 0.2)
+		i += 1
+	var trow := ui._hbox(6)
+	trow.alignment = BoxContainer.ALIGNMENT_CENTER
+	trow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	trow.add_child(ui._icon("points", 30))
+	wc_total_pts = ui._label("+0", 26, Style.SUN_DEEP, Style.W_BLACK)
+	wc_total_pts.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	trow.add_child(wc_total_pts)
+	wc_points.add_child(trow)
+	wc_total_pts.set_meta("total", total)
+	get_tree().create_timer(0.5 + 0.25 * i).timeout.connect(_count_points.bind(total))
+
+
+func _count_points(total: int) -> void:
+	if not win_card.visible or wc_total_pts == null or not is_instance_valid(wc_total_pts):
+		return
+	var tw := wc_total_pts.create_tween()
+	tw.tween_method(func(x: float) -> void: wc_total_pts.text = "+%d" % int(x), 0.0, float(total), 0.6)
+	ui._pop(wc_total_pts, 1.15)
 
 
 func _win_char_cheer(got: int, gen: int) -> void:
@@ -2453,7 +3138,8 @@ func _win_action(act: String) -> void:
 				show_overview()
 		"next":
 			ui._close_modal(true)
-			if not Game.start_day(int(wc_next.get_meta("next", 0))):
+			var ok := Game.start_level(int(wc_next.get_meta("next", 0))) if Balance.CAMPAIGN_ON else Game.start_day(int(wc_next.get_meta("next", 0)))
+			if not ok:
 				show_overview()          # der nächste Tag kommt erst morgen (Game.locked_text)
 		"again":
 			Game.retry_day()
@@ -2494,8 +3180,7 @@ func _ask_due() -> bool:
 
 func _open_ask(then: Callable) -> void:
 	_ask_then = then
-	var nn := Game.next_new_day()
-	var tag := str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))] if nn <= Days.count() else str(Days.TEXT["wdt_tag"])
+	var tag := _next_tag()
 	ask_text.text = Voice.line("ask_reminder", {"tag": tag})
 	ui._speak(ask_speaker, "happy", "bell" if Style.icon("bell") != null else "moon", Style.MONSOON_TINT)
 	Game.note_reminder_asked()

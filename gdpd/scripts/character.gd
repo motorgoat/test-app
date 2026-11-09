@@ -214,6 +214,22 @@ const ACCESSORIES := {
 		{"id": "amulett", "title": "Amulett", "files": [["amulett_band", false], ["amulett_f", true], ["amulett_l", false]], "y": -10.0},
 	],
 }
+## Teile aus dem Laden (GDPD_PUNKTE_LADEN.md 5.3): erst wählbar, wenn gekauft (owned_parts). Gratis bleibt gratis.
+const SHOP_PARTS := {
+	"kopf": [
+		{"id": "stirnband", "title": "Stirnband", "files": [["stirnband", false]], "price": 100, "y": -2.0},
+		{"id": "federn", "title": "Federn", "files": [["federn", false]], "price": 100, "y": -8.0},
+		{"id": "lorbeer", "title": "Lorbeerkranz", "files": [["lorbeer", false]], "price": 250, "y": -6.0},
+		{"id": "sternenkrone", "title": "Sternenkrone", "files": [["sternenkrone", false]], "price": 400, "y": -8.0},
+		{"id": "sonnenkrone", "title": "Sonnenkrone", "files": [["sonnenkrone", false]], "price": 600, "y": -10.0},
+	],
+	"gesicht": [],
+	"hals": [
+		{"id": "halskette", "title": "Halskette", "files": [["halskette", false]], "price": 250, "y": -4.0},
+	],
+}
+## Gekaufte Teile (Game setzt das aus [laden] besitz); nur sie sind im Ersteller wählbar.
+static var owned_parts: Array = []
 const ACC_SLOTS := ["kopf", "gesicht", "hals"]
 const ACC_ANCHOR := {"kopf": "head_top", "gesicht": "face", "hals": "neck"}
 const ACC_TITLE := {"kopf": "Auf dem Kopf", "gesicht": "Im Gesicht", "hals": "Am Hals"}
@@ -438,13 +454,35 @@ static func accessory(slot: String, id: String) -> Dictionary:
 		var ad: Dictionary = a
 		if String(ad["id"]) == id:
 			return ad
+	for a in SHOP_PARTS.get(slot, []):
+		var sd: Dictionary = a
+		if String(sd["id"]) == id:
+			return sd
 	return {}
+
+
+## Was der Ersteller in einem Platz zeigt: die Gratis-Teile und die gekauften (all_parts: auch nicht gekaufte, Laden).
+static func acc_list(slot: String, all_parts: bool = false) -> Array:
+	var out: Array = (ACCESSORIES.get(slot, []) as Array).duplicate()
+	for a in SHOP_PARTS.get(slot, []):
+		if all_parts or owned_parts.has(String((a as Dictionary)["id"])):
+			out.append(a)
+	return out
+
+
+## Slot eines Laden-Teils ("" = keins).
+static func shop_slot(id: String) -> String:
+	for slot in SHOP_PARTS:
+		for a in SHOP_PARTS[slot]:
+			if String((a as Dictionary)["id"]) == id:
+				return String(slot)
+	return ""
 
 
 ## Wählbare Zubehör-Ids eines Platzes ("" = keins zuerst). Ohne Hals: nur "".
 static func accessory_ids(slot: String, basis: String) -> Array:
 	var out: Array = []
-	for a in ACCESSORIES.get(slot, []):
+	for a in acc_list(slot):
 		var ad: Dictionary = a
 		var id := String(ad["id"])
 		if id != "" and slot == "hals" and not has_neck(basis):
@@ -505,7 +543,7 @@ static func all_files() -> Array:
 	out.append(face_file("mund_laecheln"))
 	out.append(face_file("mund_lachen"))
 	for slot in ACC_SLOTS:
-		for a in ACCESSORIES[slot]:
+		for a in acc_list(slot, true):
 			var ad: Dictionary = a
 			for key in ["files", "lens", "bridge"]:
 				for fl in ad.get(key, []):

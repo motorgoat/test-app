@@ -71,6 +71,13 @@ static func material(kind: String) -> Material:
 			m.emission = Color("#ffb766") if kind == "warm" else Color("#b98aff")
 			m.emission_energy_multiplier = 1.25 if kind == "warm" else 1.6
 			m.roughness = 0.4
+		"lava":
+			# Glut (Vulkan-Krater, erstarrte Brocken): Kern gelb, Rand rot, Licht aus der Emission
+			m.vertex_color_use_as_albedo = true
+			m.emission_enabled = true
+			m.emission = Color("#ff6a1a")
+			m.emission_energy_multiplier = 1.25
+			m.roughness = 0.7
 		"glass":
 			m.vertex_color_use_as_albedo = true
 			m.roughness = 0.2
@@ -937,7 +944,8 @@ static func get_model(name: String, variant: int = 0) -> Array:
 	var key := "%s|%d" % [name, variant]
 	if _models.has(key):
 		return _models[key]
-	var parts := {"solid": MB.new(), "leaf": MB.new(), "grass": MB.new(), "warm": MB.new(), "faith": MB.new(), "glass": MB.new()}
+	var parts := {"solid": MB.new(), "leaf": MB.new(), "grass": MB.new(), "warm": MB.new(), "faith": MB.new(), "glass": MB.new(),
+		"lava": MB.new()}
 	var seed := float(variant) * 7.31 + float(name.hash() % 1000) * 0.013
 	match name:
 		"oak":
@@ -1004,6 +1012,29 @@ static func get_model(name: String, variant: int = 0) -> Array:
 			_ruin(parts, variant)
 		"tent":
 			_tent(parts, variant)
+		# Schöpfung (GDPD_SCHOEPFUNG_GRAFIK.md 4)
+		"fern":
+			_fern(parts, seed, 0.085 + 0.015 * float(variant % 3))
+		"tree_fern":
+			_tree_fern(parts, seed, 0.2 + 0.03 * float(variant % 2))
+		"horsetail":
+			_horsetail(parts, seed)
+		"nest":
+			_nest(parts, seed)
+		"den":
+			_den(parts, seed)
+		"bones":
+			_bones(parts, seed)
+		"sheaf":
+			_sheaf(parts, seed)
+		"volcano":
+			_volcano(parts, seed)
+		"basalt":
+			_basalt(parts, seed, 0.06 + 0.02 * float(variant % 3))
+		"crust":
+			_crust(parts, seed)
+		"moss":
+			_moss(parts, seed)
 	var out: Array = []
 	for k in parts:
 		var mb: MB = parts[k]
@@ -1124,6 +1155,203 @@ static func _log(p: Dictionary, seed: float) -> void:
 	var s: MB = p["solid"]
 	var a := seed
 	s.rod(Vector3(-0.045 * cos(a), 0.008, -0.045 * sin(a)), Vector3(0.045 * cos(a), 0.01, 0.045 * sin(a)), 0.009, 0.007, 6, BARK_D, BARK)
+
+
+# --- Schöpfung: Urzeit, Pflanzen, Tiere (GDPD_SCHOEPFUNG_GRAFIK.md 4) --------------------------------------------
+
+const FERN_C := [Color("#2f5a24"), Color("#7aa046")]
+const TREEFERN_C := [Color("#2c5222"), Color("#6f9a3e")]
+const HORSETAIL_C := [Color("#3e5e2a"), Color("#8aa456")]
+const BASALT_C := [Color("#2a2a2c"), Color("#66625c")]
+
+
+## Ein gefiederter Wedel: Mittelrippe als Bogen, Fiedern als schmale Dreiecke links und rechts (Spitze mit Wind).
+static func _frond(l: MB, base: Vector3, dir: Vector3, length: float, rise: float, droop: float, seed: float, lo: Color, hi: Color) -> void:
+	var side := Vector3(-dir.z, 0, dir.x).normalized()
+	var segs := 7
+	var prev := base
+	for i in segs:
+		var t0 := float(i) / float(segs)
+		var t1 := float(i + 1) / float(segs)
+		var p1 := base + dir * length * t1 + Vector3(0, rise * t1 - droop * t1 * t1, 0)
+		var w := length * 0.2 * (1.0 - t0 * 0.75) * (0.85 + 0.3 * hash3(Vector3(seed, i, 7.0)))
+		var col := lo.lerp(hi, 0.3 + 0.6 * t0)
+		var tip_w := 0.15 + 0.85 * t1
+		var mid := (prev + p1) * 0.5
+		var up := Vector3(0, 1, 0)
+		for sv in [-1.0, 1.0]:
+			var sgn: float = sv
+			var leaf_tip := mid + side * sgn * w + dir * length * 0.06 + Vector3(0, -droop * 0.15 * t1, 0)
+			var nn := (up + side * sgn * 0.3).normalized()
+			l.vert(prev, nn, col, 0.2 + 0.5 * t0)
+			l.vert(leaf_tip, nn, col.lerp(hi, 0.3), tip_w)
+			l.vert(p1, nn, col, 0.2 + 0.5 * t1)
+			l.vert(prev, -nn, col.darkened(0.25), 0.2 + 0.5 * t0)
+			l.vert(p1, -nn, col.darkened(0.25), 0.2 + 0.5 * t1)
+			l.vert(leaf_tip, -nn, col.darkened(0.2), tip_w)
+		prev = p1
+
+
+## Farn: Rosette aus 5–7 gefiederten Wedeln, kniehoch, ohne Stamm.
+static func _fern(p: Dictionary, seed: float, h: float) -> void:
+	var l: MB = p["leaf"]
+	var n := 6 + int(hash3(Vector3(seed, 3, 1)) * 2.0)
+	for k in n:
+		var a := seed * 2.3 + TAU * float(k) / float(n) + 0.3 * hash3(Vector3(seed, k, 2))
+		var dir := Vector3(cos(a), 0, sin(a))
+		_frond(l, Vector3(0, 0.004, 0), dir, h * (0.95 + 0.3 * hash3(Vector3(seed, k, 4))), h * 1.1, h * 0.9, seed + float(k),
+			FERN_C[0], FERN_C[1])
+	# zwei junge, eingerollte Wedel in der Mitte
+	l.wind = 0.4
+	l.blob(Vector3(0, h * 0.35, 0), Vector3(h * 0.07, h * 0.12, h * 0.07), seed, FERN_C[0], FERN_C[1], 0.2, true)
+	l.wind = 0.0
+
+
+## Baumfarn (Urwald): dünner, schuppiger Stamm, oben ein Schopf aus hängenden Wedeln.
+static func _tree_fern(p: Dictionary, seed: float, h: float) -> void:
+	var s: MB = p["solid"]
+	var l: MB = p["leaf"]
+	var lean := Vector3(hash3(Vector3(seed, 1, 0)) - 0.5, 0, hash3(Vector3(seed, 2, 0)) - 0.5) * 0.04
+	var top := Vector3(0, h, 0) + lean
+	s.rod(Vector3.ZERO, top, h * 0.045, h * 0.03, 6, BARK_D, Color("#5a4a34"))
+	for k in 4:
+		s.box(Vector3(0, h * (0.2 + 0.18 * float(k)), 0) + lean * (0.2 + 0.18 * float(k)), Vector3(h * 0.07, h * 0.02, h * 0.07), BARK_D)
+	var n := 8
+	for k in n:
+		var a := seed * 1.9 + TAU * float(k) / float(n)
+		var dir := Vector3(cos(a), 0, sin(a))
+		_frond(l, top, dir, h * 0.55, h * 0.18, h * 0.42, seed + float(k), TREEFERN_C[0], TREEFERN_C[1])
+
+
+## Schachtelhalm: Säulen aus Gliedern mit Quirlen, hell gestreift.
+static func _horsetail(p: Dictionary, seed: float) -> void:
+	var l: MB = p["leaf"]
+	for k in 3:
+		var a := seed + float(k) * 2.2
+		var base := Vector3(cos(a) * 0.012, 0, sin(a) * 0.012)
+		var h := 0.1 + 0.04 * hash3(Vector3(seed, k, 1))
+		var segs := 5
+		for i in segs:
+			var y0 := h * float(i) / float(segs)
+			var cc: Color = HORSETAIL_C[1] if i % 2 == 0 else HORSETAIL_C[0]
+			l.wind = 0.2 + 0.15 * float(i)
+			l.cyl(base + Vector3(0, y0, 0), 0.0035, 0.003, h / float(segs), 5, cc.darkened(0.15), cc, false)
+			# Quirl
+			for q in 6:
+				var qa := TAU * float(q) / 6.0 + seed
+				var qd := Vector3(cos(qa), 0, sin(qa))
+				var q0 := base + Vector3(0, y0 + h / float(segs), 0)
+				l.tri(q0, q0 + qd * 0.014 + Vector3(0, -0.006, 0), q0 + qd * 0.012 + Vector3(-qd.z, 0, qd.x) * 0.002, HORSETAIL_C[0], Vector3.UP)
+		l.wind = 0.8
+		l.cyl(base + Vector3(0, h, 0), 0.003, 0.0, 0.012, 5, Color("#7a6a3a"), Color("#9a8a4a"), false)
+	l.wind = 0.0
+
+
+## Nest in einer Krone: Zweig-Schale mit hellen Eiern (helle Tupfer, im Standbild lesbar).
+static func _nest(p: Dictionary, seed: float) -> void:
+	var s: MB = p["solid"]
+	var twig := Color("#6a5236")
+	s.cyl(Vector3.ZERO, 0.012, 0.018, 0.008, 9, twig.darkened(0.2), twig, false)
+	s.cyl(Vector3(0, 0.001, 0), 0.011, 0.011, 0.006, 9, twig.darkened(0.4), twig.darkened(0.4), true)
+	for k in 3:
+		var a := seed + float(k) * 2.1
+		s.bead(Vector3(cos(a) * 0.005, 0.008, sin(a) * 0.005), 0.0042, Color("#f1ece0"), 1.3)
+	# weißer Vogel auf dem Rand
+	s.blob(Vector3(0.012, 0.013, 0), Vector3(0.008, 0.006, 0.005), seed, Color("#cfd2d6"), Color("#f4f4f2"), 0.1, true)
+	s.box(Vector3(0.02, 0.016, 0), Vector3(0.005, 0.002, 0.002), Color("#d8a040"))
+
+
+## Höhle der Raubtiere: dunkle Felsbrocken um eine schwarze Öffnung.
+static func _den(p: Dictionary, seed: float) -> void:
+	var s: MB = p["solid"]
+	var lo := Color("#3a3833")
+	var hi := Color("#6e6a60")
+	s.blob(Vector3(-0.03, 0.03, 0), Vector3(0.05, 0.035, 0.045), seed, lo, hi, 0.3, false, Vector3(INF, 0, 0), 1, -0.4)
+	s.blob(Vector3(0.035, 0.026, -0.01), Vector3(0.045, 0.03, 0.04), seed + 2.0, lo, hi, 0.3, false, Vector3(INF, 0, 0), 1, -0.4)
+	s.blob(Vector3(0.0, 0.05, -0.02), Vector3(0.045, 0.022, 0.035), seed + 4.0, lo, hi, 0.25, false, Vector3(INF, 0, 0), 1, -0.4)
+	# Öffnung
+	s.blob(Vector3(0.0, 0.016, 0.03), Vector3(0.022, 0.017, 0.006), seed + 6.0, Color("#0e0d0c"), Color("#1a1816"), 0.1, true)
+
+
+## Knochen: helle Stäbchen und ein Schädel (Raubtier-Feld, helle Punkte).
+static func _bones(p: Dictionary, seed: float) -> void:
+	var s: MB = p["solid"]
+	var bone := Color("#e2dccb")
+	for k in 3:
+		var a := seed + float(k) * 1.7
+		var c := Vector3(cos(a) * 0.012, 0.002, sin(a) * 0.012)
+		var d := Vector3(cos(a + 1.2), 0, sin(a + 1.2)) * 0.012
+		s.rod(c - d, c + d, 0.0018, 0.0018, 4, bone, bone)
+		s.bead(c + d, 0.0026, bone)
+		s.bead(c - d, 0.0026, bone)
+	s.blob(Vector3(0.016, 0.004, -0.008), Vector3(0.006, 0.004, 0.005), seed, bone.darkened(0.15), bone, 0.1, false)
+
+
+## Garbe: gebundenes Korn (Ernte).
+static func _sheaf(p: Dictionary, seed: float) -> void:
+	var g: MB = p["grass"]
+	var stalk := Color("#b8963e")
+	var ear := Color("#e8c870")
+	for k in 14:
+		var a := seed + float(k) * 2.4
+		var r := 0.004 * hash3(Vector3(seed, k, 3))
+		var b0 := Vector3(cos(a) * r, 0, sin(a) * r)
+		var tip := b0 * 3.0 + Vector3(cos(a) * 0.006, 0.042 + 0.006 * hash3(Vector3(seed, k, 5)), sin(a) * 0.006)
+		g.vert(b0 - Vector3(0.0015, 0, 0), Vector3.UP, stalk.darkened(0.2), 0.0)
+		g.vert(tip, Vector3.UP, stalk, 0.3)
+		g.vert(b0 + Vector3(0.0015, 0, 0), Vector3.UP, stalk.darkened(0.2), 0.0)
+		g.bead(tip, 0.003, ear, 1.8)
+	var s: MB = p["solid"]
+	s.cyl(Vector3(0, 0.016, 0), 0.0065, 0.0065, 0.004, 8, Color("#8a6a3a"), Color("#8a6a3a"), false)
+
+
+## Vulkan-Kegel (Ereignis, kein Dauer-Modell): flacher dunkler Kegel, Krater oben glüht.
+static func _volcano(p: Dictionary, seed: float) -> void:
+	var s: MB = p["solid"]
+	var gl: MB = p["lava"]
+	s.cyl(Vector3.ZERO, 0.24, 0.07, 0.13, 14, Color("#2a2522"), Color("#3e3530"), false)
+	s.cyl(Vector3(0, 0.13, 0), 0.07, 0.05, 0.012, 14, Color("#3e3530"), Color("#4a3e36"), false)
+	for k in 5:
+		var a := seed + TAU * float(k) / 5.0
+		s.blob(Vector3(cos(a) * 0.16, 0.04, sin(a) * 0.16), Vector3(0.04, 0.03, 0.035), seed + float(k), BASALT_C[0], BASALT_C[1], 0.3, false,
+			Vector3(INF, 0, 0), 0, -0.4)
+	gl.cyl(Vector3(0, 0.128, 0), 0.052, 0.052, 0.006, 14, Color("#ff9a3a"), Color("#ffd27a"), true)
+	# Glut-Rinnen an der Flanke
+	for k in 3:
+		var a := seed * 2.0 + TAU * float(k) / 3.0
+		var d := Vector3(cos(a), 0, sin(a))
+		gl.rod(d * 0.06 + Vector3(0, 0.125, 0), d * 0.2 + Vector3(0, 0.025, 0), 0.008, 0.012, 4, Color("#ff7a2a"), Color("#c83a10"))
+
+
+## Basalt-Brocken (Fels in Akt 1–2): scharfkantig, schwarzgrau mit hellen Körnern.
+static func _basalt(p: Dictionary, seed: float, size: float) -> void:
+	var s: MB = p["solid"]
+	s.blob(Vector3(0, size * 0.42, 0), Vector3(size * 0.75, size * 0.85, size * 0.62), seed, BASALT_C[0], BASALT_C[1], 0.42, false,
+		Vector3(INF, 0, 0), 0, -0.5)
+	s.blob(Vector3(size * 0.6, size * 0.2, size * 0.3), Vector3(size * 0.38, size * 0.4, size * 0.35), seed + 3.0, BASALT_C[0], BASALT_C[1],
+		0.4, false, Vector3(INF, 0, 0), 0, -0.4)
+	for k in 3:
+		var a := seed + float(k) * 2.0
+		s.bead(Vector3(cos(a) * size * 0.5, size * (0.5 + 0.2 * float(k % 2)), sin(a) * size * 0.4), size * 0.07, Color("#9a968c"), 0.6)
+
+
+## Erstarrte Lava-Brocken: dunkle Kruste mit glühenden Spalten.
+static func _crust(p: Dictionary, seed: float) -> void:
+	var s: MB = p["solid"]
+	var gl: MB = p["lava"]
+	s.blob(Vector3(0, 0.012, 0), Vector3(0.035, 0.018, 0.028), seed, Color("#1c1816"), Color("#3a302a"), 0.35, false,
+		Vector3(INF, 0, 0), 0, -0.4)
+	gl.blob(Vector3(0.006, 0.006, 0.0), Vector3(0.03, 0.008, 0.022), seed + 1.0, Color("#c03a10"), Color("#ffa040"), 0.2, true)
+
+
+## Moos-Polster: runde, dichte, samtige Buckel (keine Halme, keine Blumen).
+static func _moss(p: Dictionary, seed: float) -> void:
+	var s: MB = p["solid"]
+	for k in 5:
+		var a := seed + float(k) * 1.9
+		var r := 0.012 + 0.008 * hash3(Vector3(seed, k, 1))
+		var c := Vector3(cos(a) * 0.022 * float(k % 3), r * 0.25, sin(a) * 0.022 * float(k % 3))
+		s.blob(c, Vector3(r, r * 0.55, r), seed + float(k), Color("#3e5a20"), Color("#86a044"), 0.12, true, Vector3(INF, 0, 0), 1, -0.3)
 
 
 # --- Gebäude --------------------------------------------------------------------------------------------------
@@ -1647,7 +1875,7 @@ static func crops(key: String, stage: int, dir: int, dry: bool) -> Array:
 	var g := MB.new()
 	for k in range(-3, 4):
 		var z := (0.125 * float(k)) / 1.4      # Dämme: cos(2π·8·u) im Boden-Shader (u in Feld-Koordinaten)
-		var n := 26 if stage == 2 else (15 if stage == 1 else 20)
+		var n := 26 if stage == 2 else (15 if stage == 1 else 24)
 		for i in n:
 			var x := -0.29 + 0.58 * (float(i) + 0.5) / float(n) + 0.004 * sin(float(k * 13 + i * 7))
 			var zz := z + 0.004 * sin(float(k * 5 + i * 11))
@@ -1655,14 +1883,15 @@ static func crops(key: String, stage: int, dir: int, dry: bool) -> Array:
 			var sd := float(k * 31 + i)
 			var rnd := hash3(Vector3(sd, 1.0, 2.0))
 			if stage == 0:
-				g.tuft(pp, 0.009, 3, sd, Color("#5a7a30"), Color("#9cbc58"), 0.004, 0.0022)
+				# Saat: hellgrüne Reihen junger Halme (klar anders als Wiese: geordnet, ohne Blumen)
+				g.tuft(pp, 0.015 + 0.004 * rnd, 5, sd, Color("#5f9a2c"), Color("#b6e06a"), 0.006, 0.0028)
 			elif stage == 1:
 				var lo := Color("#46702a") if not dry else Color("#6e6a3a")
 				var hi := Color("#93b84e") if not dry else Color("#a69a5a")
 				g.tuft(pp, 0.02 + 0.006 * rnd, 8, sd, lo, hi, 0.006, 0.0048)
 			else:
-				var stalk := Color("#a88a42") if not dry else Color("#7a6a46")
-				var ear := Color("#e0c47a") if not dry else Color("#9a8a62")
+				var stalk := Color("#c49a3a") if not dry else Color("#7a6a46")
+				var ear := Color("#f2c444") if not dry else Color("#9a8a62")
 				var hh := 0.03 + 0.008 * rnd
 				g.tuft(pp, hh, 6, sd, stalk.darkened(0.2), stalk.lightened(0.1), 0.007, 0.0024)
 				g.wind = 1.0
@@ -1701,6 +1930,16 @@ static func creature_mesh(kind: String, variant: int) -> Mesh:
 			_hare(m)
 		"duck":
 			_duck(m, variant)
+		"wolf":
+			_wolf(m, variant)
+		"bison":
+			_bison(m, variant)
+		"newt":
+			_newt(m)
+		"fish":
+			_fish(m, variant)
+		"bird":
+			_bird(m)
 		_:
 			_person(m, variant)
 	var mesh := m.commit()
@@ -1802,6 +2041,83 @@ static func _duck(m: MB, variant: int) -> void:
 	m.rod(Vector3(0.008, 0.008, 0), Vector3(0.011, 0.016, 0), 0.0028, 0.0025, 5, head, head)
 	m.blob(Vector3(0.012, 0.017, 0), Vector3(0.0045, 0.004, 0.0038), 2.0, head, head.lightened(0.1), 0.05, true, Vector3(INF, 0, 0), 0)
 	m.box(Vector3(0.018, 0.016, 0), Vector3(0.006, 0.002, 0.003), Color("#c9a040"))
+	m.part = 0.0
+
+
+## Wolf: niedrig, lang, dunkelgrau, spitze Ohren, buschiger Schwanz (Raubtier, liest sich als „dunkel und flach“).
+static func _wolf(m: MB, variant: int) -> void:
+	var fur := Color("#5a5a5c") if variant % 2 == 0 else Color("#47474a")
+	var belly := Color("#8a8884")
+	_legs(m, [0.017, -0.017], [-0.006, 0.006], 0.019, 0.0034, fur.darkened(0.2), Color("#222")) 
+	m.blob(Vector3(0, 0.026, 0), Vector3(0.028, 0.01, 0.0095), 2.0 + float(variant), belly, fur, 0.08, true)
+	m.part = 3.0
+	m.pivot = Vector2(0.022, 0.028)
+	m.blob(Vector3(0.032, 0.03, 0), Vector3(0.009, 0.0075, 0.0068), 5.0, fur.darkened(0.15), fur, 0.08, true, Vector3(INF, 0, 0), 0)
+	m.box(Vector3(0.042, 0.027, 0), Vector3(0.01, 0.005, 0.0055), fur.darkened(0.1))
+	for zs in [-1.0, 1.0]:
+		var z: float = zs
+		m.tri(Vector3(0.03, 0.035, z * 0.004), Vector3(0.035, 0.035, z * 0.004), Vector3(0.031, 0.045, z * 0.0045), fur.darkened(0.3),
+			Vector3(0, 0, z))
+	# Augen (leuchten leicht, wenn das Rudel droht: Shader-Tönung)
+	m.box(Vector3(0.039, 0.033, 0.0035), Vector3(0.002, 0.0015, 0.0012), Color("#e8c060"))
+	m.box(Vector3(0.039, 0.033, -0.0035), Vector3(0.002, 0.0015, 0.0012), Color("#e8c060"))
+	m.part = 7.0
+	m.pivot = Vector2(-0.026, 0.028)
+	m.blob(Vector3(-0.036, 0.02, 0), Vector3(0.012, 0.004, 0.004), 7.0, fur.darkened(0.2), fur, 0.15, true)
+	m.part = 0.0
+
+
+## Wisent: braun, schwerer Buckel, dunkler Kopf mit Hörnern (wilde Herde).
+static func _bison(m: MB, variant: int) -> void:
+	var fur := Color("#6a4a32") if variant % 2 == 0 else Color("#5a3e2a")
+	_legs(m, [0.019, -0.019], [-0.008, 0.008], 0.02, 0.0055, fur.darkened(0.3), Color("#2a2420"))
+	m.blob(Vector3(-0.004, 0.034, 0), Vector3(0.03, 0.015, 0.014), float(variant) * 2.0, fur.darkened(0.15), fur, 0.08, true)
+	m.blob(Vector3(0.013, 0.043, 0), Vector3(0.016, 0.016, 0.014), float(variant) + 4.0, fur.darkened(0.35), fur.darkened(0.1), 0.12, true)
+	m.part = 3.0
+	m.pivot = Vector2(0.024, 0.038)
+	m.blob(Vector3(0.033, 0.033, 0), Vector3(0.01, 0.01, 0.009), 5.0, fur.darkened(0.45), fur.darkened(0.3), 0.1, true, Vector3(INF, 0, 0), 0)
+	m.rod(Vector3(0.033, 0.04, 0.007), Vector3(0.03, 0.047, 0.012), 0.0018, 0.0008, 4, Color("#d8d0c0"), Color("#d8d0c0"))
+	m.rod(Vector3(0.033, 0.04, -0.007), Vector3(0.03, 0.047, -0.012), 0.0018, 0.0008, 4, Color("#d8d0c0"), Color("#d8d0c0"))
+	m.part = 7.0
+	m.pivot = Vector2(-0.032, 0.04)
+	m.box(Vector3(-0.034, 0.032, 0), Vector3(0.002, 0.016, 0.002), fur.darkened(0.3))
+	m.part = 0.0
+
+
+## Urtier (Landgang): kleiner Molch, vier Beinchen, langer Schwanz.
+static func _newt(m: MB) -> void:
+	var skin := Color("#4a5a3a")
+	_legs(m, [0.008, -0.008], [-0.005, 0.005], 0.004, 0.0022, skin.darkened(0.2), skin.darkened(0.3))
+	m.blob(Vector3(0, 0.006, 0), Vector3(0.012, 0.0035, 0.0045), 1.0, Color("#c88a3a"), skin, 0.08, true)
+	m.part = 3.0
+	m.pivot = Vector2(0.01, 0.006)
+	m.blob(Vector3(0.015, 0.006, 0), Vector3(0.005, 0.003, 0.0042), 2.0, skin.darkened(0.1), skin, 0.05, true, Vector3(INF, 0, 0), 0)
+	m.part = 7.0
+	m.pivot = Vector2(-0.01, 0.006)
+	m.blob(Vector3(-0.02, 0.005, 0), Vector3(0.012, 0.002, 0.0025), 3.0, skin.darkened(0.2), skin, 0.05, true)
+	m.part = 0.0
+
+
+## Fisch (Schwarm knapp unter der Oberfläche): dunkler Rücken, heller Bauch, Schwanzflosse. Blick nach +x.
+static func _fish(m: MB, variant: int) -> void:
+	var back := Color("#2a3a3e") if variant % 2 == 0 else Color("#3a4440")
+	var belly := Color("#b8c4c0")
+	m.blob(Vector3(0, 0, 0), Vector3(0.012, 0.003, 0.0038), 1.0 + float(variant), belly, back, 0.05, true)
+	m.tri(Vector3(-0.01, 0, 0), Vector3(-0.017, 0.0, 0.004), Vector3(-0.017, 0.0, -0.004), back, Vector3.UP)
+	m.tri(Vector3(-0.01, 0, 0), Vector3(-0.017, 0.0, -0.004), Vector3(-0.017, 0.0, 0.004), back, Vector3.DOWN)
+
+
+## Vogel (kreist über Vogel-Feldern): helles V mit dunklen Flügelspitzen. Blick nach +x, Flügel in z.
+static func _bird(m: MB) -> void:
+	var w := Color("#f0efe8")
+	var tip := Color("#3a3a3e")
+	m.blob(Vector3.ZERO, Vector3(0.007, 0.0028, 0.0028), 2.0, w.darkened(0.1), w, 0.05, true)
+	for zs in [-1.0, 1.0]:
+		var z: float = zs
+		m.part = 5.0 if z < 0.0 else 6.0
+		m.tri(Vector3(0.002, 0.001, 0), Vector3(-0.004, 0.001, 0), Vector3(-0.002, 0.004, z * 0.016), w, Vector3.UP)
+		m.tri(Vector3(0.002, 0.001, 0), Vector3(-0.002, 0.004, z * 0.016), Vector3(-0.004, 0.001, 0), w.darkened(0.2), Vector3.DOWN)
+		m.tri(Vector3(-0.002, 0.004, z * 0.016), Vector3(-0.004, 0.0035, z * 0.014), Vector3(-0.003, 0.0045, z * 0.02), tip, Vector3.UP)
 	m.part = 0.0
 
 

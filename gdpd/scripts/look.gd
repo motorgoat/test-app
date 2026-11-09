@@ -116,11 +116,136 @@ const GROUND := [
 	{"a": "#4a8c34", "b": "#69a748", "spk": "#f2c6d4", "spk2": "#fbf3e6", "samt": 0.9, "mc": 0.3},             # 14 Paradies
 	{"a": "#a39170", "b": "#b8a782", "acc": "#bfb294", "amt": 0.2, "mc": 0.45},                                   # 15 Wasser (Ufer-Sand)
 	{"a": "#7a756c", "b": "#8f897e", "acc": "#aaa397", "amt": 1.0, "mc": 0.82},                                   # 16 Stein (Schotter)
+	# --- Schöpfung (GDPD_SCHOEPFUNG_GRAFIK.md 4): Arten 17–26 -------------------------------------------------
+	{"a": "#231d1a", "b": "#2e2622", "acc": "#3a302a", "amt": 0.3, "mc": 0.9},                                   # 17 Lava (Kruste)
+	{"a": "#6b6152", "b": "#7d725f", "acc": "#8a806e", "amt": 0.3, "mc": 0.45},                                  # 18 Ursuppe (Ufer)
+	{"a": "#6b6152", "b": "#7d725f", "acc": "#8a806e", "amt": 0.3, "mc": 0.45},                                  # 19 Einzeller (Ufer)
+	{"a": "#7a7258", "b": "#8a8264", "acc": "#9a927a", "amt": 0.25, "mc": 0.45},                                 # 20 Algen (Ufer)
+	{"a": "#a39170", "b": "#b8a782", "acc": "#bfb294", "amt": 0.2, "mc": 0.45},                                  # 21 Fische (Ufer-Sand)
+	{"a": "#4f6a2a", "b": "#6b7f36", "acc": "#6e6152", "amt": 0.35, "mc": 0.36, "moss": 1.0},                  # 22 Moos (Polster)
+	{"a": "#3d3a24", "b": "#4a4628", "acc": "#5a4a30", "amt": 0.3, "mc": 0.7},                                   # 23 Farn (Humus)
+	{"a": "#3a4b20", "b": "#54482b", "acc": "#d8d4c8", "amt": 0.22, "mc": 0.78},                                 # 24 Vögel (Wald, Federn)
+	{"a": "#5a564c", "b": "#6a6656", "acc": "#d8d2c0", "amt": 0.4, "mc": 0.7},                                   # 25 Raubtiere (Fels, Knochen)
+	{"a": "#4a3424", "b": "#5e4430", "fur": 1.0, "mc": 0.6},                                                       # 26 Saat (frische Furchen)
 ]
+
+## Arten der Schöpfung (Ids wie FieldData, Spec GDPD_SCHOEPFUNG.md 2)
+const K_LAVA := 17
+const K_SOUP := 18
+const K_CELLS := 19
+const K_ALGAE := 20
+const K_FISH := 21
+## Wasser-Familie: alle sind für den Boden-Shader Wasser (ein See), das Leben darin ist ein Zustand (w_life)
+const WATERS := [15, 18, 19, 20, 21]
+const WATER_LIFE := {15: 0.0, 18: 0.1, 19: 0.35, 20: 1.0, 21: 1.5}
+
+
+static func is_water(kind: int) -> bool:
+	return WATERS.has(kind)
+
+
+static func water_life(kind: int) -> float:
+	return float(WATER_LIFE.get(kind, -1.0))
+
+
+# =============================================================================
+# Zeitalter und Jahreszeit (Eras): Paletten, Wasserfarbe, Modell-Zweige
+# =============================================================================
+
+static var era_name := ""
+static var _era: Dictionary = {}
+static var _era_ground: Dictionary = {}         # Art -> Bodenwerte (überschreibt GROUND)
+static var water_deep := Color("#12383f")
+static var water_shallow := Color("#3d7f72")
+static var water_glint := 1.0
+static var season := 1.0                         # 0 Frühling, 1 Sommer, 2 Herbst, 3 Winter (gemischt: Bruchteile)
+static var sunface := false                      # Akt 4: oben ist Tag
+static var night := 0.0                          # Nachtseite / Nacht-Stimmung: Fenster leuchten heller
+
+
+## Setzt ein Zeitalter (Name aus Eras.ERAS oder ein eigener Eintrag). Rechnet nur Werte um; FieldView baut Inhalte
+## neu, deren Modell sich ändert (model_key()).
+static func set_era(e: Variant) -> void:
+	var d: Dictionary = Eras.get_era(String(e)) if e is String else (e as Dictionary)
+	era_name = String(e) if e is String else ""
+	_era = d
+	_era_ground = d.get("ground", {})
+	var w: Dictionary = d.get("water", {})
+	water_deep = Color(str(w.get("deep", "#12383f")))
+	water_shallow = Color(str(w.get("shallow", "#3d7f72")))
+	water_glint = float(w.get("glint", 1.0))
+	sunface = bool(d.get("sunface", false))
+	_set_ground_all("sunface", 1.0 if sunface else 0.0)
+	set_season(float(d.get("season", 1)))
+
+
+## Mischung zweier Zeitalter (Akt 3: Dunst → Blau nach den Algen): Wasser gemischt, Boden und Modelle vom Ziel.
+static func set_era_mix(a: String, b: String, t: float) -> void:
+	var da := Eras.get_era(a)
+	set_era(b)
+	var wa: Dictionary = da.get("water", {})
+	water_deep = Color(str(wa.get("deep", "#12383f"))).lerp(water_deep, t)
+	water_shallow = Color(str(wa.get("shallow", "#3d7f72"))).lerp(water_shallow, t)
+	water_glint = lerpf(float(wa.get("glint", 1.0)), water_glint, t)
+
+
+static func era_flag(name: String) -> bool:
+	var m: Dictionary = _era.get("models", {})
+	if _era.is_empty():
+		return name == "ducks"            # kein Zeitalter (freies Spiel, alte Tage): heutige Welt
+	return bool(m.get(name, false))
+
+
+static func era_ambient(name: String, def: Variant = 0) -> Variant:
+	var a: Dictionary = _era.get("ambient", {})
+	return a.get(name, def)
+
+
+## Schlüssel der Modell-Zweige (Back-Cache): ändert er sich, baut eine Art mit Zeitalter-Modell neu.
+static func model_key() -> String:
+	return "%d%d%d%d" % [1 if era_flag("primeval") else 0, 1 if era_flag("wild") else 0, 1 if era_flag("ducks") else 0,
+		1 if era_flag("basalt") else 0]
+
+
+## Jahreszeit (8.2): nur Uniforms im Boden- und Laub-Shader.
+static func set_season(s: float) -> void:
+	season = s
+	var spring := clampf(1.0 - s, 0.0, 1.0)
+	var autumn := clampf(1.0 - absf(s - 2.0), 0.0, 1.0)
+	var winter := clampf(s - 2.0, 0.0, 1.0)
+	for m in _foliage_mats:
+		(m as ShaderMaterial).set_shader_parameter("spring", spring)
+		(m as ShaderMaterial).set_shader_parameter("autumn", autumn)
+		(m as ShaderMaterial).set_shader_parameter("winter", winter)
+	_set_ground_all("spring", spring)
+	_set_ground_all("autumn", autumn)
+	_set_ground_all("winter", winter)
+
+
+## Nacht (0 … 1): Fenster und Lagerfeuer leuchten heller (×2,5), Glühwürmchen.
+static func set_night(k: float) -> void:
+	night = k
+	for kind in ["warm", "faith"]:
+		var m := Models.material(kind) as StandardMaterial3D
+		if m != null:
+			m.emission_energy_multiplier = (1.25 if kind == "warm" else 1.6) * lerpf(1.0, 2.5, k)
+
+
+static func _set_ground_all(param: String, v: Variant) -> void:
+	var keep: Array = []
+	for w in _water_mats:
+		var m: ShaderMaterial = (w as WeakRef).get_ref()
+		if m != null:
+			m.set_shader_parameter(param, v)
+			keep.append(w)
+	_water_mats = keep
 
 
 static func ground_params(kind: int) -> Dictionary:
-	return GROUND[clampi(kind, 0, GROUND.size() - 1)]
+	var k := clampi(kind, 0, GROUND.size() - 1)
+	if _era_ground.has(k):
+		return _era_ground[k]
+	return GROUND[k]
 
 
 ## Neues Boden-Material (je Feld eines: Puls, Nässe und Verwelken sind je Feld verschieden).
@@ -131,6 +256,16 @@ static func ground_material() -> ShaderMaterial:
 	m.set_shader_parameter("n_cell", cell())
 	m.set_shader_parameter("w_sky", sky_color)
 	m.set_shader_parameter("sun_v", sun_view)
+	m.set_shader_parameter("spring", clampf(1.0 - season, 0.0, 1.0))
+	m.set_shader_parameter("autumn", clampf(1.0 - absf(season - 2.0), 0.0, 1.0))
+	m.set_shader_parameter("winter", clampf(season - 2.0, 0.0, 1.0))
+	m.set_shader_parameter("sunface", 1.0 if sunface else 0.0)
+	m.set_shader_parameter("lava_flow", 1.0 if quality >= 1 else 0.0)
+	m.set_shader_parameter("life_dots", 1.0 if quality >= 1 else 0.0)
+	var lf := PackedFloat32Array()
+	lf.resize(8)
+	lf.fill(-1.0)
+	m.set_shader_parameter("nb_life", lf)
 	_water_mats.append(weakref(m))
 	return m
 
@@ -144,12 +279,15 @@ static func ground_material() -> ShaderMaterial:
 static func apply_neighbors(m: ShaderMaterial, self_kind: int, kinds: Array, same: Array = []) -> void:
 	var ca := PackedColorArray()
 	var cb := PackedColorArray()
+	var life := PackedFloat32Array()
 	ca.resize(8)
 	cb.resize(8)
+	life.resize(8)
 	var wat: Array = []
 	for i in 8:
 		var k := int(kinds[i]) if i < kinds.size() else -1
-		wat.append(k == 15)
+		wat.append(is_water(k))
+		life[i] = water_life(k) if is_water(k) else -1.0
 		if k == -2:
 			k = self_kind
 		if k >= 0:
@@ -170,13 +308,14 @@ static func apply_neighbors(m: ShaderMaterial, self_kind: int, kinds: Array, sam
 		var b := (_nb_b(self_kind) + _nb_b(k1) + _nb_b(k2)) / 3.0
 		b.a = 2.0 if k1 == self_kind and k2 == self_kind else 0.0
 		# Würfelecke: drei Wasserfelder schließen die Ecke (die fehlende Diagonale zählt als Wasser)
-		wat[i] = self_kind == 15 and int(kinds[o1]) == 15 and int(kinds[o2]) == 15
+		wat[i] = is_water(self_kind) and is_water(int(kinds[o1])) and is_water(int(kinds[o2]))
 		ca[i] = a
 		cb[i] = b
 	m.set_shader_parameter("nb_a", ca)
 	m.set_shader_parameter("nb_b", cb)
 	m.set_shader_parameter("nb_on", 1.0)
-	var self_water := self_kind == 15
+	m.set_shader_parameter("nb_life", life)
+	var self_water := is_water(self_kind)
 	# Meerengen nur über echte Ecken: an einer Würfelecke (Diagonale fehlt) berühren sich die beiden Seitennachbarn
 	# schon an der Kante – dort zählt die fehlende Diagonale als Wasser, wenn beide Nachbarn Wasser sind
 	var ws := wat.duplicate()
@@ -272,7 +411,7 @@ static func _nb_a(kind: int) -> Color:
 static func _nb_b(kind: int) -> Color:
 	var g: Dictionary = ground_params(kind)
 	var c := Color(str(g["b"]))
-	c.a = 1.0 if kind == 15 else 0.0
+	c.a = 1.0 if is_water(kind) else (3.0 if kind == K_LAVA else 0.0)
 	return c
 
 
@@ -293,9 +432,21 @@ static func apply_ground(m: ShaderMaterial, kind: int, scorch: float, polluted: 
 	m.set_shader_parameter("path_amt", float(g.get("path", 0.0)))
 	m.set_shader_parameter("path_c", Color(str(g.get("pc", "#8a7350"))))
 	m.set_shader_parameter("mix_c", float(g.get("mc", 0.5)))
-	m.set_shader_parameter("is_water", 1.0 if kind == 15 else 0.0)
+	m.set_shader_parameter("is_water", 1.0 if is_water(kind) else 0.0)
+	m.set_shader_parameter("lava", 1.0 if kind == K_LAVA else 0.0)
+	m.set_shader_parameter("moss", float(g.get("moss", 0.0)))
+	m.set_shader_parameter("cracks", float(g.get("crk", 0.0)))
+	apply_water(m, maxf(water_life(kind), 0.0))
 	m.set_shader_parameter("scorch", scorch)
 	m.set_shader_parameter("polluted", polluted)
+
+
+## Wasserfarbe des Zeitalters und Leben dieses Felds (0 tot, 0,1 Ursuppe, 0,35 Einzeller, 1 Algen, 1,5 Fische).
+static func apply_water(m: ShaderMaterial, life: float) -> void:
+	m.set_shader_parameter("w_deep", water_deep)
+	m.set_shader_parameter("w_shallow", water_shallow)
+	m.set_shader_parameter("w_glint", water_glint)
+	m.set_shader_parameter("w_life", life)
 
 
 static func bedrock() -> ShaderMaterial:
@@ -360,6 +511,9 @@ static func foliage(color: Color, use_vc: bool = false) -> ShaderMaterial:
 	m.set_shader_parameter("use_vc", use_vc)
 	m.set_shader_parameter("n_fbm", fbm())
 	m.set_shader_parameter("gust", wind)
+	m.set_shader_parameter("spring", clampf(1.0 - season, 0.0, 1.0))
+	m.set_shader_parameter("autumn", clampf(1.0 - absf(season - 2.0), 0.0, 1.0))
+	m.set_shader_parameter("winter", clampf(season - 2.0, 0.0, 1.0))
 	_cache[key] = m
 	_foliage_mats.append(m)
 	return m
