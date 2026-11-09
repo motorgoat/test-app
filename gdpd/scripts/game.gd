@@ -47,6 +47,8 @@ signal reminders_planned(plan: Array)
 signal points_changed(delta: int, source: String)
 ## Die Schöpfung: ein Level beginnt (info wie level_info()).
 signal level_started(info: Dictionary)
+## Sackgasse in einem Level (GameState.dead9): das Ziel geht nicht mehr – die Oberfläche bietet „Nochmal“ (gratis).
+signal level_dead(info: Dictionary)
 
 const SAVE_PATH := "user://rekord.cfg"
 const SETTINGS_PATH := "user://einstellungen.cfg"
@@ -183,7 +185,8 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 	if not endless:
 		level = CHALLENGE_LEVEL
 	var ended_tutorial := tutorial_step >= 0
-	sek100 = _sek_next
+	# „Neues Spiel“ nach der Challenge (ohne Spielart): wieder 100 Sekunden, nicht still ins endlose Mittel
+	sek100 = _sek_next or (endless_mode < 0 and lvl < 0 and sek100 and state != null and not state.is_day())
 	_sek_next = false
 	sek100_left = SEK100
 	sek100_running = false
@@ -200,7 +203,7 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 	_end_build()
 	best = int(_best.get(mode_key(), 0))
 	state = GameState.new()
-	state.setup(seed_value, endless, level, true)
+	state.setup(seed_value, endless, level, not sek100)   # Challenge: keine Herzen, ein Feuer kostet nur 5 s
 	pending_choice = {}
 	busy = false
 	over = false
@@ -427,15 +430,18 @@ func finish_round(result: Dictionary) -> void:
 			_build_coins()
 			for e in result["events"]:
 				if str(e["type"]) == "extra":
-					if level_no > 0:
-						_add_points(Points.pay_extra(pdata, level_no, today_key()), "extra")
+					if level_no > 0 and wdt_key < 0:
+						_add_points(Points.pay_extra(pdata, level_no, today_key()), "extra")   # nie in der Welt des Tages (Vorlage)
 					message.emit(str(Days.TEXT["extra_done"]), "good")
 					extra_done.emit((e as Dictionary).duplicate())
-			if level_no > 0:
+			if _world_carries():
 				camp["world"] = state.slot_board9()
 				camp["world_level"] = level_no
 		if moved_goal:
 			day_progress.emit(state.day_status())
+		if level_no > 0 and not dead_told and not state.day_won and state.dead9():
+			dead_told = true
+			level_dead.emit({"level": level_no, "wdt": wdt_key >= 0})
 		if state.is_over() and not over:
 			over = true
 			state_changed.emit()
@@ -2004,6 +2010,7 @@ func _start_level_state(n: int, b: Dictionary) -> void:
 	hint_free_left = Balance.HINT_FREE
 	undo_free_left = Balance.UNDO_FREE
 	state = Campaign.new_state(n, b)
+	dead_told = false
 	if level_stars(n) == 0:
 		camp["start"] = Campaign.encode(b.get("kinds", []))
 		camp["start_level"] = n
@@ -2041,10 +2048,10 @@ func start_level_wdt() -> bool:
 	var k := today_key()
 	if not Daily.wdt_available_camp(camp, k):
 		return false
-	var cfg := Campaign.wdt_config(k, Daily.weekday_name(k))
+	var cfg := Campaign.wdt_config(k, Daily.weekday_name(k), camp["stars"])
 	if cfg.is_empty():
 		return false
-	var b := Campaign.wdt_board(k)
+	var b := Campaign.wdt_board(k, camp["stars"])
 	_end_build()
 	sek100 = false
 	attempt_key = k
@@ -2058,6 +2065,7 @@ func start_level_wdt() -> bool:
 	undo_free_left = Balance.UNDO_FREE
 	state = GameState.new()
 	state.setup_level(cfg, b.get("kinds", []), int(b.get("seed", 1)))
+	dead_told = false
 	pending_choice = {}
 	busy = false
 	over = false
@@ -2141,8 +2149,9 @@ func _finish_level() -> void:
 	var before_best := int((pdata["level_best"] as Array)[i])
 	var paid := Points.pay_level(pdata, n, pts, today)
 	_add_points(paid, "level")
-	camp["world"] = state.slot_board9()
-	camp["world_level"] = n
+	if _world_carries():
+		camp["world"] = state.slot_board9()     # die Welt für morgen: nur aus dem neuesten Level (keine Wiederholung)
+		camp["world_level"] = n
 	var complete := n >= Campaign.COUNT and first_win
 	var streak := _streak_win(today)
 	_end_attempt()
@@ -2159,6 +2168,14 @@ func _finish_level() -> void:
 	_keep_for_build()
 	day_won.emit(info)
 	_after_win(streak)
+
+
+## Trägt diese Welt ins nächste Level (5)? Nur das höchste geschaffte Level der Kampagne – nie eine Wiederholung
+## eines früheren Levels und nie die Welt des Tages (deren level_no ist nur die Vorlage).
+func _world_carries() -> bool:
+	if level_no <= 0 or wdt_key >= 0 or camp.is_empty():
+		return false
+	return level_stars(level_no) > 0 and level_no == Daily.next_new_level(camp) - 1
 
 
 ## Zeilen der Sieg-Karte (GDPD_PUNKTE_LADEN.md 2.4): [[Schlüssel, Punkte]].
@@ -2208,13 +2225,13 @@ func camp_today_info() -> Dictionary:
 	if nn <= Campaign.COUNT and level_unlocked(nn):
 		var c := Campaign.config(nn)
 		out.merge({"state": "new", "day": nn, "title": str(c.get("title", "")),
-			"caps": "%s · %s" % [str(Days.TEXT["today_new"]), str(Campaign.TEXT["act_caps"]) % int(c.get("act", 1))],
+			"caps": "%s · Level %d" % [str(Days.TEXT["today_new"]), nn],     # „Tag“ hieße hier: Spieltag – darum Level
 			"goal": Campaign.goal_line(c), "line": str(c.get("story", "")), "icon": str(Campaign.ICON.get(int(c.get("act", 1)), "star"))})
 		if Daily.fast_track_on(camp):
 			out["fast_line"] = str(Campaign.TEXT["fast_track"]) % Daily.new_levels_left(camp, k)
 		return out
 	if wdt_ok:
-		var cfg := Campaign.wdt_config(k, Daily.weekday_name(k))
+		var cfg := Campaign.wdt_config(k, Daily.weekday_name(k), camp["stars"])
 		if Daily.wdt_done(daily, k):
 			out.merge({"state": "wdt_done", "day": 0, "title": str(Days.TEXT["today_done"]), "caps": str(cfg.get("caps", "")),
 				"goal": Campaign.goal_line(cfg), "line": str(Days.TEXT["wdt_tomorrow"]), "more_stars": Daily.wdt_stars(daily, k) < 3,
@@ -2416,6 +2433,7 @@ var sek100_left := SEK100
 var sek100_running := false      # die Uhr läuft (ab der ersten Drehung)
 var sek100_done := false
 var _sek_next := false
+var dead_told := false           # die Sackgasse dieses Versuchs ist schon gemeldet
 
 
 func sek100_paused() -> bool:

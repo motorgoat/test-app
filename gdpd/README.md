@@ -33,7 +33,7 @@ Zwei Arten zu wachsen:
 Höchstens 3 Arten wachsen an einem Tag, und am Morgen liegen höchstens 1/2/2/3/5/6/6 verschiedene Arten (ohne Wasser)
 auf dem Brett. Schafft man einen Tag nicht, gibt es „Nochmal“ – ohne Strafe, mit einem neuen Brett und +2 Drehungen.
 Nach dem Sieg kann man weiterbauen („Extra: 4 Hütten satt“). Nach Tag 7: „Deine Welt ist vollendet!“ – dann ist das
-**freie Spiel** offen (Einfach, Mittel, Schwer, 40 Drehungen). Weitere Pakete (Insel, Wüste, Winter) kommen als
+**freie Spiel** offen (Einfach, Mittel, Schwer, 100 Sekunden). Weitere Pakete (Insel, Wüste, Winter) kommen als
 Daten dazu. Regeln, Tabellen und Prüfungen: [`docs/GDPD_BALANCE_2.md`](docs/GDPD_BALANCE_2.md) (gilt vor der
 älteren Spec [`docs/GDPD_7_TAGE.md`](docs/GDPD_7_TAGE.md)); Grafik: [`docs/GDPD_GRAFIK.md`](docs/GDPD_GRAFIK.md).
 
@@ -66,8 +66,21 @@ Tiere und Menschen → Ruhe), ein neues Level je Spieltag. Spec: `docs/GDPD_SCHO
 - **Menü**: Weiter · Die Schöpfung · Freies Spiel · Laden · Dein Gott; alles andere unter „Einstellungen“ (Ton,
   Art zu reden, Erinnerung, Wahl-Karte, Hilfe, Tutorial, Test-Knöpfe).
 - **Freies Spiel** (nach der Schöpfung): Einfach, Mittel, Schwer und die **100-Sekunden-Challenge** (ersetzt
-  „40 Drehungen“): Uhr ab der ersten Drehung, Feuer −5 s, die große Wahl-Karte hält die Uhr an, kein Tipp/Zurück,
-  Rekord je Modus.
+  „40 Drehungen“): Uhr ab der ersten Drehung, Feuer −5 s (keine Herzen), die große Wahl-Karte hält die Uhr an, kein
+  Tipp/Zurück, Rekord je Modus; „Neues Spiel“ auf der Ergebnis-Karte startet wieder die Challenge.
+- **Versorgt bleibt versorgt:** Ein Bedürfnis, das einmal gedeckt war, bleibt gedeckt (goldenes Häkchen) – auch wenn
+  ein Regen oder ein Meteor es gedeckt hat; nur Gefahren (Feuer, Flut, Krieg, Meteor) nehmen es wieder. Wächst eine
+  Reihe aus einer Ziel-Art, wächst lieber ein Feld, das noch nicht satt ist (Weiterentwickeln ist kein Verlust).
+- **Sterne großzügig** (`gdpd_sim/b4/stars11.py`, Tabelle je Level in `docs/GDPD_SCHOEPFUNG.md` 9.2): ein normaler
+  Spieler (greedy-Bot) schafft meist ★★, ein schwacher oft ★–★★ (Level 1–5 etwa die Hälfte ★★), ★★★ braucht gutes Spiel.
+- **Welt von gestern:** Nur das neueste geschaffte Level (und Weiterbauen darin) gibt die Welt an das nächste Level
+  weiter – nie eine Wiederholung eines früheren Levels und nie die Welt des Tages.
+- **Welt des Tages:** nur aus Vorlagen schon geschaffter Level (auch für Veteranen der alten 7 Tage: nie ein Spoiler);
+  Extras dort zählen nicht für das Vorlage-Level.
+- **Sackgasse:** Geht das Ziel nicht mehr (z. B. Krieg hat in Level 28/29 zu viele Städte zerstört und nichts macht
+  neue Menschen), bietet der Gott „Nochmal“ an (gratis, gleiches Start-Brett).
+- **Tipp-Suche:** begrenzt (höchstens 150 Simulationen, auf späten Leveln etwa 0,3 s am PC); festgefahren schaut sie
+  gestreut voraus und wiederholt keine Stellung der letzten Runden.
 
 ## Täglich spielen und dein eigener Charakter
 

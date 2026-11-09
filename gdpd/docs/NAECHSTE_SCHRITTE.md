@@ -57,8 +57,8 @@
 - Jeden Tag etwas schwerer: Tag 3 bekam 10 Drehungen (vorher eine Spitze mit 8), Tag 6 ist enger (12). (erledigt)
 - Eine Scheibe hin und her bringt weder Wachsen (jede Reihe wächst nur einmal) noch Glauben für den Meteor (Glaube
   nur für eine neue Stufe neben einer Kirche). (erledigt)
-- Offen: die echte Welt von gestern weiterführen (heute ist jeder Tag ein neues, geprüftes Brett; „Neuer Morgen“
-  zeigt nur ein paar Felder, die heraufwachsen).
+- Die echte Welt von gestern weiterführen: in der Schöpfung erledigt (die Welt läuft im Akt weiter, „Neuer Morgen“
+  zeigt die Felder, die über Nacht heraufwachsen; nur das neueste Level gibt sie weiter).
 
 ## 100-Sekunden-Challenge (Wunsch von Philipp)
 - Ersetzt im freien Spiel den Modus „40 Drehungen“.
@@ -128,10 +128,32 @@
   (nur Gefahren können das rückgängig machen). Wächst das Haus, kommen nur die neuen Bedürfnisse dazu. (erledigt:
   goldenes Siegel am Bedürfnis, Tour-Prüfung `need_seal_stays`)
 - 2 Sterne müssen gut erreichbar sein; 3 Sterne für gutes Spiel. (erledigt: Grenzen aus der Simulation, normaler
-  Spieler 88 % ★★ oder mehr, guter Spieler 59 % ★★★)
+  Spieler 94 % ★★ oder mehr, schwacher Spieler 51 %, guter Spieler 57 % ★★★; Tabelle je Level in GDPD_SCHOEPFUNG.md 9.2)
 - Wasser dreht sich beim Drehen mit der Scheibe mit (nicht in der Welt stehen bleiben). (erledigt, Tour-Prüfung
   `water_turns_with_slice`)
 - Menü übersichtlicher: Wichtiges oben, unwichtige Einstellungen in einem Untermenü „Einstellungen“. (erledigt:
   Weiter · Die Schöpfung · Freies Spiel · Laden · Dein Gott, darunter ⚙ Einstellungen)
 - Die Oberfläche zeigt jetzt die Schöpfung (7 Akte, 30 Level), den Laden und im freien Spiel die
   100-Sekunden-Challenge. Offen: am echten Handy prüfen; „Extras der Welt“ (Vulkan zähmen …); Skins im Laden.
+
+## Prüfung 9. November (erledigt)
+- Versorgt bleibt versorgt auch nach Regen und Meteor (Siegel gleich nach dem Werkzeug; Test `lasting_rain`). (erledigt)
+- Weiterentwickeln ist kein Verlust: Eine Reihe aus einer satt-Ziel-Art lässt lieber ein noch nicht sattes Feld
+  wachsen (Level 22: satte Tiere bleiben, wenn möglich). (erledigt, im Python-Modell gleich)
+- Sterne großzügiger (stars11): normaler Spieler meist ★★, schwacher Spieler oft ★–★★ (Level 1–5 etwa die Hälfte ★★),
+  ★★★ für gutes Spiel; Tabelle je Level in `GDPD_SCHOEPFUNG.md` 9.2. (erledigt)
+- Die Welt für morgen kommt nur aus dem neuesten Level (keine Wiederholung, nie die Welt des Tages). (erledigt)
+- Welt des Tages nur aus geschafften Leveln (auch Veteranen: kein Spoiler); Extras dort zählen nicht fürs Level. (erledigt)
+- Sackgasse (Level 28/29 nach Krieg): „Nochmal“-Karte, gratis. (erledigt)
+- Tipp-Suche begrenzt (≤ 150 Simulationen); festgefahren gestreut, ohne Hin und Her. (erledigt; offen: Vorschau
+  beim Ziehen auf späten Leveln am Handy messen)
+- 100 Sekunden: keine Herzen (Feuer nur −5 s), „Neues Spiel“ bleibt in der Challenge. (erledigt)
+- Lesbarkeit: Einzeller/Algen/Fische klar vom Wasser zu unterscheiden (Tour-Prüfung `water_life_visible`); totes
+  Urmeer blau-schiefer statt Beton; Fels mittelgrau wie sein Symbol; Herden und Wölfe größer, Weide zertrampelt;
+  Himmel in Akt 3 sichtbar blau; Akt-Übergang als sanfter Morgen (nicht das Gnade-Licht). (erledigt)
+- Texte: Pillen ohne „nie“ und ohne „Stein“ in der Schöpfung; Coach-Zeile „Tipp“ statt „Deine Aufgabe“; Level 3
+  „Halte die Lava klein.“, Level 23 „Trenn das Rudel mit dem Meteor.“, Level 15 „Bring 6 Äcker zusammen“;
+  Heute-Karte „Heute neu · Level N“; Arbeit = Hammer statt Münzen; Schritte-Ring mit Fußspuren. (erledigt)
+- Oberfläche: Gefahren-Pille wird nicht von „Wald!“ überdeckt; ↑ nur, wenn die Art im Level wirklich wächst; „+“ am
+  Wunder nur, wenn der Laden es hier verkauft; Bedürfnis-Plaketten nur auf zugewandten Feldern, höchstens 2;
+  Kamera zeigt Landgang und Ausbruch; Hilfe zeigt in der Schöpfung die Verben der Kampagne. (erledigt)

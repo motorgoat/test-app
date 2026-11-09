@@ -432,19 +432,37 @@ static func era(n: int) -> Dictionary:
 
 # --- Welt des Tages nach der Kampagne (8) ---------------------------------------------------------
 
-static func wdt_template(key: int) -> int:
-	return int(WDT[posmod(key, WDT.size())])
+## Vorlagen, die heute in Frage kommen: stars leer = alle; sonst nur geschaffte Level (nie spoilern, was noch kommt).
+static func wdt_pool(stars: Array = []) -> Array:
+	if stars.is_empty():
+		return WDT.duplicate()
+	var out: Array = []
+	for t in WDT:
+		var i := int(t) - 1
+		if i >= 0 and i < stars.size() and int(stars[i]) > 0:
+			out.append(int(t))
+	return out
+
+
+## Vorlage des Spieltags key (-1: noch keine geschaffte Vorlage).
+static func wdt_template(key: int, stars: Array = []) -> int:
+	var pool := wdt_pool(stars)
+	if pool.is_empty():
+		return -1
+	return int(pool[posmod(key, pool.size())])
 
 
 ## Brett der Vorlage: nie Brett 0; 14 × 19 = 266 Welten, bevor sich eine wiederholt.
-static func wdt_board_index(key: int, pool: int = 20) -> int:
+static func wdt_board_index(key: int, pool: int = 20, n_templates: int = WDT.size()) -> int:
 	if pool <= 1:
 		return 0
-	return 1 + posmod(floori(float(key) / float(WDT.size())), pool - 1)
+	return 1 + posmod(floori(float(key) / float(maxi(1, n_templates))), pool - 1)
 
 
-static func wdt_config(key: int, weekday_name: String = "") -> Dictionary:
-	var t := wdt_template(key)
+static func wdt_config(key: int, weekday_name: String = "", stars: Array = []) -> Dictionary:
+	var t := wdt_template(key, stars)
+	if t < 1:
+		return {}
 	var c := config(t)
 	if c.is_empty():
 		return c
@@ -459,9 +477,11 @@ static func wdt_config(key: int, weekday_name: String = "") -> Dictionary:
 	return c
 
 
-static func wdt_board(key: int) -> Dictionary:
-	var t := wdt_template(key)
-	return board(t, wdt_board_index(key, pool_size(t)))
+static func wdt_board(key: int, stars: Array = []) -> Dictionary:
+	var t := wdt_template(key, stars)
+	if t < 1:
+		return {}
+	return board(t, wdt_board_index(key, pool_size(t), wdt_pool(stars).size()))
 
 
 # --- Nicht spoilern ---------------------------------------------------------------------------------

@@ -14,21 +14,21 @@ class_name Eras
 
 const URBODEN := {"a": "#5b4e42", "b": "#6e6152", "acc": "#857868", "amt": 0.55, "mc": 0.42, "crk": 1.0}
 const URBODEN_DARK := {"a": "#4d433a", "b": "#5c5146", "acc": "#7a6e60", "amt": 0.5, "mc": 0.42, "crk": 1.0}
-const BASALT := {"a": "#2c2c2d", "b": "#3c3b3a", "acc": "#6e6b64", "amt": 0.9, "mc": 0.72}
+const BASALT := {"a": "#4a4a4d", "b": "#5c5b59", "acc": "#86827b", "amt": 0.9, "mc": 0.72}   # mittelgrauer Basalt (passt zum Fels-Symbol)
 const BASALT_GREY := {"a": "#45444a", "b": "#55534f", "acc": "#7d7972", "amt": 0.9, "mc": 0.72}
-const SHORE_DARK := {"a": "#4a4540", "b": "#5a524a", "acc": "#6a625a", "amt": 0.4, "mc": 0.45}
+const SHORE_DARK := {"a": "#34302c", "b": "#403a35", "acc": "#4c453f", "amt": 0.4, "mc": 0.45}   # dunkler, nasser Rand
 const SHORE_OCHRE := {"a": "#6b6152", "b": "#7d725f", "acc": "#8a806e", "amt": 0.3, "mc": 0.45}
 
 const ERAS := {
-	"glut": {"mood": "glut", "water": {"deep": "#2a3438", "shallow": "#5a625c", "glint": 0.5},
+	"glut": {"mood": "glut", "water": {"deep": "#1c2a33", "shallow": "#3d4c55", "glint": 0.8},
 		"ground": {16: BASALT, 0: URBODEN_DARK, 15: SHORE_DARK},
 		"ambient": {"embers": 60, "fireflies": 0, "pollen": false, "birds": false, "steam": true},
 		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": true}, "season": 1, "sunface": false},
-	"glut_kuehl": {"mood": "glut_kuehl", "water": {"deep": "#2a3438", "shallow": "#5a625c", "glint": 0.6},
+	"glut_kuehl": {"mood": "glut_kuehl", "water": {"deep": "#1c2a33", "shallow": "#3d4c55", "glint": 0.8},
 		"ground": {16: BASALT, 0: URBODEN_DARK, 15: SHORE_DARK},
 		"ambient": {"embers": 30, "fireflies": 0, "pollen": false, "birds": false, "steam": true},
 		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": true}, "season": 1, "sunface": false},
-	"dunst": {"mood": "dunst", "water": {"deep": "#2c3532", "shallow": "#5f675a", "glint": 0.7},
+	"dunst": {"mood": "dunst", "water": {"deep": "#1f3034", "shallow": "#475a5a", "glint": 0.8},
 		"ground": {16: BASALT_GREY, 0: URBODEN, 15: SHORE_OCHRE},
 		"ambient": {"embers": 0, "fireflies": 0, "pollen": false, "birds": false, "steam": true},
 		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": true}, "season": 1, "sunface": false},

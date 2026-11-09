@@ -320,7 +320,9 @@ void fragment() {
 		for (int i = 0; i < 8; i++) {
 			wla += (nb_life[i] < -0.5 ? w_life : nb_life[i]) * wgt[i];
 		}
-		wl = wla;
+		// jedes Feld behält sein eigenes Leben; nur im letzten Stück zur Fuge mischt es (an der Fuge beide gleich)
+		float life_edge = smoothstep(0.35, 0.5, max(abs(ue.x), abs(ue.y)));
+		wl = mix(w_life, wla, life_edge);
 	}
 
 	vec3 lava_emi = vec3(0.0);
@@ -396,13 +398,16 @@ void fragment() {
 		}
 		float cells = smoothstep(0.2, 0.33, wl) * (1.0 - smoothstep(0.9, 1.2, wl) * 0.7) * life_dots;
 		if (cells > 0.0) {
-			float dots = 1.0 - smoothstep(0.03, 0.09, texture(n_cell, fc * 6.0 + vec2(t * 0.006, -t * 0.004)).r);
-			wc = mix(wc, vec3(0.5, 0.68, 0.55), dots * cells * 0.4 * inw);
-			lava_emi += vec3(0.2, 0.6, 0.48) * dots * cells * 0.14 * inw * (0.7 + 0.3 * sin(t * 0.9 + h1 * 9.0));
+			// das ganze Feld wird trüb-türkis (lebendig), darauf große, hell leuchtende Zellen
+			wc = mix(wc, vec3(0.26, 0.55, 0.44), cells * 0.45 * inw);
+			float dots = 1.0 - smoothstep(0.05, 0.14, texture(n_cell, fc * 3.5 + vec2(t * 0.006, -t * 0.004)).r);
+			wc = mix(wc, vec3(0.62, 0.9, 0.66), dots * cells * 0.85 * inw);
+			lava_emi += vec3(0.2, 0.62, 0.45) * dots * cells * 0.4 * inw * (0.65 + 0.35 * sin(t * 0.7 + h1 * 9.0));
 		}
 		float alg = smoothstep(0.6, 1.0, wl) * (1.0 - smoothstep(1.2, 1.5, wl) * 0.55);
-		alg *= (1.0 - smoothstep(0.02, 0.2, -wd)) * smoothstep(0.42, 0.62, big + (h1 - 0.5) * 0.3);
-		wc = mix(wc, vec3(0.27, 0.38, 0.14) * (0.85 + 0.3 * fine), alg * 0.8);
+		// Algen-Matten über das ganze Feld (im Flachen dichter), nicht nur im Uferring
+		alg *= mix(0.75, 1.0, 1.0 - smoothstep(0.02, 0.2, -wd)) * smoothstep(0.3, 0.55, big + (h1 - 0.5) * 0.3 + (fine - 0.5) * 0.2);
+		wc = mix(wc, vec3(0.27, 0.38, 0.14) * (0.85 + 0.3 * fine), alg * 0.85);
 		float fishv = smoothstep(1.1, 1.45, wl);
 		if (fishv > 0.0) {
 			// Ringe: wo ein Fisch die Oberfläche berührt (Zellen in Wellen-Koordinaten, wandern mit dem Wasser)
@@ -412,7 +417,7 @@ void fragment() {
 			float age = fract(t * 0.23 + rr);
 			float rd = length(fract(rc) - 0.5 - (vec2(rr, fract(rr * 7.1)) - 0.5) * 0.4);
 			float ring = (1.0 - smoothstep(0.0, 0.025, abs(rd - age * 0.35))) * (1.0 - age) * step(0.45, rr);
-			wc = mix(wc, w_foam, ring * fishv * 0.45 * inw * smoothstep(0.03, 0.12, -wd));
+			wc = mix(wc, w_foam, ring * fishv * 0.6 * inw * smoothstep(0.0, 0.04, -wd));   // auch im tiefen Wasser
 		}
 		// Lava am Ufer: Wasser spiegelt die Glut, kocht am Rand
 		lava_emi += lava_hot * smoothstep(0.0, 0.25, lav) * inw * (1.0 - smoothstep(0.0, 0.2, -wd)) * 0.8;

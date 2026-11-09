@@ -4105,6 +4105,16 @@ func test_lasting_supply() -> void:
 			warn = true
 	check(not warn and (g20.fields[t] as FieldData).kind == ANIMALS and (g20.fields[t] as FieldData).hungry == 0,
 		"lasting: Tiere, einmal gefüttert, hungern nie (Wiese weggedreht, 5 Runden)")
+	# Regen versorgt: gleich versiegelt (Level 20: Regen macht Erde neben hungrigen Tieren zur Wiese, dann weggedreht)
+	var g20r := camp_state(20, {t: ANIMALS, w: FieldData.EMPTY})
+	g20r.rain = 1
+	var rr := g20r.play({"type": "rain", "field": w})
+	var pr := g20r.goal_progress()
+	var sealed_r := _types(rr).has("need_sealed")
+	var awr := move_avoiding(g20r, [t], w)
+	tw(g20r, awr)
+	check(sealed_r and not g20r.nb9(t).has(w), "lasting_rain: Regen → Wiese versiegelt, Wiese weggedreht")
+	check(sealed_r and g20r.satt9(t) and g20r.goal_progress() >= pr, "lasting_rain: nach dem Regen bleiben die Tiere satt, der Fortschritt bleibt")
 	# Ein Feuer löscht die Siegel (Level 24: Hütte brennt → Wiese)
 	var gf := camp_state(24, {h: HUT, a: ANIMALS})
 	tw(gf, move_avoiding(gf, [h, a]))
@@ -4487,7 +4497,7 @@ func test_pool_replay9() -> void:
 		if [int(cs[0]), int(cs[1])] != Campaign.stars_of(n) or int(c["par"]) != int(cs[0]) + 4 or gs0.stars9 != Campaign.stars_of(n):
 			stars_ok = false
 	check(n_boards == 600 and bad == 0, "pool_replay9: alle %d Pool-Lösungen gewinnen genau bei solved_in mit ihren Sternen und Punkten (%d abweichend)" % [n_boards, bad])
-	check(stars_ok and Campaign.stars_of(17) == [6, 16] and Campaign.stars_of(1) == [4, 6], "stars_v2: Sterne-Grenzen aus stars10.json, Par = ★★★ + 4")
+	check(stars_ok and Campaign.stars_of(17) == [6, 22] and Campaign.stars_of(1) == [4, 9], "stars_v11: großzügige Sterne-Grenzen (stars11.py), Par = ★★★ + 4")
 
 
 func test_start_rules9() -> void:
@@ -4671,7 +4681,15 @@ func test_unlock30() -> void:
 	check(not Daily.wdt_available_camp(w, 300) and Daily.wdt_available_camp(w, 301), "wdt: ab dem Spieltag nach Level 30")
 	var v := GameScript.fresh_camp()
 	v["veteran"] = true
-	check(Daily.wdt_available_camp(v, 5), "wdt: Veteranen der 7 Tage behalten die Welt des Tages")
+	check(not Daily.wdt_available_camp(v, 5), "wdt: Veteran auf Level 1: noch keine Welt des Tages (nie spoilern)")
+	for n0 in [1, 2, 3]:
+		(v["stars"] as Array)[n0 - 1] = 2
+	check(Daily.wdt_available_camp(v, 5), "wdt: Veteran mit Level 3 geschafft: Welt des Tages")
+	var vmax := 0
+	for kk in range(0, 40):
+		vmax = maxi(vmax, Campaign.wdt_template(kk, v["stars"]))
+	check(vmax == 3 and Campaign.wdt_config(7, "", v["stars"]).get("level", 0) == 3 and not Campaign.wdt_board(7, v["stars"]).is_empty(),
+		"wdt: Veteran sieht nur Vorlagen aus geschafften Leveln (höchstens %d)" % vmax)
 	var t1 := Campaign.wdt_template(0)
 	var t2 := Campaign.wdt_template(1)
 	check(Campaign.WDT.has(t1) and t1 != t2 and Campaign.wdt_board_index(0) >= 1 and not Campaign.wdt_config(3).is_empty(),
@@ -4713,7 +4731,7 @@ func test_migrate_v3() -> void:
 	c3.save(path)
 	var g3 := _daily_game(path, lt(2026, 11, 12, 9), false)
 	check(g3.points == 60 + 13 * 20 and int(g3.camp["fast_to"]) == 28 and bool(g3.camp["veteran"])
-		and Daily.wdt_available_camp(g3.camp, g3.today_key()), "migrate_v3: alle 7 Tage → Schnellstart bis 28, Welt des Tages bleibt")
+		and not Daily.wdt_available_camp(g3.camp, g3.today_key()), "migrate_v3: alle 7 Tage → Schnellstart bis 28, Welt des Tages ab dem ersten Vorlage-Level")
 	g3.free()
 	# neuer Spieler: 60 Punkte, kein Schnellstart
 	var g4 := _daily_game(path, lt(2026, 11, 12, 9), true)
@@ -4776,6 +4794,16 @@ func test_level_game() -> void:
 				locked_ok = false
 	check(locked_ok and (ov["acts"] as Array).size() == 7 and str(((ov["acts"] as Array)[6] as Dictionary)["name"]) == "?",
 		"Übersicht: gesperrte Level und Akte nur „?“ (kein Spoiler)")
+	# Die Welt für morgen kommt nur aus dem neuesten Level: Level 2 geschafft, dann Level 1 wiederholt → bleibt Level 2
+	g2.start_level(2, 1)
+	_replay_in_game(g2)
+	var w2 := str(g2.camp["world"])
+	var wl2 := int(g2.camp["world_level"])
+	g2.clock_override = t + 2 * Daily.DAY
+	g2.start_level(1, 1)
+	_replay_in_game(g2)
+	check(g2.level_stars(2) > 0 and wl2 == 2 and int(g2.camp["world_level"]) == 2 and str(g2.camp["world"]) == w2,
+		"Welt von morgen: eine Wiederholung von Level 1 überschreibt die Welt von Level 2 nicht")
 	g2.free()
 	DirAccess.remove_absolute(path)
 
@@ -4890,6 +4918,11 @@ func test_ui9() -> void:
 	g.game_over.connect(func(): over[0] = true)
 	g._process(100.0)
 	check(g.over and over[0] and g.sek100_done and g.best_for("sek100") == 77 and g.best_for("mittel") != 77, "100 s: Zeit! Rekord je Modus")
+	g.new_game()          # „Neues Spiel“ auf der Ergebnis-Karte
+	check(g.sek100 and g.mode_key() == "sek100" and not g.state.hearts and not g.state.died(),
+		"100 s: „Neues Spiel“ startet wieder die Challenge, ohne Herzen (Feuer kostet nur Zeit)")
+	g.start_mode("mittel")
+	check(not g.sek100 and g.state.hearts, "100 s: eine andere Spielart beendet die Challenge")
 	g.start_level(1)
 	check(not g.sek100, "100 s: ein Level beendet die Challenge")
 	g.free()
@@ -4920,6 +4953,33 @@ func test_hint9() -> void:
 			if gs.stars() >= 2:
 				two += 1
 	print("  Tipp in der Schöpfung: %d/%d gewonnen, ★★+ %d, Schritte %s" % [wins, tried, two, str(steps)])
+	# Die Tipp-Suche bleibt begrenzt (späte Level, frisch und festgefahren, auch im Weiterbauen): höchstens 150 Simulationen
+	var most := 0
+	var wall := 0.0
+	var rng9 := RandomNumberGenerator.new()
+	rng9.seed = 9
+	for n9 in [24, 26, 27, 28, 29]:
+		var g9 := Campaign.new_state(n9, Campaign.board(n9, 1))
+		for round_i in 2:
+			var t0 := Time.get_ticks_usec()
+			var se: GameState.DaySearch8 = g9.clone().day_search(false)
+			while se != null and not se.step(6000):
+				pass
+			wall = maxf(wall, (Time.get_ticks_usec() - t0) / 1000.0)
+			if se != null:
+				most = maxi(most, se.sims)
+			var guard := 0
+			while g9.twists - g9.gain_at9 < 5 and guard < 40 and not g9.day_won:
+				guard += 1
+				var mv: Array = GameState.MOVES[rng9.randi_range(0, 26)]
+				var act := {"type": "twist", "axis": int(mv[0]), "layer": int(mv[1]), "turns": int(mv[2])}
+				if not (g9.simulate(act)["state"] as GameState).day_won:
+					g9.play(act)
+	# Sackgasse (dead9): Level 28 braucht 3 Städte, nur 2 Menschen-Felder übrig und keine Regel macht neue
+	check(camp_state(28, {0: FieldData.TOWN, 9: FieldData.TOWN}).dead9() and not camp_state(28, {0: FieldData.TOWN, 9: FieldData.TOWN, 18: HUT}).dead9()
+		and not camp_state(24, {0: HUT}).dead9(), "dead9: Level 28 mit 2 Städten ist eine Sackgasse, mit 3 Menschen-Feldern nicht; Level 24 (Reihen machen Hütten) nie")
+	print("  Tipp-Suche Level 24–29: höchstens %d Simulationen, %.0f ms" % [most, wall])
+	check(most > 0 and most <= 150, "hint9: die Tipp-Suche bleibt begrenzt (%d Simulationen ≤ 150)" % most)
 	check(wins == tried and two * 10 >= tried * 7, "hint9: der Tipp gewinnt jedes geprüfte Level (%d/%d), meist ★★+ (%d)" % [wins, tried, two])
 	# Vorschau-Vertrag (11): alle Schlüssel da
 	var g := Campaign.new_state(24, Campaign.board(24, 2))

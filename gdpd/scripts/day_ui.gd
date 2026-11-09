@@ -38,11 +38,20 @@ class TwistRing extends Control:
 			draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * k, 48, col, 5.0, true)
 		var f := Style.black()
 		var fs := 19
+		var dy := 0.0
+		if steps_mode:
+			# Schritte: kleine Fußspuren über der Zahl (sonst liest man „5“ als Punkte oder Züge übrig)
+			var ic := Style.icon("steps")
+			if ic != null:
+				var isz := 15.0
+				draw_texture_rect(ic, Rect2(c.x - isz * 0.5, c.y - r * 0.62 - isz * 0.25, isz, isz), false)
+			fs = 17
+			dy = 5.0
 		var txt := str(left)
 		var ts := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 		var asc := f.get_ascent(fs)
 		var desc := f.get_descent(fs)
-		draw_string(f, Vector2(c.x - ts.x * 0.5, c.y + (asc - desc) * 0.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
+		draw_string(f, Vector2(c.x - ts.x * 0.5, c.y + dy + (asc - desc) * 0.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
 			Style.SUN_DEEP if warn else Style.INK)
 
 
@@ -176,6 +185,8 @@ var _char_banner := false         # nach dem Ersteller eines alten Spielstands: 
 
 # --- Erinnern? (5.7) ---
 var ask_card: PanelContainer
+var dead_card: PanelContainer      # Sackgasse (GameState.dead9): „Nochmal“ gratis
+var dead_speaker: Control
 var ask_speaker: Control
 var ask_text: Label
 var ask_yes: Button
@@ -298,6 +309,7 @@ func build(owner_ui: GameUI) -> void:
 	_build_free_card()
 	_build_shield_card()
 	_build_ask_card()
+	_build_dead_card()
 	fx_layer = Control.new()
 	fx_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -320,6 +332,7 @@ func build(owner_ui: GameUI) -> void:
 	Game.choice_made.connect(_on_choice_made)
 	Game.choice_needed.connect(_on_choice_needed)
 	Game.round_resolved.connect(_on_round)
+	Game.level_dead.connect(_on_level_dead)
 	if ui.world != null:
 		ui.world.preview_changed.connect(_on_preview_chip)
 		ui.world.loss_shown.connect(_on_loss_shown)
@@ -1223,6 +1236,44 @@ func _build_ask_card() -> void:
 	v.add_child(ask_no)
 
 
+## Sackgasse: Das Ziel geht nicht mehr (z. B. Krieg hat zu viele Städte zerstört). Gratis von vorn, ohne Strafe.
+func _build_dead_card() -> void:
+	var cv := _card()
+	dead_card = cv[0]
+	var v: VBoxContainer = cv[1]
+	var h := ui._hbox(16)
+	v.add_child(h)
+	dead_speaker = ui._speaker(84, 30)
+	h.add_child(dead_speaker)
+	var tx := ui._label("Das geht nicht mehr. Nochmal?", 19, Style.INK, Style.W_BOLD)
+	tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tx.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 84 - 16, 0)
+	tx.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(tx)
+	var again := ui._button("Nochmal", "primary", "undo", 60)
+	again.pressed.connect(_on_dead_again)
+	v.add_child(again)
+	var stay := ui._button("Weiterschauen", "ghost", "", 50)
+	stay.pressed.connect(_on_dead_stay)
+	v.add_child(stay)
+
+
+func _on_level_dead(_info: Dictionary) -> void:
+	if not Game.in_day() or blocking():
+		return
+	ui._speak(dead_speaker, "worried", "undo", Style.FIRE_TINT)
+	ui._open_modal(dead_card, false)
+
+
+func _on_dead_again() -> void:
+	ui._close_modal(true)
+	Game.retry_level()
+
+
+func _on_dead_stay() -> void:
+	ui._close_modal(true)
+
+
 # =============================================================================
 # Übersicht
 # =============================================================================
@@ -1728,6 +1779,7 @@ func _on_day_started(info: Dictionary) -> void:
 	_smog_said = false
 	_sealed_said = false
 	_steam_said = false
+	_rain_coach_due = ""
 	steps_shown = -1
 	var n := int(info["day"])
 	# Neues fliegt erst nach „Los!“ an seinen Platz (beim ersten Besuch)
@@ -2006,11 +2058,18 @@ func _first_coach9(n: int, gen: int) -> void:
 	Game.coach_seen["lvl_coach_%d" % n] = true
 	Game.save_settings()
 	var gi := _goal_icon(_info)
-	if str(_reveal9(_info)[2] if not _reveal9(_info).is_empty() else "") == "rain" and ui.rain_btn.is_visible_in_tree():
-		ui._place_coach(ui.rain_btn, "rain", line, "happy")
-		ui._coach_until = ui._time + 6.0
+	if str(_reveal9(_info)[2] if not _reveal9(_info).is_empty() else "") == "rain":
+		if Game.state.rain > 0 and ui.rain_btn.is_visible_in_tree():
+			ui._place_coach(ui.rain_btn, "rain", line, "happy")
+			ui._coach_until = ui._time + 6.0
+			return
+		# Noch kein Regen (Level 5 beginnt mit 0): erst der Dampf, der Regen-Tipp kommt mit dem ersten Dampf
+		_rain_coach_due = line
+		_show_lane("Lava ans Wasser: Dampf!", "Tipp", "rain", ui._tint_for_icon("rain"), 7.0, "happy")
 		return
-	_show_lane(line, "Deine Aufgabe", gi, ui._tint_for_icon(gi), 7.0, "happy")
+	if ui.banner.visible and ui.banner_text.text.strip_edges().trim_suffix("!").trim_suffix(".") == line.strip_edges().trim_suffix("!").trim_suffix("."):
+		return             # die Pille sagt gerade dasselbe
+	_show_lane(line, "Tipp", gi, ui._tint_for_icon(gi), 7.0, "happy")
 
 
 func _reveal_fly9(rv: Array, gen: int) -> void:
@@ -2146,6 +2205,8 @@ func refresh_hud() -> void:
 	grow_box.visible = building
 	_fill_needs(st)
 	if building:
+		chip_needs.visible = false      # Weiterbauen: lange Extra-Zeile + „gewachsen“ – sonst ragt der Chip aus dem Bild
+	if building:
 		# Weiterbauen: Haken, „Weiterbauen“, wie viel seit dem Sieg gewachsen ist – keine Drehungs-Grenze
 		chip_caps.text = str(Days.TEXT["build"])
 		if int(st.get("extra_max", 0)) > 0:
@@ -2274,6 +2335,7 @@ func _refresh_hud9(gs: GameState, st: Dictionary) -> void:
 
 ## Verlust (GDPD_SCHOEPFUNG_GRAFIK.md 6): die rote Plakette „−1“ fliegt vom Feld zum Ziel-Chip, der Chip wackelt.
 var loss_flown := 0                 # Tour: so viele Plaketten sind angekommen
+var loss_started := 0               # Tour: so viele Plaketten sind losgeflogen
 
 
 func _on_loss_shown(fid: int, kind: int, _cause: String, _progress: Variant) -> void:
@@ -2292,6 +2354,7 @@ func _on_loss_shown(fid: int, kind: int, _cause: String, _progress: Variant) -> 
 	var to := chip.get_global_rect().get_center()
 	var tw := ui._fly(pl, from, to, 0.7, 90.0, 0.6)
 	tw.tween_callback(_loss_land.bind(pl))
+	loss_started += 1
 
 
 func _loss_land(pl: Control) -> void:
@@ -2428,6 +2491,7 @@ const PILL9_ICON = {"goal_loss": "down", "erupt": "volcano", "volcano_warn": "vo
 const PILL9_WAR = ["goal_loss", "erupt", "volcano_warn", "bolt", "bolt_warn", "pack_warn", "pack_hunt", "hunger_warn",
 	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood"]
 var _sealed_said := false
+var _rain_coach_due := ""            # Level 5: der Regen-Tipp wartet auf den ersten Dampf
 var _steam_said := false
 var pill9_last := ""                 # Tour: Typ der letzten Pille
 
@@ -2566,6 +2630,13 @@ func _on_round(result: Dictionary, _before: Dictionary) -> void:
 		_hide_lane()
 	_pill8(result)
 	_pill9(result)
+	if _rain_coach_due != "" and Game.in_day() and Game.state.rain > 0:
+		for e1 in result.get("events", []):
+			if str((e1 as Dictionary).get("type", "")) == "steam" and ui.rain_btn.is_visible_in_tree():
+				ui._place_coach(ui.rain_btn, "rain", _rain_coach_due, "happy")
+				ui._coach_until = ui._time + 6.0
+				_rain_coach_due = ""
+				break
 	# Der Charakter lobt ab und zu (höchstens alle 10 s, jede 4. Runde mit Wachstum; nie im Tutorial)
 	var grew := false
 	for e0 in result.get("events", []):
@@ -2750,7 +2821,7 @@ func tooltip(key: String) -> Dictionary:
 		var info := Game.day_info()
 		var left := Game.state.twists_left()
 		if Game.state.day_free_build:
-			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Limit. 10 Felder: 1 Münze."}
+			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Limit. Neues Feld: +1 ✦"}
 		var body := "%s. %s" % [str(info.get("goal_text", "")), str(Days.TEXT["left"]) % left]
 		var st: Dictionary = info.get("status", {})
 		if bool(st.get("need_green", false)):

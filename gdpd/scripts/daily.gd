@@ -422,10 +422,10 @@ static func register_level_win(c: Dictionary, n: int, today: int) -> void:
 
 
 ## Welt des Tages in der Schöpfung: ab dem Spieltag nach dem ersten Sieg von Level 30; Veteranen (alte 7 Tage
-## geschafft) jeden Tag.
+## geschafft) jeden Tag, sobald ein Vorlage-Level (Campaign.WDT) geschafft ist.
 static func wdt_available_camp(c: Dictionary, today: int) -> bool:
 	if bool(c.get("veteran", false)):
-		return true
+		return not Campaign.wdt_pool(c["stars"]).is_empty()     # nur Welten aus schon geschafften Leveln
 	if next_new_level(c) <= (c["stars"] as Array).size():
 		return false
 	var won: Array = c["won_key"]

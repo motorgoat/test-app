@@ -91,6 +91,7 @@ jobs:
                    streak_increments reminder_scheduled volcano_warn consequence_danger_avoided goal_loss_cue act_transition \
                    rain_from_steam water_alive sky_blue dry_forest_bolt group_merge landgang pack_warn supply_preview \
                    need_seal_stays hold_rest water_turns_with_slice points_shop free_100s daily_world bonus_round_responsive \
+                   water_life_visible help_campaign \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

@@ -1162,7 +1162,7 @@ static func _log(p: Dictionary, seed: float) -> void:
 const FERN_C := [Color("#2f5a24"), Color("#7aa046")]
 const TREEFERN_C := [Color("#2c5222"), Color("#6f9a3e")]
 const HORSETAIL_C := [Color("#3e5e2a"), Color("#8aa456")]
-const BASALT_C := [Color("#2a2a2c"), Color("#66625c")]
+const BASALT_C := [Color("#4e4d50"), Color("#8a867f")]     # mittelgrauer Basalt (wie das Fels-Symbol), nicht schwarz
 
 
 ## Ein gefiederter Wedel: Mittelrippe als Bogen, Fiedern als schmale Dreiecke links und rechts (Spitze mit Wind).
@@ -2046,8 +2046,8 @@ static func _duck(m: MB, variant: int) -> void:
 
 ## Wolf: niedrig, lang, dunkelgrau, spitze Ohren, buschiger Schwanz (Raubtier, liest sich als „dunkel und flach“).
 static func _wolf(m: MB, variant: int) -> void:
-	var fur := Color("#5a5a5c") if variant % 2 == 0 else Color("#47474a")
-	var belly := Color("#8a8884")
+	var fur := Color("#8c8d92") if variant % 2 == 0 else Color("#7a7b81")    # klares Grau: Wolf, kein dunkler Fleck
+	var belly := Color("#cdc8bf")
 	_legs(m, [0.017, -0.017], [-0.006, 0.006], 0.019, 0.0034, fur.darkened(0.2), Color("#222")) 
 	m.blob(Vector3(0, 0.026, 0), Vector3(0.028, 0.01, 0.0095), 2.0 + float(variant), belly, fur, 0.08, true)
 	m.part = 3.0

@@ -182,11 +182,11 @@ const TEXT = {
 	"week": "Diese Woche",
 	"shield": "Serienschutz",
 	"shield_text": "Rettet deine Serie. Du hast %d/2.",
-	"shield_buy": "Kaufen · %d Münzen",
+	"shield_buy": "Kaufen · %d Punkte",
 	"shield_full": "Du hast genug Serienschutz.",
 	"shield_missing": "Dir fehlen %d ✦",
 	"shield_won": "+1 Serienschutz",
-	"shield_coins": "+%d Münzen",
+	"shield_coins": "+%d Punkte",
 	"test_next_day": "Nächster Tag (Test)",
 	"test_now": "Test: Jetzt ist %s.",
 	# GDPD_BALANCE_2.md 5.6, 6, 9

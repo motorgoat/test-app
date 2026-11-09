@@ -281,8 +281,10 @@ round (or tool use) in which all sub-goals are met.
 
 - `steps` = twists. Stars: ★★★ if steps ≤ s3, ★★ if ≤ s2, else ★ (always at least ★ when the level is done).
 - **Generous thresholds (v2, feedback „sehr schwer, 2 Sterne zu bekommen“)**, set per level from 100 simulated
-  boards and checked on 300 (`stars10.py`): **s2** = the smallest step count at which the average player (`greedy`)
-  has ★★ or better in **≥ 85 %** of all its games and the good bot in ≥ 98 %; **s3** = the step count at which the
+  boards and checked on 300 (`stars10.py`; v11 after the review of 9 Nov: `stars11.py`, table 9.2): **s2** = the
+  smallest step count at which the average player (`greedy`) has ★★ or better in **≥ 85 %** of all its games and the
+  good bot in ≥ 98 %, then at least the casual bot's median (levels 1–5) or 35th percentile (later levels), capped
+  at 3 × s3 + 4; **s3** = the step count at which the
   good bot gets ★★★ in about **55 %** of its games (kept inside 40–70 % where the step distribution allows). The
   table in 4.2 holds the result; the star ring in the HUD shows the next threshold („★★★ bis 5“).
 - **Points** of a level (binding source: `GDPD_PUNKTE_LADEN.md` 2.1) = **30 + 10 × stars + 5 × max(0, par − steps)**,
@@ -312,40 +314,40 @@ pulsing). Locked acts and levels show only a lock / „?“ (no title, no icon).
 
 ### 4.2 Level table (texts, goal, stars)
 
-Goal types and counting: 3.7. Stars: ★★★ / ★★ thresholds in steps (★ = done), v2 generous thresholds from the
+Goal types and counting: 3.7. Stars: ★★★ / ★★ thresholds in steps (★ = done), v11 generous thresholds from the
 simulation (3.9, 9.2). `par` = ★★★ + 4 (points, 3.9).
 
 | # | act | title | story (card) | task chip | goal (exact) | new (reveal caps · line) | stars ★★★/★★ ≤ | par |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 1 | Glut | „Die Erde glüht.“ | „Mach 6 Felsen“ | make Fels 6 | „Neu: Drehen“ · „Bring 3 gleiche in eine Reihe.“ | 4 / 6 | 8 |
-| 2 | 1 | Abkühlen | „Das Meer kühlt die Glut.“ | „Mach 11 Felsen“ | make Fels 11 | „Neu: Abkühlen“ · „Lava zwischen zwei Wasser“ | 4 / 7 | 8 |
-| 3 | 1 | Vulkan | „Die Glut bricht aus.“ | „Mach 16 Felsen“ | make Fels 16 | „Neu: Vulkan“ · „Zu viel Lava bricht aus“ | 5 / 9 | 9 |
-| 4 | 1 | Urkontinent | „Land entsteht.“ | „Lass 11 Erde entstehen“ | make Erde 11 | „Neu: Land“ · „3 Felsen werden Erde“ | 5 / 7 | 9 |
-| 5 | 2 | Atmosphäre | „Dampf wird Himmel.“ | „Lass 14 Erde entstehen“ | make Erde 14 | „Neu: Regen“ · „Dampf macht Wolken“ | 5 / 7 | 9 |
-| 6 | 2 | Urmeer | „Das Meer wird reich.“ | „Mach 10 Ursuppe“ | make Ursuppe 10 | „Neu: Ursuppe“ · „Wasser braucht Glut und Fels“ | 4 / 7 | 8 |
-| 7 | 2 | Erstes Leben | „Der erste Funke.“ | „Erschaffe 5 Einzeller“ | make Einzeller 5 | „Neu: Leben“ · „Ursuppe braucht viel Wärme“ | 5 / 8 | 9 |
-| 8 | 2 | Leben teilt sich | „Leben teilt sich.“ | „Erschaffe 11 Einzeller“ | make Einzeller 11 | „Neu: Teilen“ · „Leben weckt Leben“ | 5 / 6 | 9 |
-| 9 | 3 | Algen | „Grün im Meer.“ | „Lass 5 Algen wachsen“ | make Algen 5 | „Neu: Algen“ · „3 Einzeller werden Algen“ | 5 / 7 | 9 |
-| 10 | 3 | Blauer Himmel | „Der Himmel wird blau.“ | „Lass 9 Moos wachsen“ | make Moos 9 | „Neu: Moos“ · „Algen machen das Land grün“ | 5 / 8 | 9 |
-| 11 | 3 | Farne | „Grün wird höher.“ | „Lass 7 Farne wachsen“ | make Farn 7 | „Neu: Farne“ · „3 Moos werden Farn“ | 6 / 10 | 10 |
-| 12 | 3 | Wälder | „Die ersten Wälder.“ | „Lass 7 Wälder wachsen“ | make Wald 7 | „Neu: Blitz“ · „Trockener Wald brennt“ | 6 / 8 | 10 |
-| 13 | 4 | Tag und Nacht | „Die Sonne geht auf.“ | „Lass 12 Wälder wachsen“ | make Wald 12 | „Neu: Sonne“ · „Oben ist Tag“ | 5 / 6 | 9 |
-| 14 | 4 | Saat | „Korn reift im Sommer.“ | „Lass 5 Felder reifen“ | make Acker 5 | „Neu: Saat“ · „Saat braucht Sonne und Wasser“ | 6 / 9 | 10 |
-| 15 | 4 | Ernte | „Zeit der Ernte.“ | „Mach ein Feld aus 6“ | group Acker 6 | „Neu: Zusammenwachsen“ · „Gleiche wachsen zusammen“ | 6 / 12 | 10 |
-| 16 | 5 | Fische | „Leben im Meer.“ | „Erschaffe 6 Fische“ | make Fische 6 | „Neu: Fische“ · „3 Algen werden Fisch“ | 6 / 11 | 10 |
-| 17 | 5 | Schwärme | „Fische ziehen zusammen.“ | „Mach einen Schwarm aus 5“ | group Fische 5 | „Neu: Schwarm“ · „Fische schwimmen zusammen“ | 6 / 16 | 10 |
-| 18 | 5 | Vögel | „Leben in der Luft.“ | „Lass 6 Vögel nisten“ | make Vögel 6 | „Neu: Vögel“ · „Vögel brauchen Fische“ | 5 / 9 | 9 |
-| 19 | 5 | Landgang | „Raus aus dem Wasser.“ | „Bring 6 Tiere an Land“ | make Tiere 6 | „Neu: Landgang“ · „Fische gehen an Land“ | 5 / 8 | 9 |
-| 20 | 6 | Futter | „Die Tiere haben Hunger.“ | „Gib 6 Tieren Futter“ | satt Tiere 6 | „Neu: Hunger“ · „Tiere brauchen Pflanzen“ | 3 / 5 | 7 |
-| 21 | 6 | Raubtiere | „Jäger und Gejagte.“ | „Mach 3 Raubtiere satt“ | satt Raubtiere 3 | „Neu: Raubtiere“ · „Raubtiere brauchen Tiere“ | 4 / 12 | 8 |
-| 22 | 6 | Nahrungskette | „Jeder frisst jeden.“ | „Mach alle satt“ | satt Raubtiere 3 + satt Tiere 5 | „Neu: Nahrungskette“ · „Jeder braucht sein Futter“ | 4 / 8 | 8 |
-| 23 | 6 | Meteor | „Ein Stein fällt vom Himmel.“ | „Rette 6 Tiere“ | satt Tiere 6 | „Neu: Meteor“ · „Rudel jagen Herden“ | 2 / 4 | 6 |
-| 24 | 6 | Menschen | „Die ersten Menschen.“ | „Versorge 3 Hütten“ | satt Hütte 3 | „Neu: Menschen“ · „3 Tiere werden Hütte“ | 5 / 14 | 9 |
-| 25 | 6 | Ackerbau | „Die Menschen säen.“ | „Versorge 5 Hütten“ | satt Hütte 5 | „Neu: Ackerbau“ · „Regen neben Hütten: Saat“ | 5 / 11 | 9 |
-| 26 | 6 | Dörfer | „Aus Hütten werden Dörfer.“ | „Mach 4 Dörfer satt“ | satt Dorf 4 | „Neu: Dörfer“ · „Dorf braucht Nahrung und Arbeit“ | 5 / 10 | 9 |
-| 27 | 6 | Glaube | „Die Menschen glauben.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ | 3 / 6 | 7 |
-| 28 | 6 | Städte | „Rauch über den Städten.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Fabriken“ · „Zu viel Stadt: Flut!“ | 5 / 13 | 9 |
-| 29 | 7 | Gleichgewicht | „Alles im Gleichgewicht.“ | „Mach alle satt“ | satt Stadt 2 + satt Tiere 4 | „Neu: Gleichgewicht“ · „Menschen und Tiere satt“ | 5 / 14 | 9 |
+| 1 | 1 | Glut | „Die Erde glüht.“ | „Mach 6 Felsen“ | make Fels 6 | „Neu: Drehen“ · „Bring 3 gleiche in eine Reihe.“ | 4 / 9 | 8 |
+| 2 | 1 | Abkühlen | „Das Meer kühlt die Glut.“ | „Mach 11 Felsen“ | make Fels 11 | „Neu: Abkühlen“ · „Lava zwischen zwei Wasser“ | 4 / 10 | 8 |
+| 3 | 1 | Vulkan | „Die Glut bricht aus.“ | „Mach 16 Felsen“ | make Fels 16 | „Neu: Vulkan“ · „Zu viel Lava bricht aus“ | 6 / 14 | 10 |
+| 4 | 1 | Urkontinent | „Land entsteht.“ | „Lass 11 Erde entstehen“ | make Erde 11 | „Neu: Land“ · „3 Felsen werden Erde“ | 5 / 14 | 9 |
+| 5 | 2 | Atmosphäre | „Dampf wird Himmel.“ | „Lass 14 Erde entstehen“ | make Erde 14 | „Neu: Regen“ · „Dampf macht Wolken“ | 5 / 17 | 9 |
+| 6 | 2 | Urmeer | „Das Meer wird reich.“ | „Mach 10 Ursuppe“ | make Ursuppe 10 | „Neu: Ursuppe“ · „Wasser braucht Glut und Fels“ | 4 / 10 | 8 |
+| 7 | 2 | Erstes Leben | „Der erste Funke.“ | „Erschaffe 5 Einzeller“ | make Einzeller 5 | „Neu: Leben“ · „Ursuppe braucht viel Wärme“ | 5 / 11 | 9 |
+| 8 | 2 | Leben teilt sich | „Leben teilt sich.“ | „Erschaffe 11 Einzeller“ | make Einzeller 11 | „Neu: Teilen“ · „Leben weckt Leben“ | 5 / 11 | 9 |
+| 9 | 3 | Algen | „Grün im Meer.“ | „Lass 5 Algen wachsen“ | make Algen 5 | „Neu: Algen“ · „3 Einzeller werden Algen“ | 4 / 9 | 8 |
+| 10 | 3 | Blauer Himmel | „Der Himmel wird blau.“ | „Lass 9 Moos wachsen“ | make Moos 9 | „Neu: Moos“ · „Algen machen das Land grün“ | 5 / 11 | 9 |
+| 11 | 3 | Farne | „Grün wird höher.“ | „Lass 7 Farne wachsen“ | make Farn 7 | „Neu: Farne“ · „3 Moos werden Farn“ | 6 / 12 | 10 |
+| 12 | 3 | Wälder | „Die ersten Wälder.“ | „Lass 7 Wälder wachsen“ | make Wald 7 | „Neu: Blitz“ · „Trockener Wald brennt“ | 6 / 13 | 10 |
+| 13 | 4 | Tag und Nacht | „Die Sonne geht auf.“ | „Lass 12 Wälder wachsen“ | make Wald 12 | „Neu: Sonne“ · „Oben ist Tag“ | 5 / 11 | 9 |
+| 14 | 4 | Saat | „Korn reift im Sommer.“ | „Lass 5 Felder reifen“ | make Acker 5 | „Neu: Saat“ · „Saat braucht Sonne und Wasser“ | 5 / 10 | 9 |
+| 15 | 4 | Ernte | „Zeit der Ernte.“ | „Bring 6 Äcker zusammen“ | group Acker 6 | „Neu: Zusammenwachsen“ · „Gleiche wachsen zusammen“ | 6 / 13 | 10 |
+| 16 | 5 | Fische | „Leben im Meer.“ | „Erschaffe 6 Fische“ | make Fische 6 | „Neu: Fische“ · „3 Algen werden Fisch“ | 6 / 13 | 10 |
+| 17 | 5 | Schwärme | „Fische ziehen zusammen.“ | „Mach einen Schwarm aus 5“ | group Fische 5 | „Neu: Schwarm“ · „Fische schwimmen zusammen“ | 6 / 22 | 10 |
+| 18 | 5 | Vögel | „Leben in der Luft.“ | „Lass 6 Vögel nisten“ | make Vögel 6 | „Neu: Vögel“ · „Vögel brauchen Fische“ | 5 / 10 | 9 |
+| 19 | 5 | Landgang | „Raus aus dem Wasser.“ | „Bring 6 Tiere an Land“ | make Tiere 6 | „Neu: Landgang“ · „Fische gehen an Land“ | 5 / 12 | 9 |
+| 20 | 6 | Futter | „Die Tiere haben Hunger.“ | „Gib 6 Tieren Futter“ | satt Tiere 6 | „Neu: Hunger“ · „Tiere brauchen Pflanzen“ | 3 / 8 | 7 |
+| 21 | 6 | Raubtiere | „Jäger und Gejagte.“ | „Mach 3 Raubtiere satt“ | satt Raubtiere 3 | „Neu: Raubtiere“ · „Raubtiere brauchen Tiere“ | 4 / 14 | 8 |
+| 22 | 6 | Nahrungskette | „Jeder frisst jeden.“ | „Mach alle satt“ | satt Raubtiere 3 + satt Tiere 5 | „Neu: Nahrungskette“ · „Jeder braucht sein Futter“ | 4 / 12 | 8 |
+| 23 | 6 | Meteor | „Ein Stein fällt vom Himmel.“ | „Rette 6 Tiere“ | satt Tiere 6 | „Neu: Meteor“ · „Rudel jagen Herden“ | 2 / 7 | 6 |
+| 24 | 6 | Menschen | „Die ersten Menschen.“ | „Versorge 3 Hütten“ | satt Hütte 3 | „Neu: Menschen“ · „3 Tiere werden Hütte“ | 5 / 15 | 9 |
+| 25 | 6 | Ackerbau | „Die Menschen säen.“ | „Versorge 5 Hütten“ | satt Hütte 5 | „Neu: Ackerbau“ · „Regen neben Hütten: Saat“ | 4 / 11 | 8 |
+| 26 | 6 | Dörfer | „Aus Hütten werden Dörfer.“ | „Mach 4 Dörfer satt“ | satt Dorf 4 | „Neu: Dörfer“ · „Dorf braucht Nahrung und Arbeit“ | 4 / 11 | 8 |
+| 27 | 6 | Glaube | „Die Menschen glauben.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ | 3 / 7 | 7 |
+| 28 | 6 | Städte | „Rauch über den Städten.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Fabriken“ · „Zu viel Stadt: Flut!“ | 5 / 14 | 9 |
+| 29 | 7 | Gleichgewicht | „Alles im Gleichgewicht.“ | „Mach alle satt“ | satt Stadt 2 + satt Tiere 4 | „Neu: Gleichgewicht“ · „Menschen und Tiere satt“ | 5 / 19 | 9 |
 | 30 | 7 | Der siebte Tag | „Und es war gut.“ | „Halte 3 Runden Ruhe“ | hold [satt Stadt 2 + satt Tiere 3] 3 | „Der siebte Tag“ · „Lass deine Welt ruhen“ | 6 / 16 | 10 |
 
 ### 4.3 Level rules (start board, systems, the new thing)
@@ -518,7 +520,7 @@ As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays
     A A′ B B′ from the 4 best slices) and `slice` (one slice only, best of its 3 moves each step, with rain), horizon
     30 steps.
 - A level is never lost: the caps only end the simulation; „done ≤ 40“ means done within 40 steps.
-- **Stars** (`stars10.py`, on a first run with 100 boards per level and bot): s3 = the step count where the good
+- **Stars** (v10, superseded by v11 `stars11.py` in 9.2; `stars10.py`, on a first run with 100 boards per level and bot): s3 = the step count where the good
   bot's ★★★ share is closest to 55 % (40–70 % where possible), s2 = the smallest count where `greedy` has ★★ or
   better in ≥ 85 % of all its games and `good` in ≥ 98 %, capped at 2 × s3 + 4. Then everything was re-run on 300
   boards with these thresholds (the tables below). Levels 20–23 (and the act-6 chains) were re-run after adding the
@@ -528,48 +530,42 @@ As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays
   good ★★★ 40–70 %; greedy ★★ or better ≈ 85 %; weak mostly ★–★★ and always done eventually; farmers never
   better than honest play; good play loses no goal fields.
 
-### 9.2 Main metrics (300 generated boards per level and bot, current thresholds)
+### 9.2 Stars per level (v11: stars11.py, 300 generated boards per level and bot)
 
-| # | title | ★★★ / ★★ ≤ | good: done ≤40, median steps (p25–p75, p90) | good ★★★/★★/★ % | greedy: done ≤50, median | greedy ★★★/★★/★ % | weak: done ≤80, median | weak ★★★/★★/★ % | good losses/game | dangers per good game |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Glut | 4 / 6 | 100 %, 4 (4–5, 5) | 52/48/0 | 100 %, 5 | 30/62/8 | 100 %, 9 | 0/8/92 | 0.00 | – |
-| 2 | Abkühlen | 4 / 7 | 100 %, 5 (4–5, 5) | 49/51/0 | 100 %, 5 | 18/79/3 | 100 %, 10 | 0/11/89 | 0.00 | – |
-| 3 | Vulkan | 5 / 9 | 100 %, 6 (5–7, 8) | 26/72/2 | 100 %, 8 | 6/81/13 | 100 %, 14 | 0/8/92 | 0.05 | eruptions 0.8 |
-| 4 | Urkontinent | 5 / 7 | 100 %, 6 (5–6, 7) | 31/66/3 | 100 %, 6 | 16/75/9 | 100 %, 14 | 0/0/100 | 0.02 | eruptions 0.5 |
-| 5 | Atmosphäre | 5 / 7 | 100 %, 5 (5–6, 6) | 67/32/0 | 100 %, 5 | 76/24/0 | 100 %, 17 | 0/0/100 | 0.01 | eruptions 0.6 |
-| 6 | Urmeer | 4 / 7 | 100 %, 4 (4–5, 6) | 51/48/0 | 100 %, 5 | 41/54/5 | 100 %, 12 | 0/6/94 | 0.00 | – |
-| 7 | Erstes Leben | 5 / 8 | 100 %, 5 (4–6, 7) | 57/42/0 | 100 %, 6 | 38/53/9 | 100 %, 12 | 0/8/92 | 0.00 | – |
-| 8 | Leben teilt sich | 5 / 6 | 100 %, 5 (5–5, 5) | 97/3/0 | 100 %, 5 | 75/19/6 | 100 %, 12 | 0/1/98 | 0.00 | – |
-| 9 | Algen | 5 / 7 | 100 %, 5 (4–5, 6) | 81/18/1 | 100 %, 5 | 61/29/10 | 100 %, 10 | 2/13/85 | 0.00 | – |
-| 10 | Blauer Himmel | 5 / 8 | 100 %, 5 (5–6, 7) | 57/42/2 | 100 %, 6 | 33/48/19 | 100 %, 11 | 0/12/88 | 0.00 | – |
-| 11 | Farne | 6 / 10 | 100 %, 7 (6–8, 9) | 49/51/0 | 100 %, 8 | 28/68/4 | 100 %, 13 | 0/10/90 | 0.00 | – |
-| 12 | Wälder | 6 / 8 | 100 %, 7 (6–7, 8) | 44/54/2 | 100 %, 7 | 26/64/10 | 100 %, 14 | 0/0/100 | 0.00 | – |
-| 13 | Tag und Nacht | 5 / 6 | 100 %, 5 (5–5, 6) | 80/19/1 | 100 %, 5 | 64/32/5 | 100 %, 12 | 0/1/99 | 0.00 | – |
-| 14 | Saat | 6 / 9 | 100 %, 6 (5–7, 8) | 67/33/1 | 99 %, 7 | 35/53/11 | 100 %, 11 | 0/15/85 | 0.00 | – |
-| 15 | Ernte | 6 / 12 | 100 %, 6 (5–8, 11) | 56/40/4 | 100 %, 8 | 36/51/13 | 100 %, 15 | 1/22/76 | 0.00 | – |
-| 16 | Fische | 6 / 11 | 100 %, 6 (5–7, 8) | 65/32/2 | 92 %, 7 | 39/42/11 | 99 %, 12 | 1/36/62 | 0.00 | – |
-| 17 | Schwärme | 6 / 16 | 99 %, 6 (5–8, 11) | 55/43/1 | 92 %, 10 | 21/48/23 | 100 %, 20 | 0/33/66 | 0.00 | – |
-| 18 | Vögel | 5 / 9 | 100 %, 5 (4–7, 7) | 54/45/1 | 100 %, 6 | 34/55/11 | 100 %, 12 | 2/20/78 | 0.00 | – |
-| 19 | Landgang | 5 / 8 | 100 %, 5 (4–6, 7) | 64/35/1 | 100 %, 6 | 32/57/11 | 100 %, 13 | 0/4/96 | 0.00 | – |
-| 20 | Futter | 3 / 5 | 100 %, 3 (3–4, 5) | 56/42/2 | 99 %, 4 | 34/54/11 | 100 %, 10 | 0/7/93 | 0.00 | – |
-| 21 | Raubtiere | 4 / 12 | 100 %, 4 (3–5, 6) | 63/37/0 | 93 %, 5 | 41/42/10 | 100 %, 15 | 0/31/69 | 0.00 | starve 0.1 |
-| 22 | Nahrungskette | 4 / 8 | 100 %, 4 (3–5, 5) | 72/28/0 | 99 %, 5 | 44/48/8 | 100 %, 15 | 1/12/87 | 0.00 | – |
-| 23 | Meteor | 2 / 4 | 100 %, 2 (2–3, 3) | 51/46/3 | 100 %, 3 | 33/54/12 | 100 %, 8 | 0/5/95 | 0.00 | – |
-| 24 | Menschen | 5 / 14 | 100 %, 5 (5–7, 8) | 52/48/0 | 95 %, 8 | 21/61/13 | 100 %, 12 | 2/76/22 | 0.00 | – |
-| 25 | Ackerbau | 5 / 11 | 100 %, 5 (4–6, 7) | 69/31/0 | 100 %, 7 | 34/51/15 | 100 %, 11 | 1/51/48 | 0.00 | – |
-| 26 | Dörfer | 5 / 10 | 100 %, 5 (4–6, 7) | 70/29/0 | 99 %, 6 | 38/48/13 | 100 %, 12 | 3/25/73 | 0.00 | – |
-| 27 | Glaube | 3 / 6 | 100 %, 3 (3–4, 5) | 71/28/1 | 100 %, 4 | 38/53/8 | 100 %, 8 | 2/26/72 | 0.00 | – |
-| 28 | Städte | 5 / 13 | 100 %, 5 (4–6, 9) | 66/34/0 | 98 %, 7 | 37/46/16 | 99 %, 13 | 10/41/49 | 0.00 | starve 0.3, smogged 2.1 |
-| 29 | Gleichgewicht | 5 / 14 | 100 %, 5 (4–7, 9) | 51/49/0 | 94 %, 9 | 24/47/23 | 100 %, 15 | 3/43/54 | 0.00 | starve 0.6, smogged 3.0 |
-| 30 | Der siebte Tag | 6 / 16 | 100 %, 7 (5–8, 10) | 47/53/0 | 99 %, 9 | 24/64/12 | 100 %, 9 | 7/87/6 | 0.00 | – |
+Feedback 8 Nov („sehr schwer, 2 Sterne zu bekommen“) and the review of 9 Nov. Rules v11: a need a tool (rain, meteor) satisfies is sealed at once; a row of a satt-goal kind grows a field that is not satt yet when it can. Thresholds: ★★★ ≤ s3 where the good bot's ★★★ share is closest to 55 % (40–70 % where the integer steps allow it); ★★ ≤ s2 = the smallest count with greedy ★★+ ≥ 85 % of all games and good ≥ 98 %, then at least the weak bot's median (levels 1–5) or its 35th percentile (later levels), capped at 3 × s3 + 4. Cells: ★★★/★★/★/unsolved % of all games (unsolved = the bot did not finish within its cap; in the game a level is never lost). The older detailed metrics table (v10 thresholds) is in `gdpd_sim/b4/res_main_v10.log`.
 
-**Whole campaign (9 000 games per bot):**
-
-| bot (player) | ★★★ | ★★ or better | done (any stars) | stars per level | points per level |
-|---|---|---|---|---|---|
-| good (the hint, a strong player) | 59 % | 99 % | 100 % | 2.58 | 74 |
-| greedy (average player) | 36 % | 88 % | 99 % | 2.22 | 65 |
-| weak (casual, half random) | 1 % | 22 % | 100 % | 1.23 | 43 |
+| Level | Titel | ★★★ bis | ★★ bis | gut ★★★/★★/★/offen % | normal (greedy) | schwach |
+|---|---|---|---|---|---|---|
+| 1 | Glut | 4 | 9 | 52/48/0/0 | 30/69/1/0 | 0/54/46/0 |
+| 2 | Abkühlen | 4 | 10 | 49/51/0/0 | 18/82/0/0 | 0/55/45/0 |
+| 3 | Vulkan | 6 | 14 | 64/36/0/0 | 22/77/1/0 | 0/65/35/0 |
+| 4 | Urkontinent | 5 | 14 | 31/69/0/0 | 16/84/0/0 | 0/52/48/0 |
+| 5 | Atmosphäre | 5 | 17 | 67/33/0/0 | 76/24/0/0 | 0/62/38/0 |
+| 6 | Urmeer | 4 | 10 | 55/45/0/0 | 45/54/1/0 | 0/35/64/0 |
+| 7 | Erstes Leben | 5 | 11 | 58/42/0/0 | 38/62/0/0 | 0/41/59/0 |
+| 8 | Leben teilt sich | 5 | 11 | 97/3/0/0 | 77/23/0/0 | 0/48/52/0 |
+| 9 | Algen | 4 | 9 | 35/64/1/0 | 20/77/3/0 | 0/42/58/0 |
+| 10 | Blauer Himmel | 5 | 11 | 57/43/0/0 | 35/63/2/0 | 0/51/48/0 |
+| 11 | Farne | 6 | 12 | 50/50/0/0 | 29/68/2/0 | 0/37/63/0 |
+| 12 | Wälder | 6 | 13 | 46/54/0/0 | 26/74/0/0 | 0/38/62/0 |
+| 13 | Tag und Nacht | 5 | 11 | 84/16/0/0 | 69/31/0/0 | 0/47/53/0 |
+| 14 | Saat | 5 | 10 | 40/60/0/0 | 23/69/7/1 | 0/35/65/0 |
+| 15 | Ernte | 6 | 13 | 58/40/2/0 | 36/54/10/0 | 1/34/65/0 |
+| 16 | Fische | 6 | 13 | 65/34/0/0 | 39/47/7/8 | 1/58/40/1 |
+| 17 | Schwärme | 6 | 22 | 55/45/0/1 | 21/57/14/8 | 0/66/34/0 |
+| 18 | Vögel | 5 | 10 | 53/46/1/0 | 35/59/6/0 | 2/34/63/0 |
+| 19 | Landgang | 5 | 12 | 64/36/0/0 | 33/66/1/0 | 0/44/56/0 |
+| 20 | Futter | 3 | 8 | 57/42/0/0 | 37/62/1/0 | 0/37/63/0 |
+| 21 | Raubtiere | 4 | 14 | 63/37/0/0 | 41/45/8/6 | 0/46/53/0 |
+| 22 | Nahrungskette | 4 | 12 | 74/26/0/0 | 47/50/2/1 | 1/36/63/0 |
+| 23 | Meteor | 2 | 7 | 52/48/0/0 | 37/63/0/0 | 0/49/51/0 |
+| 24 | Menschen | 5 | 15 | 52/48/0/0 | 21/64/10/5 | 2/83/15/0 |
+| 25 | Ackerbau | 4 | 11 | 44/55/1/0 | 22/64/13/1 | 0/51/49/0 |
+| 26 | Dörfer | 4 | 11 | 42/58/0/0 | 19/72/8/1 | 1/38/61/0 |
+| 27 | Glaube | 3 | 7 | 70/30/0/0 | 39/56/5/0 | 2/45/53/0 |
+| 28 | Städte | 5 | 14 | 66/34/0/0 | 37/48/13/2 | 10/49/41/1 |
+| 29 | Gleichgewicht | 5 | 19 | 51/49/0/0 | 24/59/11/6 | 3/75/22/0 |
+| 30 | Der siebte Tag | 6 | 16 | 53/47/0/0 | 29/58/12/1 | 7/87/6/0 |
 
 ### 9.3 Farmers (300 boards per level, oracle, horizon 30)
 
@@ -761,13 +757,13 @@ As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays
   steps), the average player 92–100 % within 50, the casual bot 99–100 % within 80, and without a step cap 100 % on
   the riskiest levels (9.8). Before the „Regen lockt Tiere“ valve, 16–38 % of casual games in levels 20–23 stayed
   stuck even after 300 steps (the animals had starved into forests and rows were out of reach).
-- **Stars (feedback „sehr schwer, 2 Sterne“):** over the campaign the average player gets ★★ or better in **88 %**
-  of levels (the v1 thresholds on the same games: 68 %), the good bot ★★★ in **59 %** (v1: 49 %), the casual bot
-  finishes every level and gets ★★ in 22 % (v1: 8 %). Outliers to watch with real players: ★★★ is easy (> 70 % for the good bot) in levels
-  8, 9, 13, 22, 26, 27 because good solutions cluster on one step count (level 8: 97 % at exactly 5; s3 − 1 would
-  give < 25 %); ★★★ is harder (< 40 %) in 3 and 4 (volcano boards). ★★ is below 85 % for the average player in 16,
-  17, 21, 24, 28 and 29 (69–83 %), mostly because of the cap `2 × s3 + 4` (a long tail of the 1-ply bot). Follow-up
-  if real players confirm it: level 8 target 11 → 12 Einzeller; level 17 Schwarm 5 → 4.
+- **Stars (feedback „sehr schwer, 2 Sterne“, review 9 Nov, v11):** over the campaign the average player (greedy)
+  gets ★★ or better in **94 %** of all games (v10: 88 %, v1: 68 %), the good bot ★★★ in **57 %**, the casual (weak)
+  bot ★★ or better in **51 %** (v10: 22 %; levels 1–5 about half of the games). Per-level table: 9.2. Outliers to
+  watch with real players: ★★★ is easy (> 70 % for the good bot) in levels 8, 13, 22 and 27 because good solutions
+  cluster on one step count (level 8: 97 % at exactly 5, s3 − 1 would give < 25 %); ★★★ is harder (< 40 %) in level 4
+  and 9 (one step lower would be > 70 %). Greedy ★★+ stays below 85 % only in levels 17 (78 %) and 29 (83 %), where
+  6–8 % of its games do not finish within its cap.
 - **Difficulty curve:** the good-bot median stays at 3–7 steps (lasting supply shortened act 6, so targets rose,
   4.4) and the casual bot's at 8–20. The curve is carried by the number of systems in play (1 in act 1 → 6–7 in
   acts 6–7: hunger, predators, people, faith, war, smog, flood) rather than by step counts, which fits one new

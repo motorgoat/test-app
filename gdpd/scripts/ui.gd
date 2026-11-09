@@ -289,7 +289,7 @@ const COACH = {
 	"monsoon": "Monsun! Tipp drauf, dann Würfel.",
 	"hint": "Fest? Tipp zeigt die beste Drehung.",
 	"undo": "Vertan? Zurück hilft.",
-	"coins": "Mehr Münzen per Video.",
+	"coins": "Mehr Punkte per Video.",
 	"age": "",      # Text kommt aus _coach_text (Zeitalter und was als Nächstes kommt)
 	"hold": "Halte ein Symbol für Hilfe.",
 	"scale": "Die Waage: links Natur, rechts Stadt.",
@@ -335,7 +335,7 @@ const TOOLTIPS = {
 	"strike": {"icon": "strike", "title": "Gewitter", "body": "Straft ein Feld. Kostet 15 Glauben."},
 	"flood": {"icon": "flood", "title": "Flut", "body": "Wäscht eine Seite rein. 40 Glauben."},
 	"always_ask": {"icon": "help", "title": "Wahl-Karte immer zeigen", "body": "An: immer die große Karte."},
-	"credits": {"icon": "coin", "title": "Münzen", "body": "Für Tipp und Zurück."},
+	"credits": {"icon": "points", "title": "Punkte", "body": "Für Tipp, Zurück und den Laden."},
 	"age": {"icon": "hut", "title": "Zeitalter", "body": "Zeigt, wie weit deine Welt ist."},
 	"flames": {"icon": "fire", "title": "Flammen", "body": "Wächst nichts: Flamme. 3 Flammen: Feuer."},
 	"hearts": {"icon": "heart", "title": "Herzen", "body": "Jedes Feuer kostet ein Herz."},
@@ -349,7 +349,7 @@ const TOOLTIPS = {
 	"mode_einfach": {"icon": "meadow", "title": "Einfach", "body": "Ganze Gruppen wachsen mit. 5 Herzen."},
 	"mode_mittel": {"icon": "smallforest", "title": "Mittel", "body": "Schräg zählt ab Wald. 3 Herzen."},
 	"mode_schwer": {"icon": "nature", "title": "Schwer", "body": "Nur gerade Reihen zählen. 3 Herzen."},
-	"mode_challenge": {"icon": "trophy", "title": "40 Drehungen", "body": "Wie viel Glaube in 40 Drehungen?"},
+	"mode_challenge": {"icon": "timer", "title": "100 Sekunden", "body": "So viel Glauben wie möglich. Feuer: −5 s."},
 }
 var _lp_node: Control = null
 var _lp_t := 0.0
@@ -597,7 +597,7 @@ func _build_top() -> void:
 	rcl.alignment = BoxContainer.ALIGNMENT_END
 	row1.add_child(rcl)
 	credits_btn = Button.new()
-	credits_btn.icon = Style.icon("coin")
+	credits_btn.icon = Style.icon("points" if Balance.CAMPAIGN_ON else "coin")
 	credits_btn.add_theme_constant_override("icon_max_width", 24)
 	credits_btn.add_theme_constant_override("h_separation", 8)
 	credits_btn.add_theme_font_override("font", Style.black())
@@ -1132,6 +1132,17 @@ func _build_help() -> void:
 	_help_rows["flood"] = _help_row("flood", Style.WATER_TINT, "Flut", "Wäscht eine Seite rein. %d Glauben." % Balance.FLOOD_COST)
 	for key in ["bolt", "monsoon", "strike", "flood"]:
 		inner.add_child(_help_rows[key])
+	# Schöpfung: die Verben der Kampagne und die Gefahren als Folgen (nur, was das Level kennt)
+	_help_rows["c_needs"] = _help_row("hunger", Style.LEAF_TINT, "Nachbarn versorgen", "Manche brauchen Nachbarn. Schau auf die Zeichen.")
+	_help_rows["c_lasting"] = _help_row("check", Style.LEAF_TINT, "Versorgt bleibt versorgt", "Einmal satt: bleibt satt.")
+	_help_rows["c_merge"] = _help_row("up", Style.LEAF_TINT, "Zusammen ×2", "Gleiche wachsen zusammen. Gruppen zählen mehr.")
+	_help_rows["c_steps"] = _help_row("steps", Style.SUN_TINT, "Schritte → Sterne", "Weniger Schritte, mehr Sterne.")
+	_help_rows["c_volcano"] = _help_row("volcano", Style.FIRE_TINT, "Vulkan", "Zu viel Lava auf einem Haufen bricht aus.")
+	_help_rows["c_bolt"] = _help_row("lightning", Style.FIRE_TINT, "Blitz", "Trockener Wald ohne Wasser brennt.")
+	_help_rows["c_hunger"] = _help_row("hunger", Style.FIRE_TINT, "Hunger", "Ohne Futter hungern sie.")
+	_help_rows["c_pack"] = _help_row("pred", Style.FIRE_TINT, "Rudel", "Viele Raubtiere jagen Herden.")
+	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack"]:
+		inner.add_child(_help_rows[key])
 	inner.add_child(_help_row("hand", Style.SUN_TINT, "Erklärungen", "Halte ein Symbol gedrückt."))
 	var v: VBoxContainer = help_card.get_meta("body")
 	var go := _button("Alles klar", "primary")
@@ -1655,7 +1666,7 @@ func _menu_tile(text: String, icon_name: String, cb: Callable) -> Button:
 ## Credits: eine Währung für alle Hilfen (Tipp, Schritt zurück, Weiterspielen).
 ## Reichen sie nicht, wird eine kurze Werbung angeboten (im Prototyp ein Platzhalter).
 func _build_ad() -> void:
-	ad_card = _modal_card("Münzen")
+	ad_card = _modal_card("Punkte")
 	var v: VBoxContainer = ad_card.get_meta("body")
 	var tl := _tile("coin", 72, Style.SUN_TINT)
 	tl.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -1759,13 +1770,13 @@ func _build_over() -> void:
 	rc.add_child(over_rec_label)
 	var acts := _vbox(12)
 	v.add_child(acts)
-	continue_btn = _button("Weiterspielen (%d Münzen)" % Balance.CONTINUE_COST, "water", "coin")
+	continue_btn = _button("Weiterspielen (%d Punkte)" % Balance.CONTINUE_COST, "water", "coin")
 	continue_btn.pressed.connect(_on_continue)
 	acts.add_child(continue_btn)
 	var again := _button("Neues Spiel", "primary")
 	again.pressed.connect(_restart)
 	acts.add_child(again)
-	over_undo_btn = _button("Einen Zug zurück (%d %s)" % [Balance.UNDO_COST, "Münze" if Balance.UNDO_COST == 1 else "Münzen"], "ghost")
+	over_undo_btn = _button("Einen Zug zurück (%d %s)" % [Balance.UNDO_COST, _coin_word(Balance.UNDO_COST)], "ghost")
 	over_undo_btn.pressed.connect(_on_over_undo)
 	acts.add_child(over_undo_btn)
 	var home := _button("Zur Übersicht" if Balance.CAMPAIGN_ON else "Alle Tage", "ghost")
@@ -2116,7 +2127,7 @@ func _slot_style(b: Button, selected: bool) -> void:
 
 
 ## Zähler-Abzeichen: Anzahl in der Bedeutungsfarbe, „+“ auf Sonne, wenn keiner da ist (kaufen).
-func _set_badge(b: Button, have: int) -> void:
+func _set_badge(b: Button, have: int, plus: bool = true) -> void:
 	var badge: PanelContainer = b.get_meta("badge")
 	var bl: Label = b.get_meta("cost_label") if b.has_meta("cost_label") else badge.get_child(0)
 	if b.has_meta("cost_label"):
@@ -2124,8 +2135,8 @@ func _set_badge(b: Button, have: int) -> void:
 	var kind: String = str(b.get_meta("kind"))
 	var col: Color = SLOT_COLOR.get(kind, Style.WATER)
 	var before := bl.text
-	if have <= 0 and not _known("coins"):
-		badge.visible = false        # kein „kaufen“-Plus, solange man Münzen noch nicht kennt
+	if have <= 0 and (not _known("coins") or not plus):
+		badge.visible = false        # kein „kaufen“-Plus, solange man Münzen nicht kennt oder hier nichts zu kaufen ist
 		bl.text = ""
 		return
 	bl.text = str(have) if have > 0 else "+"
@@ -2444,7 +2455,7 @@ func _sync_slots(animate: bool) -> void:
 		_sync_day_slots(animate)
 		return
 	score_box.visible = true
-	_chip_show(hearts_chip, true, false)
+	_chip_show(hearts_chip, gs.hearts and not Game.sek100, false)   # 100 Sekunden: keine Herzen
 	var changed := false
 	changed = _slot_show(undo_btn, not tut and _known("undo"), animate) or changed
 	changed = _slot_show(rain_btn, not tut and gs.gadgets and gs.tool_unlocked("rain"), animate) or changed
@@ -2692,14 +2703,25 @@ func _tooltip_for(key: String) -> Dictionary:
 			if gs != null:
 				body += " Gerade: %s." % str(GameState.ZONE_NAME.get(gs.zone(), ""))
 		"strike", "flood":
-			var cost := strike_cost() if key == "strike" else Balance.FLOOD_COST
-			if gs != null and gs.faith < cost:
-				body += " Du hast %d." % gs.faith
+			if key == "strike" and gs != null and gs.camp:
+				# Schöpfung: der Meteor (kein Glaube): macht ein Feld leer, kostet 2 Schritte
+				d["icon"] = "meteor"
+				d["title"] = "Meteor"
+				body = "Macht ein Feld leer. Du hast %d." % (gs.meteors + Game.stock_of("meteor"))
+			else:
+				var cost := strike_cost() if key == "strike" else Balance.FLOOD_COST
+				if gs != null and gs.faith < cost:
+					body += " Du hast %d." % gs.faith
 		"undo":
-			body += " Kostet %d %s." % [Balance.UNDO_COST, _coin_word(Balance.UNDO_COST)]
+			if gs != null and gs.camp:
+				body += " Zählt als Schritt."
+			else:
+				body += " Kostet %d %s." % [Balance.UNDO_COST, _coin_word(Balance.UNDO_COST)]
 		"hint":
 			if Game.hint_free():
 				body += " Heute gratis."
+			elif gs != null and gs.camp:
+				body += " Kostet %d Punkte." % Game.hint_cost()
 			else:
 				body += " Kostet %d %s." % [Balance.HINT_COST, _coin_word(Balance.HINT_COST)]
 		"flames":
@@ -2939,9 +2961,9 @@ func refresh() -> void:
 			_rain_mode_text()
 	_sync_slots(settled)
 	if gs.camp:
-		_set_badge(rain_btn, gs.rain + Game.stock_of("rain"))
-		_set_badge(bolt_btn, Game.stock_of("guard"))
-		_set_badge(strike_btn, gs.meteors + Game.stock_of("meteor"))
+		_set_badge(rain_btn, gs.rain + Game.stock_of("rain"), _can_buy_tool("rain"))
+		_set_badge(bolt_btn, Game.stock_of("guard"), _can_buy_tool("bolt"))
+		_set_badge(strike_btn, gs.meteors + Game.stock_of("meteor"), _can_buy_tool("strike"))
 		_camp_slot_labels(gs)
 	else:
 		_set_badge(rain_btn, gs.rain)
@@ -3135,6 +3157,23 @@ func _star_zone() -> bool:
 	return gs != null and gs.camp and not gs.day_won and gs.steps9() > int(gs.stars9[1])
 
 
+## Darf das „+“ (kaufen) am Werkzeug stehen? Nur, wenn der Laden es hier verkauft und ein Tipp darauf kauft.
+func _can_buy_tool(kind: String) -> bool:
+	var gs := Game.state
+	if gs == null or not gs.camp or Game.over:
+		return false
+	var id := "regen" if kind == "rain" else ("meteor" if kind == "strike" else "blitzschutz")
+	var sold := false
+	for it in Game.shop_items("wunder"):
+		if str((it as Dictionary)["id"]) == id:
+			sold = true
+	if not sold:
+		return false
+	if kind == "bolt":
+		return true
+	return (_star_zone() or gs.day_won) and not gs.miracle_bought.has("rain" if kind == "rain" else "meteor")
+
+
 var _stock_mode := false           # das Werkzeug kommt aus dem Vorrat (gekauft, zählt 2 Schritte)
 
 
@@ -3249,7 +3288,7 @@ func _bonus_cost(kind: String) -> int:
 
 
 static func _coin_word(n: int) -> String:
-	return "Münze" if n == 1 else "Münzen"
+	return "Punkt" if n == 1 else "Punkte"
 
 
 func _buy_and_use(kind: String) -> void:
@@ -4213,10 +4252,13 @@ func _fill_sheet(fid: int) -> void:
 
 ## kind: merge, combo, age, face, miss, fire. Ein neuer Aufruf ersetzt die aktuelle Pille.
 ## Wichtige Pillen (Krieg, Wunsch, Smog, Strafe) bleiben kurz stehen; was dann kommt, wartet dahinter.
-const BANNER_KEEP = {"war": 1.3, "wish": 1.3, "smog": 1.2, "punish": 1.1, "fire": 1.0, "still": 1.2}
+var _banner_kind := ""
+const BANNER_KEEP = {"war": 2.0, "wish": 1.3, "smog": 1.2, "punish": 1.1, "fire": 1.0, "still": 1.2}
 
 
 func _show_banner(kind: String, caps: String, text: String, icon_name: String) -> void:
+	if (kind == "merge" or kind == "combo") and banner.visible and _banner_kind == "war" and _time < _banner_keep_until:
+		return              # eine Gefahr (Blitz droht, Vulkan …) bleibt lesbar; das +1 zeigt die Blase am Feld
 	if banner.visible and _time < _banner_keep_until and not BANNER_KEEP.has(kind):
 		_banner_next = [kind, caps, text, icon_name]
 		var wait := _fx(banner, "q")
@@ -4224,6 +4266,7 @@ func _show_banner(kind: String, caps: String, text: String, icon_name: String) -
 		wait.tween_callback(_banner_flush)
 		return
 	_banner_keep_until = _time + float(BANNER_KEEP.get(kind, 0.0))
+	_banner_kind = kind
 	var bg := Style.SURFACE
 	var cc := Style.SUN_DEEP
 	if kind == "age" or kind == "wish":
@@ -4251,6 +4294,8 @@ func _show_banner(kind: String, caps: String, text: String, icon_name: String) -
 	var hold := 1.6 if kind == "age" or kind == "combo" else 1.1
 	if kind == "welcome":
 		hold = 2.5
+	elif kind == "war":
+		hold = 2.0                                       # Gefahr (eine Runde vorher gewarnt): Zeit zum Lesen
 	elif kind == "miss" or kind == "still":
 		hold = 2.0 if caps.length() > 24 else 1.7        # Grund und Ratschlag: Zeit zum Lesen
 	var tw := _fx(banner, "t")
@@ -4299,8 +4344,17 @@ func _miss_text(why: String) -> Array:
 		if _diag_text() == "Nur gerade Reihen zählen":
 			return ["Schräg zählt nicht", "Bring 3 gleiche in eine gerade Reihe"]
 		return ["Schräg", _diag_text()]
+	var gs0 := Game.state
+	if gs0 != null and gs0.camp:
+		# Schöpfung: Wasser wird lebendig, Fels wird Erde – nie „nie“, nie „Stein“
+		if why == "water":
+			return ["Wasser wächst hier nicht", _camp_row_line()]
+		if why == "stone":
+			return ["Fels wächst hier nicht", _camp_row_line()]
+		if why == "water_life" or why == "thrive":
+			return ["Wächst durch Nachbarn", "Schau auf die Zeichen"]
 	if why == "water":
-		return ["Wasser wächst nie", "Bring 3 gleiche in eine Reihe"]
+		return ["Wasser wächst nie", "Dreh Land in die Reihe"]
 	# Die neuen Tage (GDPD_BALANCE_2.md): Menschen wachsen durch Nachbarn, Stein nie, manche Art heute nicht mehr
 	if why == "people":
 		return [str(Days.TEXT["people_caps"]), str(Days.TEXT["people_line"])]
@@ -4310,6 +4364,18 @@ func _miss_text(why: String) -> Array:
 		var gl := Days.goal_line(Game.state.day) if Game.state != null and Game.state.is_day() else "Bring 3 gleiche in eine Reihe"
 		return [str(Days.TEXT["done_caps"]), gl]
 	return ["", "Nichts gewachsen"]
+
+
+## „Bring 3 Lava in eine Reihe“: die erste Art, die heute Reihen bildet (Schöpfung), sonst die allgemeine Regel.
+func _camp_row_line() -> String:
+	var gs := Game.state
+	if gs != null and gs.camp:
+		var ks: Array = gs.rows9.keys()
+		ks.sort()
+		for k in ks:
+			if int(gs.rows9[k]) != int(k):
+				return "Bring 3 %s in eine Reihe" % FieldData.kind_plural(int(k))
+	return "Bring 3 gleiche in eine Reihe"
 
 
 ## Gewitter-Platz: an den neuen Tagen 6–7 ist das der Meteor (kostet GameState.METEOR_COST Glauben).
@@ -4470,10 +4536,11 @@ func _on_disaster(kind: String, fid: int) -> void:
 		_reveal("undo")              # wer brennt, lernt Zurück kennen
 		_coach_once("undo", undo_btn)
 	var hearts_on := Game.state.hearts
-	_show_banner("fire", "-1 Herz" if hearts_on else "Die Reihe brennt", str(GameState.DISASTER_NAME.get(kind, "Feuer")) + "!", "fire")
+	var cost_t := "-1 Herz" if hearts_on else ("-5 s" if Game.sek100 else "Die Reihe brennt")
+	_show_banner("fire", cost_t, str(GameState.DISASTER_NAME.get(kind, "Feuer")) + "!", "fire")
 	Style.haptic(Style.HAPTIC_FIRE)
 	if fid >= 0:
-		_bubble(fid, "-1 Herz" if hearts_on else "Feuer!", "heart" if hearts_on else "fire", Style.FIRE_DEEP)
+		_bubble(fid, "-1 Herz" if hearts_on else ("-5 s" if Game.sek100 else "Feuer!"), "heart" if hearts_on else "fire", Style.FIRE_DEEP)
 
 
 func _on_deltas(list: Array, _gain: int) -> void:
@@ -4898,6 +4965,30 @@ func _show_help() -> void:
 	else:
 		fire_t.text = "Flammen & Herzen"
 		fire_l.text = "3 Flammen: Feuer. Kostet ein Herz."
+	var camp := gs != null and gs.camp
+	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack"]:
+		(_help_rows[key] as Control).visible = false
+	if camp:
+		# Schöpfung: keine Regeln des freien Spiels (Wahl, Waage, Wünsche, Flammen, Herzen, Gewitter …)
+		for key in ["tree", "will", "faith", "scale", "wish", "goal", "fire", "bolt", "monsoon", "strike", "flood"]:
+			(_help_rows[key] as Control).visible = false
+		(_help_rows["faith"] as Control).visible = bool(gs.sys9.get("faith", false))
+		(_help_rows["war"] as Control).visible = bool(gs.sys9.get("war", false))
+		(_help_rows["smog"] as Control).visible = bool(gs.sys9.get("smog", false))
+		(_help_rows["rain"] as Control).visible = gs.tool_unlocked("rain")
+		var thr := not gs.thrive9.is_empty()
+		var hunger := false
+		for k in gs.thrive9:
+			if int((gs.thrive9[k] as Dictionary).get("down", -1)) >= 0:
+				hunger = true
+		(_help_rows["c_needs"] as Control).visible = thr
+		(_help_rows["c_lasting"] as Control).visible = thr
+		(_help_rows["c_merge"] as Control).visible = Game.level_no >= 15
+		(_help_rows["c_steps"] as Control).visible = true
+		(_help_rows["c_volcano"] as Control).visible = bool(gs.sys9.get("volcano", false))
+		(_help_rows["c_bolt"] as Control).visible = bool(gs.sys9.get("bolt", false))
+		(_help_rows["c_hunger"] as Control).visible = hunger
+		(_help_rows["c_pack"] as Control).visible = bool(gs.sys9.get("pack", false))
 	_open_modal(help_card)
 
 

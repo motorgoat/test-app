@@ -104,7 +104,7 @@ const GROUND := [
 	{"a": "#3a4b20", "b": "#54482b", "acc": "#6e5a37", "amt": 0.35, "mc": 0.78},                                  # 2 Wald
 	{"a": "#5a3e27", "b": "#73543a", "fur": 1.0, "mc": 0.6},                                                       # 3 Acker
 	{"a": "#26321a", "b": "#353020", "acc": "#4a3d28", "amt": 0.25, "mc": 0.88},                                  # 4 Großer Wald
-	{"a": "#a3a457", "b": "#c2b97c", "acc": "#8a7652", "amt": 0.55, "path": 0.55, "pc": "#94805c", "mc": 0.22},  # 5 Tiere (abgegraste Weide, Tritt)
+	{"a": "#7a7536", "b": "#8c7b48", "acc": "#6a5636", "amt": 0.6, "path": 0.85, "pc": "#6b5638", "mc": 0.3},    # 5 Tiere (zertrampelte Weide: dunkler als Wiese)
 	{"a": "#5c7630", "b": "#76683f", "path": 0.8, "pc": "#8a7350", "mc": 0.5},                                   # 6 Hütte
 	{"a": "#678838", "b": "#7f9a45", "path": 0.6, "pc": "#a49a86", "spk": "#e8d9c6", "spk2": "#c98b7a", "samt": 0.25, "mc": 0.5},  # 7 Haus
 	{"a": "#6a7d3a", "b": "#867b54", "path": 1.0, "pc": "#9c8a68", "acc": "#a39d92", "amt": 0.2, "mc": 0.55},   # 8 Dorf

@@ -209,9 +209,9 @@ const LINES := {
 		"streng": "Sieben Tage. Ein Serienschutz.",
 	},
 	"streak_7_full": {
-		"lieb": "Eine Woche! Hier, 3 Münzen.",
-		"frech": "7 Tage! 3 Münzen für dich.",
-		"streng": "Sieben Tage. 3 Münzen.",
+		"lieb": "Eine Woche! Hier, 50 Punkte.",
+		"frech": "7 Tage! 50 Punkte für dich.",
+		"streng": "Sieben Tage. 50 Punkte.",
 	},
 	"streak_big": {
 		"lieb": "{streak} Tage! Unglaublich!",

@@ -103,6 +103,7 @@ var _shown := ""
 var _smoke: Array = []
 var _time := 0.0
 var _labels_on := true
+var _needs_face := true          # World: Feld zeigt deutlich zur Kamera (facing > 0.4)
 var _badge: Sprite3D             # Abzeichen über dem Feld (z. B. Tropfen: hier lohnt sich Gießen)
 var _badge_name := ""
 var _target_on := false         # Ziel eines Bonus: Lichtrand in der Bonusfarbe (Regen blau, Blitz gelb)
@@ -269,6 +270,14 @@ func _update_mark() -> void:
 		_ground.set_shader_parameter("mark_speed", float(d[2]))
 	_ground.set_shader_parameter("mark_id", float(_mark_id))
 	_push_fx()
+
+
+## Bedürfnis-Plaketten erst bei Feldern, die deutlich zur Kamera zeigen (nicht an streifenden Seiten).
+func set_needs_facing(on: bool) -> void:
+	if on == _needs_face:
+		return
+	_needs_face = on
+	_update_needs_visible()
 
 
 func set_labels_visible(on: bool) -> void:
@@ -622,15 +631,15 @@ func furrow_dir() -> int:
 
 
 ## Warmer Lichtpuls im Boden (Verschmelzen, Wachsen): über Emission und Glühen, keine Lampe.
-func pulse_light(color: Color = Color("#ffd9a0"), dur: float = 0.5) -> void:
+func pulse_light(color: Color = Color("#ffd9a0"), dur: float = 0.5, peak: float = 1.0) -> void:
 	if _pulse_tw != null and _pulse_tw.is_valid():
 		_pulse_tw.kill()
 	_ground.set_shader_parameter("pulse_c", color)
 	_pulse_tw = create_tween()
 	var p0 := float(_ground.get_shader_parameter("pulse")) if _ground.get_shader_parameter("pulse") != null else 0.0
 	var rest := 0.4 if _burning else 0.0
-	_pulse_tw.tween_method(_shader_set.bind(_ground, "pulse"), p0, 1.0, dur * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_pulse_tw.tween_method(_shader_set.bind(_ground, "pulse"), 1.0, rest, dur * 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	_pulse_tw.tween_method(_shader_set.bind(_ground, "pulse"), p0, peak, dur * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_pulse_tw.tween_method(_shader_set.bind(_ground, "pulse"), peak, rest, dur * 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	if _burning:
 		_pulse_tw.tween_callback(_ground.set_shader_parameter.bind("pulse_c", Color("#ff7a2a")))
 
@@ -1125,8 +1134,11 @@ func apply_state8(st: Dictionary) -> void:
 		hunger_warn = true
 	var show := people or bool(st.get("needs", false)) or not sealed.is_empty() \
 		or (bool(st.get("thriver", false)) and not (met.is_empty() and missing.is_empty()) and _kind != K_LAVA)
+	if camp and _kind == K_WATER and met.is_empty() and sealed.is_empty():
+		show = false                    # totes Wasser: Plaketten nur, wo schon eine Quelle angrenzt (sonst überall)
 	_lasting = st.has("sealed")
-	_set_needs(show, met, missing, satt, fed, hungry, shrink_after, sealed, st.get("amounts", st.get("have", {})), hunger_warn)
+	_set_needs(show, met, missing, satt, fed, hungry, shrink_after, sealed, st.get("amounts", st.get("have", {})), hunger_warn,
+		bool(st.get("grows", true)))
 	_set_front(bool(st.get("front", false)))
 	_set_bolt(bool(st.get("bolt", false)))
 	_set_flood_risk(bool(st.get("flood_risk", false)))
@@ -1179,7 +1191,7 @@ func _need_icon(n: String) -> String:
 
 
 func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, hungry: int, shrink_after: int,
-		sealed: Array = [], amounts: Dictionary = {}, warn: bool = false) -> void:
+		sealed: Array = [], amounts: Dictionary = {}, warn: bool = false, grows: bool = true) -> void:
 	if _needs != null:
 		_needs.queue_free()
 		_needs = null
@@ -1198,6 +1210,16 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 	for n in missing:
 		if not sealed.has(n):
 			names.append([String(n), false, false])
+	if names.size() > 2:
+		# höchstens 2 Zeichen je Feld: was fehlt zuerst, dann versorgt (Siegel), dann da
+		var miss_n: Array = []
+		var rest_n: Array = []
+		for nm0 in names:
+			if not bool((nm0 as Array)[1]):
+				miss_n.append(nm0)
+			else:
+				rest_n.append(nm0)
+		names = (miss_n + rest_n).slice(0, 2)
 	if names.is_empty():
 		return
 	_needs = Node3D.new()
@@ -1230,7 +1252,7 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 		var am: Variant = amounts.get(nm[0])
 		if am is Array and (am as Array).size() >= 2 and not seal:
 			var lb := Label3D.new()
-			lb.text = "%d/%d" % [int((am as Array)[0]), int((am as Array)[1])]
+			lb.text = "%d/%d" % [mini(int((am as Array)[0]), int((am as Array)[1])), int((am as Array)[1])]   # nie „3/1“
 			lb.font = Style.bold()
 			lb.font_size = 40
 			lb.pixel_size = 0.0028
@@ -1242,7 +1264,7 @@ func _set_needs(people: bool, met: Array, missing: Array, satt: bool, fed: int, 
 			lb.offset = Vector2((x0 + gap * float(i)) * NEED_BG_PX / 0.0028, -38.0)
 			_needs.add_child(lb)
 		_need_icons.append([bg, ic, ok or seal])
-	if satt and fed > 0:
+	if satt and fed > 0 and grows:      # ↑ nur, wenn diese Art heute wirklich wächst (nie ein Spoiler)
 		var up := _sprite("up", NEED_BG_PX / 1.1875, 6)
 		up.offset = Vector2((x0 + gap * float(names.size())) * 1.1875, 0)
 		_needs.add_child(up)
@@ -1322,7 +1344,7 @@ func _set_strength(n: int) -> void:
 func _update_needs_visible() -> void:
 	if _needs == null:
 		return
-	_needs.visible = _labels_on and _preview_label.text == "" and not (_badge.visible and _badge_name != "")
+	_needs.visible = _labels_on and _needs_face and _preview_label.text == "" and not (_badge.visible and _badge_name != "")
 
 
 ## Kriegsfront: roter, pulsierender Rand, Rauchsäulen; die Menschen fliehen.
@@ -1857,13 +1879,14 @@ func _process(delta: float) -> void:
 # Bei Gefahr laufen alle zum Kachelrand und verschwinden; ist es ruhig, kommen sie zurück.
 # =============================================================================
 
+const HERD_SCALE := 1.6         # Herden und Wölfe gut sichtbar (nicht als Punkte auf der Wiese)
 const AGENT_SPEED := {"sheep": 0.022, "cow": 0.018, "deer": 0.035, "hare": 0.05, "duck": 0.015, "person": 0.028,
 	"bison": 0.016, "wolf": 0.03, "newt": 0.02}
 const AGENT_RATE := {"sheep": 13.0, "cow": 9.0, "deer": 11.0, "hare": 18.0, "duck": 4.0, "person": 11.0, "bison": 8.0,
 	"wolf": 12.0, "newt": 16.0}
 
 
-func _agent(kind: String, variant: int, pos: Vector3, yaw: float = -100.0) -> void:
+func _agent(kind: String, variant: int, pos: Vector3, yaw: float = -100.0, scl: float = 1.0) -> void:
 	var mi := MeshInstance3D.new()
 	mi.mesh = Models.creature_mesh(kind, variant)
 	var h := Models.hash3(Vector3(field_id, _agents.size(), variant))
@@ -1877,7 +1900,8 @@ func _agent(kind: String, variant: int, pos: Vector3, yaw: float = -100.0) -> vo
 	_content.add_child(mi)
 	_agents.append({"n": mi, "m": m, "k": kind, "person": kind == "person", "st": "idle", "t": 0.5 + h * 3.0,
 		"to": pos, "spd": float(AGENT_SPEED.get(kind, 0.03)) * (0.85 + 0.3 * h), "w": 0.0, "g": 0.0, "b": 0.0,
-		"hop": 0.0, "h": h, "sc": 1.0})
+		"hop": 0.0, "h": h, "sc": 1.0, "bs": scl})
+	mi.scale = Vector3.ONE * scl
 
 
 ## Freie Punkte für Agenten: Raster ohne Hindernisse.
@@ -2013,7 +2037,7 @@ func _update_agents(delta: float) -> void:
 			a["sc"] = minf(1.0, float(a["sc"]) + delta * 2.5)
 		a["st"] = st
 		var sc: float = a["sc"]
-		n.scale = Vector3.ONE * maxf(sc, 0.001)
+		n.scale = Vector3.ONE * maxf(sc * float(a.get("bs", 1.0)), 0.001)
 		n.visible = sc > 0.01
 		var m: ShaderMaterial = a["m"]
 		var k := minf(1.0, delta * 5.0)
@@ -2394,7 +2418,7 @@ func _b_animals(rng: RandomNumberGenerator) -> void:
 		if _wither:
 			wh = ["deer"]
 		for k in wh.size():
-			_agent(String(wh[k]), k + _variant, _R(pts[k]))
+			_agent(String(wh[k]), k + _variant, _R(pts[k]), -100.0, HERD_SCALE)
 		return
 	if _same4 == 0:
 		_item("fence", 1, Vector3(-0.2, 0, 0.18), 0.0, 1.0, 0.0)
@@ -2407,7 +2431,7 @@ func _b_animals(rng: RandomNumberGenerator) -> void:
 		herd = ["sheep"]
 	for k in herd.size():
 		var kind: String = herd[k]
-		_agent(kind, k + _variant, _R(pts[k]))
+		_agent(kind, k + _variant, _R(pts[k]), -100.0, HERD_SCALE)
 
 
 ## Hütte: Blockhaus am Pfad, Holzstapel, Kaminrauch, Bäume, ein Mensch.
@@ -2666,9 +2690,9 @@ func _b_pred(rng: RandomNumberGenerator) -> void:
 	_cover(40, 0, true, 10, 0.75)
 	if _wither:
 		return
-	_agent("wolf", _variant, _R(Vector3(0.04, 0, 0.0)))
+	_agent("wolf", _variant, _R(Vector3(0.04, 0, 0.0)), -100.0, HERD_SCALE)
 	if _variant % 2 == 0:
-		_agent("wolf", _variant + 1, _R(Vector3(-0.14, 0, 0.12)))
+		_agent("wolf", _variant + 1, _R(Vector3(-0.14, 0, 0.12)), -100.0, HERD_SCALE)
 
 
 ## Fugen-Teile (Zusammenwachsen): Bäume, Häuser und Wege auf den gemeinsamen Fugen (_merge_mask). Sie stehen frei auf
@@ -2761,7 +2785,7 @@ func _make_fish() -> void:
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(1, 1, 1, 0.62)    # knapp unter der Oberfläche: halb durchscheinend
+	m.albedo_color = Color(1, 1, 1, 0.9)     # knapp unter der Oberfläche, aber gut zu sehen
 	m.roughness = 0.4
 	m.metallic_specular = 0.9
 	_fish.material_override = m
@@ -2804,7 +2828,7 @@ func _update_fish(_delta: float) -> void:
 		var roll := 0.0
 		if fmod(ph * 0.5 + float(i) * 0.37, 3.0) < 0.12:
 			roll = PI * 0.45                 # Wenden: Silberblitz
-		var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, roll) * Basis.from_scale(Vector3.ONE * (1.0 + 0.15 * float(i % 3)))
+		var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, roll) * Basis.from_scale(Vector3.ONE * 1.6 * (1.0 + 0.15 * float(i % 3)))   # gut sichtbar (1,6×)
 		mm.set_instance_transform(i, Transform3D(b, p))
 
 

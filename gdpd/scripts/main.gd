@@ -72,6 +72,19 @@ func _shots(dir: String) -> void:
 	if only == "" or only == "camp":
 		await _camp_tour(dir)
 		print("Tour: Schöpfung fertig nach %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
+	if only == "acts":              # nur die Akte (Fehlersuche): frischer Fortschritt, alle Level offen
+		Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
+		Game.reset_campaign()
+		Game.cards_seen = {}
+		Game.coach_seen = {}
+		Game.pdata = Points.fresh(Campaign.COUNT)
+		Game.points = Balance.POINTS_START
+		Game.debug_open_all = true
+		await get_tree().process_frame
+		await _acts_tour(dir)
+		await _shop_tour(dir)
+		await _free100_tour(dir)
+		await _wdt_tour(dir)
 	if only == "days" or only == "day1":
 		await _days_tour(dir)
 		print("Tour: Tage fertig nach %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
@@ -187,7 +200,7 @@ func _camp_tour(dir: String) -> void:
 	await _wait(0.5)
 	await _shot(dir, "00c_level1_karte")
 	_check(card1 and Game.level_no == 1 and dui.gc_goal.text == "Mach 6 Felsen" and dui.gc_limit.text == "Ohne Limit. Schritte zählen."
-		and dui.gc_intro.text.contains("Die Erde glüht.") and dui.gc_go.text == str(Days.TEXT["go_demo"]) and dui.gc_star_label.text == "bis 4 · ★★ bis 6",
+		and dui.gc_intro.text.contains("Die Erde glüht.") and dui.gc_go.text == str(Days.TEXT["go_demo"]) and dui.gc_star_label.text == "bis %d · ★★ bis %d" % [int(Campaign.stars_of(1)[0]), int(Campaign.stars_of(1)[1])],
 		"l1_goal_card", "ziel=%s grenze=%s intro=%s sterne=%s" % [dui.gc_goal.text, dui.gc_limit.text, dui.gc_intro.text.left(40), dui.gc_star_label.text])
 	# 4. „Zeig's mir“: die Hand spielt den ersten Zug vor (3 Lava → Fels), ein Wisch in der Zeit zählt nicht
 	world.tour_auto = false
@@ -448,13 +461,41 @@ func _p_pack(_gs: GameState, r: Dictionary) -> bool:
 
 
 func _pack_breaker(st: GameState) -> int:
+	var at := int(GameState.B9["PACK_AT"])
 	for f in st.fields:
 		var fd: FieldData = f
-		if fd.kind == FieldData.PRED:
-			var sm: Dictionary = st.simulate({"type": "strike", "field": fd.id, "row": []})
-			if (sm["state"] as GameState).pack_warn9.is_empty():
-				return fd.id
+		if fd.kind != FieldData.PRED:
+			continue
+		var sm: Dictionary = st.simulate({"type": "strike", "field": fd.id, "row": []})
+		var s2: GameState = sm["state"]
+		var safe := true
+		for i in st.pack_warn9:
+			for g in s2.nb9(int(i)):
+				if (s2.fields[g] as FieldData).kind == FieldData.PRED and s2.gsize9(g) >= at:
+					safe = false
+		if safe:
+			return fd.id
 	return -1
+
+
+## Wald ganz oben auf der Seite n: die oberste Reihe wird Wald, Wasser daneben Wiese (trocken: Blitz droht).
+func _paint_dry_forest(n: Vector3i) -> bool:
+	var gs := Game.state
+	var ff: Array = gs.face_fields(n)
+	for i in 3:
+		var f: FieldData = ff[i]
+		f.kind = FieldData.FOREST
+		f.fresh = 0
+		f.burning = false
+	gs._grp_ok = false
+	for i in 3:
+		for g in gs.nb9((ff[i] as FieldData).id):
+			var fd: FieldData = gs.fields[g]
+			if FieldData.water_family(fd.kind):
+				fd.kind = FieldData.MEADOW
+	gs._grp_ok = false
+	Game.state_changed.emit()
+	return gs.dry9((ff[0] as FieldData).id)
 
 
 ## Zwei Drehungen, nach denen ein Ereignis vom Typ t kommt (die erste allein bringt es nicht), sonst [].
@@ -554,6 +595,16 @@ func _acts_tour(dir: String) -> void:
 	# zählt der Verlust (−1 Fels fliegt zum Chip, der Chip zählt herunter)
 	await _start_lvl(3, 0)
 	await _shot(dir, "01a_level3_vulkan")
+	# Hilfe in der Schöpfung: die Verben der Kampagne, keine Regeln des freien Spiels
+	ui._show_help()
+	await _wait(0.8)
+	await _shot(dir, "00p_hilfe_kampagne")
+	var hr: Dictionary = ui._help_rows
+	_check((hr["c_steps"] as Control).is_visible_in_tree() and (hr["c_volcano"] as Control).is_visible_in_tree()
+		and not (hr["wish"] as Control).is_visible_in_tree() and not (hr["fire"] as Control).is_visible_in_tree()
+		and not (hr["scale"] as Control).is_visible_in_tree(), "help_campaign", "level=3")
+	ui._close_modal(true)
+	await _wait(0.4)
 	var wm := _move_with("volcano_warn")
 	if not wm.is_empty():
 		await _swipe_m(wm)
@@ -574,12 +625,22 @@ func _acts_tour(dir: String) -> void:
 	if not seq.is_empty():
 		await _swipe_m(seq[0])
 		var p_mid := Game.state.goal_progress()
-		await _swipe_m(seq[1])
+		# Die Aufnahme, solange das rote −1 fliegt (nicht erst danach)
+		var started0 := dui.loss_started
+		_round_types = {}
+		var m2s: Array = seq[1]
+		await _swipe_move(int(m2s[0]), int(m2s[1]), int(m2s[2]))
+		for i in 160:
+			if dui.loss_started > started0:
+				break
+			await _wait(0.05)
+		await _wait(0.25)
+		await _shot(dir, "01c_verlust")
+		await _settle(8.0)
 		for i in 60:
 			if dui.loss_flown > lost0:
 				break
 			await _wait(0.05)
-		await _shot(dir, "01c_verlust")
 		loss_ok = _seen_type("goal_loss") and dui.loss_flown > lost0 and Game.state.goal_progress() < maxi(p_mid, p_before) + 3
 	_check(loss_ok, "goal_loss_cue", "folge=%s chip=%s geflogen=%d" % [str(seq), dui.chip_num.text, dui.loss_flown - lost0])
 	# Akt 2 · Level 5: der Akt-Übergang (Himmel), Dampf wird Regen
@@ -605,7 +666,8 @@ func _acts_tour(dir: String) -> void:
 	_check(int(fb[0]) >= 0 and Game.state.rain > r0 and _seen_type("steam"), "rain_from_steam", "brett=%d regen=%d->%d" % [int(fb[0]), r0, Game.state.rain])
 	# Wasser lebt erst durch das Spiel: tot (6) → Ursuppe (7) → Einzeller (9) → Algen (10)
 	var alive: Array = []
-	for lv in [[6, -1], [7, FieldData.SOUP], [9, FieldData.CELLS], [10, FieldData.ALGAE]]:
+	var life_de: Array = []          # ΔE der Kachel-Farbe (Leben gegen totes Wasser): Einzeller, Algen
+	for lv in [[6, -1], [7, FieldData.SOUP], [9, FieldData.CELLS], [10, FieldData.ALGAE], [16, FieldData.ALGAE]]:
 		await _start_lvl(int(lv[0]), 0)
 		var k := int(lv[1])
 		var shown := k < 0
@@ -613,12 +675,16 @@ func _acts_tour(dir: String) -> void:
 			if k >= 0 and (world.views[fid] as FieldView).get_kind() == k:
 				shown = true
 		alive.append(shown and (k >= 0 or Game.state.count(FieldData.SOUP) + Game.state.count(FieldData.CELLS) == 0))
+		if int(lv[0]) == 9 or int(lv[0]) == 10:
+			await _wait(1.0)
+			life_de.append(await _life_delta_e(k))
 		await _shot(dir, "03_wasser_level%d" % int(lv[0]))
 	_check(not alive.has(false), "water_alive", "%s" % str(alive))
+	_check(life_de.size() == 2 and float(life_de[0]) > 12.0 and float(life_de[1]) > 12.0, "water_life_visible",
+		"dE einzeller=%.1f algen=%.1f" % [float(life_de[0]) if life_de.size() > 0 else -1.0, float(life_de[1]) if life_de.size() > 1 else -1.0])
 	# Akt 3 · Level 10: Algen machen den Himmel blau
 	var fa := _find_board(10, _p_more.bind(FieldData.ALGAE), 2)
-	if int(fa[0]) > 0:
-		await _start_lvl(10, int(fa[0]))
+	await _start_lvl(10, maxi(0, int(fa[0])))
 	await _wait(2.0)
 	var b0 := world.sky_blue()
 	for m in fa[1]:
@@ -626,23 +692,51 @@ func _acts_tour(dir: String) -> void:
 	await _wait(3.0)
 	await _shot(dir, "03e_himmel_blau")
 	_check(world.sky_blue() > b0 + 0.01, "sky_blue", "blau=%.2f->%.2f" % [b0, world.sky_blue()])
-	# Level 12: trockener Wald → Blitz droht; Wasser daneben (eine andere Drehung) wendet ihn ab
-	var blv := 12
-	var fbo := _find_board(12, _p_bolt)
-	for lv in [18, 16, 13]:
-		if int(fbo[0]) < 0:
-			blv = int(lv)
-			fbo = _find_board(blv, _p_bolt)
-	await _start_lvl(blv, maxi(0, int(fbo[0])))
-	for m in fbo[1]:
-		await _swipe_m(m)
-	var bolt_on := Game.state.bolt >= 0 and _seen_type("bolt_warn")
+	# Der Himmel im Bild (weit herausgezoomt): er muss sichtbar blau werden
+	var z_sky := world.rig.zoom_factor
+	world.rig.zoom(1.6 / maxf(z_sky, 0.01))
+	await _wait(1.2)
+	await _shot(dir, "03f_himmel_weit")
+	world.rig.zoom(z_sky / maxf(world.rig.zoom_factor, 0.01))
+	# Level 13: ein trockener Wald (3 Wälder, kein Wasser daneben) – nach der Runde droht der Blitz (Warnung eine
+	# Runde vorher); eine Drehung, die ihn teilt oder Wasser heranbringt, wendet ihn ab
+	var blv := 13
+	await _start_lvl(blv, 0)
+	var dry_on := _paint_dry_forest(Vector3i(0, 1, 0))
+	await _wait(1.0)
+	var warn_m: Array = []
+	var save: Array = []
+	for m in GameState.MOVES:
+		var rw: Dictionary = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))
+		if not _has_event(rw["result"], "bolt_warn"):
+			continue
+		var stw: GameState = rw["state"]
+		for m2 in GameState.MOVES:
+			var rs: Dictionary = stw.simulate(_twist(int(m2[0]), int(m2[1]), int(m2[2])))
+			if _has_event(rs["result"], "bolt_miss") and not _has_event(rs["result"], "bolt"):
+				warn_m = m
+				save = m2
+				break
+		if not warn_m.is_empty():
+			break
+	if not warn_m.is_empty():
+		await _swipe_m(warn_m)
+	var bolt_on := Game.state.bolt >= 0 and _seen_type("bolt_warn") and ui.day_ui.pill9_last == "bolt_warn"
 	await _shot(dir, "04a_blitz_droht")
-	var save := _move_with("bolt_miss", "bolt")
+	var missed := false
 	if not save.is_empty():
 		await _swipe_m(save)
-	_check(bolt_on and not save.is_empty() and _seen_type("bolt_miss") and not _seen_type("bolt"), "dry_forest_bolt",
-		"level=%d warnung=%s abgewendet=%s" % [blv, str(bolt_on), str(save)])
+		missed = _round_types.has("bolt_miss") and not _round_types.has("bolt")
+	_check(dry_on and bolt_on and missed, "dry_forest_bolt",
+		"level=%d trocken=%s warnung=%s zug=%s abgewendet=%s" % [blv, str(dry_on), str(bolt_on), str(warn_m), str(save)])
+	# Akt 4 · Level 14: die Sonne über der Sonnenseite (oben), weit herausgezoomt
+	await _start_lvl(14, 0)
+	var z_sun := world.rig.zoom_factor
+	world.rig.focus(Vector3(0, 0, 1))          # von vorn: die Sonne steht über der Sonnenseite (oben) im Bild
+	world.rig.zoom(1.6 / maxf(z_sun, 0.01))
+	await _wait(1.5)
+	await _shot(dir, "04b_sonne")
+	world.rig.zoom(z_sun / maxf(world.rig.zoom_factor, 0.01))
 	# Akt 4 · Level 15: Zusammenwachsen – zwei Äcker werden ein Feld (×2), die Gruppe zählt fürs Ziel
 	var fg := _find_board(15, _p_group.bind(FieldData.FIELD), 2)
 	await _start_lvl(15, maxi(0, int(fg[0])))
@@ -655,13 +749,13 @@ func _acts_tour(dir: String) -> void:
 	if not mm.is_empty():
 		await _swipe_m(mm[mm.size() - 1])
 	await _wait(1.0)
-	var masks := 0
+	var masks := 0                  # Fugen gehören nur einem der beiden Felder (Nord/Ost): mindestens eine
 	for fid in world.views:
 		var fv: FieldView = world.views[fid]
 		if fv.get_kind() == FieldData.FIELD and fv.merge_mask() != 0:
 			masks += 1
 	await _shot(dir, "05b_zusammenwachsen")
-	_check(not mm.is_empty() and Game.state.biggest9(FieldData.FIELD) > big0 and masks >= 2 and dui.chip_num.text.begins_with(str(Game.state.biggest9(FieldData.FIELD))),
+	_check(not mm.is_empty() and Game.state.biggest9(FieldData.FIELD) > big0 and masks >= 1 and dui.chip_num.text.begins_with(str(Game.state.biggest9(FieldData.FIELD))),
 		"group_merge", "gruppe=%d->%d naehte=%d chip=%s" % [big0, Game.state.biggest9(FieldData.FIELD), masks, dui.chip_num.text])
 	# Akt 5 · Level 19: Landgang (Fisch an der Wiese → Tiere)
 	var fl := _find_board(19, _p_event.bind("spawn"), 2)
@@ -694,10 +788,22 @@ func _acts_tour(dir: String) -> void:
 		if ui.bonus_mode == "strike":
 			await _touch(fs["pos"])          # Strafen: noch einmal tippen bestätigt
 		await _settle(8.0)
-		met_ok = Game.state.pack_warn9.is_empty() and (Game.state.fields[pred] as FieldData).kind == FieldData.EMPTY
+		met_ok = (Game.state.fields[pred] as FieldData).kind != FieldData.PRED
 	ui._set_bonus_mode("")
 	await _shot(dir, "07b_meteor")
-	_check(pack_on and met_ok, "pack_warn", "rudel=%s meteor=%s feld=%d" % [str(pack_on), str(met_ok), pred])
+	# Die nächste Runde: das Rudel ist getrennt, die Herde bleibt (keine Jagd)
+	var calm_m: Array = []
+	for m in GameState.MOVES:
+		var rp: Dictionary = Game.state.simulate(_twist(int(m[0]), int(m[1]), int(m[2])))
+		if not _has_event(rp["result"], "pack_hunt"):
+			calm_m = m
+			break
+	var hunted := true
+	if met_ok and not calm_m.is_empty():
+		_round_types = {}
+		await _swipe_m(calm_m)
+		hunted = _seen_type("pack_hunt")
+	_check(pack_on and met_ok and not hunted, "pack_warn", "rudel=%s meteor=%s feld=%d jagd=%s" % [str(pack_on), str(met_ok), pred, str(hunted)])
 	# Level 24: einmal versorgt bleibt versorgt – die Hütte behält ihr Siegel, auch wenn die Tiere wegdrehen
 	await _start_lvl(24, 0)
 	await _need_seal_check(dir)
@@ -2961,6 +3067,57 @@ func _shot(dir: String, shot_name: String) -> void:
 	img.resize(img.get_width() / 2, img.get_height() / 2, Image.INTERPOLATE_BILINEAR)
 	img.save_jpg("%s/%s.jpg" % [dir, shot_name], 0.85)
 	print("Screenshot: %s (%.1f s, %d fps)" % [shot_name, Time.get_ticks_msec() / 1000.0, Engine.get_frames_per_second()])
+
+
+## Mittlere Farbe der Mitte einer Kachel im Bild (5×5-Raster um die Feldmitte, die Ränder ausgelassen).
+func _tile_rgb(img: Image, fid: int) -> Color:
+	var p: Vector2 = world.field_screen(fid)["pos"]
+	var vs := Vector2(img.get_width(), img.get_height())
+	var sc := vs / get_viewport().get_visible_rect().size
+	var c := Color(0, 0, 0)
+	var n := 0
+	for dx in range(-2, 3):
+		for dy in range(-2, 3):
+			var q := (p + Vector2(dx, dy) * 9.0) * sc
+			if q.x >= 0 and q.y >= 0 and q.x < vs.x and q.y < vs.y:
+				c += img.get_pixelv(Vector2i(q))
+				n += 1
+	return c / float(maxi(n, 1))
+
+
+static func _lab(c: Color) -> Vector3:
+	var lin := Vector3(c.srgb_to_linear().r, c.srgb_to_linear().g, c.srgb_to_linear().b)
+	var x := (0.4124 * lin.x + 0.3576 * lin.y + 0.1805 * lin.z) / 0.95047
+	var y := 0.2126 * lin.x + 0.7152 * lin.y + 0.0722 * lin.z
+	var z := (0.0193 * lin.x + 0.1192 * lin.y + 0.9505 * lin.z) / 1.08883
+	var f := func(t: float) -> float: return pow(t, 1.0 / 3.0) if t > 0.008856 else 7.787 * t + 16.0 / 116.0
+	var fx: float = f.call(x)
+	var fy: float = f.call(y)
+	var fz: float = f.call(z)
+	return Vector3(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+
+
+## ΔE (CIE76) zwischen einer gut sichtbaren Kachel der Art k und einer Kachel totes Wasser (−1: keine zu sehen).
+func _life_delta_e(k: int) -> float:
+	var cam_pos := world.rig.cam.global_position
+	var best := {}
+	for f in Game.state.fields:
+		var fd: FieldData = f
+		if fd.kind != k and fd.kind != FieldData.WATER:
+			continue
+		var v: FieldView = world.views.get(fd.id)
+		if v == null or not bool(world.field_screen(fd.id)["visible"]):
+			continue
+		var face := v.world_normal().dot((cam_pos - v.global_position).normalized())
+		if face > float((best.get(fd.kind, [-1, -INF]) as Array)[1]):
+			best[fd.kind] = [fd.id, face]
+	if not best.has(k) or not best.has(FieldData.WATER):
+		return -1.0
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var a := _lab(_tile_rgb(img, int((best[k] as Array)[0])))
+	var b := _lab(_tile_rgb(img, int((best[FieldData.WATER] as Array)[0])))
+	return a.distance_to(b)
 
 
 ## Ein gut sichtbares Feld (zur Kamera gewandt).

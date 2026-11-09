@@ -2232,9 +2232,14 @@ func play(action: Dictionary, ans: Dictionary = {}) -> Dictionary:
 		if turns != 0:
 			var row: Array = action.get("row", [])
 			apply_rotation(int(action["axis"]), int(action["layer"]), turns, row)
-		return end_round(ans)
+		var rr := end_round(ans)
+		if camp:
+			_note_recent9()
+		return rr
 	if camp:
-		return _play_tool9(t, int(action["field"]), bool(action.get("bought", false)))
+		var rt := _play_tool9(t, int(action["field"]), bool(action.get("bought", false)))
+		_note_recent9()
+		return rt
 	var fid := int(action["field"])
 	var f: FieldData = fields[fid]
 	var brow: Array = action.get("row", [])
@@ -2906,7 +2911,7 @@ const METEOR_COST := 12
 ## Glaube je neuer Stufe neben einer Kirche (ein gutes Spiel bringt etwa einen Meteor, Hin und her keinen).
 const FAITH_STEP := 3
 ## Bedürfnisse für die Oberfläche: Symbol, Name, Pille, wenn es fehlt.
-const NEED_ICON = {"food": "hunger", "work": "trade", "faith": "faith", "water": "water"}
+const NEED_ICON = {"food": "hunger", "work": "work", "faith": "faith", "water": "water"}
 const NEED_NAME = {"food": "Nahrung", "work": "Arbeit", "faith": "Glaube", "water": "Wasser"}
 const NEED_PILL = {"food": "Hunger", "work": "Keine Arbeit", "faith": "Zweifel", "water": "Durst"}
 ## Ereignisse, nach denen eine Drehung nicht „Nichts gewachsen“ heißt (es ist ja etwas passiert).
@@ -3760,6 +3765,70 @@ func _best_day_action8(twist_only: bool) -> Dictionary:
 	return search.result
 
 
+## Die letzten Stellungen (Schöpfung, nur für die Tipp-Suche: festgefahren → keine Stellung wiederholen).
+var recent9: Array = []
+
+
+func _note_recent9() -> void:
+	recent9.append(slot_board9())
+	if recent9.size() > 12:
+		recent9.remove_at(0)
+
+
+## Sackgasse (ein Level kann man nicht verlieren): Ein satt-Ziel braucht n Felder einer Art K, aber auf dem Brett
+## liegen weniger Felder, die je K werden können (K selbst oder eine Stufe darunter, die durch Gedeihen zu K wächst),
+## und keine Regel des Levels (Reihe, Regen, Ausbreiten) kann neue solche Felder machen. Beispiel: Krieg hat in
+## Level 28/29 so viele Städte bis zur Wiese zerstört, dass keine 3 Städte mehr gehen. Dann bietet das Spiel „Nochmal“.
+func dead9() -> bool:
+	if not camp or day_won or goal9.is_empty():
+		return false
+	for sub in goal9:
+		var sd: Dictionary = sub
+		var subs: Array = sd["subs"] if str(sd["type"]) == "hold" else [sd]
+		for x in subs:
+			var xd: Dictionary = x
+			if str(xd["type"]) != "satt":
+				continue
+			var reach := {int(xd["kind"]): true}
+			var grew := true
+			while grew:
+				grew = false
+				for k in thrive9:
+					var up: Variant = (thrive9[k] as Dictionary).get("up")
+					if up != null and int(up) >= 0 and reach.has(int(up)) and not reach.has(int(k)):
+						reach[int(k)] = true
+						grew = true
+			for k2 in rows9:
+				if int(rows9[k2]) != int(k2) and reach.has(int(rows9[k2])):
+					return false            # eine Reihe kann neue machen
+			for it in rain9:
+				if reach.has(int((it as Array)[2])):
+					return false            # Regen kann neue machen
+			for k3 in thrive9:
+				var sp: Variant = (thrive9[k3] as Dictionary).get("spawn")
+				if sp is Array and (sp as Array).size() >= 2 and reach.has(int((sp as Array)[1])):
+					return false            # Ausbreiten kann neue machen
+			var have := 0
+			for f in fields:
+				if reach.has(f.kind):
+					have += 1
+			if have < int(xd["target"]):
+				return true
+	return false
+
+
+## Tipp-Suche: lohnt Regen auf Feld fid? (ein Nachbar, der etwas braucht und noch nicht satt ist, oder ein Brand)
+func _rain_useful9(fid: int) -> bool:
+	var f: FieldData = fields[fid]
+	if f.burning or fid == bolt or thrive9.has(f.kind):
+		return true
+	for g in nb9(fid):
+		var gf: FieldData = fields[int(g)]
+		if thrive9.has(gf.kind) and not satt9(gf.id):
+			return true
+	return false
+
+
 ## Die Tipp-Suche eines Tages in kleinen Schritten (für die Oberfläche: auf mehrere Bilder verteilt, Game.search_hint).
 ## null, wenn der Tag nicht nach den neuen Regeln läuft (dann am Stück: best_day_action). Die Suche läuft nie auf
 ## einem zweiten Thread: Godot 4.3 liest die const-Tabellen (MOVES, FieldData …) nicht threadsicher.
@@ -3790,6 +3859,11 @@ class DaySearch8 extends RefCounted:
 	var _m2 := 0
 	var _v2b := -INF
 	var _width := 6
+	var _half2 := true             # im Blick voraus auch halbe Drehungen (Schöpfung: nein, spart ein Drittel)
+	var sims := 0                  # Simulationen bisher (Test: die Suche bleibt begrenzt)
+	var _stall := false            # Schöpfung: seit 3 Schritten kein Fortschritt
+	var _spread := false           # Blick voraus auf die besten 3 und gestreute weitere Drehungen
+	const TOOLS_MAX := 10
 
 	func _init(state: GameState, twist_only: bool) -> void:
 		gs = state
@@ -3798,12 +3872,30 @@ class DaySearch8 extends RefCounted:
 		if twist_only:
 			return
 		_base = gs.value8()
-		if gs.camp and gs.twists - gs.gain_at9 >= 4:
-			_width = 27              # festgefahren: jede erste Drehung mit Blick voraus (bot9 stall breaker)
+		if gs.camp:
+			# Schöpfung: eine Simulation kostet hier 1–3 ms – Breite begrenzt, damit der Tipp unter ~0,3 s bleibt
+			_width = 4
+			_half2 = false
+			if not gs.day_free_build and gs.twists - gs.gain_at9 >= 3:
+				_stall = true
+			if not gs.day_free_build and gs.twists - gs.gain_at9 >= 4:
+				_width = 6           # festgefahren: voraus schauen, gestreut (nie im Weiterbauen)
+				_spread = true
 		if gs.rain > 0:
+			var near: Array = []
+			var far: Array = []
 			for f in gs.fields:
 				if gs.rain_ok(f):
-					_tools.append({"type": "rain", "field": f.id})
+					var a := {"type": "rain", "field": f.id}
+					if gs.camp and not gs._rain_useful9(f.id):
+						far.append(a)
+					else:
+						near.append(a)
+			_tools = near.slice(0, TOOLS_MAX) if gs.camp else near
+			for a2 in far:
+				if _tools.size() >= TOOLS_MAX:
+					break
+				_tools.append(a2)
 		if gs.camp:
 			if gs.meteors > 0:
 				for f in gs.fields:
@@ -3829,6 +3921,7 @@ class DaySearch8 extends RefCounted:
 				var a: Dictionary = _tools[_ti]
 				_ti += 1
 				var st: GameState = gs.simulate(a)["state"]
+				sims += 1
 				var v := st.value8()
 				if v > _best_tv:
 					_best_tv = v
@@ -3850,9 +3943,22 @@ class DaySearch8 extends RefCounted:
 				var m: Array = GameState.MOVES[_mi]
 				_mi += 1
 				var st3: GameState = gs.simulate({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})["state"]
-				_scored.append([st3.value8(), m, st3])
+				sims += 1
+				var v3 := st3.value8()
+				if _stall and gs.recent9.has(st3.slot_board9()):
+					v3 -= 1000.0         # festgefahren: nie zurück in eine Stellung der letzten Runden (kein Hin und Her)
+				_scored.append([v3, m, st3])
 				return
 			_scored.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
+			if _spread and _scored.size() > _width:
+				# festgefahren: die besten 3 und dazu Drehungen aus dem ganzen Feld (der Ausweg sieht oft erst schlecht aus)
+				var pickd: Array = _scored.slice(0, 3)
+				var step := maxi(1, (_scored.size() - 3) / maxi(1, _width - 3))
+				var ri := 3 + step / 2
+				while pickd.size() < _width and ri < _scored.size():
+					pickd.append(_scored[ri])
+					ri += step
+				_scored = pickd
 			_pick = _scored[0]
 			var first: GameState = _pick[2]
 			if first.day_won and not first.day_free_build:
@@ -3869,10 +3975,14 @@ class DaySearch8 extends RefCounted:
 		if s1.is_over():
 			_consider(c, v1 if s1.day_won else v1 - 1e5)
 			return
+		if not _half2:
+			while _m2 < GameState.MOVES.size() and absi(int((GameState.MOVES[_m2] as Array)[2])) == 2:
+				_m2 += 1
 		if _m2 < GameState.MOVES.size():
 			var m2: Array = GameState.MOVES[_m2]
 			_m2 += 1
 			var s2: GameState = s1.simulate({"type": "twist", "axis": int(m2[0]), "layer": int(m2[1]), "turns": int(m2[2])})["state"]
+			sims += 1
 			_v2b = maxf(_v2b, s2.value8())
 			return
 		_consider(c, 0.4 * v1 + 0.6 * _v2b)
@@ -3938,7 +4048,7 @@ const SOURCES9 = {"heat": [FieldData.LAVA], "mineral": [FieldData.STONE], "spark
 	"faith": [FieldData.CHURCH]}
 ## Bedürfnis → Symbol (icons/<name>.svg; fehlt eins, nimmt die Oberfläche ein Ersatz-Symbol).
 const NEED_ICON9 = {"heat": "heat", "mineral": "mineral", "spark": "spark", "algae": "algae", "fish": "fishneed",
-	"shore": "shore", "plants": "plants", "prey": "prey", "food": "hunger", "work": "trade", "faith": "faith",
+	"shore": "shore", "plants": "plants", "prey": "prey", "food": "hunger", "work": "work", "faith": "faith",
 	"sun": "sun", "wet": "rain"}
 const NEED_NAME9 = {"heat": "Wärme", "mineral": "Fels", "spark": "Leben", "algae": "Algen", "fish": "Fische",
 	"shore": "Ufer", "plants": "Futter", "prey": "Beute", "food": "Nahrung", "work": "Arbeit", "faith": "Glaube",
@@ -4568,6 +4678,16 @@ func _resolve_merges9(ev: Array) -> void:
 			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
 			if not free.has(ti):
 				ti = 1 if free.has(1) else int(free[0])
+			if _satt_goal_kind9(k) and satt9((line[ti] as FieldData).id):
+				# Weiterentwickeln ist kein Verlust: wächst lieber ein Feld, das noch nicht satt ist (engine9 gleich)
+				var order: Array = [1]
+				for x in free:
+					if int(x) != 1:
+						order.append(int(x))
+				for x in order:
+					if free.has(x) and not satt9((line[int(x)] as FieldData).id):
+						ti = int(x)
+						break
 			var mid: FieldData = line[ti]
 			var nk: int = int(rows9.get(k, k))
 			mid.burning = false
@@ -5135,6 +5255,7 @@ func _play_tool9(kind: String, fid: int, bought: bool) -> Dictionary:
 		_resolve_merges9(ev)
 		moved = {}
 		tapped = -1
+		_seal_step9(ev)          # versorgt bleibt versorgt: auch was ein Regen versorgt, wird gleich versiegelt
 		_check_goal9(ev, false)
 	else:
 		if not bought:
@@ -5150,6 +5271,7 @@ func _play_tool9(kind: String, fid: int, bought: bool) -> Dictionary:
 		if kind == "strike":
 			ev.append({"type": "strike", "field": f.id, "hit": [{"field": f.id, "from": k2, "kind": FieldData.EMPTY}],
 				"cost": 0, "faith": 0, "meteor": true})
+		_seal_step9(ev)
 		_check_goal9(ev, false)
 	_tail9(ev, p0)
 	var res := _close9(ev, {"rain": 0, "bolt": 0, "monsoon": 0}, 0, 0)
@@ -5496,7 +5618,9 @@ func field_state9(f: FieldData) -> Dictionary:
 	return {"thriver": r != null, "people": LEVEL9.has(f.kind), "living": FieldData.LIVING.has(f.kind),
 		"satt": satt9(f.id), "met": ns["met"], "sealed": ns["sealed"], "missing": ns["missing"], "have": ns["have"],
 		"fed": f.fed, "hungry": f.hungry, "grow_after": int(B9["G"]), "shrink_after": int(B9["H"]) if dn >= 0 else -1,
-		"up": up, "down": dn, "waits": wait, "burning": f.burning, "fresh": f.fresh, "front": front.has(f.id),
+		"up": up, "down": dn, "waits": wait,
+		"grows": r != null and ((up >= 0 and not wait) or not ((r as Dictionary).get("spawn", []) as Array).is_empty()),
+		"burning": f.burning, "fresh": f.fresh, "front": front.has(f.id),
 		"bolt": f.id == bolt, "wet": wet9(f.id), "mk": f.mk, "group": group_id9(f.id), "size": gsize9(f.id),
 		"strength": strength9(f.id), "crater": f.id == volc, "crater_rest": f.crater_rest, "dry": dry9(f.id),
 		"pack": pack_warn9.has(f.id), "smog": smog_warn9.has(f.id), "sun": face_index(f) == SUN_FACE}

@@ -943,6 +943,11 @@ func set_era_mix(a: String, b: String, t: float, blend_s: float = 0.8) -> void:
 	var ma: Dictionary = MOODS[String(Eras.get_era(a).get("mood", "tag"))]
 	var mb: Dictionary = MOODS[String(Eras.get_era(b).get("mood", "tag"))]
 	var mix := _mood_lerp(ma, mb, t)
+	if b == "blau":
+		# Der Himmel wird sichtbar blau: der obere Himmel folgt schneller (ease-out) und satter als das Licht
+		var te := pow(t, 0.6)
+		mix["top"] = (ma["top"] as Color).lerp(Color("#3f78c4"), te)
+		mix["mid"] = (ma["mid"] as Color).lerp(Color("#a9c8ea"), te)
 	_custom_moods["era_mix"] = mix
 	_era_mood = "era_mix"
 	_apply_era(blend_s)
@@ -1082,14 +1087,19 @@ func _set_sun_node(on: bool) -> void:
 		cube_root.add_child(_sun_node)
 		var sun := MeshInstance3D.new()
 		sun.mesh = Look.quad(1.0)
-		sun.material_override = Look.mote(Color(1.0, 0.86, 0.5, 1.0))
+		# Sonnenscheibe gemischt (nicht additiv): additiv verschwindet sie vor dem hellen Himmel
+		var sm := Look.mote(Color(1.0, 0.82, 0.38, 1.0)).duplicate() as StandardMaterial3D
+		sm.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+		sun.material_override = sm
 		sun.scale = Vector3.ONE * 0.55
 		sun.position = Vector3(0, 2.55, 0)
 		sun.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_sun_node.add_child(sun)
 		var halo := MeshInstance3D.new()
 		halo.mesh = Look.quad(1.0)
-		halo.material_override = Look.mote(Color(1.0, 0.8, 0.45, 0.35))
+		var hm := Look.mote(Color(1.0, 0.78, 0.4, 0.4)).duplicate() as StandardMaterial3D
+		hm.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+		halo.material_override = hm
 		halo.scale = Vector3.ONE * 1.5
 		halo.position = Vector3(0, 2.55, 0)
 		halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1423,6 +1433,7 @@ func _process(delta: float) -> void:
 		var to_cam := (cam_pos - v.global_position).normalized()
 		var facing := v.world_normal().dot(to_cam)
 		v.set_labels_visible(facing > 0.2)
+		v.set_needs_facing(facing > 0.4)
 		v.set_detail(facing)
 		# Seiten, die von der Kamera wegkippen: Inhalt flacher (ragt nicht weit über die Würfelkante)
 		v.set_squash(smoothstep(-0.1, 0.4, facing))
@@ -2772,7 +2783,8 @@ func _show_ids(ids: Dictionary, skip: Dictionary) -> void:
 
 
 ## Krieg: Schwerter über den Kirchen, rotes Blinken, Beben; die Kirchen stürzen zu Häusern ein.
-const _FOCUS8 := ["flood_warn", "volcano_warn", "bolt_warn", "pack_warn", "hunger_warn", "goal_loss", "starve", "thrive", "satt_new"]
+const _FOCUS8 := ["flood_warn", "volcano_warn", "bolt_warn", "pack_warn", "hunger_warn", "goal_loss", "erupt", "pack_hunt",
+	"starve", "spawn", "thrive", "satt_new"]
 
 
 ## Kamera zum wichtigsten neuen Ereignis der neuen Tage, wenn es nicht gut zu sehen ist (0,45 s, dann die Effekte).
@@ -2791,7 +2803,7 @@ func _focus_round8(events: Array) -> void:
 					return
 				rig.focus(n)
 			else:
-				var fid := int(e.get("field", e.get("crater", -1)))
+				var fid := int(e.get("target", -1)) if want == "spawn" else int(e.get("field", e.get("crater", -1)))
 				if fid < 0 and e.get("fields") is Array and not (e["fields"] as Array).is_empty():
 					fid = int((e["fields"] as Array)[0])
 				var v: FieldView = views.get(fid)
@@ -3413,7 +3425,7 @@ func act_transition(era: Variant, dur: float = 3.2) -> void:
 	tw.tween_method(_zoom_to, z0, z0 * 0.86, dur * 0.35).set_trans(Tween.TRANS_SINE)
 	set_era(era, dur * 0.6)
 	await get_tree().create_timer(dur * 0.3).timeout
-	mercy_fx()
+	_dawn_fx()                 # eigener sanfter Morgen (nicht das Gnade-Licht „Hilfe von oben“)
 	if night_pending():
 		overnight_wave()
 	await get_tree().create_timer(dur * 0.45).timeout
@@ -3424,6 +3436,17 @@ func act_transition(era: Variant, dur: float = 3.2) -> void:
 
 func _zoom_to(z: float) -> void:
 	rig.zoom(z / maxf(rig.zoom_factor, 0.01))
+
+
+## Neuer Akt: ein weicher Morgen läuft Seite für Seite über den Würfel (schwach, die Welt bleibt lesbar).
+func _dawn_fx() -> void:
+	for fid in views:
+		var v: FieldView = views[fid]
+		var d := 0.08 * float(int(fid) / 9)
+		if d <= 0.0:
+			v.pulse_light(Color("#ffe6b8"), 1.4, 0.3)
+		else:
+			get_tree().create_timer(d).timeout.connect(v.pulse_light.bind(Color("#ffe6b8"), 1.4, 0.3))
 
 
 ## Gnade („Hilfe von oben“, 7.5): ein weicher Lichtkegel fällt auf den Würfel – kein Rot, keine Strafe.
