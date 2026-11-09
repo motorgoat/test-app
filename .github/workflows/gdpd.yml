@@ -74,8 +74,8 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          # Die Tour braucht mit Software-Grafik gut 15–20 Minuten (Ersteller, die 7 Akte, Laden, 100 Sekunden, lange Bonusrunde): genug Luft, damit sie nicht mittendrin abbricht
-          timeout 1800 xvfb-run -a -s "-screen 0 1100x2400x24" \
+          # Die Tour braucht mit Software-Grafik in der CI gut 30–35 Minuten (Ersteller, die 7 Akte, Laden, 100 Sekunden, lange Bonusrunde): genug Luft, damit sie nicht mittendrin abbricht
+          timeout 3600 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
           ls -la ../shots
