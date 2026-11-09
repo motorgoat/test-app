@@ -4699,6 +4699,9 @@ func test_solvable9() -> void:
 	var won := 0
 	var starts := 0
 	var max_steps := {}
+	var ensure_worst := 0
+	var ensure_lines := 0
+	var carry_worst := 0
 	for act in range(1, 8):
 		var levels := Campaign.act_levels(act)
 		for chain in 4:
@@ -4725,12 +4728,57 @@ func test_solvable9() -> void:
 					tw(gs, GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)])
 				if li + 1 < levels.size():
 					var nx := int(levels[li + 1])
+					var tc := Time.get_ticks_usec()
 					b = Campaign.carry(Campaign.decode(gs.slot_board9()), nx, chain + 1000 * nx + 1, chain)
+					carry_worst = maxi(carry_worst, Time.get_ticks_usec() - tc)
 					b["kinds"] = Campaign.decode(Campaign.encode(b["kinds"]))      # Speichern und Laden
+					var te := Time.get_ticks_usec()
 					b = Campaign.ensure(nx, b, chain)
+					ensure_worst = maxi(ensure_worst, Time.get_ticks_usec() - te)
+					if str(b.get("line", "")) != "":
+						ensure_lines += 1
 	print("  Lösbarkeit: %d Starts, %d gewonnen (Zufallsspieler mit Netz), %d ms, längstes Level %s" % [starts, won,
 		Time.get_ticks_msec() - t0, str(max_steps)])
+	# Der Start-Check läuft einmal beim Level-Start auf dem Haupt-Thread: am Handy (~4× langsamer) unter 150 ms
+	print("  Start-Check (Campaign.ensure): höchstens %.1f ms am PC, %d Starts mit Nachschub/Teilen/Pool; carry höchstens %.1f ms" % [ensure_worst / 1000.0, ensure_lines, carry_worst / 1000.0])
+	check(ensure_worst < 35000, "solvable9: Campaign.ensure höchstens %.1f ms (Handy-Budget 150 ms / 4)" % (ensure_worst / 1000.0))
 	check(fails.is_empty() and won == starts, "solvable9: jede getragene Welt erreichbar, Lava-Klumpen ≤ %d, jedes Level gewonnen (%s)" % [GameState.CLUMP_CAP9, str(fails.slice(0, 3))])
+	# 2b. Level 3 wie beim Spieler (eigene Welt aus Level 1–2): 20 unordentliche Ketten, Level 3 startet erreichbar mit
+	# Lava-Klumpen ≤ CLUMP_CAP9 und wird gewonnen; ohne Geschenk (nur Drehen und Regen) zählt, wie oft es auch so geht
+	var l3_fail: Array = []
+	var l3_plain := 0
+	var l3_clump := 0
+	for ch3 in 20:
+		var r3 := RandomNumberGenerator.new()
+		r3.seed = 3300 + ch3
+		var b3: Dictionary = Campaign.board(1, 1 + ch3 % maxi(1, Campaign.pool_size(1) - 1))
+		b3["how"] = "pool"
+		for lv3 in [1, 2, 3]:
+			var g3s := Campaign.new_state(lv3, b3)
+			if lv3 == 3:
+				l3_clump = maxi(l3_clump, g3s.biggest9(FieldData.LAVA))
+				if not bool(g3s.reach9()["ok"]) or g3s.target9() != 14 or g3s.biggest9(FieldData.LAVA) > GameState.CLUMP_CAP9:
+					l3_fail.append(["start", ch3, str(b3.get("how", "")), g3s.biggest9(FieldData.LAVA)])
+				var plain := g3s.clone()
+				var pr := RandomNumberGenerator.new()
+				pr.seed = r3.seed + 77
+				while not plain.day_won and plain.twists < 60:
+					tw(plain, GameState.MOVES[pr.randi_range(0, GameState.MOVES.size() - 1)])
+				if plain.day_won:
+					l3_plain += 1
+			var rr3 := _net_play(g3s, r3, 150)
+			if not bool(rr3[0]):
+				l3_fail.append(["play", lv3, ch3, rr3])
+				break
+			g3s.start_free_build()
+			for i3 in r3.randi_range(0, 40):
+				tw(g3s, GameState.MOVES[r3.randi_range(0, GameState.MOVES.size() - 1)])
+			if lv3 < 3:
+				b3 = Campaign.carry(Campaign.decode(g3s.slot_board9()), lv3 + 1, ch3 + 1000 * (lv3 + 1) + 1, ch3)
+				b3["kinds"] = Campaign.decode(Campaign.encode(b3["kinds"]))
+				b3 = Campaign.ensure(lv3 + 1, b3, ch3)
+	print("  Level 3 aus eigener Welt: 20 Ketten, größter Lava-Klumpen %d, nur Zufallsdrehen (ohne Hilfe) in 60 gewonnen: %d/20" % [l3_clump, l3_plain])
+	check(l3_fail.is_empty(), "solvable9: Level 3 nach unordentlichem Level 1–2 immer erreichbar und gewonnen (%s)" % str(l3_fail.slice(0, 3)))
 	# 3. Level 3 (Nachbau): ein riesiger Lava-Klumpen aus der eigenen Welt wird geteilt, die Mischung bleibt
 	var k3: Array = []
 	for i in 54:
@@ -4751,7 +4799,9 @@ func test_solvable9() -> void:
 	for fid2 in clump_ids:
 		k3[int(fid2)] = FieldData.LAVA
 	var gk := Campaign.new_state(3, {"kinds": k3, "seed": 5})
+	var te3 := Time.get_ticks_usec()
 	var e3 := Campaign.ensure(3, {"kinds": k3, "seed": 5, "how": "stored"}, 1)
+	te3 = Time.get_ticks_usec() - te3
 	var ge := Campaign.new_state(3, e3)
 	var n_lava := 0
 	for fd in ge.fields:
@@ -4767,7 +4817,11 @@ func test_solvable9() -> void:
 		few.append(FieldData.LAVA if i < 5 else (STONE if i % 3 == 0 else WATER))
 		some.append(FieldData.LAVA if i % 5 == 0 and i < 50 else (STONE if i % 3 == 0 else WATER))
 	var ef := Campaign.ensure(3, {"kinds": few, "seed": 2, "how": "carry"}, 2)
+	var tes := Time.get_ticks_usec()
 	var es := Campaign.ensure(3, {"kinds": some, "seed": 2, "how": "carry"}, 2)
+	tes = Time.get_ticks_usec() - tes
+	print("  Start-Check im schlimmsten Fall: Klumpen 20 teilen %.1f ms, Nachschub %.1f ms (am PC)" % [te3 / 1000.0, tes / 1000.0])
+	check(te3 < 35000 and tes < 35000, "solvable9: Teilen und Nachschub beim Start unter 35 ms am PC")
 	var gs_s := Campaign.new_state(3, es)
 	check(str(ef["how"]) == "fallback" and str(ef["line"]) == str(Campaign.TEXT["fresh"]) and ef["kinds"] == Campaign.board(3, 2)["kinds"],
 		"solvable9: zu wenig Material → das Pool-Brett, mit „%s“" % str(ef["line"]))

@@ -453,7 +453,8 @@ real dead ends by sticker type in levels 16, 17, 29 and 30 that `dead9` did not 
 
 1. **Target:** level 3 is „Mach 14 Felsen“ (stars stay 6 / 14; the pool solutions win 1–2 steps earlier, `solved_in`
    re-measured; Python model `levels9.py` and the level-3 xcheck cases follow).
-2. **Reachability without search (`GameState.reach9`, about 1 ms):** for every unmet sub-goal: *make* – enough
+2. **Reachability without search (`GameState.reach9`, about 1 ms; `Campaign.ensure` with splitting and top-up at most
+   2.5 ms on a PC, so well under 150 ms on a phone):** for every unmet sub-goal: *make* – enough
    fields that can still become the goal kind (thriving and rain work on any sticker type; a row source needs two
    corners on different cubies plus an edge, or two edges plus a centre); *group* – enough material, and without an
    edge a corner stays with the corners of its own cubie (at most 3); *satt* – enough fields, and their needs
@@ -478,12 +479,15 @@ real dead ends by sticker type in levels 16, 17, 29 and 30 that `dead9` did not 
 5. **Welt des Tages** uses the same net. **Free play** has no goal; its rain gift (`stuck()`) stays.
 6. **Proof by test (`test_solvable9`, `test_rescue_game`):** 4 chains per act (pool board → random player with the
    net → 0–40 random Weiterbauen twists → carry + ensure → next level, with a save/load round trip): every start
-   reachable, carried volcano boards ≤ 6, all 120 levels won (the longest took 40 steps); level-3 repro (a 20-Lava
-   clump is split, 5 Lava → pool board, 10 Lava → overnight top-up, all Lava lost mid-level → dead → gift +1 and
+   reachable, carried volcano boards ≤ 6, all 120 levels won (the longest took 40 steps); 20 more messy level
+   1 → 2 → 3 chains: level 3 always starts reachable with 14 Felsen and a Lava clump ≤ 6, and pure random twisting (no
+   help) wins it within 60 in 20/20; level-3 repro (a 20-Lava clump is split, 5 Lava → pool board, 10 Lava → overnight top-up, all Lava lost mid-level → dead → gift +1 and
    reachable again); level 16 Algen without an edge and level 17 fish only on corners are detected and the gift helps;
    the gift makes progress in all 30 levels; the stall and the WDT net. Tour check `level3_solvable` (section 15).
 
-Not done here: a mid-level save (closing the app still restarts the level from its stored start board).
+Not done here: a mid-level save (closing the app still restarts the level from its stored start board). Measured
+but unchanged: `Campaign.carry` itself (the swap hill-climb of 4.4) costs median 45 ms, worst ~390 ms on a PC (a level-25
+fallback after 3000 swaps); `ensure` adds at most 2.5 ms.
 
 ---
 
