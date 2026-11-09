@@ -128,6 +128,8 @@ func _init() -> void:
 	test_dangers_consequence9()
 	test_farm9()
 	test_carry9()
+	test_solvable9()
+	test_rescue_game()
 	test_texts9()
 	test_unlock30()
 	test_migrate_v3()
@@ -4640,6 +4642,260 @@ func test_carry9() -> void:
 	check(str(first["how"]) == "fallback", "carry9: ein neuer Akt beginnt auf einem frischen Pool-Brett")
 
 
+## Ein Spieler, der zufällig dreht und gießt (der schlechteste Spieler der Prüfung), mit dem Sicherheitsnetz wie
+## Game._rescue_check: Sagt stuck9 etwas, nimmt er das Geschenk an. [gewonnen, Schritte, Geschenke, ohne Geschenk].
+func _net_play(gs: GameState, rng: RandomNumberGenerator, cap: int) -> Array:
+	var told_at := -99
+	var dead_told := false
+	var gifts := 0
+	var acts := 0
+	var nogift := 0
+	while not gs.day_won and gs.twists < cap and acts < cap * 3:
+		acts += 1
+		var did := false
+		if gs.rain > 0 and rng.randf() < 0.3:
+			var cand: Array = []
+			for f in gs.fields:
+				if gs.rain_ok9(f):
+					cand.append(f.id)
+			if not cand.is_empty():
+				gs.play({"type": "rain", "field": int(cand[rng.randi_range(0, cand.size() - 1)])})
+				did = true
+		if not did:
+			tw(gs, GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)])
+		if gs.day_won:
+			break
+		var why := gs.stuck9()
+		if why != "dead":
+			dead_told = false
+		if why == "":
+			continue
+		if (why == "dead" and not dead_told) or gs.steps9() - told_at >= GameState.STALL9:
+			dead_told = why == "dead"
+			told_at = gs.steps9()
+			if gs.gift_plan9().is_empty():
+				nogift += 1
+			else:
+				gs.play({"type": "gift"})
+				gifts += 1
+	return [gs.day_won, gs.steps9(), gifts, nogift]
+
+
+## Jedes Level bleibt lösbar (Spieler: „16 Felsen war bei mir nicht möglich“): reach9 auf allen Pool-Brettern, getragene
+## Welten aus Ketten mit zufälligem Spiel und Weiterbauen (Campaign.carry + ensure), Vulkan-Klumpen, Nachschub,
+## Rückfall, Level-3-Nachbau, Sackgassen nach Sticker-Arten (L16, L17), Geschenk = Fortschritt, Stocken.
+func test_solvable9() -> void:
+	# 1. Kein Pool-Brett gilt als Sackgasse (reach9 ist optimistisch, nie zu streng)
+	var bad_pool: Array = []
+	for n in range(1, Campaign.COUNT + 1):
+		for i in Campaign.pool_size(n):
+			var gp := Campaign.new_state(n, Campaign.board(n, i))
+			if not bool(gp.reach9()["ok"]) or gp.stuck9() != "":
+				bad_pool.append([n, i])
+	check(bad_pool.is_empty(), "solvable9: reach9 hält jedes der 600 Pool-Bretter für erreichbar (%s)" % str(bad_pool.slice(0, 5)))
+	# 2. Ketten je Akt: Pool-Brett → zufällig spielen (mit Netz) → 0–40 Drehungen Weiterbauen → carry + ensure → …
+	var t0 := Time.get_ticks_msec()
+	var fails: Array = []
+	var won := 0
+	var starts := 0
+	var max_steps := {}
+	for act in range(1, 8):
+		var levels := Campaign.act_levels(act)
+		for chain in 4:
+			var rng := RandomNumberGenerator.new()
+			rng.seed = act * 101 + chain * 7
+			var b: Dictionary = Campaign.board(int(levels[0]), 1 + chain)
+			b["how"] = "pool"
+			for li in levels.size():
+				var lv := int(levels[li])
+				var gs := Campaign.new_state(lv, b)
+				starts += 1
+				var clump := gs.biggest9(FieldData.LAVA)
+				if not bool(gs.reach9()["ok"]) or (bool(gs.sys9["volcano"]) and str(b.get("how", "")) == "carry"
+						and clump > GameState.CLUMP_CAP9):
+					fails.append(["start", lv, chain, clump, str(b.get("how", ""))])
+				var res := _net_play(gs, rng, 150)
+				max_steps[lv] = maxi(int(max_steps.get(lv, 0)), int(res[1]))
+				if not bool(res[0]) or int(res[3]) > 0:
+					fails.append(["play", lv, chain, res, gs.progress9(), gs.target9()])
+					break
+				won += 1
+				gs.start_free_build()
+				for i in rng.randi_range(0, 40):
+					tw(gs, GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)])
+				if li + 1 < levels.size():
+					var nx := int(levels[li + 1])
+					b = Campaign.carry(Campaign.decode(gs.slot_board9()), nx, chain + 1000 * nx + 1, chain)
+					b["kinds"] = Campaign.decode(Campaign.encode(b["kinds"]))      # Speichern und Laden
+					b = Campaign.ensure(nx, b, chain)
+	print("  Lösbarkeit: %d Starts, %d gewonnen (Zufallsspieler mit Netz), %d ms, längstes Level %s" % [starts, won,
+		Time.get_ticks_msec() - t0, str(max_steps)])
+	check(fails.is_empty() and won == starts, "solvable9: jede getragene Welt erreichbar, Lava-Klumpen ≤ %d, jedes Level gewonnen (%s)" % [GameState.CLUMP_CAP9, str(fails.slice(0, 3))])
+	# 3. Level 3 (Nachbau): ein riesiger Lava-Klumpen aus der eigenen Welt wird geteilt, die Mischung bleibt
+	var k3: Array = []
+	for i in 54:
+		k3.append(STONE if i % 2 == 0 else WATER)
+	var g3 := camp_state(3)
+	var clump_ids: Array = [0]
+	var seen := {0: true}
+	while clump_ids.size() < 20:
+		var grew := false
+		for fid in clump_ids.duplicate():
+			for h in g3.nb9(int(fid)):
+				if not seen.has(int(h)) and clump_ids.size() < 20:
+					seen[int(h)] = true
+					clump_ids.append(int(h))
+					grew = true
+		if not grew:
+			break
+	for fid2 in clump_ids:
+		k3[int(fid2)] = FieldData.LAVA
+	var gk := Campaign.new_state(3, {"kinds": k3, "seed": 5})
+	var e3 := Campaign.ensure(3, {"kinds": k3, "seed": 5, "how": "stored"}, 1)
+	var ge := Campaign.new_state(3, e3)
+	var n_lava := 0
+	for fd in ge.fields:
+		if fd.kind == FieldData.LAVA:
+			n_lava += 1
+	check(gk.biggest9(FieldData.LAVA) == 20 and str(e3["how"]) == "stored" and ge.biggest9(FieldData.LAVA) <= GameState.CLUMP_CAP9
+		and n_lava == 20 and bool(ge.reach9()["ok"]) and str(e3["line"]) != "",
+		"solvable9: Level 3 aus der eigenen Welt: Lava-Klumpen 20 → %d geteilt, 20 Lava bleiben („%s“)" % [ge.biggest9(FieldData.LAVA), str(e3["line"])])
+	# Zu wenig Lava (5 für 14 Felsen): Nachschub reicht nicht → Pool-Brett, erklärt; 10 Lava: Nachschub über Nacht
+	var few: Array = []
+	var some: Array = []
+	for i in 54:
+		few.append(FieldData.LAVA if i < 5 else (STONE if i % 3 == 0 else WATER))
+		some.append(FieldData.LAVA if i % 5 == 0 and i < 50 else (STONE if i % 3 == 0 else WATER))
+	var ef := Campaign.ensure(3, {"kinds": few, "seed": 2, "how": "carry"}, 2)
+	var es := Campaign.ensure(3, {"kinds": some, "seed": 2, "how": "carry"}, 2)
+	var gs_s := Campaign.new_state(3, es)
+	check(str(ef["how"]) == "fallback" and str(ef["line"]) == str(Campaign.TEXT["fresh"]) and ef["kinds"] == Campaign.board(3, 2)["kinds"],
+		"solvable9: zu wenig Material → das Pool-Brett, mit „%s“" % str(ef["line"]))
+	check(str(es["how"]) == "carry" and not (es["fixes"] as Array).is_empty() and bool(gs_s.reach9()["ok"])
+		and str(es["line"]).begins_with("Über Nacht: +") and (es["fixes"] as Array).size() <= Campaign.TOPUP_MAX,
+		"solvable9: fehlende Lava kommt über Nacht (%s, %d Felder)" % [str(es["line"]), (es["fixes"] as Array).size()])
+	# Ein Pool-Brett bleibt, wie es ist (es hat eine geprüfte Lösung)
+	var ep := Campaign.ensure(3, Campaign.board(3, 4).merged({"how": "pool"}), 4)
+	check(ep["kinds"] == Campaign.board(3, 4)["kinds"] and str(ep["line"]) == "", "solvable9: Pool-Bretter ändert ensure nie")
+	# 4. Level 3 mitten im Spiel: alle Lava weg → Sackgasse in derselben Runde; das Geschenk bringt +1 Fels und Lava
+	var gd := Campaign.new_state(3, Campaign.board(3, 3))
+	for fd2 in gd.fields:
+		if fd2.kind == FieldData.LAVA:
+			gd._setk9(fd2, WATER)
+	var p_d := gd.progress9()
+	var plan := gd.gift_plan9()
+	check(gd.stuck9() == "dead" and not bool(gd.reach9()["ok"]) and not plan.is_empty(), "solvable9: Level 3 ohne Lava ist eine erkannte Sackgasse mit Geschenk")
+	var rg := gd.play({"type": "gift"})
+	check(gd.progress9() == p_d + 1 and bool(gd.reach9()["ok"]) and gd.stuck9() == "" and bool(rg.get("gift", false))
+		and (rg["bonus"]["fields"] as Array).size() >= 2,
+		"solvable9: Geschenk = +1 Fels und Lava-Nachschub (%d → %d, %d Felder)" % [p_d, gd.progress9(), (rg["bonus"]["fields"] as Array).size()])
+	# 5. Level 16 (echte Sackgasse aus der Prüfung): Algen nur auf Ecken und Mitten, keine Kante → keine Reihe mehr
+	var a16 := {}
+	var gg := camp_state(16)
+	var corners := 0
+	var centres := 0
+	for fd3 in gg.fields:
+		var t := FieldData.sticker_type(fd3.p)
+		if t == 3 and corners < 8:
+			a16[fd3.id] = FieldData.ALGAE
+			corners += 1
+		elif t == 1 and centres < 2:
+			a16[fd3.id] = FieldData.ALGAE
+			centres += 1
+	var g16 := camp_state(16, a16)
+	g16.made[FieldData.FISH] = 5
+	var r16 := g16.reach9()
+	check(not bool(r16["ok"]) and str(r16.get("why", "")) == "rows" and g16.stuck9() == "dead", "solvable9: Level 16 mit Algen ohne Kante ist eine Sackgasse (%s)" % str(r16))
+	g16.play({"type": "gift"})
+	check(g16.day_won, "solvable9: das Geschenk macht den sechsten Fisch")
+	# Level 17: Fische nur auf Ecken verschiedener Steine → kein Schwarm aus 5 möglich
+	var f17 := {}
+	var cubes := {}
+	for fd4 in gg.fields:
+		if FieldData.sticker_type(fd4.p) == 3 and not cubes.has(fd4.p) and cubes.size() < 6:
+			cubes[fd4.p] = true
+			f17[fd4.id] = FieldData.FISH
+	var g17 := camp_state(17, f17)
+	var b0 := g17.biggest9(FieldData.FISH)
+	check(not bool(g17.reach9()["ok"]) and g17.stuck9() == "dead", "solvable9: Level 17 mit Fischen nur auf Ecken ist eine Sackgasse")
+	g17.play({"type": "gift"})
+	check(g17.biggest9(FieldData.FISH) >= b0 + 1, "solvable9: das Geschenk lässt den Schwarm wachsen (%d → %d)" % [b0, g17.biggest9(FieldData.FISH)])
+	# 6. Das Geschenk bringt in jedem Level vom Pool-Start Fortschritt (Ruhe-Ziel: ein Teilziel mehr satt)
+	var no_gift: Array = []
+	for n in range(1, Campaign.COUNT + 1):
+		var gx := Campaign.new_state(n, Campaign.board(n, 2))
+		var s0 := gx._subs_sum9()
+		var p0 := gx.progress9()
+		gx.play({"type": "gift"})
+		if gx._subs_sum9() <= s0 and gx.progress9() <= p0:
+			no_gift.append(n)
+	check(no_gift.is_empty(), "solvable9: das Geschenk bringt in allen 30 Leveln Fortschritt (%s)" % str(no_gift))
+	# 7. Stocken: STALL9 Schritte ohne neuen Fortschritt
+	var gst := Campaign.new_state(5, Campaign.board(5, 1))
+	gst.twists = 9
+	gst.gain_at9 = 9 - GameState.STALL9
+	check(gst.stuck9() == "stall" and not gst.day_won, "solvable9: %d Schritte ohne Fortschritt = festgefahren" % GameState.STALL9)
+
+
+## Das Sicherheitsnetz im Spiel (Game): Sackgasse innerhalb einer Drehung gemeldet (level_dead mit "why"), Geschenk,
+## Stocken, „Neue Welt“ (Pool-Brett), Welt des Tages; ohne Netz (die Tour) nur die alte Sackgasse.
+func test_rescue_game() -> void:
+	var t := lt(2026, 11, 12, 10)
+	var g := _daily_game("user://test_rescue_game.cfg", t, true)
+	g.debug_open_all = true
+	var told: Array = []
+	g.level_dead.connect(func(info): told.append(info))
+	check(g.start_level(3) and g.level_no == 3 and g.state.target9() == 14, "Level 3: Mach 14 Felsen")
+	for fd in g.state.fields:
+		if fd.kind == FieldData.LAVA:
+			g.state._setk9(fd, WATER)
+	var res: Dictionary = g.state.play({"type": "twist", "axis": 0, "layer": 1, "turns": 1})
+	g.busy = true
+	g.finish_round(res)
+	var info: Dictionary = told[0] if not told.is_empty() else {}
+	check(told.size() == 1 and str(info.get("why", "")) == "dead" and bool(info.get("gift", false)) and str(info.get("line", "")) != ""
+		and not g.rescue_offer.is_empty(), "Netz: Sackgasse nach einer Drehung gemeldet, mit Geschenk („%s“)" % str(info.get("line", "")))
+	var p0: int = g.state.progress9()
+	var gr: Dictionary = g.take_gift()
+	g.finish_round(gr)
+	check(not gr.is_empty() and g.state.progress9() == p0 + 1 and bool(g.state.reach9()["ok"]) and g.rescue_offer.is_empty()
+		and told.size() == 1 and not g.busy, "Netz: Geschenk angenommen, +1 Fels, wieder erreichbar, keine zweite Meldung")
+	# Stocken: STALL9 Schritte ohne neuen Fortschritt → das Angebot kommt (einmal je STALL9 Schritte)
+	g.state.gain_at9 = g.state.steps9() - GameState.STALL9
+	g.rescue_told_at = -99
+	g._rescue_check()
+	g._rescue_check()
+	check(told.size() == 2 and str((told[1] as Dictionary).get("why", "")) == "stall", "Netz: festgefahren → der Charakter bietet Hilfe an (einmal)")
+	# Neue Welt: dasselbe Level auf einem geprüften Pool-Brett
+	check(g.new_world() and g.level_no == 3 and str(g.level_board.get("how", "")) == "pool" and int(g.level_board.get("index", 0)) >= 1
+		and g.state.progress9() == 0 and g.rescue_offer.is_empty(), "Netz: „Neue Welt“ startet Level 3 auf Pool-Brett %d" % int(g.level_board.get("index", -1)))
+	# Ohne Netz (Tour): nur die alte Sackgasse (dead9), kein Stocken
+	g.rescue_on = false
+	g.state.gain_at9 = g.state.steps9() - 20
+	g._rescue_check()
+	check(told.size() == 2, "Netz aus: kein Angebot fürs Stocken")
+	g.rescue_on = true
+	# Welt des Tages: dasselbe Netz, „Neue Welt“ = ein anderes Brett derselben Vorlage
+	var gw := _daily_game("user://test_rescue_wdt.cfg", t, true)
+	gw.camp["veteran"] = true
+	for i in Campaign.COUNT:
+		(gw.camp["stars"] as Array)[i] = 2
+	var told_w: Array = []
+	gw.level_dead.connect(func(info2): told_w.append(info2))
+	if gw.start_level_wdt():
+		var tpl: int = gw.level_no
+		var idx0 := int(gw.level_board.get("index", -1))
+		gw.state.gain_at9 = gw.state.steps9() - GameState.STALL9
+		gw._rescue_check()
+		check(told_w.size() == 1 and bool((told_w[0] as Dictionary).get("wdt", false)), "Netz: auch in der Welt des Tages")
+		check(gw.new_world() and gw.wdt_key >= 0 and gw.level_no == tpl and int(gw.level_board.get("index", -1)) != idx0,
+			"Netz: „Neue Welt“ in der Welt des Tages = anderes Brett derselben Vorlage (%d → %d)" % [idx0, int(gw.level_board.get("index", -1))])
+	else:
+		check(false, "Welt des Tages startet für den Netz-Test")
+	g.free()
+	gw.free()
+
+
 func test_texts9() -> void:
 	var long: Array = []
 	for t in Campaign.player_texts():
@@ -4826,6 +5082,8 @@ func _camp_tests() -> void:
 	test_dangers_consequence9()
 	test_farm9()
 	test_carry9()
+	test_solvable9()
+	test_rescue_game()
 	test_texts9()
 	test_unlock30()
 	test_migrate_v3()

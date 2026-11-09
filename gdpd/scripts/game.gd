@@ -439,9 +439,8 @@ func finish_round(result: Dictionary) -> void:
 				camp["world_level"] = level_no
 		if moved_goal:
 			day_progress.emit(state.day_status())
-		if level_no > 0 and not dead_told and not state.day_won and state.dead9():
-			dead_told = true
-			level_dead.emit({"level": level_no, "wdt": wdt_key >= 0})
+		if level_no > 0 and not state.day_won and not state.day_free_build:
+			_rescue_check()
 		if state.is_over() and not over:
 			over = true
 			state_changed.emit()
@@ -1946,20 +1945,36 @@ func start_level(n: int, board_index: int = -1) -> bool:
 	if n < 1 or n > Campaign.COUNT or not level_unlocked(n):
 		return false
 	var b := _level_start_board(n, board_index)
+	# Jedes Level bleibt lösbar: vor dem Start prüfen (ohne Suche), sonst Nachschub über Nacht oder das Pool-Brett
+	b = Campaign.ensure(n, b, int((camp["next_board"] as Array)[n - 1]))
 	_board_explicit = board_index >= 0
 	overnight = {}
-	if str(b.get("how", "")) == "carry" and not (b.get("changed", []) as Array).is_empty():
-		# Die Welle (5, „Neuer Morgen“): höchstens 6 Felder wachsen sichtbar herauf, die anderen sind einfach da
-		var prev := Campaign.decode(str(camp["world"]))
+	var fixes: Array = b.get("fixes", [])
+	var how_b := str(b.get("how", ""))
+	if (how_b == "carry" and not (b.get("changed", []) as Array).is_empty()) or not fixes.is_empty() \
+			or str(b.get("line", "")) != "":
+		# Die Welle (5, „Neuer Morgen“): höchstens 6 Felder wachsen sichtbar herauf, die anderen sind einfach da.
+		# Nachschub zuerst (der Banner erklärt ihn in wenigen Worten).
+		var prev := Campaign.decode(str(camp["world"])) if how_b == "carry" else []
 		var kinds: Array = b.get("kinds", [])
 		var ch: Array = []
-		for i0 in b["changed"]:
-			var i := int(i0)
+		var shown := {}
+		for fx in fixes:
+			var fd: Dictionary = fx
 			if ch.size() >= Days.OVERNIGHT_MAX:
 				break
-			ch.append({"field": i, "from": int(prev[i]) if i < prev.size() else 0, "kind": int(kinds[i]) if i < kinds.size() else 0})
+			ch.append(fd.duplicate())
+			shown[int(fd["field"])] = true
+		if how_b == "carry":
+			for i0 in b.get("changed", []):
+				var i := int(i0)
+				if ch.size() >= Days.OVERNIGHT_MAX:
+					break
+				if shown.has(i):
+					continue
+				ch.append({"field": i, "from": int(prev[i]) if i < prev.size() else 0, "kind": int(kinds[i]) if i < kinds.size() else 0})
 		overnight = {"type": "overnight", "level": n, "day": n, "changes": ch,
-			"caps": str(Campaign.TEXT["overnight"]), "line": ""}
+			"caps": str(Campaign.TEXT["overnight"]), "line": str(b.get("line", ""))}
 	_start_level_state(n, b)
 	if not overnight.is_empty():
 		overnight_growth.emit(overnight.duplicate(true))
@@ -2011,6 +2026,8 @@ func _start_level_state(n: int, b: Dictionary) -> void:
 	undo_free_left = Balance.UNDO_FREE
 	state = Campaign.new_state(n, b)
 	dead_told = false
+	rescue_told_at = -99
+	rescue_offer = {}
 	if level_stars(n) == 0:
 		camp["start"] = Campaign.encode(b.get("kinds", []))
 		camp["start_level"] = n
@@ -2043,7 +2060,7 @@ func retry_level() -> bool:
 
 
 ## Welt des Tages in der Schöpfung (nach Level 30; Veteranen jeden Tag).
-func start_level_wdt() -> bool:
+func start_level_wdt(board_index: int = -1) -> bool:
 	_ensure_camp()
 	var k := today_key()
 	if not Daily.wdt_available_camp(camp, k):
@@ -2052,6 +2069,13 @@ func start_level_wdt() -> bool:
 	if cfg.is_empty():
 		return false
 	var b := Campaign.wdt_board(k, camp["stars"])
+	if board_index >= 0:
+		var t := int(cfg["level"])
+		var sz := maxi(1, Campaign.pool_size(t))
+		var pick := posmod(board_index, sz)
+		if sz > 1 and pick == 0:
+			pick = 1                  # nie Brett 0 (wie Campaign.wdt_board_index)
+		b = Campaign.board(t, pick)
 	_end_build()
 	sek100 = false
 	attempt_key = k
@@ -2066,6 +2090,8 @@ func start_level_wdt() -> bool:
 	state = GameState.new()
 	state.setup_level(cfg, b.get("kinds", []), int(b.get("seed", 1)))
 	dead_told = false
+	rescue_told_at = -99
+	rescue_offer = {}
 	pending_choice = {}
 	busy = false
 	over = false
@@ -2434,6 +2460,73 @@ var sek100_running := false      # die Uhr läuft (ab der ersten Drehung)
 var sek100_done := false
 var _sek_next := false
 var dead_told := false           # die Sackgasse dieses Versuchs ist schon gemeldet
+## Sicherheitsnetz (jedes Level bleibt lösbar, nie eine stille Sackgasse): Nach jeder Runde prüft GameState.stuck9, ob
+## das Ziel noch erreichbar ist (reach9) oder ob du seit STALL9 Schritten festhängst. Dann bietet der Charakter Hilfe an
+## (level_dead mit "why"): ein Geschenk (take_gift, +1 Fortschritt und Nachschub) oder eine neue Welt (new_world, das
+## geprüfte Pool-Brett). Die Tour schaltet es außerhalb ihrer eigenen Prüfung ab (rescue_on), damit ihre Züge planbar bleiben.
+var rescue_on := true
+var rescue_told_at := -99        # Schritt, an dem der Charakter zuletzt geholfen hat
+var rescue_offer: Dictionary = {}   # das offene Angebot (die Oberfläche zeigt es, sobald nichts anderes offen ist)
+
+
+func _rescue_check() -> void:
+	if not rescue_on:
+		if not dead_told and state.dead9():
+			dead_told = true
+			level_dead.emit({"level": level_no, "wdt": wdt_key >= 0})
+		return
+	var why := state.stuck9()
+	if why != "dead":
+		dead_told = false
+	if why == "":
+		return
+	var s := state.steps9()
+	var fresh_dead := why == "dead" and not dead_told
+	if not fresh_dead and s - rescue_told_at < GameState.STALL9:
+		return
+	if why == "dead":
+		dead_told = true
+	rescue_told_at = s
+	rescue_offer = {"level": level_no, "wdt": wdt_key >= 0, "why": why, "gift": not state.gift_plan9().is_empty(),
+		"line": state.rescue_line9(why), "step": s}
+	level_dead.emit(rescue_offer.duplicate())
+
+
+## Das Geschenk des Charakters annehmen (Sicherheitsnetz): +1 Fortschritt und, wenn nötig, Nachschub. Kein Schritt,
+## kostet nichts. Die World spielt es wie einen Regen ab (round_resolved, danach finish_round). {} = nichts zu schenken.
+func take_gift() -> Dictionary:
+	if busy or over or state == null or not state.camp or state.day_won or state.day_free_build:
+		return {}
+	if state.gift_plan9().is_empty():
+		return {}
+	busy = true
+	_last_kind = "gift"
+	rescue_offer = {}
+	dead_told = false
+	rescue_told_at = state.steps9()
+	undo_state = state.clone()
+	var before := snapshot(state)
+	var result := state.play({"type": "gift"})
+	round_resolved.emit(result, before)
+	return result
+
+
+## „Neue Welt“ (Sicherheitsnetz): dieses Level noch einmal auf seinem geprüften Pool-Brett (Welt des Tages: ein anderes
+## Brett derselben Vorlage). Sterne und Punkte wie immer.
+func new_world() -> bool:
+	if level_no <= 0 or busy:
+		return false
+	rescue_offer = {}
+	if wdt_key >= 0:
+		return start_level_wdt(int(level_board.get("index", 0)) + 1)
+	var size := Campaign.pool_size(level_no)
+	if size <= 0:
+		return retry_level()
+	var idx := int(level_board.get("index", -1))
+	var pick := idx + 1 if idx >= 0 else maxi(1, int((camp["next_board"] as Array)[level_no - 1]))
+	if size > 1 and posmod(pick, size) == 0:
+		pick += 1                    # Brett 0 ist das Lehr-Brett
+	return start_level(level_no, posmod(pick, size))
 
 
 func sek100_paused() -> bool:

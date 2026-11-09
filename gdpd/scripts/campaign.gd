@@ -38,6 +38,16 @@ const TEXT = {
 	"mercy": "Hilfe von oben",
 	"rest": "Ruhe hält",
 	"unrest": "Unruhe!",
+	"topup": "Über Nacht: +%d %s",
+	"fresh": "Heute eine frische Welt",
+	"calmer": "Die Lava hat sich verteilt",
+	"rescue_dead": "Sackgasse! Ich helfe dir.",
+	"rescue_few": "Zu wenig Lava? Ich helfe dir.",
+	"rescue_stall": "Hängst du fest? Ich helfe dir.",
+	"rescue_rows": "Keine Reihe? Wasser kühlt Lava.",
+	"gift": "Geschenk",
+	"new_world": "Neue Welt",
+	"play_on": "Weiterspielen",
 }
 ## Pillen der Ereignisse (Vertrag 11; höchstens eine je Runde, kurz).
 const PILL = {
@@ -196,7 +206,9 @@ static func start_ok(n: int, kinds: Array) -> bool:
 
 
 ## Wie weit ein Brett von den Startbedingungen weg ist (0 = passt). Wie levels9.violation.
-static func violation(n: int, kinds: Array, want_clump: bool) -> int:
+## cap_clump: Vulkan-Level aus einer übernommenen Welt – die größte Lava-Gruppe höchstens GameState.CLUMP_CAP9 (ein
+## riesiger Klumpen bricht immer wieder aus, und jeder Ausbruch kostet Felsen). Pool-Bretter prüfen das nicht.
+static func violation(n: int, kinds: Array, want_clump: bool, cap_clump: bool = false) -> int:
 	if not _vstate.has(n):
 		var g0 := GameState.new()
 		g0.setup_level(config(n), kinds, 1)
@@ -229,6 +241,8 @@ static func violation(n: int, kinds: Array, want_clump: bool) -> int:
 		if (str(sd2["type"]) == "make" or str(sd2["type"]) == "satt") and gs.sub_progress9(sd2) > 0:
 			v += 5
 			break
+	if cap_clump and bool(c.get("volcano", false)):
+		v += maxi(0, gs.biggest9(FieldData.LAVA) - GameState.CLUMP_CAP9)
 	var cl: Variant = c.get("clump")
 	if want_clump and cl is Array and gs.biggest9(int((cl as Array)[0])) < int((cl as Array)[1]):
 		v += int((cl as Array)[1]) - gs.biggest9(int((cl as Array)[0]))
@@ -292,9 +306,9 @@ static func quick_win(n: int, kinds: Array, seed_value: int) -> bool:
 
 ## Tausch-Bergsteigen (wie levels9.repair): zwei Felder derselben Sticker-Art tauschen, bis die Startbedingungen
 ## gelten. Gibt [kinds, Rest-Verletzung] zurück.
-static func repair(n: int, kinds: Array, rng: RandomNumberGenerator, iters: int = 3000) -> Array:
+static func repair(n: int, kinds: Array, rng: RandomNumberGenerator, iters: int = 3000, cap_clump: bool = false) -> Array:
 	var k := kinds.duplicate()
-	var cur := violation(n, k, false)
+	var cur := violation(n, k, false, cap_clump)
 	var by_type := {3: [], 2: [], 1: []}
 	var ref := GameState.new()
 	ref.setup_level(config(n), k, 1)
@@ -313,7 +327,7 @@ static func repair(n: int, kinds: Array, rng: RandomNumberGenerator, iters: int 
 		var tmp: int = k[a]
 		k[a] = k[b]
 		k[b] = tmp
-		var v := violation(n, k, false)
+		var v := violation(n, k, false, cap_clump)
 		if v <= cur or rng.randf() < 0.02:
 			cur = v
 		else:
@@ -399,7 +413,7 @@ static func carry(prev: Array, n: int, seed_value: int, pool_index: int = 0) -> 
 		if best_f < 0:
 			break
 		k[best_f] = short
-	var rep := repair(n, k, rng, 3000)
+	var rep := repair(n, k, rng, 3000, true)
 	if int(rep[1]) == 0:
 		var kinds: Array = rep[0]
 		if start_ok(n, kinds) and not quick_win(n, kinds, seed_value):
@@ -409,6 +423,113 @@ static func carry(prev: Array, n: int, seed_value: int, pool_index: int = 0) -> 
 					changed.append(i)
 			return {"kinds": kinds, "seed": seed_value, "how": "carry", "changed": changed, "index": -1}
 	return _fallback(n, pool_index)
+
+
+## Höchstens so viele Felder Nachschub über Nacht (Campaign.ensure).
+const TOPUP_MAX := 6
+
+
+## Vor jedem Level-Start (Game.start_level), egal von welchem Brett (übernommene Welt, gespeichertes Start-Brett,
+## Pool): Ist das Ziel von hier aus erreichbar? GameState.reach9 prüft das ohne Suche (unter 1 ms; eine echte Suche
+## kostet am Handy je Zug ~10 ms und passt nicht in den Start). Vulkan-Level aus einer übernommenen Welt: Lava-Klumpen
+## über GameState.CLUMP_CAP9 werden geteilt (Felder derselben Sticker-Art tauschen, die Mischung bleibt). Fehlt
+## Material, bringt die Nacht Nachschub (höchstens TOPUP_MAX Felder, sichtbar in der Welle, kurz erklärt: TEXT topup);
+## reicht das nicht, beginnt das Level auf seinem Pool-Brett (TEXT fresh). Deterministisch.
+## Gibt b ergänzt zurück: "kinds", "changed" (alle geänderten Felder), "fixes" [{"field", "from", "kind"}] (Nachschub
+## und Teilen, zuerst in der Welle), "line" ("" oder der Satz für den Banner), "how" ("fallback" beim Rückfall).
+static func ensure(n: int, b: Dictionary, pool_index: int = 0) -> Dictionary:
+	var out := b.duplicate()
+	out["line"] = ""
+	out["fixes"] = []
+	var how := str(b.get("how", ""))
+	var kinds: Array = (b.get("kinds", []) as Array).duplicate()
+	if kinds.size() != 54 or not valid(n):
+		return out
+	var c := config(n)
+	var gs := GameState.new()
+	gs.setup_level(c, kinds, int(b.get("seed", 1)))
+	var own := how != "pool" and how != "fallback"
+	if not own:
+		return out                  # ein Pool-Brett hat eine geprüfte Lösung (und das Sicherheitsnetz im Spiel hilft)
+	var line := ""
+	if own and bool(c.get("volcano", false)) and gs.biggest9(FieldData.LAVA) > GameState.CLUMP_CAP9:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(b.get("seed", 1)) * 31 + n
+		split_lava(gs, rng)
+		line = str(TEXT["calmer"])
+	var top := gs.top_up9(TOPUP_MAX)
+	if not bool(gs.reach9()["ok"]):
+		var fb := _fallback(n, pool_index)
+		fb["line"] = str(TEXT["fresh"])
+		fb["fixes"] = []
+		return fb
+	if not top.is_empty():
+		var k0 := int((top[0] as Array)[1])
+		var same := 0
+		for t in top:
+			if int((t as Array)[1]) == k0:
+				same += 1
+		line = str(TEXT["topup"]) % [same, FieldData.kind_name(k0)]
+	var nk: Array = []
+	for f in gs.fields:
+		nk.append(f.kind)
+	if nk == kinds:
+		return out
+	var fixes: Array = []
+	var changed: Array = (b.get("changed", []) as Array).duplicate()
+	for t2 in top:
+		var fid := int((t2 as Array)[0])
+		fixes.append({"field": fid, "from": int(kinds[fid]), "kind": int(nk[fid])})
+	for i in nk.size():
+		if int(nk[i]) != int(kinds[i]):
+			if not changed.has(i):
+				changed.append(i)
+			var seen := false
+			for fx in fixes:
+				if int((fx as Dictionary)["field"]) == i:
+					seen = true
+			if not seen:
+				fixes.append({"field": i, "from": int(kinds[i]), "kind": int(nk[i])})
+	out["kinds"] = nk
+	out["changed"] = changed
+	out["fixes"] = fixes
+	out["line"] = line
+	out["board"] = encode(nk)
+	return out
+
+
+## Lava-Klumpen teilen: ein Lava-Feld der größten Gruppe tauscht mit einem Feld derselben Sticker-Art, das keine Lava
+## berührt, solange die größte Gruppe dadurch kleiner wird (oder gleich bleibt). Die Mischung bleibt gleich.
+static func split_lava(gs: GameState, rng: RandomNumberGenerator, iters: int = 400) -> void:
+	var by_type := {3: [], 2: [], 1: []}
+	for f in gs.fields:
+		(by_type[FieldData.sticker_type(f.p)] as Array).append(f.id)
+	var cur := gs.biggest9(FieldData.LAVA)
+	for it in iters:
+		if cur <= GameState.CLUMP_CAP9:
+			break
+		var big: Array = []
+		for f in gs.fields:
+			if f.kind == FieldData.LAVA and gs.gsize9(f.id) == cur:
+				big.append(f.id)
+		if big.is_empty():
+			break
+		var a: int = big[rng.randi_range(0, big.size() - 1)]
+		var fa: FieldData = gs.fields[a]
+		var ids: Array = by_type[FieldData.sticker_type(fa.p)]
+		var bid: int = ids[rng.randi_range(0, ids.size() - 1)]
+		var fb: FieldData = gs.fields[bid]
+		if fb.kind == FieldData.LAVA or (it < iters / 2 and gs._next_to9(bid, FieldData.LAVA)):
+			continue
+		var kb := fb.kind
+		gs._setk9(fb, FieldData.LAVA)
+		gs._setk9(fa, kb)
+		var v := gs.biggest9(FieldData.LAVA)
+		if v <= cur:
+			cur = v
+		else:
+			gs._setk9(fa, FieldData.LAVA)
+			gs._setk9(fb, kb)
 
 
 static func _fallback(n: int, pool_index: int) -> Dictionary:

@@ -63,6 +63,7 @@ func _shots(dir: String) -> void:
 	world.miss_shown.connect(_on_tour_miss)
 	world.still_shown.connect(_on_tour_still)
 	world.tour_auto = true          # die Tour darf Züge ohne Finger spielen (das Spiel selbst nie)
+	Game.rescue_on = false          # das Sicherheitsnetz nur in seiner eigenen Prüfung (level3_solvable): Züge bleiben planbar
 	var only := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
@@ -92,6 +93,8 @@ func _shots(dir: String) -> void:
 		await _free_tour(dir)
 	if only == "" or only == "free" or only == "seamless":
 		await _seamless_tour(dir)
+	if only == "level3":            # nur Level 3 aus der eigenen Welt (Level 1–2 unordentlich gespielt) und das Netz
+		await _level3_only(dir)
 	if only == "bonus":             # nur die lange Bonusrunde (läuft sonst am Ende der Tage mit)
 		await _bonus_round_tour(dir)
 	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
@@ -327,6 +330,8 @@ func _camp_tour(dir: String) -> void:
 	_check(won2 and wc2 and s0 == 1 and Game.streak() == 2 and dui.wc_streak_num.text == "2", "streak_increments",
 		"serie=%d->%d zahl=%s" % [s0, Game.streak(), dui.wc_streak_num.text])
 	await _reminder_check(dir)
+	# Level 3 aus der eigenen Welt: erreichbar, und wenn doch alles schiefgeht, hilft der Charakter
+	await _level3_check(dir)
 	# Ab hier springt die Tour durch die Akte (alle Level offen)
 	Game.debug_open_all = true
 	await _acts_tour(dir)
@@ -334,6 +339,99 @@ func _camp_tour(dir: String) -> void:
 	await _free100_tour(dir)
 	await _wdt_tour(dir)
 	await _bonus_round_tour(dir)
+
+
+## --only=level3: Level 1 und 2 unordentlich spielen (Zufallszüge, das Netz wie im Spiel, Weiterbauen) und die Welt
+## speichern wie Game; dann die Prüfung level3_solvable.
+func _level3_only(dir: String) -> void:
+	Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
+	Game.reset_campaign()
+	Game.cards_seen = {}
+	Game.debug_open_all = true
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2026
+	var b: Dictionary = Campaign.board(1, 3)
+	b["how"] = "pool"
+	var world_s := ""
+	for lv in [1, 2]:
+		var gs := Campaign.new_state(lv, b)
+		var acts := 0
+		while not gs.day_won and acts < 300:
+			acts += 1
+			var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+			gs.play({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})
+			if not gs.day_won and gs.stuck9() != "" and not gs.gift_plan9().is_empty():
+				gs.play({"type": "gift"})
+		(Game.camp["stars"] as Array)[lv - 1] = maxi(1, gs.stars())
+		(Game.camp["steps"] as Array)[lv - 1] = gs.day_won_at
+		gs.start_free_build()
+		for i in rng.randi_range(5, 30):
+			var m2: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+			gs.play({"type": "twist", "axis": int(m2[0]), "layer": int(m2[1]), "turns": int(m2[2])})
+		world_s = gs.slot_board9()
+		if lv == 1:
+			b = Campaign.ensure(2, Campaign.carry(Campaign.decode(world_s), 2, 2001, 0), 0)
+	Game.camp["world"] = world_s
+	Game.camp["world_level"] = 2
+	await get_tree().process_frame
+	await _level3_check(dir)
+
+
+## level3_solvable (Spieler: „16 Felsen war bei mir nicht möglich“): Level 3 startet auf der eigenen Welt von Level 2
+## (Game.start_level, Campaign.ensure) mit 14 Felsen als Ziel, erreichbar und ohne Riesen-Klumpen. Dann geht alles
+## schief (drei Zufalls-Wische, danach ist alle Lava weg): Nach der nächsten Drehung merkt es der Charakter und
+## bietet ein Geschenk an; Antippen bringt +1 Fels und Lava-Nachschub, das Ziel ist wieder erreichbar.
+func _level3_check(dir: String) -> void:
+	var dui := ui.day_ui
+	Game.debug_open_all = true
+	Game.rescue_on = true
+	Game.start_level(3)
+	var card := await _until_shown(dui.goal_card, 8.0)
+	await _wait(0.3)
+	if card:
+		await _tap(dui.gc_go)
+	await _wait(1.2)
+	ui._coach_dismiss()
+	var gs: GameState = Game.state
+	var how := str(Game.level_board.get("how", ""))
+	var clump := gs.biggest9(FieldData.LAVA)
+	var start_ok := Game.level_no == 3 and gs.target9() == 14 and bool(gs.reach9()["ok"]) \
+		and (how != "carry" or clump <= GameState.CLUMP_CAP9) and (how == "carry" or how == "fallback")
+	await _shot(dir, "00m_level3_eigene_welt")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 33
+	for i in 3:
+		if Game.state.day_won:
+			break
+		var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+		await _swipe_move(int(m[0]), int(m[1]), int(m[2]))
+		await _settle(8.0)
+	# Alles verloren: keine Lava mehr (wie nach vielen Ausbrüchen und falschen Zügen) – so geht es nicht weiter
+	for f in Game.state.fields:
+		if f.kind == FieldData.LAVA:
+			Game.state._setk9(f, FieldData.WATER)
+	world.refresh_all()
+	await _wait(0.4)
+	var dead_now := Game.state.stuck9() == "dead"
+	var d := _twist_without_progress()
+	await _swipe_move(int(d[0]), int(d[1]), int(d[2]))
+	await _settle(8.0)
+	var shown := await _until_shown(dui.dead_card, 6.0)
+	await _wait(0.6)
+	await _shot(dir, "00n_level3_hilfe")
+	var gift_vis := dui.dead_gift.visible and dui.dead_world.visible and dui.dead_text.text != ""
+	var p0 := Game.state.progress9()
+	if shown:
+		await _tap(dui.dead_gift)
+	await _settle(8.0)
+	await _wait(0.8)
+	await _shot(dir, "00o_level3_geschenk")
+	var p1 := Game.state.progress9()
+	var after_ok := p1 == p0 + 1 and bool(Game.state.reach9()["ok"]) and not dui.dead_card.visible and Game.rescue_offer.is_empty()
+	Game.rescue_on = false
+	_check(start_ok and dead_now and shown and gift_vis and after_ok, "level3_solvable",
+		"wie=%s klumpen=%d ziel=%d sackgasse=%s karte=%s text=%s fortschritt=%d->%d" % [how, clump, gs.target9(), str(dead_now),
+		str(shown), dui.dead_text.text, p0, p1])
 
 
 ## Texte in der Übersicht, die ein gesperrtes Level verraten würden (Titel, Geschichte, Aufgabe).

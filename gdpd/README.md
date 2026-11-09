@@ -77,8 +77,12 @@ Tiere und Menschen → Ruhe), ein neues Level je Spieltag. Spec: `docs/GDPD_SCHO
   weiter – nie eine Wiederholung eines früheren Levels und nie die Welt des Tages.
 - **Welt des Tages:** nur aus Vorlagen schon geschaffter Level (auch für Veteranen der alten 7 Tage: nie ein Spoiler);
   Extras dort zählen nicht für das Vorlage-Level.
-- **Sackgasse:** Geht das Ziel nicht mehr (z. B. Krieg hat in Level 28/29 zu viele Städte zerstört und nichts macht
-  neue Menschen), bietet der Gott „Nochmal“ an (gratis, gleiches Start-Brett).
+- **Jedes Level bleibt lösbar** (`docs/GDPD_SCHOEPFUNG.md` 5.1): Vor dem Start prüft `GameState.reach9` ohne Suche,
+  ob das Ziel von diesem Brett aus erreichbar ist (genug Material, nach Sticker-Arten); eine eigene Welt bekommt sonst
+  Nachschub über Nacht („Über Nacht: +3 Lava“) oder das Pool-Brett, Lava-Klumpen über 6 werden geteilt. Im Level merkt
+  der Charakter eine Sackgasse nach der Drehung, die sie verursacht hat, oder 6 Schritte ohne Fortschritt, und bietet
+  ein **Geschenk** (+1 und Nachschub, gratis) oder eine **Neue Welt** (das geprüfte Pool-Brett) an – auch in der Welt des
+  Tages. Level 3 ist jetzt „Mach 14 Felsen“.
 - **Tipp-Suche:** begrenzt (höchstens 150 Simulationen, auf späten Leveln etwa 0,3 s am PC); festgefahren schaut sie
   gestreut voraus und wiederholt keine Stellung der letzten Runden.
 

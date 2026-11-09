@@ -185,7 +185,14 @@ var _char_banner := false         # nach dem Ersteller eines alten Spielstands: 
 
 # --- Erinnern? (5.7) ---
 var ask_card: PanelContainer
-var dead_card: PanelContainer      # Sackgasse (GameState.dead9): „Nochmal“ gratis
+var dead_card: PanelContainer      # Sackgasse (GameState.dead9): „Nochmal“ gratis; Sicherheitsnetz: Geschenk / Neue Welt
+var dead_text: Label
+var dead_gift: Button               # Sicherheitsnetz: Geschenk annehmen (Game.take_gift)
+var dead_world: Button              # Sicherheitsnetz: Neue Welt (Game.new_world)
+var dead_again: Button              # alte Sackgasse ohne Netz: „Nochmal“
+var dead_stay: Button
+var _rescue_pending: Dictionary = {}   # ein Angebot, das wartet, bis nichts anderes offen ist
+var _rescue_tick := 0.0
 var dead_speaker: Control
 var ask_speaker: Control
 var ask_text: Label
@@ -1245,24 +1252,63 @@ func _build_dead_card() -> void:
 	v.add_child(h)
 	dead_speaker = ui._speaker(84, 30)
 	h.add_child(dead_speaker)
-	var tx := ui._label("Das geht nicht mehr. Nochmal?", 19, Style.INK, Style.W_BOLD)
-	tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tx.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 84 - 16, 0)
-	tx.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(tx)
-	var again := ui._button("Nochmal", "primary", "undo", 60)
-	again.pressed.connect(_on_dead_again)
-	v.add_child(again)
-	var stay := ui._button("Weiterschauen", "ghost", "", 50)
-	stay.pressed.connect(_on_dead_stay)
-	v.add_child(stay)
+	dead_text = ui._label("Das geht nicht mehr. Nochmal?", 19, Style.INK, Style.W_BOLD)
+	dead_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dead_text.custom_minimum_size = Vector2(Style.CONTENT_W - 56 - 84 - 16, 0)
+	dead_text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(dead_text)
+	dead_gift = ui._button(str(Campaign.TEXT["gift"]), "primary", "gift", 60)
+	dead_gift.pressed.connect(_on_dead_gift)
+	v.add_child(dead_gift)
+	dead_world = ui._button(str(Campaign.TEXT["new_world"]), "secondary", "dice", 54)
+	dead_world.pressed.connect(_on_dead_world)
+	v.add_child(dead_world)
+	dead_again = ui._button("Nochmal", "primary", "undo", 60)
+	dead_again.pressed.connect(_on_dead_again)
+	v.add_child(dead_again)
+	dead_stay = ui._button("Weiterschauen", "ghost", "", 50)
+	dead_stay.pressed.connect(_on_dead_stay)
+	v.add_child(dead_stay)
 
 
-func _on_level_dead(_info: Dictionary) -> void:
-	if not Game.in_day() or blocking():
+## Sackgasse oder Sicherheitsnetz (Game.level_dead): Mit "why" bietet der Charakter Hilfe an – ein Geschenk (+1 und
+## Nachschub) oder eine neue Welt; ohne "why" (alte Sackgasse) „Nochmal“. Ist gerade etwas anderes offen, wartet das
+## Angebot (_rescue_tick), statt still zu verschwinden.
+func _on_level_dead(info: Dictionary) -> void:
+	_rescue_pending = info.duplicate()
+	_try_rescue()
+
+
+func _try_rescue() -> void:
+	if _rescue_pending.is_empty():
 		return
-	ui._speak(dead_speaker, "worried", "undo", Style.FIRE_TINT)
+	if not Game.in_day() or Game.state == null or Game.state.day_won or Game.busy:
+		if not Game.in_day() or (Game.state != null and Game.state.day_won):
+			_rescue_pending = {}
+		return
+	if blocking() or _tut == 1 or _tut == 2 or (ui._modal != null and ui._modal.visible):
+		return
+	var info := _rescue_pending
+	_rescue_pending = {}
+	var net := info.has("why")
+	var dead := str(info.get("why", "dead")) == "dead"
+	dead_text.text = str(info.get("line", "Das geht nicht mehr. Nochmal?")) if net else "Das geht nicht mehr. Nochmal?"
+	dead_gift.visible = net and bool(info.get("gift", false))
+	dead_world.visible = net
+	dead_again.visible = not net
+	dead_stay.text = str(Campaign.TEXT["play_on"]) if net else "Weiterschauen"
+	ui._speak(dead_speaker, "worried" if dead else "happy", "gift" if net else "undo", Style.FIRE_TINT if dead else Style.LEAF_TINT)
 	ui._open_modal(dead_card, false)
+
+
+func _on_dead_gift() -> void:
+	ui._close_modal(true)
+	Game.take_gift()
+
+
+func _on_dead_world() -> void:
+	ui._close_modal(true)
+	Game.new_world()
 
 
 func _on_dead_again() -> void:
@@ -1271,6 +1317,7 @@ func _on_dead_again() -> void:
 
 
 func _on_dead_stay() -> void:
+	Game.rescue_offer = {}
 	ui._close_modal(true)
 
 
@@ -2739,6 +2786,11 @@ func _process(delta: float) -> void:
 	_time += delta
 	if ui == null:
 		return
+	if not _rescue_pending.is_empty():
+		_rescue_tick += delta
+		if _rescue_tick >= 0.4:
+			_rescue_tick = 0.0
+			_try_rescue()
 	if lane.visible and ui._time > _lane_until:
 		_hide_lane()
 	if overview.visible:

@@ -321,7 +321,7 @@ simulation (3.9, 9.2). `par` = ★★★ + 4 (points, 3.9).
 |---|---|---|---|---|---|---|---|---|
 | 1 | 1 | Glut | „Die Erde glüht.“ | „Mach 6 Felsen“ | make Fels 6 | „Neu: Drehen“ · „Bring 3 gleiche in eine Reihe.“ | 4 / 9 | 8 |
 | 2 | 1 | Abkühlen | „Das Meer kühlt die Glut.“ | „Mach 11 Felsen“ | make Fels 11 | „Neu: Abkühlen“ · „Lava zwischen zwei Wasser“ | 4 / 10 | 8 |
-| 3 | 1 | Vulkan | „Die Glut bricht aus.“ | „Mach 16 Felsen“ | make Fels 16 | „Neu: Vulkan“ · „Zu viel Lava bricht aus“ | 6 / 14 | 10 |
+| 3 | 1 | Vulkan | „Die Glut bricht aus.“ | „Mach 14 Felsen“ | make Fels 14 (was 16, see 5.1) | „Neu: Vulkan“ · „Zu viel Lava bricht aus“ | 6 / 14 | 10 |
 | 4 | 1 | Urkontinent | „Land entsteht.“ | „Lass 11 Erde entstehen“ | make Erde 11 | „Neu: Land“ · „3 Felsen werden Erde“ | 5 / 14 | 9 |
 | 5 | 2 | Atmosphäre | „Dampf wird Himmel.“ | „Lass 14 Erde entstehen“ | make Erde 14 | „Neu: Regen“ · „Dampf macht Wolken“ | 5 / 17 | 9 |
 | 6 | 2 | Urmeer | „Das Meer wird reich.“ | „Mach 10 Ursuppe“ | make Ursuppe 10 | „Neu: Ursuppe“ · „Wasser braucht Glut und Fels“ | 4 / 10 | 8 |
@@ -442,6 +442,48 @@ fed next to food, which the start rules forbid), 28 (10 %) and 23 (3 %), elsewhe
 
 The start board is stored as `[kampagne] start` so a restart of the same level (app closed mid-level) shows the same
 world. „Nochmal · mehr Sterne“ replays the **same** start board (it was the player's world), not a new one.
+
+### 5.1 Every level stays solvable (player report 9 November: „16 Felsen war bei mir nicht möglich“)
+
+A player played levels 1–2 on his own world and could not finish level 3 (16 Felsen). The audit (all 30 levels, 500
+level-3 games from carried worlds) found no strict impossibility in level 3 (progress + Lava never drops below 20), but
+practical blockers: carried worlds had Lava clumps up to 17 (pool boards 5–12) that erupted again and again
+(4.3 lost Felsen per naive game, median 16 steps against ★★ = 14), rows ran out late in the level without a word, and
+real dead ends by sticker type in levels 16, 17, 29 and 30 that `dead9` did not see. The fixes:
+
+1. **Target:** level 3 is „Mach 14 Felsen“ (stars stay 6 / 14; the pool solutions win 1–2 steps earlier, `solved_in`
+   re-measured; Python model `levels9.py` and the level-3 xcheck cases follow).
+2. **Reachability without search (`GameState.reach9`, about 1 ms):** for every unmet sub-goal: *make* – enough
+   fields that can still become the goal kind (thriving and rain work on any sticker type; a row source needs two
+   corners on different cubies plus an edge, or two edges plus a centre); *group* – enough material, and without an
+   edge a corner stays with the corners of its own cubie (at most 3); *satt* – enough fields, and their needs
+   reachable by sticker type (corners touch edges and the corners of their cubie, edges touch corners, centres and
+   their twin edge, centres only edges) unless the level can make the sources. Optimistic: „not ok“ is a sure dead
+   end, „ok“ is backed by the stall rule below. All 600 pool boards pass. A real search costs ~2.5 ms per twist on a
+   PC (~10 ms on a phone), so it does not fit into a level start.
+3. **Level start (`Campaign.ensure`, every start path: carried world, stored start, pool):** pool boards are never
+   touched (they have a checked solution). Own worlds: Lava clumps above `CLUMP_CAP9 = 6` in volcano levels are split
+   by swapping fields of the same sticker type (the mix stays; `Campaign.carry` also caps the clump in its repair);
+   missing material comes „overnight“ (at most 6 fields, first in the wave, banner „Über Nacht: +3 Lava“); if that is
+   not enough the level starts on its pool board („Heute eine frische Welt“).
+4. **Safety net in the level (`Game._rescue_check` after every round, `GameState.stuck9`):** „dead“ (reach9 fails or
+   `dead9`) is noticed after the very twist that caused it; „stall“ = `STALL9 = 6` steps without new progress. The
+   character opens a card (never a silent dead end): **Geschenk** (`Game.take_gift`, `GameState.gift_plan9`: +1 now –
+   make: a source field becomes the goal kind and counts; group: the biggest group grows by a field, preferably an
+   edge; satt: a goal field gets the neighbours it lacks, or a new goal field is placed next to existing sources;
+   hold: the round counts and every warning ends – then top-up until reach9 holds again, at most 16 fields; free, no
+   step), **Neue Welt** (`Game.new_world`: this level on its next pool board; Welt des Tages: another board of the same
+   template) or **Weiterspielen**. Texts: „Sackgasse! Ich helfe dir.“, „Zu wenig Lava? Ich helfe dir.“, „Keine Reihe?
+   Wasser kühlt Lava.“, „Hängst du fest? Ich helfe dir.“. An offer waits while another card is open.
+5. **Welt des Tages** uses the same net. **Free play** has no goal; its rain gift (`stuck()`) stays.
+6. **Proof by test (`test_solvable9`, `test_rescue_game`):** 4 chains per act (pool board → random player with the
+   net → 0–40 random Weiterbauen twists → carry + ensure → next level, with a save/load round trip): every start
+   reachable, carried volcano boards ≤ 6, all 120 levels won (the longest took 40 steps); level-3 repro (a 20-Lava
+   clump is split, 5 Lava → pool board, 10 Lava → overnight top-up, all Lava lost mid-level → dead → gift +1 and
+   reachable again); level 16 Algen without an edge and level 17 fish only on corners are detected and the gift helps;
+   the gift makes progress in all 30 levels; the stall and the WDT net. Tour check `level3_solvable` (section 15).
+
+Not done here: a mid-level save (closing the app still restarts the level from its stored start board).
 
 ---
 
@@ -1023,6 +1065,11 @@ pools (`data/kampagne_schoepfung.json`) take that role (section 8). Tests: `test
     type can touch a source of each need (4.4).
 
 ## 15. Tour checks (`main.gd`; add the names to the list in `.github/workflows/gdpd.yml` when they exist)
+
+- `level3_solvable` (after level 2 in the campaign tour; alone: `--only=level3`, which plays levels 1–2 messily with the
+  Game API first): level 3 starts on the player's own world with 14 Felsen, reachable, Lava clump ≤ 6; three random
+  swipes, then all Lava is gone; after the next swipe the rescue card shows „Geschenk“, tapping it gives +1 Fels and
+  makes the goal reachable again. The tour switches the net off (`Game.rescue_on`) everywhere else.
 
 | name | what it checks (real input) |
 |---|---|
