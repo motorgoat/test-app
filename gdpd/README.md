@@ -57,7 +57,7 @@ Tiere und Menschen → Ruhe), ein neues Level je Spieltag. Spec: `docs/GDPD_SCHO
   des eigenen Gottes öffnet ihn. Start-Karte mit Geschichte und Aufgabe („Ohne Limit. Schritte zählen.“), Ziel-Chip
   mit bis zu zwei Teilzielen, Schritte-Ring mit der nächsten Sterne-Grenze („★★★ bis 4“), Verlust-Plakette „−1 Fels“
   fliegt zum Chip, Pillen für die Gefahren (immer eine Runde vorher), Akt-Übergang (Himmel/Wasser wechseln), das
-  Neue fliegt an seinen Platz, kurze Sätze vom eigenen Gott. Sieg-Karte mit Sternen und Punkte-Zeilen, „Weiterbauen“.
+  Neue fliegt an seinen Platz, kurze Sätze vom eigenen Gott. Sieg-Karte mit Sternen und Punkte-Zeilen (kein „Weiterbauen“ mehr, Build 12).
   `scripts/day_ui.gd` (Kampagnen-Zweige `_fill_acts`, `_fill_goal_card9`, `_refresh_hud9`, `_pill9`).
 - **Laden** (`scripts/shop_ui.gd`, `Game.shop_items/buy/refund/use_stock`): Wunder (Regen, Blitzschutz, Meteor – erst
   wenn sie im Spiel vorkamen), Hilfe (Tipp, Zurück, Serienschutz), Gott (6 neue Teile zum Anprobieren und Zurückgeben),
@@ -73,7 +73,7 @@ Tiere und Menschen → Ruhe), ein neues Level je Spieltag. Spec: `docs/GDPD_SCHO
   Reihe aus einer Ziel-Art, wächst lieber ein Feld, das noch nicht satt ist (Weiterentwickeln ist kein Verlust).
 - **Sterne großzügig** (`gdpd_sim/b4/stars11.py`, Tabelle je Level in `docs/GDPD_SCHOEPFUNG.md` 9.2): ein normaler
   Spieler (greedy-Bot) schafft meist ★★, ein schwacher oft ★–★★ (Level 1–5 etwa die Hälfte ★★), ★★★ braucht gutes Spiel.
-- **Welt von gestern:** Nur das neueste geschaffte Level (und Weiterbauen darin) gibt die Welt an das nächste Level
+- **Welt von gestern:** Nur das neueste geschaffte Level (die Welt beim Sieg) gibt die Welt an das nächste Level
   weiter – nie eine Wiederholung eines früheren Levels und nie die Welt des Tages.
 - **Welt des Tages:** nur aus Vorlagen schon geschaffter Level (auch für Veteranen der alten 7 Tage: nie ein Spoiler);
   Extras dort zählen nicht für das Vorlage-Level.
@@ -85,6 +85,12 @@ Tiere und Menschen → Ruhe), ein neues Level je Spieltag. Spec: `docs/GDPD_SCHO
   Tages. Level 3 ist jetzt „Mach 14 Felsen“.
 - **Tipp-Suche:** begrenzt (höchstens 150 Simulationen, auf späten Leveln etwa 0,3 s am PC); festgefahren schaut sie
   gestreut voraus und wiederholt keine Stellung der letzten Runden.
+- **Build 12 – immer wissen, was zu tun ist:** Oben steht unter dem Ziel („Erde 6/11“) die nächste Handlung aus dem
+  echten Brett („Dreh 3 Felsen in eine Reihe → Erde“, „Teil die Lava!“), nach jeder Aktion neu, nie unmöglich; keine
+  Symbole mehr auf den Feldern. Die Feld-Karte zeigt die Regel der Schöpfung (3 × Fels → Erde, nicht „Fels → Fels“).
+  Senkrechtes Schwenken umgekehrt. Kein Weiterbauen (Knopf, Code und Signal weg). **Speichern mitten im Level**
+  (`user://rekord_lauf.cfg`): App zu → genau dort weiter, auch die Welt des Tages aus der Übersicht; ein gekauftes
+  Wunder (Regen, Meteor) wird erst mit dem Ende seiner Runde abgebucht, zusammen mit dem Lauf.
 
 ## Täglich spielen und dein eigener Charakter
 

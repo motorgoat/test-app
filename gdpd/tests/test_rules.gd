@@ -139,6 +139,7 @@ func _init() -> void:
 	test_rows_build12()
 	test_save9()
 	test_next_action9()
+	test_review12()
 	await process_frame          # das Autoload Game ist jetzt im Baum
 	test_self_move_guard()
 	await test_bonus_game()
@@ -3361,30 +3362,16 @@ func test_daily_build() -> void:
 	var g := _daily_game(path, lt(2026, 11, 9, 18))
 	g.start_day(1)
 	_win_in_game(g)
-	var st0: int = g.stars_of(1)
-	var gst0: int = g.state.stars()
-	check(g.over and g.continue_build() and not g.over and g.state.day_free_build and g.state.twists_left() == -1 and not g.state.is_over()
-		and g.can_resume_build(), "Weiterbauen: keine Grenze, nicht vorbei")
-	var made0: int = g.state.total_made()
-	var c0: int = g.credits
-	var msgs: Array = []
-	g.message.connect(func(text, kind): msgs.append(text))
-	for i in 30:
-		var gs: GameState = g.state
-		var a := gs.best_action()
-		if a.is_empty():
-			a = {"type": "twist", "axis": 1, "layer": 1, "turns": 1}
-		var ans := {}
-		if int(a.get("card", -1)) >= 0:
-			ans[int(a["card"])] = int(a["choice"])
-		var res: Dictionary = gs.play(a, ans)
-		g.finish_round(res)
-	var growth: int = g.state.build_growth()
-	print("  Weiterbauen Tag 1: %d Felder in 30 Drehungen gewachsen" % growth)
-	var coins_want := mini(Balance.BUILD_POINTS_MAX, growth)
-	check(g.state.day_lost == "" and g.state.day_won and g.state.stars() == gst0 and g.stars_of(1) == st0 and not g.over and growth == g.state.total_made() - made0
-		and int(g.state.day_status()["growth"]) == growth and bool(g.state.day_status()["free_build"]), "Weiterbauen: 30 Drehungen später nicht gescheitert, Sterne unverändert, Zähler = %d" % growth)
-	check(g.points == c0 + coins_want, "Weiterbauen: +1 Punkt je gewachsenes Feld, höchstens 20 je Spieltag (%d gewachsen, %d Punkte)" % [growth, g.points - c0])
+	# Build 12: Weiterbauen gibt es nicht mehr – nach dem Sieg ist der Tag vorbei, Game hat keinen Weg zurück hinein
+	var gone := true
+	for m in ["continue_build", "resume_build", "can_resume_build", "_keep_for_build", "_end_build", "_build_coins"]:
+		if g.has_method(m):
+			gone = false
+	for pr in ["today_build", "build_state", "build_ctx", "_slot_live"]:
+		if pr in g:
+			gone = false
+	check(g.over and g.state.day_won and not g.state.day_free_build and gone and not g.today_info().has("can_build")
+		and not g.has_signal("build_started"), "Build 12: kein Weiterbauen nach dem Sieg (Game-API und Signal weg)")
 	# Höchstens 3 je Spieltag – auch in einer zweiten Welt
 	var d := Daily.fresh(lt(2026, 11, 9, 18))
 	var kk := Daily.day_key(lt(2026, 11, 9, 18))
@@ -3392,23 +3379,6 @@ func test_daily_build() -> void:
 	var a2 := Daily.build_coins(d, kk, 50, 2)
 	var a3 := Daily.build_coins(d, kk + 1, 50, 0)
 	check(a1 == 2 and a2 == 1 and a3 == 3, "Bau-Münzen: 2, dann nur noch 1 (Grenze 3), am nächsten Tag wieder 3 (%d %d %d)" % [a1, a2, a3])
-	# Übersicht → zurück zum Weiterbauen; ein neuer Versuch beendet es
-	var keep: GameState = g.state
-	g.new_game()
-	check(g.can_resume_build() and g.resume_build() and g.state == keep and g.state.day_free_build, "freies Spiel: die heutige Welt bleibt zum Weiterbauen")
-	g.start_day(1)
-	_win_in_game(g)
-	g.continue_build()
-	keep = g.state
-	g.state = GameState.new()
-	check(g.resume_build() and g.state == keep and g.state.day_free_build and g.in_day(), "Weiterbauen: aus der Übersicht zurück in dieselbe Welt")
-	g.retry_day()
-	check(g.can_resume_build() and not g.state.day_free_build and g.state != keep, "Nochmal: neuer Versuch, die heutige Welt bleibt")
-	g.state.day_lost = "twists"
-	g._finish_day()
-	check(g.can_resume_build() and g.resume_build() and g.state == keep, "Nochmal verloren: Weiterbauen bringt die geschaffte Welt zurück")
-	g.clock_override = lt(2026, 11, 10, 18)
-	check(not g.can_resume_build(), "neuer Spieltag: die Welt von gestern ist nicht mehr zum Weiterbauen")
 	g.free()
 	# Tag 6: Krieg im Weiterbauen ist nur Krieg
 	var gs6 := day_state(6)
@@ -3803,8 +3773,7 @@ func test_bonus_stress() -> void:
 		"Tipp in Schritten: jeder Schritt unter 200 ms (höchstens %.1f ms), mehrere Schritte, dasselbe Ergebnis wie am Stück" % (float(search_worst) / 1000.0))
 
 
-## Weiterbauen mit dem echten Game (Autoload): kein Gratis-Tipp nach jeder Pause, „Zurück“ ist kein neuer Versuch
-## (undoing), und die Tipp-Suche (search_hint) verteilt sich auf mehrere Bilder, kein Bild steht dabei 200 ms, sie
+## Das echte Game (Autoload) an einem Tag: „Zurück“ ist kein neuer Versuch (undoing), und die Tipp-Suche (search_hint) verteilt sich auf mehrere Bilder, kein Bild steht dabei 200 ms, sie
 ## findet dasselbe wie die Suche am Stück und bricht ab, wenn der Spieler inzwischen dreht.
 func test_bonus_game() -> void:
 	var g: Node = root.get_node_or_null("Game")
@@ -3815,12 +3784,8 @@ func test_bonus_game() -> void:
 	var old_path: String = g.save_path
 	g.save_path = path
 	g._start_attempt(2, Days.config(2), Days.board(2, 1), 0)
-	var onb_day := bool(g.onboarding)
-	g.state.day_won = true
-	g.state.day_won_at = g.state.used_twists()
-	var built: bool = g.continue_build()
-	check(onb_day and built and not g.onboarding and g.state.day_free_build, "Tag 2: Gratis-Tipp am Tag, im Weiterbauen nicht mehr")
-	# „Zurück“ im Weiterbauen: new_game_started kommt mit undoing (die Oberfläche spielt weiter)
+	check(bool(g.onboarding), "Tag 2: Gratis-Tipp am Tag")
+	# „Zurück“ an einem Tag: new_game_started kommt mit undoing (die Oberfläche spielt weiter)
 	g.play_turn(0, 1, 1)
 	if g.has_choice():
 		g.choose(0)
@@ -3832,8 +3797,8 @@ func test_bonus_game() -> void:
 	var could: bool = g.can_undo()
 	g.undo()
 	g.new_game_started.disconnect(on_new)
-	check(could and bool(seen["undoing"]) and not g.undoing and g.state.day_free_build and g.in_day(),
-		"Zurück im Weiterbauen: dasselbe Spiel läuft weiter (undoing nur während des Signals)")
+	check(could and bool(seen["undoing"]) and not g.undoing and g.in_day() and not g.state.day_won,
+		"Zurück an einem Tag: dasselbe Spiel läuft weiter (undoing nur während des Signals)")
 	# Die Tipp-Suche über mehrere Bilder
 	g.state.rain = 0
 	var gaps := {"last": 0, "max": 0, "frames": 0}
@@ -5104,7 +5069,7 @@ func test_level_game() -> void:
 	check(not (info.get("lines", []) as Array).is_empty() and str((info["lines"] as Array)[0][0]) == "win_done", "Sieg-Karte: Punkte-Zeilen")
 	check(not g.level_unlocked(2) and g.new_level_tomorrow() and str(g.camp["world"]).length() == 54, "Level 2 erst morgen; die Welt ist gespeichert")
 	# Build 12: kein Weiterbauen – die Welt von morgen ist die Welt beim Sieg
-	check(not g.continue_build() and not g.state.day_free_build and not g.can_resume_build() and not g.resume_build()
+	check(not g.has_method("continue_build") and not g.state.day_free_build and not g.has_method("resume_build")
 		and g.saved_run().is_empty(), "Build 12: kein Weiterbauen im Level, kein laufender Versuch nach dem Sieg")
 	check(str(g.camp["world"]) == g.state.slot_board9(), "Build 12: die Welt beim Sieg trägt ins nächste Level")
 	var w1 := str(g.camp["world"])
@@ -5366,6 +5331,96 @@ func test_save9() -> void:
 	check(not g2g.resume_run() and not FileAccess.file_exists(g2g.run_path()), "save9: ein Lauf mit anderer Version wird verworfen")
 	g2g.free()
 	DirAccess.remove_absolute(gpath)
+
+
+## Build 12 (Review): Die Feld-Karte zeigt in der Schöpfung, was eine Reihe wirklich ergibt (rows9: Fels → Erde,
+## nicht „Fels → Fels“); die Welt des Tages geht aus der Übersicht weiter; ein gekauftes Wunder wird erst mit dem
+## Ende seiner Runde abgebucht (App mitten im Wunder zu → Vorrat und Lauf wie vorher).
+func test_review12() -> void:
+	var bad: Array = []
+	var rows_seen := 0
+	for n in range(1, Campaign.COUNT + 1):
+		var gs := Campaign.new_state(n, Campaign.board(n, 0))
+		for k in gs.rows9:
+			rows_seen += 1
+			if gs.row_result(int(k)) != int(gs.rows9[k]) or not gs.can_row(int(k)):
+				bad.append("L%d %s→%s" % [n, FieldData.kind_name(int(k)), FieldData.kind_name(gs.row_result(int(k)))])
+	var g4 := Campaign.new_state(4, Campaign.board(4, 0))
+	var fels_ok := g4.rows9.has(FieldData.FELS) and g4.row_result(FieldData.FELS) == int(g4.rows9[FieldData.FELS]) \
+		and g4.row_result(FieldData.FELS) != FieldData.FELS
+	var ui_src := FileAccess.get_file_as_string("res://scripts/ui.gd")
+	check(bad.is_empty() and rows_seen >= 30 and fels_ok and ui_src.contains("Game.state.row_result(k)"),
+		"review12: Feld-Karte = rows9 für jede Reihen-Art aller Level, Fels → %s (%d Arten, falsch: %s)" % [
+			FieldData.kind_name(g4.row_result(FieldData.FELS)), rows_seen, str(bad.slice(0, 4))])
+	# Welt des Tages: verlassen und wieder öffnen → geht weiter; „Nochmal“ beginnt neu
+	var t := lt(2026, 11, 12, 10)
+	var wpath := "user://test_review12_wdt.cfg"
+	var gw := _daily_game(wpath, t, true)
+	gw._clear_run()
+	gw.camp["veteran"] = true
+	for i in Campaign.COUNT:
+		(gw.camp["stars"] as Array)[i] = 2
+	if gw.start_level_wdt():
+		for m in [[0, 1, 1], [1, -1, 1]]:
+			if (gw.state as GameState).day_won:
+				break
+			var r: Dictionary = (gw.state as GameState).play({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})
+			gw.finish_round(r)
+		var rec := (gw.state as GameState).record9()
+		var stp: int = (gw.state as GameState).steps9()
+		var run_w: Dictionary = gw.saved_run()
+		check(not run_w.is_empty() and bool(run_w["wdt"]) and gw.start_level_wdt() and gw.wdt_key >= 0
+			and (gw.state as GameState).record9() == rec and (gw.state as GameState).steps9() == stp and gw.run_resumed,
+			"review12: Welt des Tages aus der Übersicht wieder öffnen → geht weiter (%d Schritte)" % stp)
+		check(gw.retry_level() and (gw.state as GameState).steps9() == 0 and gw.saved_run().is_empty() and not gw.run_resumed,
+			"review12: Nochmal in der Welt des Tages beginnt neu")
+	else:
+		check(false, "review12: Welt des Tages startet")
+	gw.free()
+	DirAccess.remove_absolute(wpath)
+	# Gekaufter Regen: abgebucht erst in finish_round, zusammen mit dem Lauf
+	var spath := "user://test_review12_stock.cfg"
+	var gs0 := _daily_game(spath, t, true)
+	gs0._clear_run()
+	gs0.debug_open_all = true
+	var fid := -1
+	var lv := 0
+	for n in [1, 2, 3, 4, 5, 6, 7, 8]:
+		if not gs0.start_level(n, 0):
+			continue
+		var r0: Dictionary = (gs0.state as GameState).play({"type": "twist", "axis": 0, "layer": 1, "turns": 1})
+		gs0.finish_round(r0)
+		if (gs0.state as GameState).day_won:
+			continue
+		for f in (gs0.state as GameState).fields:
+			if (gs0.state as GameState).rain_ok9(f as FieldData, true):
+				fid = (f as FieldData).id
+				break
+		if fid >= 0:
+			lv = n
+			break
+	if fid >= 0:
+		gs0.stock["regen"] = 1
+		gs0._save_profile()
+		var steps_run := int(gs0.saved_run().get("steps", -1))
+		var got: Array = []
+		gs0.round_resolved.connect(func(res, _b): got.append(res))
+		var used: bool = gs0.use_stock("rain", fid)
+		var mid := _daily_game(spath, t, false)
+		var mid_ok: bool = int(mid.stock.get("regen", 0)) == 1 and int(mid.saved_run().get("steps", -2)) == steps_run
+		mid.free()
+		check(used and gs0.busy and gs0.stock_of("rain") == 0 and int(gs0.stock["regen"]) == 1 and mid_ok,
+			"review12: Regen gekauft, Runde läuft – gespeichert noch 1 Regen, Lauf vor der Runde (Level %d)" % lv)
+		if not got.is_empty():
+			gs0.finish_round(got[0])
+		var after := _daily_game(spath, t, false)
+		check(int(gs0.stock.get("regen", 0)) == 0 and gs0.stock_of("rain") == 0 and int(after.stock.get("regen", 0)) == 0
+			and not got.is_empty(), "review12: Runde fertig → Regen abgebucht und gespeichert, zusammen mit dem Lauf")
+		after.free()
+	else:
+		check(false, "review12: ein Feld für gekauften Regen gefunden")
+	gs0.free()
+	DirAccess.remove_absolute(spath)
 
 
 func _replay_in_game_from(g: Node, sol: Array) -> void:

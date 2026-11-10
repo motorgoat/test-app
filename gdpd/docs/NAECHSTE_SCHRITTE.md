@@ -14,8 +14,8 @@
 ## Ausrichtung wie Duolingo (Wunsch von Philipp, 6. November 2026)
 - Ein neues Level pro echtem Tag (Die Schöpfung in 7 echten Tagen), danach täglich eine „Welt des Tages“. (erledigt)
 - Serie (Streak) mit Flammen-Zähler und Feier; Serien-Schutz; Wochenkalender. (erledigt)
-- Nach dem Schaffen im gleichen Level ohne Drehungs-Limit weiterspielen; das nächste Level erst morgen. (erledigt;
-  „Weiterbauen“ bleibt auch nach einem verlorenen „Nochmal“ bis zum nächsten Spieltag)
+- Nach dem Schaffen im gleichen Level ohne Drehungs-Limit weiterspielen; das nächste Level erst morgen. (ersetzt:
+  Weiterbauen gibt es seit Build 12 nicht mehr – „brauchen wir nicht, wenn's eh weiter gibt“)
 - Erinnerung als Handy-Benachrichtigung (Android-Plugin), nicht nervig, nach dem Vorbild von Duolingo (erledigt;
   auf einem echten Handy noch zu prüfen: Zustellung, Ruhezeit beim späten Wecker, Gesicht als Bild):
   - höchstens eine Erinnerung pro Tag, zu der Uhrzeit, zu der man zuletzt gespielt hat (etwa 24 Stunden danach),
@@ -157,6 +157,18 @@
 - Oberfläche: Gefahren-Pille wird nicht von „Wald!“ überdeckt; ↑ nur, wenn die Art im Level wirklich wächst; „+“ am
   Wunder nur, wenn der Laden es hier verkauft; Bedürfnis-Plaketten nur auf zugewandten Feldern, höchstens 2;
   Kamera zeigt Landgang und Ausbruch; Hilfe zeigt in der Schöpfung die Verben der Kampagne. (erledigt)
+
+## Feedback Build 11 (Philipp, 10. November) – Build 12 (erledigt)
+- Oben steht, was man tun muss (Ziel + nächste Handlung mit kleinen Symbolen, nach jeder Drehung neu, nie unmöglich);
+  keine Symbole mehr auf den Feldern; nach ein paar Sekunden leuchtet die passende Scheibe. (erledigt)
+- Oben/unten schwenken umgekehrt. 3 Felsen in einer Reihe wachsen immer (auch, wenn sie schon am Start lagen). (erledigt)
+- „Komische Felsen“: kein Vulkan-Kegel mehr auf Fels; Feld-Karte „Gestein“ statt „Essen“ und das Regel-Bild
+  3 × Fels → Erde (vorher „Fels → Fels“). (erledigt)
+- Kein Weiterbauen mehr (Knopf, Spielweg, Texte weg). (erledigt)
+- Speichern mitten im Level: App zu → genau dort weiter (Brett, Schritte, Fortschritt, Siegel, Gefahren, Werkzeuge,
+  Geschenke), auch die Welt des Tages; gekaufte Wunder werden erst mit dem Ende ihrer Runde abgebucht. (erledigt)
+- Offen: Es gibt nur einen laufenden Versuch – wer mitten in einem Level die Welt des Tages beginnt, startet das Level
+  danach neu.
 
 ## Erdgeschichte ausführlicher (Wunsch von Philipp, 10. November)
 - Sehr ausführlich: vor Affen und Menschen kommen Urzeit-Tiere und Dinosaurier usw. Vorschlag für mehr Level:

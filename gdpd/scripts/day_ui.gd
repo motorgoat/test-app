@@ -113,7 +113,7 @@ const PILL8 = {"war_start": [9, "swords", "war_start", "war_start_line"], "flood
 	"flood": [6, "flood", "flood", ""], "meteor": [6, "meteor", "meteor", ""], "ignite": [5, "fire", "ignite", ""],
 	"thrive": [5, "up", "", ""], "starve": [5, "hunger", "", ""], "consume": [4, "hut", "consume", ""],
 	"rain_out": [4, "rain", "rain_out", ""], "bolt_cancel": [4, "rain", "bolt_cancel", ""], "war_end": [4, "check", "war_end", ""],
-	"smog": [3, "smog", "smog", ""], "satt_new": [2, "check", "satt", ""], "extra": [10, "star", "extra_done", ""]}
+	"smog": [3, "smog", "smog", ""], "satt_new": [2, "check", "satt", ""]}
 ## Wo die erste Hinweis-Zeile eines Tages hinzeigt ("" = in der Spur unter der Kopfzeile).
 const COACH_AT = {2: "rain"}
 const TILE_W := 129.0
@@ -162,7 +162,6 @@ var tc_line: Label
 var tc_count_row: HBoxContainer
 var tc_count: Label
 var tc_go: Button
-var tc_build: Button
 var tc_again: Button
 var week_cells: Array = []        # WeekDot × 7
 var week_letters: Array = []
@@ -267,9 +266,6 @@ var chip_num: Label
 var ring: TwistRing
 var ring_caps: Label
 var _chip_sep: ColorRect
-var grow_box: VBoxContainer       # Weiterbauen: gewachsene Felder seit dem Sieg (statt des Rings)
-var grow_num: Label
-var _build_said := false          # „Du kannst hier noch weiterbauen …“ (einmal je Sitzung)
 var _praise_at := -100.0          # wann der Charakter zuletzt gelobt hat (höchstens alle paar Sekunden)
 var _merges := 0
 var rule_tag: PanelContainer
@@ -338,7 +334,6 @@ func build(owner_ui: GameUI) -> void:
 	ui.root.add_child(creator)
 	ui.root.move_child(ui.tip_card, -1)        # Erklärungen bleiben ganz oben
 	Game.daily_changed.connect(_on_daily_changed)
-	Game.build_started.connect(_on_build_started)
 	Game.day_started.connect(_on_day_started)
 	Game.day_progress.connect(_on_day_progress)
 	Game.day_won.connect(_on_day_won)
@@ -508,21 +503,6 @@ func _build_chip() -> void:
 	ring_caps = ui._caps("Drehungen")
 	ring_caps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rv.add_child(ring_caps)
-	# Weiterbauen: statt des Rings, wie viel seit dem Sieg gewachsen ist (Wiese + Zahl)
-	grow_box = ui._vbox(-2)
-	grow_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	h.add_child(grow_box)
-	var gh := ui._hbox(4)
-	gh.alignment = BoxContainer.ALIGNMENT_CENTER
-	grow_box.add_child(gh)
-	gh.add_child(ui._icon("meadow", 26))
-	grow_num = ui._label("0", 22, Style.LEAF_DEEP, Style.W_BLACK)
-	grow_num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	gh.add_child(grow_num)
-	var gc := ui._caps("gewachsen")
-	gc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	grow_box.add_child(gc)
-	grow_box.visible = false
 	ui._explain_only(chip, "day_goal")
 	chip.visible = false
 	# „Kein Krieg!“ (Tag 6): mittig unter dem Ziel-Chip (in der Zeile der Weltwaage, die an Tag 6 nicht zu sehen ist)
@@ -832,16 +812,10 @@ func _build_today_card() -> void:
 	tc_go.add_theme_font_size_override("font_size", 20)
 	tc_go.pressed.connect(_on_today_go)
 	v.add_child(tc_go)
-	var row := ui._hbox(10)
-	v.add_child(row)
-	tc_build = ui._button(str(Days.TEXT["build"]), "accent", "meadow", 54)
-	tc_build.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tc_build.pressed.connect(_on_today_build)
-	row.add_child(tc_build)
 	tc_again = ui._button(str(Days.TEXT["again_stars"]), "secondary", "star", 54)
 	tc_again.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tc_again.pressed.connect(_on_today_again)
-	row.add_child(tc_again)
+	v.add_child(tc_again)
 
 
 func _build_week() -> void:
@@ -1536,10 +1510,8 @@ func _fill_today(ti: Dictionary) -> void:
 	tc_count.text = str(ti.get("countdown", ""))
 	tc_go.visible = not done
 	tc_go.text = str(Days.TEXT["go"])
-	tc_build.visible = false          # kein Weiterbauen mehr (Build 12)
 	tc_again.visible = done and bool(ti.get("more_stars", false))
 	tc_again.text = str(Days.TEXT["again_stars"])
-	(tc_build.get_parent() as Control).visible = tc_build.visible or tc_again.visible
 	var sb: StyleBoxFlat = today_card.get_theme_stylebox("panel")
 	sb.set_border_width_all(0 if done else 3)
 	sb.bg_color = Style.SURFACE if not done else Color("#F7FBF6")
@@ -1755,12 +1727,6 @@ func _on_today_go() -> void:
 func _start_wdt() -> void:
 	ui._close_modal(true)
 	if not Game.start_daily_world():
-		_fill_overview()
-
-
-## „Weiterbauen“ (Heute-Karte): zurück in die gewonnene Welt (solange die App läuft).
-func _on_today_build() -> void:
-	if not Game.resume_build():
 		_fill_overview()
 
 
@@ -2323,37 +2289,9 @@ func refresh_hud() -> void:
 		return
 	var st := gs.day_status()
 	_refresh_action(gs, st)
-	var building := bool(st.get("free_build", false))
-	if building:
-		chip2.visible = false
-	ring.visible = not building
-	ring_caps.visible = not building
-	grow_box.visible = building
+	ring.visible = true
+	ring_caps.visible = true
 	_fill_needs(st)
-	if building:
-		chip_needs.visible = false      # Weiterbauen: lange Extra-Zeile + „gewachsen“ – sonst ragt der Chip aus dem Bild
-	if building:
-		# Weiterbauen: Haken, „Weiterbauen“, wie viel seit dem Sieg gewachsen ist – keine Drehungs-Grenze
-		chip_caps.text = str(Days.TEXT["build"])
-		if int(st.get("extra_max", 0)) > 0:
-			# Neue Tage: die Aufgabe bleibt sichtbar – als Extra-Aufgabe („Extra: Versorge 4 Hütten“), danach „Bau weiter“
-			chip_caps.text = str(st.get("extra_text", Days.TEXT["build"]))
-		chip_caps.add_theme_color_override("font_color", Style.LEAF_DEEP)
-		_fit_caps()
-		ui._set_tile(chip_tile, "check", Style.LEAF_TINT)
-		var tg := int(st.get("target", 0))
-		chip_num.text = "%d/%d" % [tg, tg] if tg > 0 else "✓"
-		if int(st.get("extra_max", 0)) > int(st.get("extra_level", 0)):
-			chip_num.text = "%d/%d" % [mini(int(st.get("progress", 0)), int(st.get("extra_target", 0))), int(st.get("extra_target", 0))]
-		var g := int(st.get("growth", 0))
-		if grow_num.text != str(g) and grow_num.text != "":
-			ui._number_pop(grow_num, Style.LEAF_DEEP, Style.LEAF_DEEP)
-		grow_num.text = str(g)
-		_chip_sb.bg_color = Style.GLASS
-		ui._pulse(ring, false)
-		_last_left = -1
-		_last_progress = int(st.get("progress", 0))
-		return
 	if bool(st.get("camp", false)):
 		_refresh_hud9(gs, st)
 		return
@@ -2505,7 +2443,7 @@ func _on_preview_chip(info: Dictionary) -> void:
 			refresh_hud()
 		return
 	var gs := Game.state
-	if gs.day_free_build or not ["make", "satt", "group"].has(gs.goal_type()):
+	if not ["make", "satt", "group"].has(gs.goal_type()):
 		return
 	var post: GameState = info["state"]
 	var cur := gs.goal_progress()
@@ -2628,8 +2566,7 @@ func _board_key(gs: GameState) -> String:
 
 
 func _refresh_action(gs: GameState, st: Dictionary) -> void:
-	var show := gs.camp and not overview.visible and not bool(st.get("won", false)) and not bool(st.get("free_build", false)) \
-		and not Game.over
+	var show := gs.camp and not overview.visible and not bool(st.get("won", false)) and not Game.over
 	if not show:
 		act_line.visible = false
 		_act_key = ""
@@ -2826,8 +2763,6 @@ func _pill8(result: Dictionary) -> void:
 		caps = str(Days.TEXT["thrive_hut"] if int(best.get("from", 0)) == FieldData.HUT else Days.TEXT["thrive_village"])
 	elif tt == "starve":
 		caps = str(Days.TEXT["starve_village"] if int(best.get("from", 0)) == FieldData.VILLAGE else Days.TEXT["starve_town"])
-	elif tt == "extra":
-		line = str(Game.state.day_status().get("extra_text", ""))
 	elif tt == "satt_new":
 		_satt_said = true
 		caps = str(Days.TEXT["satt_goal"]) % FieldData.kind_name(int(best.get("kind", FieldData.HUT))) + "!"
@@ -2843,14 +2778,13 @@ func _pill8(result: Dictionary) -> void:
 ## Schöpfung: eine kurze Pille für das wichtigste Ereignis der Runde (Vertrag 11, höchstens eine je Runde).
 const PILL9_RANK = {"goal_loss": 10, "erupt": 9, "volcano_warn": 9, "bolt": 8, "bolt_warn": 8, "pack_warn": 8, "pack_hunt": 7,
 	"hunger_warn": 7, "starve": 7, "smog_warn": 6, "polluted": 6, "war_start": 9, "flood_warn": 8, "flood": 7, "war_hit": 6,
-	"extra": 10, "need_sealed": 5, "spawn": 5, "mercy": 5, "meteor_ready": 4, "volcano_calm": 4, "bolt_cancel": 4,
+	"need_sealed": 5, "spawn": 5, "mercy": 5, "meteor_ready": 4, "volcano_calm": 4, "bolt_cancel": 4,
 	"thrive": 3, "steam": 3, "satt_new": 2, "hold": 2}
 const PILL9_ICON = {"goal_loss": "down", "erupt": "volcano", "volcano_warn": "volcano", "volcano_calm": "check",
 	"bolt": "fire", "bolt_warn": "lightning", "bolt_cancel": "rain", "pack_warn": "pred", "pack_hunt": "pred",
 	"hunger_warn": "hunger", "starve": "hunger", "smog_warn": "smog", "polluted": "smog", "spawn": "animals",
 	"steam": "rain", "meteor_ready": "meteor", "mercy": "spark", "need_sealed": "check", "thrive": "up",
-	"satt_new": "check", "hold": "moon", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood",
-	"extra": "star"}
+	"satt_new": "check", "hold": "moon", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood"}
 const PILL9_WAR = ["goal_loss", "erupt", "volcano_warn", "bolt", "bolt_warn", "pack_warn", "pack_hunt", "hunger_warn",
 	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood"]
 var _sealed_said := false
@@ -2905,9 +2839,6 @@ func _pill9(result: Dictionary) -> void:
 			_steam_said = true
 		"hold":
 			caps = str(Campaign.TEXT["rest"] if bool(best.get("ok", true)) else Campaign.TEXT["unrest"])
-		"extra":
-			caps = str(Days.TEXT["extra_done"])
-			line = str(Game.state.day_status().get("extra_text", ""))
 		"war_start", "war_hit", "flood_warn", "flood":
 			caps = str(Days.TEXT.get(tt, caps))
 	if caps == "":
@@ -3187,16 +3118,12 @@ func tooltip(key: String) -> Dictionary:
 	if key == "day_goal" and Game.in_day() and Game.state.camp:
 		var inf := Game.day_info()
 		var sst: Dictionary = inf.get("status", {})
-		if Game.state.day_free_build:
-			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Limit. Neues Wachsen: +1 ✦."}
 		return {"icon": _goal_icon(inf), "title": "Deine Aufgabe", "body": "%s. Schritte: %d." % [str(inf.get("goal_text", "")), int(sst.get("steps", 0))]}
 	if key == "day_goal":
 		if not Game.in_day():
 			return {}
 		var info := Game.day_info()
 		var left := Game.state.twists_left()
-		if Game.state.day_free_build:
-			return {"icon": "check", "title": str(Days.TEXT["build"]), "body": "Ohne Limit. Neues Feld: +1 ✦"}
 		var body := "%s. %s" % [str(info.get("goal_text", "")), str(Days.TEXT["left"]) % left]
 		var st: Dictionary = info.get("status", {})
 		if bool(st.get("need_green", false)):
@@ -3215,7 +3142,7 @@ func tooltip(key: String) -> Dictionary:
 	if key == "day_stars":
 		return {"icon": "star", "title": "Sterne", "body": "%d von %d." % [Game.stars_total(), Game.stars_max()]}
 	if key == "day_free":
-		return {"icon": "trophy", "title": str(Days.TEXT["free"]), "body": "Nach Tag 7: frei weiterbauen."}
+		return {"icon": "trophy", "title": str(Days.TEXT["free"]), "body": "Frei spielen, 100 Sekunden."}
 	if key.begins_with("day_tile_"):
 		var n := int(key.substr(9))
 		var cfg := Days.config(n)
@@ -3583,10 +3510,6 @@ func _leave_win(act: String) -> void:
 
 func _win_action(act: String) -> void:
 	match act:
-		"build":
-			ui._close_modal(true)
-			if not Game.continue_build():
-				show_overview()
 		"next":
 			ui._close_modal(true)
 			var ok := Game.start_level(int(wc_next.get_meta("next", 0))) if Balance.CAMPAIGN_ON else Game.start_day(int(wc_next.get_meta("next", 0)))
@@ -3600,25 +3523,6 @@ func _win_action(act: String) -> void:
 			_open_free()
 		_:
 			show_overview()
-
-
-## Weiterbauen beginnt (Sieg-Karte oder Übersicht): zurück ins Spiel, der Charakter sagt einmal, was jetzt gilt.
-func _on_build_started(info: Dictionary) -> void:
-	hide_overview()
-	ui._close_modal(true)
-	_info = info
-	_hold = {}
-	_playing = true
-	_tut = 0
-	_unlock_input()
-	_last_left = -1
-	ui.refresh()
-	if not ui.dock.visible:
-		ui._dock_in(0.1)
-	if not _build_said:
-		_build_said = true
-		get_tree().create_timer(0.4).timeout.connect(_show_lane.bind(Voice.line("weiterbauen"), str(Days.TEXT["build"]), "check",
-			Style.LEAF_TINT, 5.0, Voice.face("weiterbauen")))
 
 
 # --- Erinnern? Der Charakter fragt, bevor Android fragt (5.7) -------------------------------------

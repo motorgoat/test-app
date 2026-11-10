@@ -99,7 +99,6 @@ func _ready() -> void:
 	Game.round_resolved.connect(_on_round_resolved)
 	Game.tutorial_bloom.connect(bloom)
 	Game.day_started.connect(_on_day_mood.unbind(1))
-	Game.build_started.connect(_on_day_mood.unbind(1))
 	Game.day_won.connect(_on_day_won_mood)
 	Game.new_game_started.connect(_on_day_mood)
 	Game.new_game_started.connect(_night_clear)
@@ -753,7 +752,7 @@ var _mood_from: Dictionary = {}
 var _mood_to: Dictionary = {}
 var _mood_tw: Tween
 var _mood_hold := ""             # kurze Ereignis-Stimmung (Regen, Krieg) hat Vorrang
-var _won_mood := ""              # nach dem Sieg: „weiter“ (Weiterbauen) oder „vollendet“ (Woche geschafft)
+var _won_mood := ""              # nach dem Sieg: „weiter“ oder „vollendet“ (Woche geschafft)
 
 
 func set_mood(name: String, dur: float = 2.0) -> void:
@@ -825,7 +824,7 @@ func _apply_mood(m: Dictionary) -> void:
 	_life_on = float(m["life"]) > 0.5 and Look.quality >= 1
 
 
-## Welche Stimmung gilt gerade? Ereignis > Smog > Sieg > Weiterbauen > Zeitalter (Schöpfung) > Tag der Woche.
+## Welche Stimmung gilt gerade? Ereignis > Smog > Sieg > Zeitalter (Schöpfung) > Tag der Woche.
 func _day_mood() -> String:
 	if _mood_hold != "":
 		return _mood_hold
@@ -834,8 +833,6 @@ func _day_mood() -> String:
 		return "smog"
 	if _won_mood != "":
 		return _won_mood
-	if gs != null and gs.day_free_build and era_name == "":
-		return "weiter"
 	if _staub > 0:
 		return "dunst"                 # Staubwinter nach dem Meteor (eine Runde)
 	if era_name != "":

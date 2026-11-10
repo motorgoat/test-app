@@ -4216,7 +4216,7 @@ func _fill_sheet(fid: int) -> void:
 			(ic as TextureRect).texture = Style.icon(_kind_icon(k))
 		var opts := Game.state.options_of(k)
 		var choice := opts.size() >= 2
-		sheet_next.texture = Style.icon(_kind_icon(int(opts[0]) if choice else Game.state.next_of(k)))
+		sheet_next.texture = Style.icon(_kind_icon(int(opts[0]) if choice else Game.state.row_result(k)))   # Schöpfung: rows9 (Fels → Erde), nicht next_of
 		sheet_or.visible = choice
 		sheet_next2.visible = choice
 		if choice:

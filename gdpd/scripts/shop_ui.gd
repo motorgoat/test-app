@@ -97,11 +97,11 @@ func build(owner_ui: GameUI) -> void:
 	god_back = ui._button("Zurückgeben", "ghost", "", 44)
 	god_back.pressed.connect(_on_god_refund)
 	v.add_child(god_back)
-	# Wie man Punkte bekommt (7.3): Level · Weiterbauen · Serie
+	# Wie man Punkte bekommt (7.3): Level · Serie (Weiterbauen gibt es nicht mehr, Build 12)
 	hint_row = ui._hbox(14)
 	hint_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_child(hint_row)
-	for p in [["star", "Level"], ["meadow", "Bauen"], ["streak", "Serie"]]:
+	for p in [["star", "Level"], ["streak", "Serie"]]:
 		var h := ui._hbox(4)
 		h.add_child(ui._icon(str(p[0]), 20))
 		var l := ui._label(str(p[1]), 14, Style.INK_3, Style.W_LABEL)

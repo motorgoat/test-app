@@ -32,14 +32,10 @@ signal daily_changed
 ## Ein Serientag ist geschafft: info = Daily.win() ({"counted", "before", "streak", "best", "milestone", "big",
 ## "shield", "coins", "shields"}). Kommt direkt nach day_won (dort steht es auch als info["streak"]).
 signal streak_changed(info: Dictionary)
-## Weiterbauen hat begonnen (oder geht weiter): info = day_info().
-signal build_started(info: Dictionary)
 ## „Neuer Morgen“ (GDPD_BALANCE_2.md 5.6): beim ersten Start eines Tages ≥ 2 (nicht bei „Nochmal“, nicht in der
-## Welt des Tages, nicht im Weiterbauen). info = {"type": "overnight", "day", "changes": [{"field", "from", "kind"}],
+## Welt des Tages). info = {"type": "overnight", "day", "changes": [{"field", "from", "kind"}],
 ## "caps": „Neuer Morgen“, "line" („Erde wird Wiese“)}. Nur Darstellung: Die Regeln starten vom Pool-Brett.
 signal overnight_growth(info: Dictionary)
-## Weiterbauen: eine Extra-Aufgabe ist geschafft ({"type": "extra", "level", "target", "max", "done", "text"}).
-signal extra_done(info: Dictionary)
 ## Ein neuer Erinnerungs-Plan (ReminderPlan.plan, schon mit echter Uhrzeit): das Plugin plant ihn ein.
 ## Hört niemand zu (PC, CI), schreibt Game die Zeilen „REMINDER …“ ins Protokoll.
 signal reminders_planned(plan: Array)
@@ -141,14 +137,6 @@ var session_start := -1          # Ortszeit, zu der diese Sitzung begann (Uhrzei
 var wdt_key := -1                # dieser Versuch ist die Welt des Tages dieses Spieltags (-1 = ein Tag 1 … 7)
 var overnight: Dictionary = {}   # „Neuer Morgen“ dieses Versuchs (overnight_growth), {} = keins
 var _retrying := false           # retry_day läuft gerade (kein „Neuer Morgen“)
-var build_state: GameState = null   # Weiterbauen: die Welt, in der gerade weitergebaut wird (nur im Speicher, 2.4)
-var build_ctx: Dictionary = {}   # {"day_no", "wdt_key", "board", "given" (bezahlte Zehner), "key" (Spieltag)}
-## Die heute geschaffte Welt (der heutige Tag / die Welt des Tages): „Weiterbauen“ auf der Heute-Karte bringt sie
-## zurück. Nur ein neuer Sieg im heutigen Level oder ein neuer Spieltag ersetzt sie (nicht „Nochmal“, nicht ein
-## anderer Tag, nicht das freie Spiel).
-var today_build: GameState = null
-var today_build_ctx: Dictionary = {}
-var _slot_live := false          # das laufende Weiterbauen ist die heutige Welt (Zurücknehmen hält sie aktuell)
 var attempt_key := -1            # Spieltag, an dem der laufende Versuch begann (-1 = keiner)
 var attempt_start := -1          # Spielzeit, zu der er begann
 var _check_due := false          # Tagesprüfung (Serienschutz) steht noch aus
@@ -203,7 +191,6 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 	level_no = 0
 	day_board = {}
 	wdt_key = -1
-	_end_build()
 	best = int(_best.get(mode_key(), 0))
 	state = GameState.new()
 	state.setup(seed_value, endless, level, not sek100)   # Challenge: keine Herzen, ein Feuer kostet nur 5 s
@@ -400,6 +387,7 @@ func _resolve(action: Dictionary, answers: Dictionary) -> void:
 
 func finish_round(result: Dictionary) -> void:
 	busy = false
+	_commit_stock()                  # Build 12: gekauftes Wunder und Lauf ändern sich zusammen
 	# Neues Zeitalter, neuer Bonus: Das zeigt die Oberfläche (Pille, Geschenk, beim ersten Mal ein Hinweis).
 	if onboarding and _last_kind == "twist" and not state.is_day():
 		_onb_twists += 1
@@ -429,20 +417,9 @@ func finish_round(result: Dictionary) -> void:
 		if str(e["type"]) == "goal":
 			moved_goal = true
 	if state.is_day():
-		if state.day_free_build:
-			_build_coins()
-			for e in result["events"]:
-				if str(e["type"]) == "extra":
-					if level_no > 0 and wdt_key < 0:
-						_add_points(Points.pay_extra(pdata, level_no, today_key()), "extra")   # nie in der Welt des Tages (Vorlage)
-					message.emit(str(Days.TEXT["extra_done"]), "good")
-					extra_done.emit((e as Dictionary).duplicate())
-			if _world_carries():
-				camp["world"] = state.slot_board9()
-				camp["world_level"] = level_no
 		if moved_goal:
 			day_progress.emit(state.day_status())
-		if level_no > 0 and not state.day_won and not state.day_free_build:
+		if level_no > 0 and not state.day_won:
 			_rescue_check()
 		if state.is_over() and not over:
 			over = true
@@ -523,10 +500,6 @@ func undo() -> void:
 	undo_state = null
 	if state.camp and not state.day_won:
 		state.extra_steps += maxi(0, steps_before - state.steps9())      # der Schritt bleibt gezählt
-	if build_state != null and state.day_free_build:
-		build_state = state
-		if _slot_live:
-			today_build = state
 	pending_choice = {}
 	over = false
 	# Die Welt baut sich neu auf (new_game_started); die Oberfläche erkennt an undoing, dass der Tag weiterläuft
@@ -786,7 +759,6 @@ func _start_attempt(n: int, cfg: Dictionary, b: Dictionary, mercy: int) -> void:
 	sek100 = false
 	if state != null and not state.is_day():
 		_save_best()             # Glaube des freien Spiels zählt noch für den Rekord
-	_end_build()
 	attempt_key = today_key()
 	attempt_start = game_now()
 	level_no = 0
@@ -967,7 +939,6 @@ func day_info() -> Dictionary:
 	var wdt := wdt_key >= 0
 	return {"day": n, "title": str(cfg.get("title", "")), "intro": str(cfg.get("intro", "")),
 		"wdt": wdt, "wdt_key": wdt_key, "caps": str(cfg.get("caps", str(Days.TEXT["day"]) % n)),
-		"free_build": state.day_free_build,
 		"goal_text": Days.goal_line(cfg), "goal_icon": str(cfg.get("goal_icon", "")), "goal_type": state.goal_type(),
 		"target": state.goal_target(), "rule_line": str(cfg.get("rule_line", "")), "rule_icon": str(cfg.get("rule_icon", "swords")),
 		"limit": state.day_limit, "base_limit": int(cfg.get("limit", 0)), "mercy": state.day_limit - int(cfg.get("limit", 0)),
@@ -1024,8 +995,6 @@ func _finish_day() -> void:
 		info["world_complete"] = complete
 		info["stars_total"] = stars_total()
 		info["stars_max"] = stars_max()
-		if first_win or int((daily["won_key"] as Array)[i]) == today:
-			_keep_for_build()       # der heute geschaffte Tag: Weiterbauen geht auch später aus der Übersicht
 		day_won.emit(info)
 		_after_win(streak)
 	else:
@@ -1088,7 +1057,7 @@ func reset_campaign() -> void:
 
 # =============================================================================
 # Täglich spielen (docs/GDPD_TAEGLICH_CHARAKTER.md 1, 2, 5, 7): Uhr, Spieltag, Serie, Welt des Tages,
-# Weiterbauen, Erinnerungs-Plan, Test-Knopf. Die Regeln selbst stehen in Daily und ReminderPlan (rein, getestet).
+# Erinnerungs-Plan, Test-Knopf. Die Regeln selbst stehen in Daily und ReminderPlan (rein, getestet).
 # =============================================================================
 
 ## Ortszeit als „lokale Unix-Sekunden“ (Datum/Uhrzeit der Ortszeit, als wäre es UTC). Tests und Tour stellen die Uhr
@@ -1218,7 +1187,7 @@ func shields() -> int:
 ## Alles für die Übersicht (Heute-Karte, Kopfzeile, Wochenreihe):
 ## {"today" (Spieltag), "weekday" („Freitag“), "state", "day" (Tag der Karte, 0 = Welt des Tages), "title"
 ##  („Tag 3 · Tiere“ / „Welt des Tages“), "caps", "goal", "line" (Zeile unter dem Titel), "countdown", "done_today",
-##  "streak", "best", "shields", "shields_visible", "week" (Daily.week), "can_build" (Weiterbauen möglich),
+##  "streak", "best", "shields", "shields_visible", "week" (Daily.week),
 ##  "more_stars" (heute geschaffter Tag hat < 3 Sterne), "comeback" ("" | "saved" | "lost", nicht abgeholt)}
 ## state: "new" (neuer Tag offen) · "done_next" (heute geschafft, der nächste kommt morgen) · "wdt" (Welt des Tages
 ## offen) · "wdt_done" (heute geschafft) · "world_done_today" (Tag 7 heute geschafft, ab morgen Welt des Tages)
@@ -1232,7 +1201,7 @@ func today_info() -> Dictionary:
 	var out := {"today": k, "weekday": Daily.weekday_name(k), "countdown": Daily.countdown_text(now),
 		"done_today": Daily.done_today(daily, k), "streak": int(daily["streak"]), "best": int(daily["streak_best"]),
 		"shields": int(daily["shields"]), "shields_visible": int(daily["shields"]) > 0 or bool(daily["shields_ever"]),
-		"week": Daily.week(daily, k), "can_build": can_resume_build(), "comeback": str(daily["comeback"]),
+		"week": Daily.week(daily, k), "comeback": str(daily["comeback"]),
 		"more_stars": false}
 	if nn <= Days.count():
 		var title := str(Days.TEXT["day_title"]) % [nn, str(Days.config(nn).get("title", ""))]
@@ -1349,7 +1318,6 @@ func _finish_daily_world(today: int) -> void:
 		info["next_open"] = false
 		info["next_locked"] = true
 		info["next_line"] = str(Days.TEXT["wdt_tomorrow"])
-		_keep_for_build()
 		day_won.emit(info)
 		_after_win(streak)
 	else:
@@ -1361,76 +1329,6 @@ func _finish_daily_world(today: int) -> void:
 		info["target"] = state.goal_target()
 		info["mercy_next"] = Daily.wdt_mercy(daily, key)
 		day_lost.emit(info)
-
-
-# --- Weiterbauen (2) -------------------------------------------------------------------------
-
-## Nach dem Sieg in derselben Welt weiterbauen: keine Drehungs-Grenze, kein Scheitern, Wünsche und Glaube laufen
-## weiter, Münzen fürs Wachsen. Die Sterne bleiben die des Sieges. false, wenn gerade kein gewonnener Tag läuft.
-func continue_build() -> bool:
-	if level_no > 0 or (state != null and state.camp):
-		return false              # Schöpfung (Build 12): kein Weiterbauen – nach dem Sieg „Nochmal“ oder die Übersicht
-	if not in_day() or not state.day_won or state.day_free_build:
-		return false
-	state.start_free_build()
-	over = false
-	busy = false
-	onboarding = false        # Weiterbauen braucht keinen Gratis-Tipp nach jeder Pause (Tag 1–2)
-	pending_choice = {}
-	undo_state = null
-	build_state = state
-	build_ctx = {"day_no": day_no, "level_no": level_no, "wdt_key": wdt_key, "board": day_board, "given": 0,
-		"key": today_key()}
-	_slot_live = today_build == state
-	if _slot_live:
-		build_ctx = today_build_ctx
-	state_changed.emit()
-	day_progress.emit(state.day_status())
-	build_started.emit(day_info())
-	return true
-
-
-## Gibt es die heute geschaffte Welt zum Weiterbauen (im Speicher, solange die App läuft, nur an ihrem Spieltag)?
-func can_resume_build() -> bool:
-	if today_build != null and today_build.camp:
-		return false
-	return today_build != null and int(today_build_ctx.get("key", -1)) == today_key()
-
-
-## Die gerade im heutigen Level geschaffte Welt merken: „Weiterbauen“ auf der Heute-Karte bringt sie zurück (auch ohne
-## vorher auf der Erfolgskarte „Weiterbauen“ getippt zu haben). Weiterbauen selbst beginnt erst mit resume_build.
-func _keep_for_build() -> void:
-	today_build = state
-	today_build_ctx = {"day_no": day_no, "level_no": level_no, "wdt_key": wdt_key, "board": day_board, "given": 0,
-		"key": today_key()}
-
-
-## Zurück in die heute geschaffte Welt zum Weiterbauen (aus der Übersicht).
-func resume_build() -> bool:
-	if not can_resume_build():
-		return false
-	if not today_build.day_free_build:
-		today_build.start_free_build()
-	sek100 = false
-	state = today_build
-	build_state = today_build
-	build_ctx = today_build_ctx
-	_slot_live = true
-	day_no = int(build_ctx.get("day_no", day_no))
-	level_no = int(build_ctx.get("level_no", 0))
-	wdt_key = int(build_ctx.get("wdt_key", -1))
-	day_board = build_ctx.get("board", {})
-	attempt_key = -1
-	attempt_start = -1
-	over = false
-	busy = false
-	onboarding = false
-	pending_choice = {}
-	undo_state = null
-	new_game_started.emit()
-	state_changed.emit()
-	build_started.emit(day_info())
-	return true
 
 
 ## Der Tipp an einem Tag auf einer Kopie des Stands, auf mehrere Bilder verteilt (je Bild höchstens hint_budget_usec
@@ -1463,30 +1361,6 @@ func search_hint(twist_only: bool = false) -> Dictionary:
 
 func _hint_key() -> String:
 	return "%d|%d|%d" % [state.rain, state.faith, state.turn]
-
-
-## Das laufende Weiterbauen endet (ein neuer Versuch, „Nochmal“, freies Spiel). Die heute geschaffte Welt bleibt.
-func _end_build() -> void:
-	build_state = null
-	build_ctx = {}
-	_slot_live = false
-
-
-## Weiterbauen: +1 Punkt je neu gewachsenes Feld (Reihe oder erstes Gedeihen zu einer Art), höchstens 20 je Spieltag.
-func _build_coins() -> void:
-	var g := state.build_growth()
-	var given := int(build_ctx.get("given", 0))
-	if g <= given:
-		return
-	# Punkte (GDPD_PUNKTE_LADEN.md 3): +1 je neu gewachsenes Feld, höchstens 20 je Spieltag (ersetzt die Münzen)
-	var k := today_key()
-	var paid := 0
-	for i in g - given:
-		paid += Points.build_point(pdata, k)
-	build_ctx["given"] = g
-	if paid > 0:
-		_add_points(paid, "bau")
-		_save_profile()
 
 
 # --- Erinnerungen (5): Plan rechnen, Geschichte führen, an das Plugin geben --------------------------
@@ -2030,7 +1904,6 @@ func _start_level_state(n: int, b: Dictionary) -> void:
 	if state != null and not state.is_day():
 		_save_best()
 	sek100 = false
-	_end_build()
 	attempt_key = today_key()
 	attempt_start = game_now()
 	day_no = 0
@@ -2072,6 +1945,7 @@ func retry_level() -> bool:
 	if level_no <= 0:
 		return false
 	if wdt_key >= 0:
+		_clear_run()              # Nochmal: neu beginnen (start_level_wdt() würde den Lauf sonst fortsetzen)
 		return start_level_wdt()
 	if level_board.is_empty():
 		return start_level(level_no)
@@ -2085,6 +1959,10 @@ func start_level_wdt(board_index: int = -1) -> bool:
 	var k := today_key()
 	if not Daily.wdt_available_camp(camp, k):
 		return false
+	if board_index < 0:
+		var run := saved_run()
+		if not run.is_empty() and bool(run["wdt"]) and resume_run():
+			return true           # Build 12: auch die Welt des Tages geht weiter (resume_run prüft den Tag)
 	var cfg := Campaign.wdt_config(k, Daily.weekday_name(k), camp["stars"])
 	if cfg.is_empty():
 		return false
@@ -2096,7 +1974,6 @@ func start_level_wdt(board_index: int = -1) -> bool:
 		if sz > 1 and pick == 0:
 			pick = 1                  # nie Brett 0 (wie Campaign.wdt_board_index)
 		b = Campaign.board(t, pick)
-	_end_build()
 	sek100 = false
 	attempt_key = k
 	attempt_start = game_now()
@@ -2138,7 +2015,7 @@ func level_info() -> Dictionary:
 	return {"day": n, "level": n, "camp": true, "act": int(cfg.get("act", 0)), "act_name": str(cfg.get("act_name", "")),
 		"title": str(cfg.get("title", "")), "story": str(cfg.get("story", "")), "intro": str(cfg.get("story", "")),
 		"wdt": wdt, "wdt_key": wdt_key, "caps": str(cfg.get("caps", str(Campaign.TEXT["act_caps"]) % int(cfg.get("act", 1)))),
-		"free_build": state.day_free_build, "goal_text": Campaign.goal_line(cfg), "goal_type": state.goal_type(),
+		"goal_text": Campaign.goal_line(cfg), "goal_type": state.goal_type(),
 		"goal_icon": FieldData.kind_icon(maxi(0, int(state.goal_kinds()[0]) if not state.goal_kinds().is_empty() else 0)),
 		"target": state.goal_target(), "subs": state.sub_status9(), "stars": state.stars9.duplicate(), "par": state.par9,
 		"limit": 0, "base_limit": 0, "mercy": 0,
@@ -2267,7 +2144,7 @@ func camp_today_info() -> Dictionary:
 	var out := {"today": k, "weekday": Daily.weekday_name(k), "countdown": Daily.countdown_text(now),
 		"done_today": Daily.done_today(daily, k), "streak": int(daily["streak"]), "best": int(daily["streak_best"]),
 		"shields": int(daily["shields"]), "shields_visible": int(daily["shields"]) > 0 or bool(daily["shields_ever"]),
-		"week": Daily.week(daily, k), "can_build": can_resume_build(), "comeback": str(daily["comeback"]),
+		"week": Daily.week(daily, k), "comeback": str(daily["comeback"]),
 		"more_stars": false, "camp": true, "fast_line": ""}
 	var wdt_ok := Daily.wdt_available_camp(camp, k)
 	if nn <= Campaign.COUNT and level_unlocked(nn):
@@ -2439,6 +2316,9 @@ func mark_shop_seen(ids: Array) -> void:
 
 ## Ein gekauftes Wunder aus dem Vorrat benutzen (Regen, Meteor: auf ein Feld; Blitzschutz: sofort). Zählt im Level
 ## 2 Schritte, je Art einmal (GameState). true = es läuft.
+var _stock_pending := ""          # gekauftes Wunder (regen/meteor), dessen Runde gerade läuft: abgebucht in finish_round
+
+
 func use_stock(kind: String, fid: int = -1) -> bool:
 	var id := {"rain": "regen", "strike": "meteor", "meteor": "meteor", "guard": "blitzschutz"}.get(kind, kind) as String
 	if int(stock.get(id, 0)) <= 0 or state == null or busy or over:
@@ -2458,8 +2338,8 @@ func use_stock(kind: String, fid: int = -1) -> bool:
 	var ok := state.rain_ok9(f, true) if id == "regen" else state.meteor_ok9(f, true)
 	if not ok:
 		return false
-	stock[id] = int(stock[id]) - 1
-	_save_profile()
+	# Erst wenn die Runde fertig ist (finish_round), zusammen mit dem Lauf: App mitten im Wunder zu → beides wie vorher
+	_stock_pending = id
 	busy = true
 	_last_kind = "rain" if id == "regen" else "strike"
 	_start({"type": "rain" if id == "regen" else "strike", "field": fid, "row": [], "bought": true})
@@ -2468,7 +2348,16 @@ func use_stock(kind: String, fid: int = -1) -> bool:
 
 func stock_of(kind: String) -> int:
 	var id := {"rain": "regen", "strike": "meteor", "meteor": "meteor", "guard": "blitzschutz"}.get(kind, kind) as String
-	return int(stock.get(id, 0))
+	return maxi(0, int(stock.get(id, 0)) - (1 if _stock_pending == id else 0))
+
+
+## Das gekaufte Wunder der gerade fertigen Runde abbuchen (in finish_round, direkt vor _save_run).
+func _commit_stock() -> void:
+	if _stock_pending == "":
+		return
+	stock[_stock_pending] = maxi(0, int(stock.get(_stock_pending, 0)) - 1)
+	_stock_pending = ""
+	_save_profile()
 
 
 # --- 100-Sekunden-Challenge (GDPD_SCHOEPFUNG.md 12; ersetzt „40 Drehungen“) ---------------------------------
@@ -2518,7 +2407,7 @@ func _rescue_check() -> void:
 ## Das Geschenk des Charakters annehmen (Sicherheitsnetz): +1 Fortschritt und, wenn nötig, Nachschub. Kein Schritt,
 ## kostet nichts. Die World spielt es wie einen Regen ab (round_resolved, danach finish_round). {} = nichts zu schenken.
 func take_gift() -> Dictionary:
-	if busy or over or state == null or not state.camp or state.day_won or state.day_free_build:
+	if busy or over or state == null or not state.camp or state.day_won:
 		return {}
 	if state.gift_plan9().is_empty():
 		return {}
@@ -2665,7 +2554,6 @@ func resume_run() -> bool:
 	if state != null and not state.is_day():
 		_save_best()
 	sek100 = false
-	_end_build()
 	day_no = 0
 	level_no = n
 	wdt_key = wk

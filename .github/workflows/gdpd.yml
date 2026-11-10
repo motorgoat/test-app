@@ -93,7 +93,7 @@ jobs:
                    need_seal_stays hold_rest water_turns_with_slice points_shop free_100s daily_world bonus_round_responsive \
                    water_life_visible help_campaign level3_solvable \
                    action_line action_line_fits no_field_icons action_line_updates volcano_cone_sinks orbit_inverted rocks_act2 \
-                   task_at_top rock_row_counts save_mid_level \
+                   task_at_top rock_row_counts save_mid_level sheet_rule_camp \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

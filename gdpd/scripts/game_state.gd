@@ -1294,6 +1294,14 @@ func next_of(k: int, option: int = 0) -> int:
 	return nx if nx >= 0 and unlocked.has(nx) else k
 
 
+## Was eine Reihe dieser Art ergibt – für Bilder und Texte (Feld-Karte). In der Schöpfung gilt rows9
+## (Fels → Erde, Lava → Fels …), sonst next_of. Bildet die Art keine Reihe, bleibt sie, wie sie ist.
+func row_result(k: int) -> int:
+	if camp:
+		return int(rows9.get(k, k))
+	return next_of(k)
+
+
 ## Erklärung für das lange Drücken auf ein Feld dieser Art (heutige Regeln).
 func kind_help(k: int) -> String:
 	if camp:

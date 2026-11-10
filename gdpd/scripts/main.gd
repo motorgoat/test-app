@@ -260,7 +260,7 @@ func _camp_tour(dir: String) -> void:
 	# Kein Weiterbauen mehr (Build 12): Level 2 erst morgen → „Nochmal · mehr Sterne“ (unter 3 Sternen) oder „Zur Übersicht“
 	var no_build := true
 	for b in [dui.wc_next, dui.wc_alt, dui.wc_home]:
-		if (b as Button).visible and (b as Button).text == str(Days.TEXT["build"]):
+		if (b as Button).visible and (b as Button).text == "Weiterbauen":
 			no_build = false
 	var main_ok := dui.wc_next.text == (str(Days.TEXT["again_stars"]) if st1 < 3 else str(Days.TEXT["to_overview"]))
 	_check(won and wcard and no_build and main_ok and dui.wc_next_line.text == str(Campaign.TEXT["tomorrow"]),
@@ -277,8 +277,11 @@ func _camp_tour(dir: String) -> void:
 	# 7. In der Übersicht: kein „Weiterbauen“ auf der Heute-Karte, keine Weiterbauen-Zeile im Spiel
 	await _wait(0.6)
 	await _shot(dir, "00h_uebersicht_ohne_weiterbauen")
-	_check(dui.is_open() and not dui.tc_build.visible and not (Game.state != null and Game.state.day_free_build),
-		"no_continue_build", "uebersicht=%s weiterbauen=%s" % [str(dui.is_open()), str(dui.tc_build.visible)])
+	# Der Code-Weg ist weg: kein Knopf auf der Heute-Karte, keine Game-API, kein Signal
+	var api_gone := not Game.has_method("continue_build") and not Game.has_method("resume_build") \
+		and not Game.has_signal("build_started") and not ("tc_build" in dui) and not Game.today_info().has("can_build")
+	_check(dui.is_open() and api_gone and not (Game.state != null and Game.state.day_free_build),
+		"no_continue_build", "uebersicht=%s api_weg=%s" % [str(dui.is_open()), str(api_gone)])
 	# 8. Zur Übersicht: Level 2 erst morgen; Antippen sagt „Erst morgen“ und die Uhr
 	if not dui.is_open():
 		await _tap(ui.menu_b)
@@ -1212,7 +1215,7 @@ func _days_tour(dir: String) -> void:
 	await _wait(2.8)                      # Sterne, dann die Serien-Feier (die Zahl zählt hoch)
 	await _shot(dir, "00e_tag1_geschafft")
 	var line2 := str(Days.TEXT["tomorrow_next"]) % [2, str(Days.config(2)["title"])]
-	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text != str(Days.TEXT["build"])
+	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text != "Weiterbauen"
 		and dui.wc_next_line.visible and dui.wc_next_line.text == line2 and dui.wc_streak_num.text == "1" and Game.streak() == 1,
 		"day_success", "won=%s stars=%d drehungen=%d knopf=%s zeile=%s serie=%s" % [str(won), Game.stars_of(1), Game.state.day_won_at,
 		dui.wc_next.text, dui.wc_next_line.text, dui.wc_streak_num.text])
@@ -1239,7 +1242,7 @@ func _days_tour(dir: String) -> void:
 	var t2: Dictionary = dui.ov_tiles[1]
 	var morgen := dui.is_open() and bool((t2["btn"] as Button).get_meta("morgen", false)) and (t2["morgen"] as Control).visible \
 		and not Game.day_unlocked(2) and dui.tc_title.text == str(Days.TEXT["today_done"]) and dui.tc_count.text != "" \
-		and dui.tc_count_row.visible and not dui.tc_build.visible and (dui.week_cells[0] as DayUI.WeekDot).state == "streak"
+		and dui.tc_count_row.visible and (dui.week_cells[0] as DayUI.WeekDot).state == "streak"
 	await _shot(dir, "00u_morgen")
 	await _tap(t2["btn"])
 	var toast_ok := false
@@ -1393,7 +1396,7 @@ func _days_tour(dir: String) -> void:
 		"lost=%s brett=%d->%d grenze=%d nacht=%s" % [lost, b0, int(Game.day_board.get("index", -1)), Game.state.day_limit, str(Game.overnight.is_empty())])
 	ui._close_modal(true)
 	# 7. Tag 4 Brett 0: Menschen. Die erste Lösungs-Drehung: 3 Tiere → 1 Hütte (Feld 8), 23 und 24 werden Wiese,
-	# die Hütte ist satt (neben anderen Tieren). Dann die ganze Lösung: geschafft → Weiterbauen mit der Extra-Aufgabe
+	# die Hütte ist satt (neben anderen Tieren). Dann die ganze Lösung: geschafft (kein Weiterbauen mehr)
 	Game.start_day(4, 0)
 	kinds_log.append(_growable(Game.state))
 	vis_log.append([Game.day_no, Days.visible_kinds(_kinds_of(Game.state))])
@@ -1416,23 +1419,13 @@ func _days_tour(dir: String) -> void:
 	var wc4 := await _until_shown(dui.win_card, 8.0)
 	await _wait(2.0)
 	var won4 := Game.state.day_won
-	var build_btn: Button = dui.wc_next if dui.wc_next.text == str(Days.TEXT["build"]) else (dui.wc_alt if dui.wc_alt.text == str(Days.TEXT["build"]) else null)
-	if wc4 and build_btn != null:
-		await _tap(build_btn)
-		await _wait(1.2)
-	elif wc4:
-		ui._close_modal(true)
-		Game.continue_build()
-		await _wait(1.2)
-	if wc4:
-		if dui.ask_card.visible:
-			await _tap(dui.ask_no)
-			await _wait(0.8)
+	# Build 12: kein Weiterbauen – auf der Sieg-Karte gibt es keinen Knopf dafür
+	var no_build4 := not [dui.wc_next.text, dui.wc_alt.text, dui.wc_home.text].has("Weiterbauen")
+	await _shot(dir, "00k3_tag4_geschafft")
+	_check(won4 and wc4 and no_build4 and not Game.state.day_free_build, "day4_won",
+		"gewonnen=%s knopf=%s/%s" % [str(won4), dui.wc_next.text, dui.wc_alt.text])
+	ui._close_modal(true)
 	await _wait(0.6)
-	await _shot(dir, "00k3_tag4_extra")
-	var extra_txt := dui.chip_caps.text
-	_check(won4 and wc4 and Game.in_day() and Game.day_no == 4 and Game.state.day_free_build and Game.state.twists_left() == -1 and extra_txt == "Extra: 4 Hütten satt"
-		and dui.chip.visible, "extra_task", "gewonnen=%s knopf=%s chip=%s" % [str(won4), dui.wc_next.text, extra_txt])
 	# 8. Tag 5 Brett 0: Arbeit. Beim Ziehen einer Drehung zeigt die Vorschau ein Feld als satt (grüner Rand, Chip „0→1“);
 	# nach dem Loslassen ist es satt
 	Game.start_day(5, 0)
@@ -3677,6 +3670,32 @@ func _b12_tour(dir: String) -> void:
 	var mk := Look.model_key()
 	await _shot(dir, "b12e_akt2_fels")
 	_check(not Look.basalt_dark() and mk.length() == 5 and mk.ends_with("0"), "rocks_act2", "zeitalter=%s schluessel=%s" % [Look.era_name, mk])
+	# Feld-Karte (Build-11-Bild): das Regel-Bild zeigt, was eine Reihe in der Schöpfung wirklich wird (Fels → Erde)
+	var gs6 := Game.state
+	var sf := -1
+	for f in gs6.fields:
+		var fk := (f as FieldData).kind
+		if gs6.rows9.has(fk) and (sf < 0 or fk == FieldData.FELS):
+			sf = (f as FieldData).id
+			if fk == FieldData.FELS:
+				break
+	var sheet_ok := false
+	var sheet_txt := ""
+	if sf >= 0:
+		world.focus_field(sf)
+		await _wait(1.2)
+		var sk := (gs6.fields[sf] as FieldData).kind
+		var want := Style.icon(ui._kind_icon(int(gs6.rows9[sk])))
+		var sp := world.field_screen(sf)
+		await _touch(sp["pos"])
+		await _wait(0.7)
+		sheet_txt = "%s → %s" % [FieldData.kind_name(sk), FieldData.kind_name(int(gs6.rows9[sk]))]
+		sheet_ok = ui.sheet.visible and ui.sheet_title.text == FieldData.kind_name(sk) and ui.sheet_ladder.visible \
+			and ui.sheet_next.texture == want and ui.sheet_caps.text != "Essen"
+		await _shot(dir, "b12e2_feldkarte_regel")
+		ui._close_sheet()
+		await _wait(0.5)
+	_check(sheet_ok, "sheet_rule_camp", "feld=%d regel=%s karte=%s" % [sf, sheet_txt, ui.sheet_title.text])
 	# 7. „Man soll immer genau wissen, was man tun muss“: oben steht in jedem Level die nächste Handlung der Regeln
 	await _b12_task_at_top(dir)
 	# 8. „3 Felsen in einer Reihe … nichts passiert“: keine Reihe steht schon am Start, eine echte Fels-Reihe wächst

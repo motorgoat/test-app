@@ -271,11 +271,6 @@ const LINES := {
 		"frech": "Erledigt! Morgen was Neues.",
 		"streng": "Erledigt. Morgen eine neue Welt.",
 	},
-	"weiterbauen": {
-		"lieb": "Bau weiter, ohne Grenze!",
-		"frech": "Bonusrunde! Ohne Limit!",
-		"streng": "Weiterbauen. Ohne Grenze.",
-	},
 	"wdt_intro": {
 		"lieb": "Heute: {ziel}. Viel Spaß!",
 		"frech": "Heute: {ziel}. Locker!",
@@ -312,7 +307,7 @@ const FACE := {
 	"streak_1": "proud", "streak_n": "proud", "streak_7": "proud", "streak_7_full": "proud", "streak_big": "proud",
 	"shield_bought": "happy",
 	"comeback_saved": "happy", "comeback_lost": "sad", "open": "happy", "open_night": "sleepy",
-	"day_open": "happy", "day_done": "happy", "day_wait": "cheeky", "d1_retry": "worried", "d1_hint": "cheeky", "wdt_open": "happy", "wdt_done": "proud", "weiterbauen": "happy",
+	"day_open": "happy", "day_done": "happy", "day_wait": "cheeky", "d1_retry": "worried", "d1_hint": "cheeky", "wdt_open": "happy", "wdt_done": "proud",
 	"wdt_intro": "neutral", "ask_reminder": "happy", "ask_yes": "happy", "ask_no": "neutral",
 }
 

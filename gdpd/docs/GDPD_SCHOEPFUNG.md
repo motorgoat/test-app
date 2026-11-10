@@ -535,8 +535,9 @@ come on top, `GDPD_PUNKTE_LADEN.md` 9).
 
 **Build 12: removed from the campaign** (player: „weiterbauen brauchen wir nicht, wenns eh weiter gibt“). After a
 win the next action is „Nochmal“ (more stars) or the overview; the world at the win carries into the next level
-(section 5). `Game.continue_build()` / `resume_build()` return false in a level, `GameState.start_free_build()`
-does nothing in a level. The text below is kept for the 7-day mode only.
+(section 5). The Weiterbauen code path is gone from `Game` and the UI (`continue_build`, `resume_build`,
+`today_build`, `build_started`, the Heute-card button, the chip/help/voice branches); `GameState.start_free_build()`
+does nothing in a level and stays only as a rule of the old 7-day state tests. The text below is history.
 
 As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays won, stars frozen. New:
 - **Extra tasks**: the chip becomes „Extra: …“ – `make` and `group` goals: target + 2, then + 4; `satt` goals:
@@ -1215,7 +1216,9 @@ computed from the real board after every action, never impossible:
 a new row toward the goal („Dreh 3 Felsen in eine Reihe → Erde“), a field that becomes supplied („Lava ans Wasser
 drehen → Fels“), a bigger goal group, or a danger averted („Teil die Lava!“, „Wasser an den Wald!“, „Trenn die
 Raubtiere!“, „Rette die Hungrigen!“, „Weg vom Smog!“, „Trenn die Kirchen!“, „Verteil die Städte!“) – a danger comes
-first unless the same twist also makes progress; 3. rain that brings a field closer („Gieß Lava mit Regen“);
+first unless the same twist also makes progress; when a danger is open and the best twist would not avert it, the
+line names the best averting twist instead (or, for the bolt without one, „Gieß den Wald!“), so it never contradicts
+the warning pill („Blitz droht! …“); 3. rain that brings a field closer („Gieß Lava mit Regen“);
 4. two twists: a preparation after which a row works („Bring 3 Felsen in eine Reihe“, `steps` 2; slot permutations
 only, a few ms); 5. supplied fields grow by themselves („Dreh weiter, Lava wächst“); 6. dead end → „Hol dir Hilfe“
 (the gift); 7. the sub-goal over several moves, only if possible (enough fields on fitting sticker types), else
@@ -1227,5 +1230,14 @@ fields). Cost: about 6–8 ms per round on a PC (worst ~20–30 ms), cached unti
 undo, on pause/close/focus loss the running attempt is written (`GameState.save9()`: positions and field states,
 steps, progress with losses, seals, warnings and dangers, tools, mercy/gift state, rng; plus undo state, start
 board, free hint/undo, rescue offer). On app start `Game.resume_run()` continues it exactly (`level_started` with
-`"resumed": true`); opening the same level from the overview also continues it. A win, „Nochmal“, a new world, free
+`"resumed": true`); opening the same level (or today's Welt des Tages) from the overview also continues it; „Nochmal“
+starts fresh. A bought miracle (Regen, Meteor via `use_stock`) is booked in `finish_round`, right before the run is
+saved, so closing the app mid-animation keeps both the item and the pre-round state. A win, „Nochmal“, a new world, free
 play or another level start clears it; a changed level config (md5) or another version starts the level fresh.
+While a round is still animating (`busy`), pause/close keeps the state saved before that round (the board is ahead,
+but `finish_round` – win, safety net – has not run). The app then starts directly in the level (no overview, start
+card, act transition or overnight wave; `DayUI.startup`, `_go_resumed`).
+
+**Field sheet rule picture** (Build 11 screenshot: „3 × Fels → Fels“ while the text said „Erde“): `GameState.row_result(k)`
+returns `rows9[k]` in a campaign level (else `next_of`), and `ui._fill_sheet` uses it, so the picture always matches
+the body text (`test_review12` checks every row kind of all 30 levels; tour check `sheet_rule_camp`).
