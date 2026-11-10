@@ -97,6 +97,8 @@ func _shots(dir: String) -> void:
 		await _level3_only(dir)
 	if only == "bonus":             # nur die lange Bonusrunde (läuft sonst am Ende der Tage mit)
 		await _bonus_round_tour(dir)
+	if only == "" or only == "b12":   # Build 12: Was-jetzt-Zeile, keine Feld-Symbole, Vulkan-Kegel, Ansicht, Fels
+		await _b12_tour(dir)
 	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
 	print("Tour: %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	print("TOUR-DONE checks=%d failed=%d" % [_checks, _failed])
@@ -241,6 +243,8 @@ func _camp_tour(dir: String) -> void:
 	_check(your_turn and not ui.input_locked(), "l1_your_turn", "lane=%s" % dui.lane_label.text.left(30))
 	await _no_auto_twist_check()
 	world.tour_auto = true
+	# Das Menü (echte Eingabe) mitten im Level: oben das Wichtige, Unwichtiges unter „Einstellungen“
+	await _menu_check(dir)
 	# 5. Den Rest selbst (wie der Tipp, echte Wische): geschafft – Sterne nach Schritten, Punkte einzeln
 	var won := await _play_level(14)
 	var wcard := await _until_shown(dui.win_card, 6.0)
@@ -253,10 +257,16 @@ func _camp_tour(dir: String) -> void:
 	_check(won and wcard and Game.level_stars(1) == st1 and st1 >= 2 and Game.state.level_points() == pts1 and lines_ok
 		and dui.wc_title.text == "Glut geschafft!" and Game.streak() == 1, "stars_generous",
 		"schritte=%d sterne=%d punkte=%d zeilen=%d summe=%s" % [steps1, st1, pts1, dui.wc_points.get_child_count(), dui.wc_total_pts.text])
-	_check(won and wcard and dui.wc_next.text == str(Days.TEXT["build"]) and dui.wc_next_line.text == str(Campaign.TEXT["tomorrow"]),
-		"level_success", "knopf=%s zeile=%s" % [dui.wc_next.text, dui.wc_next_line.text])
-	# 6. „Weiterbauen“: vorher fragt der Charakter, ob er erinnern darf („Lieber nicht“); dann ohne Limit weiter
-	await _tap(dui.wc_next)
+	# Kein Weiterbauen mehr (Build 12): Level 2 erst morgen → „Nochmal · mehr Sterne“ (unter 3 Sternen) oder „Zur Übersicht“
+	var no_build := true
+	for b in [dui.wc_next, dui.wc_alt, dui.wc_home]:
+		if (b as Button).visible and (b as Button).text == str(Days.TEXT["build"]):
+			no_build = false
+	var main_ok := dui.wc_next.text == (str(Days.TEXT["again_stars"]) if st1 < 3 else str(Days.TEXT["to_overview"]))
+	_check(won and wcard and no_build and main_ok and dui.wc_next_line.text == str(Campaign.TEXT["tomorrow"]),
+		"level_success", "knopf=%s zweit=%s/%s zeile=%s" % [dui.wc_next.text, dui.wc_alt.text, str(dui.wc_alt.visible), dui.wc_next_line.text])
+	# 6. „Zur Übersicht“: vorher fragt der Charakter, ob er erinnern darf („Lieber nicht“)
+	await _tap(dui.wc_home if dui.wc_home.visible else dui.wc_next)
 	var ask := await _until_shown(dui.ask_card, 4.0)
 	await _wait(0.4)
 	await _shot(dir, "00g_erinnern_frage")
@@ -264,27 +274,17 @@ func _camp_tour(dir: String) -> void:
 	await _tap(dui.ask_no)
 	await _wait(1.2)
 	_check(ask_ok and int(Game.remind["asked"]) == 1 and not dui.ask_card.visible, "permission_ask", "frage=%s" % dui.ask_text.text.left(40))
-	var gs1 := Game.state
-	var g0 := gs1.build_growth()
-	var chip_build := dui.chip.visible and dui.grow_box.visible and dui.chip_caps.text.begins_with("Extra")
-	for i in 3:
-		var act: Dictionary = await Game.search_hint(true)
-		if act.is_empty() or str(act.get("type", "twist")) != "twist":
-			var d := _twist_without_progress()
-			act = {"axis": d[0], "layer": d[1], "turns": d[2]}
-		await _swipe_move(int(act["axis"]), int(act["layer"]), int(act["turns"]))
-		await _settle(8.0)
+	# 7. In der Übersicht: kein „Weiterbauen“ auf der Heute-Karte, keine Weiterbauen-Zeile im Spiel
 	await _wait(0.6)
-	await _shot(dir, "00h_weiterbauen")
-	_check(chip_build and Game.state == gs1 and gs1.day_free_build and gs1.day_won and not Game.over and not dui.win_card.visible
-		and gs1.twists >= gs1.day_won_at + 3, "continue_mode_no_limit", "chip=%s gewachsen=%d->%d" % [dui.chip_caps.text, g0, gs1.build_growth()])
-	# 7. Das Menü (echte Eingabe): oben das Wichtige, Unwichtiges unter „Einstellungen“
-	await _menu_check(dir)
-	# 8. Zur Übersicht (Menü → Schöpfung): Level 2 erst morgen; Antippen sagt „Erst morgen“ und die Uhr
-	await _tap(ui.menu_b)
-	await _until_shown(ui.menu_card, 3.0)
-	await _tap(ui._menu_days)
-	await _wait(1.2)
+	await _shot(dir, "00h_uebersicht_ohne_weiterbauen")
+	_check(dui.is_open() and not dui.tc_build.visible and not (Game.state != null and Game.state.day_free_build),
+		"no_continue_build", "uebersicht=%s weiterbauen=%s" % [str(dui.is_open()), str(dui.tc_build.visible)])
+	# 8. Zur Übersicht: Level 2 erst morgen; Antippen sagt „Erst morgen“ und die Uhr
+	if not dui.is_open():
+		await _tap(ui.menu_b)
+		await _until_shown(ui.menu_card, 3.0)
+		await _tap(ui._menu_days)
+		await _wait(1.2)
 	var lb2 := dui.level_btn(2)
 	var morgen := dui.is_open() and bool(lb2.get_meta("morgen", false)) and not Game.level_unlocked(2) and dui.tc_title.text == str(Days.TEXT["today_done"])
 	await _shot(dir, "00i_morgen")
@@ -1212,15 +1212,15 @@ func _days_tour(dir: String) -> void:
 	await _wait(2.8)                      # Sterne, dann die Serien-Feier (die Zahl zählt hoch)
 	await _shot(dir, "00e_tag1_geschafft")
 	var line2 := str(Days.TEXT["tomorrow_next"]) % [2, str(Days.config(2)["title"])]
-	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text == str(Days.TEXT["build"])
+	_check(won and wcard and Game.state.day_won and Game.stars_of(1) >= 1 and dui.wc_next.text != str(Days.TEXT["build"])
 		and dui.wc_next_line.visible and dui.wc_next_line.text == line2 and dui.wc_streak_num.text == "1" and Game.streak() == 1,
 		"day_success", "won=%s stars=%d drehungen=%d knopf=%s zeile=%s serie=%s" % [str(won), Game.stars_of(1), Game.state.day_won_at,
 		dui.wc_next.text, dui.wc_next_line.text, dui.wc_streak_num.text])
 	if _only == "day1":
 		return
-	# 4. „Weiterbauen“ (echte Eingabe). Vorher fragt der Charakter einmal, ob er morgen erinnern darf (am Handy
-	# kommt danach der Android-Dialog): „Lieber nicht“
-	await _tap(dui.wc_next)
+	# 4. „Zur Übersicht“ (echte Eingabe, kein Weiterbauen mehr). Vorher fragt der Charakter einmal, ob er morgen
+	# erinnern darf (am Handy kommt danach der Android-Dialog): „Lieber nicht“
+	await _tap(dui.wc_home if dui.wc_home.visible else dui.wc_next)
 	var ask := await _until_shown(dui.ask_card, 4.0)
 	await _wait(0.6)
 	await _shot(dir, "00e2_erinnern_frage")
@@ -1229,26 +1229,6 @@ func _days_tour(dir: String) -> void:
 	await _wait(1.2)
 	_check(ask_ok and int(Game.remind["asked"]) == 1 and not dui.ask_card.visible, "permission_ask",
 		"frage=%s gefragt=%d" % [dui.ask_text.text.left(40), int(Game.remind["asked"])])
-	# Weiterbauen: kein Drehungs-Limit, kein Scheitern – die Welt wächst weiter (3 echte Drehungen)
-	var gs1 := Game.state
-	var g0 := gs1.build_growth()
-	# Die Aufgabe bleibt sichtbar: als Extra-Aufgabe („Extra: 9 Wiesen“, GDPD_BALANCE_2.md 6.3)
-	var chip_build := dui.chip.visible and dui.grow_box.visible and not dui.ring.visible \
-		and dui.chip_caps.text == Days.extra_line(Game.state.day, Game.state.extra_target())
-	for i in 3:
-		var act := Game.state.best_action()
-		if act.is_empty() or str(act.get("type", "twist")) != "twist":
-			var d := _twist_without_progress()
-			act = {"axis": d[0], "layer": d[1], "turns": d[2], "choice": 0}
-		await _swipe_move(int(act["axis"]), int(act["layer"]), int(act["turns"]))
-		await _settle(8.0, int(act.get("choice", 0)))
-	await _wait(0.8)
-	await _shot(dir, "00v_weiterbauen")
-	var g1 := Game.state.build_growth()
-	_check(chip_build and Game.state == gs1 and gs1.day_free_build and gs1.twists_left() == -1 and gs1.day_won and gs1.day_lost == ""
-		and not Game.over and not dui.fail_card.visible and not dui.win_card.visible and g1 > g0 and dui.grow_num.text == str(g1)
-		and gs1.used_twists() >= gs1.day_won_at + 3, "continue_mode_no_limit",
-		"chip=%s links=%d gewachsen=%d->%d drehungen=%d" % [str(chip_build), gs1.twists_left(), g0, g1, gs1.used_twists()])
 	# 5. Zur Übersicht (Menü, echte Eingabe): Tag 2 ist erst morgen dran (Mond, „Morgen“), die Heute-Karte sagt
 	# „Heute geschafft!“ mit der Uhr bis zum neuen Tag, die Woche zeigt die erste Flamme
 	await _tap(ui.menu_b)
@@ -1259,7 +1239,7 @@ func _days_tour(dir: String) -> void:
 	var t2: Dictionary = dui.ov_tiles[1]
 	var morgen := dui.is_open() and bool((t2["btn"] as Button).get_meta("morgen", false)) and (t2["morgen"] as Control).visible \
 		and not Game.day_unlocked(2) and dui.tc_title.text == str(Days.TEXT["today_done"]) and dui.tc_count.text != "" \
-		and dui.tc_count_row.visible and dui.tc_build.visible and (dui.week_cells[0] as DayUI.WeekDot).state == "streak"
+		and dui.tc_count_row.visible and not dui.tc_build.visible and (dui.week_cells[0] as DayUI.WeekDot).state == "streak"
 	await _shot(dir, "00u_morgen")
 	await _tap(t2["btn"])
 	var toast_ok := false
@@ -1580,7 +1560,7 @@ func _days_tour(dir: String) -> void:
 	await _wait(1.6)
 	await _shot(dir, "00r_vollendet")
 	_check(wc7 and dui.wc_title.text == str(Days.TEXT["complete"]) and Game.world_done and Game.free_play_unlocked()
-		and dui.wc_next.text == str(Days.TEXT["build"]) and dui.wc_alt.text == str(Days.TEXT["free"]), "world_complete",
+		and dui.wc_next.text == str(Days.TEXT["to_overview"]) and dui.wc_alt.text == str(Days.TEXT["free"]), "world_complete",
 		"titel=%s" % dui.wc_title.text)
 	# 11. „Freies Spiel“ (echte Eingabe): die vier Spielarten, Mittel antippen
 	await _tap(dui.wc_alt)
@@ -1617,7 +1597,7 @@ func _days_tour(dir: String) -> void:
 	await _bonus_round_tour(dir)
 
 
-# --- Weiterbauen bleibt bedienbar (Bericht „hat sich aufgehängt in der Bonusrunde“) ---------------------------------
+# --- Eine lange Runde bleibt bedienbar (Bericht „hat sich aufgehängt in der Bonusrunde“) ---------------------------
 
 ## Misst die Rechenzeit des Spiels je Bild: vom Signal process_frame (danach laufen die wartenden Suchen weiter) bis
 ## zum Ende aller _process (diese Sonde läuft als letzte). Ohne die Software-Grafik der Tour und ohne die Tour selbst
@@ -1712,7 +1692,7 @@ func _on_bonus_round(result: Dictionary, _before: Dictionary) -> void:
 ## Tag 6 schaffen, „Weiterbauen“ (echte Eingabe), dann wie ein Spieler, der lange weiterbaut: 40 echte Wische,
 ## Regen und Meteor über Dock und Feld, Tipp, eine lange Pause, Menü auf und zu, „Zurück“. Danach nimmt das Spiel
 ## noch jede Eingabe an (Wisch, Werkzeug), und kein Bild hat lange gerechnet (Rechenzeit des Spiels je Bild).
-const BONUS_SWIPES := 24        # echte Wische im langen Weiterbauen (Software-Grafik: ~6 s je Wisch)
+const BONUS_SWIPES := 24        # echte Wische in der langen Runde (Software-Grafik: ~6 s je Wisch)
 
 
 func _bonus_round_tour(dir: String) -> void:
@@ -1726,24 +1706,10 @@ func _bonus_round_tour(dir: String) -> void:
 	await _until_shown(dui.goal_card, 8.0)
 	await _tap(dui.gc_go)
 	await _wait(4.4)
-	await _play_solution(Game.day_board["solution"], 99)
-	if not Game.state.day_won:
-		await _play_level(20) if Balance.CAMPAIGN_ON else await _play_day(20)
-	var wc := await _until_shown(dui.win_card, 8.0)
-	await _wait(1.6)
-	var build_btn: Button = dui.wc_next if dui.wc_next.text == str(Days.TEXT["build"]) else (dui.wc_alt if dui.wc_alt.text == str(Days.TEXT["build"]) else null)
-	if wc and build_btn != null:
-		await _tap(build_btn)
-	elif wc:
-		ui._close_modal(true)
-		Game.continue_build()
-	await _wait(1.2)
-	if dui.ask_card.visible:
-		await _tap(dui.ask_no)
-		await _wait(0.8)
 	ui._coach_dismiss()
 	await _settle(6.0)
-	var building := Game.in_day() and Game.state.day_free_build and not Game.onboarding
+	# Kein Weiterbauen mehr (Build 12): die lange Runde ist ein langes, ungelöstes Level (Zufallswische)
+	var building := Game.in_day() and not Game.state.day_won and not Game.onboarding
 	var gs := Game.state
 	var tw0 := gs.twists
 	# Software-Grafik schafft ~2 Bilder je Sekunde: die Suche darf je Bild mehr rechnen (sonst dauert ein Tipp eine
@@ -1762,12 +1728,19 @@ func _bonus_round_tour(dir: String) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 606
 	var swiped := 0
+	var twisted_before := 0
 	for i in BONUS_SWIPES:
 		var m: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
 		if i % 4 == 3:
 			var act := Game.state.best_move()
 			if not act.is_empty():
 				m = [int(act["axis"]), int(act["layer"]), int(act["turns"])]
+		if Game.state.day_won or Game.over:
+			# zufällig gelöst: „Nochmal“ (echte Eingabe) und auf einem neuen Versuch weiterwischen
+			twisted_before += gs.twists - tw0
+			await _bonus_again()
+			gs = Game.state
+			tw0 = gs.twists
 		if await _swipe_move(int(m[0]), int(m[1]), int(m[2])):
 			swiped += 1
 		await _settle(8.0)
@@ -1775,7 +1748,7 @@ func _bonus_round_tour(dir: String) -> void:
 			await _tap(dui.ask_no)
 			await _wait(0.6)
 		ui._coach_dismiss()
-	var twisted := gs.twists - tw0
+	var twisted := twisted_before + gs.twists - tw0
 	# Regen über das Dock auf ein Feld, auf das er darf (echte Eingabe)
 	Game.state.rain = maxi(Game.state.rain, 2)
 	Game.state_changed.emit()
@@ -1861,16 +1834,41 @@ func _bonus_round_tour(dir: String) -> void:
 	var secs := float(Time.get_ticks_msec() - t0) / 1000.0
 	var frames_ok := probe.frames > 100 and probe.max_usec < 250000
 	await _wait(0.6)
-	await _shot(dir, "00z_weiterbauen_bedienbar")
+	await _shot(dir, "00z_lange_runde_bedienbar")
 	_check(building and swiped >= BONUS_SWIPES - 2 and twisted >= BONUS_SWIPES - 2 and rain_mode and rained and strike_mode and struck and hint_done and menu_open
-		and menu_closed and undone and free_now and accepted and tool_ok and frames_ok and Game.state.day_free_build and not Game.over,
-		"bonus_round_responsive", ("weiterbauen=%s wische=%d gedreht=%d regen=%s/%s/%s meteor=%s/%s werkzeuge=%s tipp=%s menue=%s/%s " +
+		and menu_closed and undone and free_now and accepted and tool_ok and frames_ok and Game.in_day() and not Game.over,
+		"bonus_round_responsive", ("lange_runde=%s wische=%d gedreht=%d regen=%s/%s/%s meteor=%s/%s werkzeuge=%s tipp=%s menue=%s/%s " +
 		"zurueck=%s frei=%s wisch_danach=%s werkzeug=%s bilder=%d rechnen_max=%.0fms langsam=%d bild_max=%.0fms zeit=%.0fs") % [str(building),
 		swiped, twisted, str(rain_mode), str(rained), rain_info, str(strike_mode), str(struck), str(_bonus_seen), str(hint_done), str(menu_open),
 		str(menu_closed), str(undone), str(free_now), str(accepted), str(tool_ok), probe.frames, float(probe.max_usec) / 1000.0,
 		probe.slow, float(probe.max_wall) / 1000.0, secs])
 	probe.queue_free()
 	Game.debug_open_all = open0
+
+
+## Lange Runde: das Level war zufällig gelöst – Sieg-Karte „Nochmal“ (oder die Karte schließen und neu starten).
+func _bonus_again() -> void:
+	var dui := ui.day_ui
+	await _until_shown(dui.win_card, 6.0)
+	await _wait(1.0)
+	var again: Button = null
+	for b in [dui.wc_next, dui.wc_alt]:
+		if (b as Button).visible and str((b as Button).get_meta("act", "")) == "again":
+			again = b
+	if again != null:
+		await _tap(again)
+		await _wait(0.8)
+		if dui.ask_card.visible:
+			await _tap(dui.ask_no)
+			await _wait(0.6)
+	if not Game.in_day() or Game.state.day_won:
+		ui._close_modal(true)
+		Game.start_level(Game.level_no, 0)
+	await _until_shown(dui.goal_card, 8.0)
+	await _tap(dui.gc_go)
+	await _wait(3.0)
+	ui._coach_dismiss()
+	await _settle(6.0)
 
 
 ## Erster Start: Der Ersteller kommt vor Tag 1. Vier Schritte mit echter Eingabe (Würfeln, Katzengott, Farbe,
@@ -3529,3 +3527,390 @@ func _no_farming_check(dir: String) -> void:
 	_check(_has_label(ui.help_card, str(Days.TEXT["once_rule"])), "help_once", "")
 	ui._close_modal(true)
 	await _wait(0.4)
+
+
+# --- Build 12 (Rückmeldung nach Build 11) -------------------------------------------------------------------------
+# „oben und unten schwenken invertieren“ · „zeig oben an, was man machen muss und nicht direkt am Feld“ · „die Icons am
+# Feld entfernen“ · „manche Felsen sehen komisch aus“ · „Weiterbauen brauchen wir nicht“ · „man soll immer genau
+# wissen, was man tun muss“.
+
+## Sichtbare Symbole an den Feldern (Plaketten, Abzeichen, Vorschau-Pfeile, „×2“, Kühl-Punkte, „!“/„?“).
+func _b12_field_icons() -> int:
+	var n := 0
+	for fid in world.views:
+		var v: FieldView = world.views[fid]
+		if v._needs != null and v._needs.visible and v._needs.get_child_count() > 0:
+			n += 1
+		if v._badge != null and v._badge.visible:
+			n += 1
+		if v._supply_icon != null and v._supply_icon.visible:
+			n += 1
+		if v._strength_lbl != null and v._strength_lbl.visible:
+			n += 1
+		if v._cool_node != null and v._cool_node.visible:
+			n += 1
+		if v._preview_label.text != "":
+			n += 1
+	return n
+
+
+## Liegt unter dem Feld noch ein Vulkan-Kegel (Mesh des Modells „volcano“)?
+func _b12_has_cone(v: FieldView) -> bool:
+	var meshes := {}
+	for pv in Models.get_model("volcano", 0):
+		meshes[(pv as Array)[0]] = true
+	var stack: Array = [v]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		if nd is MeshInstance3D and meshes.has((nd as MeshInstance3D).mesh) and (nd as Node3D).is_visible_in_tree():
+			var sc := (nd.get_parent() as Node3D).scale.y if nd.get_parent() is Node3D else 1.0
+			if sc > 0.1:
+				return true
+		for c in nd.get_children():
+			stack.append(c)
+	return false
+
+
+func _b12_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	if dui.creator_open():          # --only=b12 mit frischem Profil: erst den Charakter fertig (sonst liegt er über allem)
+		dui.creator.look = Character.default_look()
+		dui._on_creator_finished(Character.default_look())
+		await _wait(1.5)
+		ui._close_modal(true)
+	Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
+	Game.reset_campaign()
+	Game.cards_seen = {}
+	Game.coach_seen = {}
+	Game.pdata = Points.fresh(Campaign.COUNT)
+	Game.points = Balance.POINTS_START
+	Game.debug_open_all = true
+	await get_tree().process_frame
+	# 1. Level 3 (Glut) auf einem Brett, auf dem nach zwei Drehungen der Vulkan ausbricht
+	var fb := _find_board(3, _p_event.bind("erupt"), 2)
+	await _start_lvl(3, maxi(0, int(fb[0])))
+	await _wait(1.5)
+	var a0 := str(dui.action_shown.get("text", ""))
+	var ar := dui.act_line.get_global_rect()
+	var cr := dui.chip.get_global_rect()
+	var vs := get_viewport().get_visible_rect().size
+	await _shot(dir, "b12a_was_jetzt")
+	_check(dui.act_line.visible and a0 != "" and absf(ar.get_center().x - vs.x * 0.5) <= vs.x * 0.06 and ar.position.y >= cr.end.y - 2.0
+		and ar.end.y <= vs.y * 0.2 and dui.act_label.get_theme_font_size("font_size") >= 18, "action_line",
+		"text=%s symbole=%d rect=%s chip=%s" % [a0, dui.act_icons.get_child_count(), str(ar), str(cr)])
+	_check(FieldView.quiet and _b12_field_icons() == 0, "no_field_icons", "sichtbar=%d" % _b12_field_icons())
+	# Eine lange Zeile (3 Symbole, Ergebnis, zweite Zeile) bleibt mittig und in der Kopfzeile (Bild: Hütten-Level)
+	dui._show_action({"text": "Dreh 3 Tiere in eine Reihe", "line": "Dreh 3 Tiere in eine Reihe → Hütte",
+		"icons": ["animals", "animals", "animals"], "result_icon": "hut", "hint": "Hütten brauchen Nahrung: 0/3 versorgt"})
+	await _wait(0.5)
+	var lr := dui.act_line.get_global_rect()
+	var tr := ui.top.get_global_rect()
+	await _shot(dir, "b12a2_lange_zeile")
+	_check(absf(lr.get_center().x - vs.x * 0.5) <= 4.0 and lr.position.x >= tr.position.x - 1.0 and lr.end.x <= tr.end.x + 1.0
+		and dui.act_hint.visible, "action_line_fits", "zeile=%s kopf=%s text=%s" % [str(lr), str(tr), dui.act_label.text])
+	dui._act_key = ""
+	dui.refresh_hud()
+	# 2. Nach jeder Drehung neu gerechnet (auch in der Vorschau keine Symbole an den Feldern)
+	var calc0 := dui.act_calc
+	var texts: Array = [a0]
+	var icons_during := 0
+	var crater := -1
+	for m in (fb[1] as Array):
+		var mm: Array = m
+		for i in 40:
+			if world.auto_twist(int(mm[0]), int(mm[1]), int(mm[2])):
+				break
+			await _wait(0.1)
+		icons_during += _b12_field_icons()
+		await _settle(8.0)
+		await _wait(0.6)
+		texts.append(str(dui.action_shown.get("text", "")))
+		for k in world._cones:
+			crater = int(k)
+	await _shot(dir, "b12b_nach_ausbruch")
+	_check(dui.act_calc >= calc0 + (fb[1] as Array).size() and str(texts[-1]) != "" and icons_during == 0 and _b12_field_icons() == 0,
+		"action_line_updates", "zeilen=%s neu=%d" % [str(texts), dui.act_calc - calc0])
+	# 3. Der Kegel ist ein Ereignis: nach dem Ausbruch sinkt er zurück (vorher blieb er für immer, auch auf Fels)
+	await _wait(3.5)
+	var gone := world._cones.is_empty()
+	if crater < 0:
+		for f in Game.state.fields:
+			if (f as FieldData).kind == FieldData.LAVA:
+				crater = (f as FieldData).id
+				break
+	var cone_left := crater >= 0 and _b12_has_cone(world.views[crater])
+	# Wird der Krater Fels (Lava abgekühlt), geht ein Kegel sofort (refresh_all), auch wenn er gerade erst kam
+	var fels_ok := false
+	if crater >= 0:
+		world._erupt_fx(crater, crater)
+		await _wait(0.2)
+		(Game.state.fields[crater] as FieldData).kind = FieldData.FELS
+		world.refresh_all()
+		await _wait(1.4)
+		fels_ok = not world._cones.has(crater) and not _b12_has_cone(world.views[crater])
+		world.focus_field(crater)
+		await _wait(1.2)
+		await _shot(dir, "b12c_fels_ohne_kegel")
+	_check(fb[0] != -1 and gone and not cone_left and fels_ok, "volcano_cone_sinks",
+		"brett=%s krater=%d weg=%s fels=%s" % [str(fb[0]), crater, str(gone), str(fels_ok)])
+	# 4. Ansicht: Finger nach unten zieht die Kamera nach unten (senkrecht umgekehrt), waagerecht wie bisher
+	var b0 := world.rig.basis
+	var y0 := world.rig.cam.global_position.y
+	world.rig.orbit(Vector2(0, 60), 0.0)
+	world.rig.stop()
+	await get_tree().process_frame
+	var y1 := world.rig.cam.global_position.y
+	world.rig.basis = b0
+	_check(CameraRig.ORBIT_INVERT_Y and y1 < y0 - 0.05, "orbit_inverted", "y %.2f -> %.2f" % [y0, y1])
+	# 5. Nach einer Pause leuchtet, was zu tun ist (nur Leuchten, keine Symbole) – wenn die Regeln es sagen
+	if not world.action_hint.is_empty():
+		var hv := world._hint_views.size()
+		world._show_action_hint()
+		var lit := world._hint_views.size() > hv
+		await _wait(0.6)
+		await _shot(dir, "b12d_leuchten")
+		world._clear_hint()
+		_check(lit and _b12_field_icons() == 0, "action_nudge", "hinweis=%s" % str(world.action_hint))
+	# 6. Akt 2 nach Akt 1 in derselben Sitzung: Fels hell und grau, kein Basalt aus dem Back-Cache
+	await _start_lvl(6, 0)
+	await _wait(2.0)
+	var mk := Look.model_key()
+	await _shot(dir, "b12e_akt2_fels")
+	_check(not Look.basalt_dark() and mk.length() == 5 and mk.ends_with("0"), "rocks_act2", "zeitalter=%s schluessel=%s" % [Look.era_name, mk])
+	# 7. „Man soll immer genau wissen, was man tun muss“: oben steht in jedem Level die nächste Handlung der Regeln
+	await _b12_task_at_top(dir)
+	# 8. „3 Felsen in einer Reihe … nichts passiert“: keine Reihe steht schon am Start, eine echte Fels-Reihe wächst
+	await _b12_rock_rows(dir)
+	# 9. Mitten im Level die App schließen: der Versuch geht genau dort weiter
+	await _b12_save_mid(dir, fb)
+
+
+var _b12_res: Dictionary = {}      # die letzte Runde (Game.round_resolved), für die Prüfungen unten
+
+
+func _b12_on_round(result: Dictionary, _before: Dictionary) -> void:
+	_b12_res = result
+
+
+## Wie viele Wörter hat eine Zeile (ohne „→ Ergebnis“)?
+func _b12_words(t: String) -> int:
+	return t.split(" ", false).size()
+
+
+## Zeigt die Zeile oben, was die Regeln sagen (text oder line), mittig in der Kopfzeile über dem Würfel?
+func _b12_line_ok(na: Dictionary) -> bool:
+	var dui := ui.day_ui
+	var shown := str(dui.action_shown.get("text", ""))
+	var vs := get_viewport().get_visible_rect().size
+	var r := dui.act_line.get_global_rect()
+	return dui.act_line.visible and shown != "" and (shown == str(na.get("text", "")) or shown == str(na.get("line", ""))) \
+		and r.end.y <= vs.y * 0.22 and dui.chip.visible and _b12_words(str(na.get("text", ""))) <= 6
+
+
+## In Leveln aus mehreren Akten: Nach dem Start und nach jeder Aktion steht oben genau die Handlung der Regeln
+## (GameState.next_action). Was sie nennt, geht wirklich: eine genannte Reihe wächst (Simulation), ein Werkzeug wirkt,
+## „Hol dir Hilfe“ ist selbst der Knopf. Gespielt wird, was die Zeile sagt (echte Eingabe).
+func _b12_task_at_top(dir: String) -> void:
+	var dui := ui.day_ui
+	if not Game.round_resolved.is_connected(_b12_on_round):
+		Game.round_resolved.connect(_b12_on_round)
+	var said: Array = []
+	var bad: Array = []
+	var impossible: Array = []
+	for n in [4, 7, 11, 21]:
+		await _start_lvl(n, 0)
+		await _wait(1.0)
+		for step in 4:
+			if not Game.in_day() or Game.state.day_won:
+				break
+			var na := Game.next_action()
+			if not _b12_line_ok(na):
+				bad.append([n, step, str(dui.action_shown.get("text", "")), str(na.get("text", ""))])
+			said.append("L%d:%s" % [n, str(na.get("text", ""))])
+			if step == 0:
+				await _shot(dir, "b12f_aufgabe_L%d" % n)
+			var mv: Dictionary = na.get("move", {})
+			var typ := str(na.get("type", ""))
+			if typ == "help":
+				var g0 := Game.state.actions9()
+				await _tap(dui.act_line)
+				await _settle(8.0)
+				if Game.state.actions9() == g0:
+					impossible.append([n, step, "hilfe"])
+			elif str(na.get("tool", "")) == "rain" and int(na.get("field", -1)) >= 0:
+				if not Game.use_bonus("rain", int(na["field"]), [], true):
+					impossible.append([n, step, "regen"])
+				await _settle(8.0)
+			elif not mv.is_empty():
+				var tw := _twist(int(mv["axis"]), int(mv["layer"]), int(mv["turns"]))
+				if typ == "row" and int(na.get("steps", 1)) == 1:
+					var sim: Dictionary = Game.state.simulate(tw)
+					if not _has_event(sim["result"], "merge"):
+						impossible.append([n, step, str(na.get("text", ""))])
+				await _swipe_move(int(mv["axis"]), int(mv["layer"]), int(mv["turns"]))
+				await _settle(8.0)
+			else:
+				var m: Array = GameState.MOVES[(n + step * 7) % GameState.MOVES.size()]
+				await _swipe_move(int(m[0]), int(m[1]), int(m[2]))
+				await _settle(8.0)
+			await _wait(0.6)
+		if Game.in_day() and not Game.state.day_won:
+			var na2 := Game.next_action()
+			if not _b12_line_ok(na2):
+				bad.append([n, "ende", str(dui.action_shown.get("text", "")), str(na2.get("text", ""))])
+	_check(bad.is_empty() and impossible.is_empty() and said.size() >= 12 and _b12_field_icons() == 0, "task_at_top",
+		"zeilen=%s falsch=%s unmoeglich=%s" % [str(said), str(bad.slice(0, 3)), str(impossible)])
+
+
+## Eine Drehung bildet eine neue Fels-Reihe (sie wächst, oder die Runde sagt, warum nicht).
+func _b12_p_fels(_gs: GameState, r: Dictionary) -> bool:
+	for e in (r["result"] as Dictionary)["events"]:
+		var ed: Dictionary = e
+		if str(ed["type"]) == "merge" and int(ed.get("from", -1)) == FieldData.FELS and not bool(ed.get("late", false)):
+			return true
+	return false
+
+
+## Reihen auf dem Brett, die nicht gewachsen sind (dürfen nach keiner Runde und an keinem Start stehen).
+func _b12_dead_rows(gs: GameState) -> int:
+	var n := 0
+	for ln in gs.lines():
+		if not gs.spent.has(GameState.line_key(ln)):
+			n += 1
+	return n
+
+
+## Akt 1 (und Level 5): Kein Level beginnt mit einer fertigen Reihe (die zählte nie: „nichts passiert“). Dann eine
+## Fels-Reihe per echtem Wisch: sie wächst sichtbar zu Erde (oder eine Pille sagt warum), danach steht keine Reihe still.
+func _b12_rock_rows(dir: String) -> void:
+	var pre: Array = []
+	var starts := 0
+	for n in [1, 2, 3, 4, 5]:
+		for b in range(0, mini(3, Campaign.pool_size(n))):
+			Game.start_level(n, b)
+			await get_tree().process_frame
+			starts += 1
+			if _b12_dead_rows(Game.state) > 0:
+				pre.append([n, b])
+		Game.start_level(n)          # die eigene (getragene) Welt
+		await get_tree().process_frame
+		starts += 1
+		if _b12_dead_rows(Game.state) > 0:
+			pre.append([n, "eigen"])
+	ui._close_modal(true)
+	var lv := 4
+	var fb := _find_board(4, _b12_p_fels, 1)
+	if int(fb[0]) < 0:
+		lv = 5
+		fb = _find_board(5, _b12_p_fels, 1)
+	var grew := false
+	var told := ""
+	var dead_after := -1
+	var mv: Array = []
+	if int(fb[0]) >= 0:
+		await _start_lvl(lv, int(fb[0]))
+		for m in GameState.MOVES:
+			var mm: Array = m
+			if _b12_p_fels(Game.state, Game.state.simulate(_twist(int(mm[0]), int(mm[1]), int(mm[2])))):
+				mv = mm
+				break
+	if not mv.is_empty():
+		if not Game.round_resolved.is_connected(_b12_on_round):
+			Game.round_resolved.connect(_b12_on_round)
+		_b12_res = {}
+		_stills.clear()
+		world.focus_place(Vector3i(0, 1, 0))
+		await _wait(0.6)
+		await _swipe_move(int(mv[0]), int(mv[1]), int(mv[2]))
+		var shot_done := false
+		for i in 80:
+			if not _b12_res.is_empty() and not shot_done:
+				for e in _b12_res["events"]:
+					var ed: Dictionary = e
+					if str(ed["type"]) == "merge" and int(ed.get("from", -1)) == FieldData.FELS:
+						grew = true
+						world.focus_field(int(ed["field"]))
+				shot_done = true
+			if ui.banner.visible and told == "":
+				told = ui.banner_caps.text
+			if shot_done and not Game.busy and not world.animating:
+				break
+			await _wait(0.1)
+		await _wait(0.8)
+		await _shot(dir, "b12g_fels_reihe")
+		await _settle(8.0)
+		dead_after = _b12_dead_rows(Game.state)
+	_check(pre.is_empty() and starts >= 15 and not mv.is_empty() and (grew or told != "") and dead_after == 0, "rock_row_counts",
+		"start_reihen=%s level=%d brett=%s zug=%s gewachsen=%s pille=%s still=%d" % [str(pre), lv, str(fb[0]), str(mv),
+		str(grew), told, dead_after])
+
+
+## Kurzer Fingerabdruck eines Versuchs (Brett, Schritte, Fortschritt, Siegel, Gefahren, Werkzeuge, Geschenke).
+func _b12_run_print() -> String:
+	var gs := Game.state
+	return "%s|%s|%d|%d|%d|%d|%d|%s|%s|%s" % [gs.record9(), var_to_str(gs.save9()).md5_text(), gs.steps9(), gs.progress9(),
+		gs.rain, gs.meteors, gs.actions9(), str(gs.spent.keys()), str(gs.standing.keys()), str(gs.broken.keys())]
+
+
+## Mitten im Level (Vulkan-Level, ein paar echte Züge, Ausbruch) die App „schließen“ und neu starten: Brett, Schritte,
+## Fortschritt, Siegel, Gefahren, Werkzeuge und Geschenk-Stand sind genau wie vorher, keine Start-Karte, dieselbe Zeile
+## oben – und der nächste Zug ergibt genau dasselbe.
+func _b12_save_mid(dir: String, fb: Array) -> void:
+	var dui := ui.day_ui
+	var lv := 3
+	await _start_lvl(lv, maxi(0, int(fb[0])))
+	var moves: Array = (fb[1] as Array).duplicate()
+	var na0 := Game.next_action()
+	var m0: Dictionary = na0.get("move", {})
+	if not m0.is_empty():
+		moves.append([int(m0["axis"]), int(m0["layer"]), int(m0["turns"])])
+	for m in moves:
+		var mm: Array = m
+		await _swipe_move(int(mm[0]), int(mm[1]), int(mm[2]))
+		await _settle(8.0)
+	await _wait(0.6)
+	var steps0 := Game.state.steps9()
+	var fp0 := _b12_run_print()
+	var text0 := str(dui.action_shown.get("text", ""))
+	var free0 := [Game.hint_free_left, Game.undo_free_left]
+	var probe: Array = GameState.MOVES[5]
+	var next0: String = (Game.state.simulate(_twist(int(probe[0]), int(probe[1]), int(probe[2])))["state"] as GameState).record9()
+	await _shot(dir, "b12h_vor_dem_schliessen")
+	# App zu (Schließen-Anfrage), dann ein anderes Level im Speicher (wie ein Neustart: nichts bleibt im Speicher)
+	Game.notification(NOTIFICATION_WM_CLOSE_REQUEST)
+	var path := Game.run_path()
+	var saved := FileAccess.file_exists(path)
+	var bytes := FileAccess.get_file_as_bytes(path) if saved else PackedByteArray()
+	Game.start_level(1, 0)
+	await get_tree().process_frame
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f != null:
+		f.store_buffer(bytes)
+		f.close()
+	ui._close_modal(true)
+	ui.debug_close_all()
+	await _wait(0.3)
+	# Neustart: Game._ready setzt fort, die Oberfläche geht ohne Übersicht und Start-Karte ins Level
+	var resumed := Game.resume_run()
+	await _wait(2.0)
+	var fp1 := _b12_run_print() if Game.state != null else ""
+	var views_ok := true
+	for fid in world.views:
+		var v: FieldView = world.views[fid]
+		if v._kind != (Game.state.fields[int(fid)] as FieldData).kind:
+			views_ok = false
+	var text1 := str(dui.action_shown.get("text", ""))
+	var no_card := not (dui.goal_card.visible and dui.goal_card.modulate.a > 0.5) and not dui.overview.visible
+	var next1: String = (Game.state.simulate(_twist(int(probe[0]), int(probe[1]), int(probe[2])))["state"] as GameState).record9()
+	await _shot(dir, "b12i_nach_neustart")
+	# Und echt weiter: derselbe Zug wie vorhergesagt
+	await _swipe_move(int(probe[0]), int(probe[1]), int(probe[2]))
+	await _settle(8.0)
+	var real_same := Game.state.record9() == next0
+	_check(saved and resumed and steps0 > 0 and fp0 == fp1 and views_ok and text0 == text1 and no_card and next0 == next1 and real_same
+		and Game.level_no == lv and [Game.hint_free_left, Game.undo_free_left] == free0 and Game.level_info().get("resumed", false),
+		"save_mid_level", "datei=%s fortgesetzt=%s schritte=%d gleich=%s felder=%s zeile=%s/%s karte_zu=%s naechster=%s echt=%s" % [
+		str(saved), str(resumed), steps0, str(fp0 == fp1), str(views_ok), text0, text1, str(no_card), str(next0 == next1), str(real_same)])
+	Game.retry_level()
+	await _wait(0.5)
+	ui._close_modal(true)

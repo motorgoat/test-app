@@ -228,6 +228,16 @@ func _test_eras(root: Node3D) -> void:
 	probe.era_changed()
 	if probe.agent_count() != 0:
 		_fail("Urozean hat Enten")
+	# Dunkler Basalt nur in der Glut-Zeit: Akt 1 → Akt 2 muss den Modell-Schlüssel ändern (sonst bleibt alter Basalt
+	# aus dem Back-Cache neben neuen hellen Brocken stehen)
+	var mk_glut := Look.model_key()
+	if not Look.basalt_dark():
+		_fail("Glut: kein dunkler Basalt")
+	Look.set_era("glut_kuehl")
+	var mk_kuehl := Look.model_key()
+	Look.set_era("dunst")
+	if Look.basalt_dark() or Look.model_key() == mk_glut or Look.model_key() == mk_kuehl:
+		_fail("Dunst: gleicher Modell-Schlüssel wie Glut (Basalt aus dem Cache)")
 	Look.set_era("tag")
 	probe.era_changed()
 	# Level → Zeitalter (Spec 4.1)

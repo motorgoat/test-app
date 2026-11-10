@@ -239,8 +239,8 @@ var wc_streak_text: Label
 var wc_week: Array = []           # WeekDot × 7 (klein)
 var wc_big: Label                 # „7 Tage in Folge!“ (Meilenstein)
 var wc_next_line: Label           # „Morgen geht's weiter: Tag 2 · Pflanzen“
-var wc_next: Button               # Hauptknopf (Weiterbauen / Weiter zu Tag n)
-var wc_alt: Button                # Zweitknopf (Nochmal · mehr Sterne / Weiterbauen / Freies Spiel)
+var wc_next: Button               # Hauptknopf (Weiter: Level n / Nochmal · mehr Sterne / Zur Übersicht)
+var wc_alt: Button                # Zweitknopf (Nochmal · mehr Sterne / Freies Spiel)
 var wc_home: Button               # „Zur Übersicht“
 var _win_info: Dictionary = {}
 
@@ -273,6 +273,15 @@ var _build_said := false          # „Du kannst hier noch weiterbauen …“ (e
 var _praise_at := -100.0          # wann der Charakter zuletzt gelobt hat (höchstens alle paar Sekunden)
 var _merges := 0
 var rule_tag: PanelContainer
+var act_line: PanelContainer      # „Was jetzt?“: die nächste Handlung unter dem Ziel-Chip (Build 12)
+var _act_sb: StyleBoxFlat
+var act_icons: HBoxContainer
+var act_label: Label
+var act_hint: Label               # zweite Zeile unter der Handlung (Stand der Verbindungen)
+var _act_key := ""                # Brett-Schlüssel der zuletzt berechneten Handlung
+var action_shown: Dictionary = {} # die gezeigte Handlung (Tour-Prüfungen)
+var act_count := 0                # so oft hat sich die Zeile geändert (Tour)
+var act_calc := 0                 # so oft wurde die Handlung neu gerechnet (nach jedem Zug, Tour)
 
 # --- Hinweis-Zeile (Spur) ---
 var lane: PanelContainer
@@ -343,6 +352,7 @@ func build(owner_ui: GameUI) -> void:
 	if ui.world != null:
 		ui.world.preview_changed.connect(_on_preview_chip)
 		ui.world.loss_shown.connect(_on_loss_shown)
+		ui.world.action_nudge.connect(_on_action_nudge)
 
 
 ## Beim Start der App: Noch kein eigener Charakter → erst der Ersteller (unter einer Minute), dann beim ersten Start
@@ -352,7 +362,8 @@ func startup() -> void:
 		open_creator(false, Game.first_launch or (Game.in_day() and (Game.day_no == 1 or Game.level_no == 1) and Game.stars_total() == 0))
 		Game.first_launch = false
 		return
-	if Game.in_day() and Game.first_launch:
+	if Game.in_day() and (Game.first_launch or Game.run_resumed):
+		# Build 12: lief beim Schließen ein Level, geht es genau dort weiter (ohne Übersicht, ohne Start-Karte)
 		Game.first_launch = false
 		_on_day_started.call_deferred(Game.day_info())
 		return
@@ -528,6 +539,59 @@ func _build_chip() -> void:
 	rule_tag.visible = false
 	ui.row3.add_child(rule_tag)
 	ui.row3.move_child(rule_tag, 0)
+	_build_action_line()
+
+
+## Was jetzt zu tun ist (Build 12: „man soll immer genau wissen, was man tun muss“): eine Zeile mittig unter dem
+## Ziel-Chip, wenige Worte mit kleinen Symbolen („🪨🪨🪨 → 🟫 3 Felsen in eine Reihe“). Sie kommt aus
+## GameState.next_action() (Regeln, nach jedem Zug neu) und ersetzt die Symbole an den Feldern.
+func _build_action_line() -> void:
+	act_line = PanelContainer.new()
+	_act_sb = Style.lift(Style.hairline(Style.box(Style.GLASS, 24, 16, 7)), 1)
+	act_line.add_theme_stylebox_override("panel", _act_sb)
+	act_line.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	act_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var av := ui._vbox(0)
+	av.alignment = BoxContainer.ALIGNMENT_CENTER
+	av.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	act_line.add_child(av)
+	var h := ui._hbox(8)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	av.add_child(h)
+	act_icons = ui._hbox(2)
+	act_icons.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	act_icons.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(act_icons)
+	act_label = ui._label("", 20, Style.INK, Style.W_BOLD)
+	act_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	act_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	act_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(act_label)
+	# zweite, kleine Zeile: der Stand der Verbindungen („Tiere brauchen Futter: 2/6 versorgt“)
+	act_hint = ui._label("", 15, Style.INK_2, Style.W_BOLD)
+	act_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	act_hint.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	act_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	act_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	act_hint.visible = false
+	av.add_child(act_hint)
+	act_line.visible = false
+	act_line.gui_input.connect(_on_act_input)
+	ui.row3.add_child(act_line)
+	ui.row3.move_child(act_line, 0)
+
+
+## Sagt die Zeile „Hol dir Hilfe“ (Sicherheitsnetz), ist sie selbst der Knopf: Antippen nimmt das Geschenk
+## (Game.take_gift). Sonst geht jede Berührung durch zum Würfel.
+func _on_act_input(ev: InputEvent) -> void:
+	if str(action_shown.get("type", "")) != "help" or Game.busy:
+		return
+	var mb := ev as InputEventMouseButton
+	var st := ev as InputEventScreenTouch
+	if (mb != null and mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed) or (st != null and not st.pressed):
+		act_line.accept_event()
+		Game.take_gift()          # busy danach: eine zweite (nachgeahmte) Berührung tut nichts
 
 
 func _build_lane() -> void:
@@ -1472,7 +1536,7 @@ func _fill_today(ti: Dictionary) -> void:
 	tc_count.text = str(ti.get("countdown", ""))
 	tc_go.visible = not done
 	tc_go.text = str(Days.TEXT["go"])
-	tc_build.visible = done and bool(ti.get("can_build", false))
+	tc_build.visible = false          # kein Weiterbauen mehr (Build 12)
 	tc_again.visible = done and bool(ti.get("more_stars", false))
 	tc_again.text = str(Days.TEXT["again_stars"])
 	(tc_build.get_parent() as Control).visible = tc_build.visible or tc_again.visible
@@ -1840,6 +1904,12 @@ func _on_day_started(info: Dictionary) -> void:
 		_fill_goal_card(info)
 		ui.refresh()
 		ui.world.focus_place(Vector3i(0, 1, 0))
+		if bool(info.get("resumed", false)):
+			# Build 12: ein fortgesetzter Versuch (App war zu) – keine Start-Karte, kein Übergang, keine Welle: weiter
+			_info["overnight"] = {}
+			_hold = {}
+			_go_resumed.call_deferred()
+			return
 		# Ein neuer Akt (Genesis-Tag): erst der Übergang (3 s, ohne Text), dann die Ziel-Karte
 		if Campaign.first_of_act(n) and n > 1 and not bool(info.get("wdt", false)) and not Game.coach_seen.has("act_%d" % int(info.get("act", 0))):
 			Game.coach_seen["act_%d" % int(info.get("act", 0))] = true
@@ -2020,6 +2090,13 @@ func _fill_goal_card9(info: Dictionary) -> void:
 
 ## Zeigt die Hand gleich den ersten Zug vor? Nur ganz am Anfang: Tag 1 auf dem Tutorial-Brett, solange die
 ## Vorführung noch nie eine Wiese gezeigt hat (oder „Tutorial“ im Menü / ein ausdrücklich gewähltes Brett 0).
+## Ein fortgesetzter Versuch: wie „Los!“, nur ohne Karte (die Welt steht schon so da wie beim Schließen).
+func _go_resumed() -> void:
+	if not Game.in_day() or Game.over or creator_open() or (ui._modal != null and ui._modal.visible):
+		return
+	_on_go()
+
+
 func demo_due() -> bool:
 	return Game.day_tutorial() and Game.state.twists == 0 and (not Game.coach_seen.has("day1_demo") or Game._board_explicit)
 
@@ -2242,8 +2319,10 @@ func refresh_hud() -> void:
 	chip.visible = day
 	rule_tag.visible = day and bool(gs.day.get("no_war", false)) and not overview.visible
 	if not day:
+		act_line.visible = false
 		return
 	var st := gs.day_status()
+	_refresh_action(gs, st)
 	var building := bool(st.get("free_build", false))
 	if building:
 		chip2.visible = false
@@ -2441,6 +2520,243 @@ func _on_preview_chip(info: Dictionary) -> void:
 	chip_ghost = 1 if nxt > cur else -1
 	chip_num.text = "%d→%d/%d" % [mini(cur, target), mini(nxt, target), target]
 	chip_num.add_theme_color_override("font_color", Style.LEAF_DEEP if nxt > cur else Style.FIRE_DEEP)
+
+
+# --- Was jetzt? (Build 12) -----------------------------------------------------------------------------
+
+## Die nächste Handlung: GameState.next_action() (Regeln, rechnet das Brett, GDPD_SCHOEPFUNG.md „Build 12“), sonst
+## eine Ersatz-Zeile aus dem Ziel. Gelesen wird (alles freiwillig außer text):
+##   text „Dreh 3 Felsen in eine Reihe“ · line dasselbe mit Ergebnis („… → Erde“) · icons [Symbolnamen, "->" = Pfeil] ·
+##   result_icon (Symbol des Ergebnisses) · hint (zweite, kleine Zeile: „Tiere brauchen Futter: 2/6 versorgt“) ·
+##   danger (nicht leer: rot) · type "help" (Sicherheitsnetz: grün) · tone (eigener Ton) ·
+##   fields [Feld-Ids] / field / move {"axis", "layer", "turns"}: was nach einer Pause sanft leuchtet ·
+##   tool "rain" | "meteor" | "miracle" | "hint": welcher Knopf dazu pulsiert.
+## Ein einfacher String geht auch (nur Text). Die Zeile sagt nie etwas Unmögliches: das rechnen die Regeln.
+func next_action(gs: GameState) -> Dictionary:
+	if gs == null:
+		return {}
+	var d: Dictionary = gs.next_action()
+	var t := str(d.get("text", d.get("line", "")))
+	if t != "":
+		var out := d.duplicate()
+		out["text"] = t
+		if not out.has("icons") and d.has("icon"):
+			out["icons"] = [str(d["icon"])]
+		if not out.has("tone") or str(out["tone"]) == "":
+			if str(d.get("danger", "")) != "":
+				out["tone"] = "danger"
+			elif str(d.get("type", "")) == "help":
+				out["tone"] = "rescue"
+		return out
+	return _fallback_action(gs)
+
+
+## Ersatz, solange die Regeln keine next_action() haben: das Rezept des ersten offenen Teilziels, Gefahr zuerst.
+func _fallback_action(gs: GameState) -> Dictionary:
+	if gs.has_method("field_state9"):
+		for f in gs.fields:
+			var fs: Dictionary = gs.call("field_state9", f)
+			if bool(fs.get("crater", false)):
+				return {"text": "Teil die Lava!", "icons": ["volcano"], "tone": "danger"}
+	var subs: Array = gs.sub_status9() if gs.camp else []
+	var s0: Dictionary = {}
+	for x in subs:
+		if not bool((x as Dictionary).get("met", false)):
+			s0 = x
+			break
+	if s0.is_empty() and not subs.is_empty():
+		s0 = subs[0]
+	var k := int(s0.get("kind", -1))
+	var t := str(s0.get("type", gs.goal_type()))
+	if k < 0:
+		var gk := gs.goal_kinds()
+		k = int(gk[0]) if not gk.is_empty() else -1
+	if k < 0:
+		return {"text": str(_info.get("goal_text", "Bring 3 gleiche in eine Reihe")), "icons": []}
+	var ki := FieldData.kind_icon(k)
+	match t:
+		"satt":
+			var ni: Array = gs.goal_need_icons()
+			return {"text": "%s versorgen" % FieldData.kind_plural(k), "icons": [ki] + ni}
+		"group":
+			return {"text": "%s zusammen drehen" % FieldData.kind_plural(k), "icons": [ki, ki]}
+		"hold":
+			return {"text": "Alles ruhig halten", "icons": ["moon"]}
+	# make: welche Art wird in einer Reihe zu k?
+	var ks: Array = gs.rows9.keys() if gs.camp else []
+	ks.sort()
+	for p in ks:
+		if int(gs.rows9[p]) == k and int(p) != k:
+			var pi := FieldData.kind_icon(int(p))
+			return {"text": "3 %s in eine Reihe" % FieldData.kind_plural(int(p)), "icons": [pi, "->", ki]}
+	# wächst durch Nachbarn (thrive9): „Wasser an Lava drehen“
+	if gs.camp:
+		for p in gs.thrive9:
+			var th: Dictionary = gs.thrive9[p]
+			if int(th.get("up", -1)) != k or int(p) == k:
+				continue
+			var names: Array = []
+			var icons: Array = [FieldData.kind_icon(int(p))]
+			var needs: Dictionary = th.get("needs", {})
+			for n in needs:
+				var srcs: Array = GameState.SOURCES9.get(str(n), [])
+				if not srcs.is_empty() and names.size() < 2:
+					names.append(FieldData.kind_name(int(srcs[0])))
+					icons.append(FieldData.kind_icon(int(srcs[0])))
+			if not names.is_empty():
+				icons.append("->")
+				icons.append(ki)
+				return {"text": "%s an %s drehen" % [FieldData.kind_name(int(p)), " + ".join(PackedStringArray(names))], "icons": icons}
+		# mit Regen: „Gieß Lava“
+		if gs.rain > 0:
+			for r in gs.rain9:
+				var ra: Array = r
+				if ra.size() >= 3 and int(ra[2]) == k:
+					return {"text": "Gieß %s (Regen)" % FieldData.kind_name(int(ra[0])), "icons": ["rain", FieldData.kind_icon(int(ra[0])), "->", ki],
+						"tool": "rain"}
+	return {"text": "Mach %s" % FieldData.kind_plural(k), "icons": [ki]}
+
+
+## Brett-Schlüssel: Die Handlung wird nur neu gerechnet, wenn sich etwas geändert hat (Zug, Werkzeug, Zurück).
+func _board_key(gs: GameState) -> String:
+	var b := PackedByteArray()
+	b.resize(gs.fields.size())
+	for i in gs.fields.size():
+		b[i] = (gs.fields[i] as FieldData).kind
+	return "%d|%d|%d|%d|%d|%d|%s" % [gs.level_no, gs.steps9() if gs.camp else gs.twists, gs.twists, gs.rain, gs.bolts,
+		gs.faith, b.hex_encode()]
+
+
+func _refresh_action(gs: GameState, st: Dictionary) -> void:
+	var show := gs.camp and not overview.visible and not bool(st.get("won", false)) and not bool(st.get("free_build", false)) \
+		and not Game.over
+	if not show:
+		act_line.visible = false
+		_act_key = ""
+		if ui.world != null:
+			ui.world.action_hint = {}
+		return
+	if Game.busy:
+		return              # die Runde läuft noch: die alte Zeile bleibt, bis das Brett fertig ist
+	var key := _board_key(gs)
+	if key == _act_key and act_line.visible:
+		return
+	_act_key = key
+	act_calc += 1
+	_show_action(next_action(gs))
+
+
+## Die Zeile füllen: kleine Symbole, dann der Text; Gefahr rot, Netz grün. Ändert sie sich, hüpft sie kurz.
+func _show_action(na: Dictionary) -> void:
+	var text := str(na.get("text", ""))
+	var icons: Array = (na.get("icons", []) as Array).duplicate()
+	var tone := str(na.get("tone", ""))
+	var hint_t := str(na.get("hint", ""))
+	if text == "":
+		act_line.visible = false
+		return
+	# Mit Ergebnis („Dreh 3 Felsen in eine Reihe → Erde“), solange es in die Zeile passt; sonst Text + → + Ergebnis-Symbol
+	var line := str(na.get("line", ""))
+	var ri := str(na.get("result_icon", ""))
+	var max_w := _act_room() - 32.0 * float(icons.size())
+	if line != "" and line != text and _text_w(line) <= max_w:
+		text = line
+	elif ri != "" and not icons.has(ri):
+		icons.append("->")
+		icons.append(ri)
+	var changed := text != str(action_shown.get("text", "")) or str(icons) != str(action_shown.get("icons", []))
+	for c in act_icons.get_children():
+		c.queue_free()
+	var icons_w := 0.0
+	for n0 in icons:
+		var n := str(n0)
+		if n == "->" or n == "→" or n == ">":
+			var ar := ui._label("→", 20, Style.INK_3, Style.W_BLACK)
+			ar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			act_icons.add_child(ar)
+			icons_w += 24.0
+		elif Style.icon(n) != null:
+			var ic := ui._icon(n, 28)
+			ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			act_icons.add_child(ic)
+			icons_w += 32.0
+	act_icons.visible = icons_w > 0.0
+	act_label.text = text
+	act_label.custom_minimum_size.x = minf(ceilf(_text_w(text)) + 2.0, _act_room() - icons_w)
+	act_hint.text = hint_t
+	act_hint.visible = hint_t != ""
+	act_hint.custom_minimum_size.x = minf(ceilf(_text_w(hint_t, act_hint)) + 2.0, _act_room() + 8.0)
+	var bg := Style.GLASS
+	var fg := Style.INK
+	if tone == "danger":
+		bg = Style.FIRE_TINT
+		fg = Style.FIRE_DEEP
+	elif tone == "rescue":
+		bg = Style.LEAF_TINT
+		fg = Style.LEAF_DEEP
+	_act_sb.bg_color = bg
+	act_label.add_theme_color_override("font_color", fg)
+	var was := act_line.visible
+	act_line.visible = true
+	if changed:
+		act_count += 1
+		if was:
+			ui._pop(act_line, 1.06)
+	action_shown = {"text": text, "icons": icons.duplicate(), "tone": tone, "tool": str(na.get("tool", "")), "hint": hint_t,
+		"type": str(na.get("type", ""))}
+	act_line.mouse_filter = Control.MOUSE_FILTER_STOP if str(na.get("type", "")) == "help" else Control.MOUSE_FILTER_IGNORE
+	var hint := {}
+	if na.get("move") is Dictionary and not (na["move"] as Dictionary).is_empty():
+		hint["move"] = na["move"]
+	if na.get("fields") is Array and not (na["fields"] as Array).is_empty():
+		hint["fields"] = na["fields"]
+	if na.get("field") != null and int(na.get("field", -1)) >= 0 and not hint.has("fields"):
+		hint["fields"] = [int(na["field"])]
+	if ui.world != null:
+		ui.world.action_hint = hint
+	_act_tool_pulse(false)
+
+
+## Platz für Symbole und Text in der Zeile: Breite der Kopfzeile minus Rand und Abstände (sonst ragt die Zeile
+## rechts hinaus und steht nicht mehr mittig).
+func _act_room() -> float:
+	var w := ui.top.size.x if ui.top != null and ui.top.size.x > 100.0 else float(Style.CONTENT_W)
+	return minf(w, float(Style.CONTENT_W)) - 32.0 - 8.0 - 4.0
+
+
+func _text_w(t: String, l: Label = null) -> float:
+	var lb := l if l != null else act_label
+	var f := lb.get_theme_font("font")
+	return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, lb.get_theme_font_size("font_size")).x if f != null else 10.0 * t.length()
+
+
+## Nach einer Pause leuchtet die Handlung (World._show_action_hint): der gemeinte Knopf pulsiert mit.
+func _on_action_nudge(on: bool) -> void:
+	_act_tool_pulse(on)
+
+
+var _act_pulsing: Control
+var _act_tick := 0.0
+
+
+func _act_tool_pulse(on: bool) -> void:
+	if _act_pulsing != null and is_instance_valid(_act_pulsing):
+		ui._pulse(_act_pulsing, false)
+	_act_pulsing = null
+	if not on:
+		return
+	var b: Control = null
+	match str(action_shown.get("tool", "")):
+		"rain":
+			b = ui.rain_btn
+		"miracle", "meteor", "strike":
+			b = ui.strike_btn
+		"hint":
+			b = ui.hint_btn
+	if b != null and b.is_visible_in_tree():
+		_act_pulsing = b
+		ui._pulse(b, true)
 
 
 func _goal_noun(gs: GameState) -> String:
@@ -2793,6 +3109,13 @@ func _process(delta: float) -> void:
 			_try_rescue()
 	if lane.visible and ui._time > _lane_until:
 		_hide_lane()
+	# Was jetzt? Nach jedem Zug neu (auch wenn keine Oberflächen-Aktualisierung kam), höchstens 4× je Sekunde
+	_act_tick += delta
+	if _act_tick >= 0.25 and act_line != null:
+		_act_tick = 0.0
+		if Game.state != null and Game.in_day() and Game.state.camp and not overview.visible and not Game.busy \
+				and act_line.visible and _board_key(Game.state) != _act_key:
+			_refresh_action(Game.state, Game.state.day_status())
 	if overview.visible:
 		# Übersicht offen: jede Sekunde prüfen, ob ein neuer Spieltag begann; die Uhr-Zeile einmal je Minute
 		_ov_tick += delta
@@ -2949,27 +3272,32 @@ func _show_win(info: Dictionary, gen: int) -> void:
 	wc_free_line.visible = complete
 	wc_total.text = str(Days.TEXT["stars_total"]) % [int(info.get("stars_total", 0)), int(info.get("stars_max", 21))]
 	wc_row.visible = true
-	# Was als Nächstes kommt (2.1): Ist der nächste neue Tag erst morgen, heißt der Hauptknopf „Weiterbauen“
+	# Was als Nächstes kommt (2.1). Weiterbauen gibt es nicht mehr (Build 12: „brauchen wir nicht, wenn's eh weiter
+	# gibt“): Hauptknopf „Weiter: Level n“; sonst „Nochmal · mehr Sterne“ oder „Zur Übersicht“.
 	var next_open := bool(info.get("next_open", false))
 	var nxt := int(info.get("next_new", 0))
 	var more := got < 3
-	wc_next.set_meta("act", "build")
+	wc_next.icon = null
 	wc_alt.set_meta("act", "again")
-	wc_next.text = str(Days.TEXT["build"])
-	wc_next.icon = Style.icon("meadow")
-	wc_alt.text = str(Days.TEXT["again_stars"]) if more else str(Days.TEXT["again"])
+	wc_alt.text = str(Days.TEXT["again_stars"])
 	wc_alt.visible = more
+	wc_home.visible = true
+	if next_open and nxt > 0 and not wdt and not complete:
+		wc_next.text = "Weiter: Level %d" % nxt if camp else str(Days.TEXT["next"]) % [nxt, str(Days.config(nxt).get("title", ""))]
+		wc_next.set_meta("act", "next")
+		wc_next.set_meta("next", nxt)
+	elif more and not complete:
+		wc_next.text = str(Days.TEXT["again_stars"])
+		wc_next.icon = Style.icon("star")
+		wc_next.set_meta("act", "again")
+		wc_alt.visible = false
+	else:
+		wc_next.text = str(Days.TEXT["to_overview"])
+		wc_next.set_meta("act", "home")
+		wc_home.visible = false
 	if complete:
 		wc_alt.text = str(Days.TEXT["free"])
 		wc_alt.set_meta("act", "free")
-		wc_alt.visible = true
-	elif next_open and nxt > 0 and not wdt:
-		wc_next.text = "Weiter: Level %d" % nxt if camp else str(Days.TEXT["next"]) % [nxt, str(Days.config(nxt).get("title", ""))]
-		wc_next.icon = null
-		wc_next.set_meta("act", "next")
-		wc_next.set_meta("next", nxt)
-		wc_alt.text = str(Days.TEXT["build"])
-		wc_alt.set_meta("act", "build")
 		wc_alt.visible = true
 	wc_next_line.text = str(info.get("next_line", ""))
 	wc_next_line.visible = wc_next_line.text != "" and not next_open
@@ -3232,9 +3560,9 @@ func _show_fail(info: Dictionary, gen: int) -> void:
 	ui._shake(fc_tile)
 
 
-## Hauptknopf der Sieg-Karte: „Weiterbauen“ oder „Weiter zu Tag n“.
+## Hauptknopf der Sieg-Karte: „Weiter: Level n“, „Nochmal · mehr Sterne“ oder „Zur Übersicht“.
 func _on_win_next() -> void:
-	_leave_win(str(wc_next.get_meta("act", "build")))
+	_leave_win(str(wc_next.get_meta("act", "home")))
 
 
 func _on_win_alt() -> void:

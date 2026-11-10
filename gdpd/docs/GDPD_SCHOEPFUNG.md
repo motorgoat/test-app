@@ -131,6 +131,27 @@ Exactly v8 (`GDPD_BALANCE_2.md` 4.2): straight rows only, `once` for every row (
 `standing`/`broken`, max 6 cascades, kinds outside the level's `rows` set are silent (`still` reasons as v8 plus
 `water_life` „Wasser wächst durch Leben“). The row table (`next`) and the consume table are per level (section 4).
 
+**Build 12 – „Drei gleiche in einer geraden Reihe wachsen immer“** (player report: „3 Felsen in einer Reihe … nichts
+passiert, nur manchmal“). The world changed kinds *after* the row step (cooling, eruption, spawn, hunger, smog,
+meteor, gift), the new row went into `standing` at the next twist and never counted. Now:
+- **Late pass:** at the end of a twist round (after fire … thrive, before the goal check) every field whose kind
+  changed this round is the focus of a second merge pass. Rows through them that have not grown yet grow at once
+  (merge events with `"late": true`, cascades as usual). Rain, the safety-net gift and the meteor resolve their
+  rows the same way.
+- **World events free grown rows:** when a danger, a spawn, the gift or top-up changes a field's kind (`_fall9`,
+  spawn `after`, gift, `top_up9`), spent rows containing that field are dropped (`_unspend9`). If the same row
+  comes back, it grows again (the eruption's `goal_loss` cancels any net gain). Twisting back and forth still
+  farms nothing: without a world event a grown row stays spent.
+- **„Zurückgedreht“ only for rows that grew:** breaking a row that never grew and twisting it back counts.
+- **Start boards:** `Campaign.ensure` breaks any row that splitting lava or top-up would close; no board starts
+  with a ready row (tested for pool, carried and ensured boards).
+- Consequence: after every action every straight row of a row kind on the board has grown (`spent`), so the
+  player never sees a dead row. Pool solutions are kept for the model: `GameState.engine9_mode` (static, tests
+  only) switches the Build 12 rules off for `tests/xcheck9` and the exact pool replay; under the game rules
+  583 of 600 pool solutions still win as stored, the other 17 are won by the hint with ★★+.
+- Miss/still texts: `_miss_why` ranks `stone`, `done`, `thrive`, `water_life`, `people` (below `diag`);
+  `GameState.still_line9(why, kind)` gives the pill [title, line] for a level (never „Sammle 0 Glauben“).
+
 ### 3.2 Gedeihen (generic thriving, lasting supply)
 
 `thrive[k] = {needs: {need: amount}, up: kind | null, spawn: [on_kinds, into, after] | null, down: kind | null,
@@ -511,6 +532,11 @@ come on top, `GDPD_PUNKTE_LADEN.md` 9).
 ---
 
 ## 7. Weiterbauen (keep playing after the win)
+
+**Build 12: removed from the campaign** (player: „weiterbauen brauchen wir nicht, wenns eh weiter gibt“). After a
+win the next action is „Nochmal“ (more stars) or the overview; the world at the win carries into the next level
+(section 5). `Game.continue_build()` / `resume_build()` return false in a level, `GameState.start_free_build()`
+does nothing in a level. The text below is kept for the 7-day mode only.
 
 As now (`GDPD_TAEGLICH_CHARAKTER.md` 2): no limit, all rules on, the level stays won, stars frozen. New:
 - **Extra tasks**: the chip becomes „Extra: …“ – `make` and `group` goals: target + 2, then + 4; `satt` goals:
@@ -1176,3 +1202,30 @@ Scratchpad: `/tmp/claude-0/-home-user-test-app/3861a76b-89b3-5028-950e-8c56bdad2
   `res_chain.json/log`, `cont.log`, `res_cap{1,2,3,9}.json/log`, `res_nolast.json/log`, `res_weaklong.json/log`,
   `export.log`, pools `kampagne_schoepfung_b4.json`, cross-check cases `cases9.json`, `cases9_pool.json`; the
   threshold run `q3.json`. v1 (spec v1, before the feedback of 8 November): `v1/` and `old_v1/`.
+
+
+---
+
+## Build 12: the next action and the running level
+
+**Next action** (`GameState.next_action()`, `Game.next_action()`; player: „man soll immer genau wissen, was man tun
+muss“). The top HUD shows the goal (e.g. „Erde 6/11“) plus one line: what to do now, in 2–6 words with small icons,
+computed from the real board after every action, never impossible:
+1. fire → „Lösch das Feuer!“ (rain); 2. one twist (all 27 tried on the board itself, turned back, no simulation):
+a new row toward the goal („Dreh 3 Felsen in eine Reihe → Erde“), a field that becomes supplied („Lava ans Wasser
+drehen → Fels“), a bigger goal group, or a danger averted („Teil die Lava!“, „Wasser an den Wald!“, „Trenn die
+Raubtiere!“, „Rette die Hungrigen!“, „Weg vom Smog!“, „Trenn die Kirchen!“, „Verteil die Städte!“) – a danger comes
+first unless the same twist also makes progress; 3. rain that brings a field closer („Gieß Lava mit Regen“);
+4. two twists: a preparation after which a row works („Bring 3 Felsen in eine Reihe“, `steps` 2; slot permutations
+only, a few ms); 5. supplied fields grow by themselves („Dreh weiter, Lava wächst“); 6. dead end → „Hol dir Hilfe“
+(the gift); 7. the sub-goal over several moves, only if possible (enough fields on fitting sticker types), else
+„Dreh weiter, Regen kommt“ / „Dreh eine Scheibe“. `hint` adds the supply line („Tiere brauchen Futter: 2/6
+versorgt“, „Lava + 2 Wasser → Fels“). `move` lets the world pulse the slice after a few idle seconds (no icons on
+fields). Cost: about 6–8 ms per round on a PC (worst ~20–30 ms), cached until the next action.
+
+**Running level** (`Game`, file `user://rekord_lauf.cfg`, section `[lauf]`, version 1): after every round, after
+undo, on pause/close/focus loss the running attempt is written (`GameState.save9()`: positions and field states,
+steps, progress with losses, seals, warnings and dangers, tools, mercy/gift state, rng; plus undo state, start
+board, free hint/undo, rescue offer). On app start `Game.resume_run()` continues it exactly (`level_started` with
+`"resumed": true`); opening the same level from the overview also continues it. A win, „Nochmal“, a new world, free
+play or another level start clears it; a changed level config (md5) or another version starts the level fresh.

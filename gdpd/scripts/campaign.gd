@@ -458,7 +458,11 @@ static func ensure(n: int, b: Dictionary, pool_index: int = 0) -> Dictionary:
 		split_lava(gs, rng)
 		line = str(TEXT["calmer"])
 	var top := gs.top_up9(TOPUP_MAX)
-	if not bool(gs.reach9()["ok"]):
+	if not gs.lines().is_empty():
+		# Nie eine fertige Reihe am Start (sie würde nie zählen): Teilen und Nachschub dürfen keine schließen
+		gs._break_ready_lines()
+		gs._grp_ok = false
+	if not bool(gs.reach9()["ok"]) or not gs.lines().is_empty():
 		var fb := _fallback(n, pool_index)
 		fb["line"] = str(TEXT["fresh"])
 		fb["fixes"] = []

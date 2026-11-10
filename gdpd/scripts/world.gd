@@ -79,6 +79,12 @@ var _backdrop_mat: ShaderMaterial
 var _tour := false               # Screenshot-Tour: feste Qualität, keine Kamera-Drift, ruhige Umgebung
 var _idle := 0.0
 var _hinted := false
+## Die nächste Handlung (DayUI, GameState.next_action): nach ACTION_IDLE s ohne Eingabe leuchtet ihre Scheibe (move)
+## oder ihre Felder (fields) sanft – nur Leuchten, keine Symbole am Feld. Jede Berührung macht es aus.
+const ACTION_IDLE := 6.0
+var action_hint: Dictionary = {}
+var action_nudged := 0          # so oft hat die Handlung von selbst geleuchtet (Tour)
+signal action_nudge(on: bool)   # die Oberfläche lässt dazu den gemeinten Knopf (Regen, Wunder, Tipp) sanft pulsieren
 var _hint_views: Array = []
 
 
@@ -163,6 +169,7 @@ func rebuild() -> void:
 		c.queue_free()
 	cubies.clear()
 	views.clear()
+	_cones.clear()               # die Kegel hingen an den alten Feldern (sonst tote Einträge im nächsten Level)
 	selected = -1
 	animating = false
 	_mode = ""
@@ -257,6 +264,12 @@ func refresh_all(gs: GameState = null, skip: Dictionary = {}) -> void:
 			danger[f.id] = true
 	var camp_st := camp_states(gs)
 	var camp := not camp_st.is_empty()
+	FieldView.quiet = camp           # Schöpfung: keine Symbole an den Feldern (Build 12), das Was-jetzt steht oben
+	# Ist der Krater keine Lava mehr (Fels, Erde …), sinkt sein Kegel sofort zurück
+	for c in _cones.keys():
+		var ci := int(c)
+		if ci >= gs.fields.size() or (gs.fields[ci] as FieldData).kind != Look.K_LAVA:
+			_cone_away(ci)
 	for f in gs.fields:
 		var v: FieldView = views.get(f.id)
 		if v == null or skip.has(f.id):
@@ -333,9 +346,11 @@ func camp_states(gs: GameState) -> Dictionary:
 		var gid: Variant = st.get("group")
 		if int(st.get("strength", 0)) >= 2 and src_kinds.has(f.kind) and gid != null and feeds.has(f.id) and not badge_of.has(gid):
 			badge_of[gid] = f.id
+	var goal_ks := gs.goal_kinds()
 	for f in gs.fields:
 		var st: Dictionary = out[f.id]
 		st["badge"] = badge_of.get(st.get("group"), -1) == f.id
+		st["goal_kind"] = goal_ks.has(f.kind)
 		if crater_group != null and f.kind == Look.K_LAVA and st.get("group") == crater_group:
 			st["volc"] = true
 		if f.kind == Look.K_LAVA and (st.get("met", []) as Array).has("wet"):
@@ -1396,6 +1411,9 @@ func _process(delta: float) -> void:
 			_show_hint()
 		elif Game.onboarding and not Game.tutorial() and _idle > Balance.ONBOARD_HINT_SECONDS and not _hinted:
 			_show_free_hint()      # die ersten Minuten: nach einer Pause leuchtet die passende Reihe (ohne Text)
+		elif _idle > ACTION_IDLE and not _hinted and not action_hint.is_empty() and not input_locked and not _tour \
+				and Game.state != null and Game.state.camp:
+			_show_action_hint()
 	else:
 		_idle = 0.0
 	# Auf dem Würfel halten (ohne Bewegen): danach dreht Ziehen die Ansicht statt einer Reihe
@@ -1738,7 +1756,28 @@ func _show_free_hint() -> void:
 				_hint_views.append(child)
 
 
+## Die nächste Handlung leuchtet von selbst (nach ACTION_IDLE s Ruhe): ihre Scheibe oder ihre Felder.
+func _show_action_hint() -> void:
+	_hinted = true
+	action_nudged += 1
+	var mv: Variant = action_hint.get("move", {})
+	if mv is Dictionary and (mv as Dictionary).has("axis") and (mv as Dictionary).has("layer"):
+		var m: Dictionary = mv
+		_show_hint({"axis": int(m["axis"]), "layer": int(m["layer"]), "turns": int(m.get("turns", 1)), "points": 0, "steps": 1})
+	else:
+		var fl: Variant = action_hint.get("fields", [])
+		if fl is Array:
+			for i in (fl as Array):
+				var v: FieldView = views.get(int(i))
+				if v != null:
+					v.set_hint(true)
+					_hint_views.append(v)
+	action_nudge.emit(true)
+
+
 func _clear_hint() -> void:
+	if _hinted and not action_hint.is_empty():
+		action_nudge.emit(false)
 	_idle = 0.0
 	_hinted = false
 	for v in _hint_views:
@@ -2548,31 +2587,6 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			var v: FieldView = views.get(int(e["field"]))
 			if v != null:
 				v.set_wish("")
-	# Hat das alles eine neue Reihe ergeben, wächst sie jetzt (erst danach zu sehen)
-	var late_any := false
-	for e in events:
-		if str(e["type"]) != "merge" or not bool(e.get("late", false)):
-			continue
-		late_any = true
-		merged_ids[int(e["field"])] = true
-		for o in e["others"]:
-			merged_ids[int(o)] = true
-		await _merge_fx(e)
-	if late_any:
-		await get_tree().create_timer(0.25).timeout
-	# Stille Reihen: drei gleiche, die nicht wachsen – leuchten kurz mit Abzeichen, die Oberfläche sagt warum
-	_still_fx(events, int(result.get("grew", 0)) > 0, same_slice)
-	# Glaube pro Drehung von fertigen Feldern
-	for e in events:
-		if str(e["type"]) == "income":
-			income_shown.emit(int(e["faith"]))
-	# Fehlversuch zählen
-	for e in events:
-		if str(e["type"]) == "miss":
-			var why := str(e.get("why", ""))
-			if same_slice and ["", "water", "other"].has(why):
-				why = "slice"       # hin und her: sagen, dass das nichts bringt (statt „Wasser wächst nie“)
-			miss_shown.emit(int(e["field"]), int(e["count"]), why)
 	# Neue Tage (GDPD_BALANCE_2.md 7): Gedeihen, Hunger, Krieg und Flut am Feld zeigen (die Art wechselt danach)
 	var fx8 := false
 	for e in events:
@@ -2663,6 +2677,31 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				_staub = 2
 	if fx8:
 		await get_tree().create_timer(0.5).timeout
+	# Hat das alles (Abkühlen, Ausbruch, Landgang, Wünsche) eine neue Reihe ergeben, wächst sie jetzt (erst danach zu sehen)
+	var late_any := false
+	for e in events:
+		if str(e["type"]) != "merge" or not bool(e.get("late", false)):
+			continue
+		late_any = true
+		merged_ids[int(e["field"])] = true
+		for o in e["others"]:
+			merged_ids[int(o)] = true
+		await _merge_fx(e)
+	if late_any:
+		await get_tree().create_timer(0.25).timeout
+	# Stille Reihen: drei gleiche, die nicht wachsen – leuchten kurz mit Abzeichen, die Oberfläche sagt warum
+	_still_fx(events, int(result.get("grew", 0)) > 0, same_slice)
+	# Glaube pro Drehung von fertigen Feldern
+	for e in events:
+		if str(e["type"]) == "income":
+			income_shown.emit(int(e["faith"]))
+	# Fehlversuch zählen
+	for e in events:
+		if str(e["type"]) == "miss":
+			var why := str(e.get("why", ""))
+			if same_slice and ["", "water", "other"].has(why):
+				why = "slice"       # hin und her: sagen, dass das nichts bringt (statt „Wasser wächst nie“)
+			miss_shown.emit(int(e["field"]), int(e["count"]), why)
 	_sync_era()
 	# Katastrophe
 	for e in events:
@@ -3337,8 +3376,11 @@ func _erupt_fx(crater: int, target: int) -> void:
 	var cv: FieldView = views.get(crater)
 	if cv == null:
 		return
-	if not _cones.has(crater):
-		var cone := Node3D.new()
+	if _cones.has(crater) and not is_instance_valid(_cones[crater]):
+		_cones.erase(crater)
+	var cone: Node3D = _cones.get(crater)
+	if cone == null:
+		cone = Node3D.new()
 		cone.position = Vector3(0, FieldView.TOP, 0)
 		cv.add_child(cone)
 		for pv in Models.get_model("volcano", 0):
@@ -3349,7 +3391,10 @@ func _erupt_fx(crater: int, target: int) -> void:
 		cone.scale = Vector3(1.3, 0.05, 1.3)
 		var tw := cone.create_tween()
 		tw.tween_property(cone, "scale", Vector3(1.3, 1.3, 1.3), 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		_cones[crater] = [cone, 3]
+		_cones[crater] = cone
+	# Der Kegel ist ein Ereignis, kein Dauer-Modell (GDPD_SCHOEPFUNG_GRAFIK.md 7.1): nach dem Ausbruch sinkt er zurück.
+	# Sonst stünde er für den Rest des Levels auf dem Feld – auch, wenn aus der Lava längst Fels geworden ist.
+	get_tree().create_timer(2.4).timeout.connect(_cone_away.bind(crater, cone))
 	cv.quake(0.7)
 	rig.shake(0.5)
 	hold_mood("glut", 0.4)
@@ -3369,16 +3414,21 @@ func _erupt_fx(crater: int, target: int) -> void:
 
 
 ## Vulkan-Ruhe: der Kegel sinkt zurück in die Lava (kein Dauer-Modell, Vulkan ist keine Art).
-func _cone_away(crater: int) -> void:
+## only: nur diesen Kegel (ein Zeitgeber eines älteren Ausbruchs nimmt keinen neueren Kegel weg).
+func _cone_away(crater: int, only: Variant = null) -> void:
 	if not _cones.has(crater):
 		return
-	var cone: Node3D = (_cones[crater] as Array)[0]
-	_cones.erase(crater)
+	var cone: Variant = _cones[crater]
 	if not is_instance_valid(cone):
+		_cones.erase(crater)
 		return
-	var tw := cone.create_tween()
-	tw.tween_property(cone, "scale", Vector3(1.3, 0.02, 1.3), 0.8).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(cone.queue_free)
+	if only != null and (not is_instance_valid(only) or cone != only):
+		return
+	_cones.erase(crater)
+	var cn: Node3D = cone
+	var tw := cn.create_tween()
+	tw.tween_property(cn, "scale", Vector3(1.3, 0.02, 1.3), 0.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(cn.queue_free)
 
 
 ## Dampf wird Himmel (Akt 2): eine Dampfsäule steigt auf, am Himmel kommt eine Wolke dazu.

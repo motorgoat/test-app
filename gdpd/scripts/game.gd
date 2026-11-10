@@ -165,7 +165,8 @@ func _ready() -> void:
 	note_session()
 	call_deferred("replan_reminders")      # nach den anderen Autoloads (Plugin-Hülle)
 	if Balance.CAMPAIGN_ON:
-		start_level(current_level())
+		if not resume_run():          # Build 12: ein laufendes Level geht genau dort weiter, wo die App zuging
+			start_level(current_level())
 	elif world_done:
 		new_game()
 	else:
@@ -196,6 +197,8 @@ func new_game(seed_value: int = 0, endless_mode: int = -1, lvl: int = -1) -> voi
 		level = CHALLENGE_LEVEL
 	tutorial_step = -1
 	_tut_board = false
+	if level_no > 0:
+		_clear_run()                 # das Level wird verlassen: es beginnt beim nächsten Mal neu
 	day_no = 0
 	level_no = 0
 	day_board = {}
@@ -456,6 +459,8 @@ func finish_round(result: Dictionary) -> void:
 		game_over.emit()
 	elif sek100 and sek100_running and sek100_left <= 0.0:
 		_sek100_end()
+	if level_no > 0 and state.camp:
+		_save_run()                  # Build 12: nach jeder Runde (App zu → das Level geht genau hier weiter)
 	state_changed.emit()
 	move_done.emit(_last_kind)
 
@@ -528,6 +533,8 @@ func undo() -> void:
 	undoing = true
 	new_game_started.emit()
 	undoing = false
+	if level_no > 0 and state.camp:
+		_save_run()
 	state_changed.emit()
 	message.emit("Zug zurückgenommen.", "info")
 
@@ -1361,6 +1368,8 @@ func _finish_daily_world(today: int) -> void:
 ## Nach dem Sieg in derselben Welt weiterbauen: keine Drehungs-Grenze, kein Scheitern, Wünsche und Glaube laufen
 ## weiter, Münzen fürs Wachsen. Die Sterne bleiben die des Sieges. false, wenn gerade kein gewonnener Tag läuft.
 func continue_build() -> bool:
+	if level_no > 0 or (state != null and state.camp):
+		return false              # Schöpfung (Build 12): kein Weiterbauen – nach dem Sieg „Nochmal“ oder die Übersicht
 	if not in_day() or not state.day_won or state.day_free_build:
 		return false
 	state.start_free_build()
@@ -1383,6 +1392,8 @@ func continue_build() -> bool:
 
 ## Gibt es die heute geschaffte Welt zum Weiterbauen (im Speicher, solange die App läuft, nur an ihrem Spieltag)?
 func can_resume_build() -> bool:
+	if today_build != null and today_build.camp:
+		return false
 	return today_build != null and int(today_build_ctx.get("key", -1)) == today_key()
 
 
@@ -1632,7 +1643,10 @@ func _notification(what: int) -> void:
 		daily_changed.emit()
 		replan_reminders()
 	elif what == NOTIFICATION_APPLICATION_PAUSED:
+		_save_running()
 		replan_reminders()          # wichtig: vielleicht kommt der Spieler nie zurück
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_save_running()
 
 
 # --- Test-Knopf und Test-Haken (7) -----------------------------------------------------------------
@@ -1944,6 +1958,10 @@ func start_level(n: int, board_index: int = -1) -> bool:
 	_ensure_camp()
 	if n < 1 or n > Campaign.COUNT or not level_unlocked(n):
 		return false
+	if board_index < 0:
+		var run := saved_run()
+		if not run.is_empty() and int(run["level"]) == n and not bool(run["wdt"]) and resume_run():
+			return true           # Build 12: ein laufender Versuch geht weiter (nie wieder von 0)
 	var b := _level_start_board(n, board_index)
 	# Jedes Level bleibt lösbar: vor dem Start prüfen (ohne Suche), sonst Nachschub über Nacht oder das Pool-Brett
 	b = Campaign.ensure(n, b, int((camp["next_board"] as Array)[n - 1]))
@@ -2028,6 +2046,8 @@ func _start_level_state(n: int, b: Dictionary) -> void:
 	dead_told = false
 	rescue_told_at = -99
 	rescue_offer = {}
+	_clear_run()                  # ein neuer Versuch (gespeichert wird ab der ersten Runde)
+	run_resumed = false
 	if level_stars(n) == 0:
 		camp["start"] = Campaign.encode(b.get("kinds", []))
 		camp["start_level"] = n
@@ -2092,6 +2112,8 @@ func start_level_wdt(board_index: int = -1) -> bool:
 	dead_told = false
 	rescue_told_at = -99
 	rescue_offer = {}
+	_clear_run()
+	run_resumed = false
 	pending_choice = {}
 	busy = false
 	over = false
@@ -2126,9 +2148,9 @@ func level_info() -> Dictionary:
 		"best_stars": Daily.wdt_stars(daily, wdt_key) if wdt else level_stars(n),
 		"best_twists": 0 if wdt else int((camp["steps"] as Array)[n - 1]), "board": int(level_board.get("index", -1)),
 		"how": str(level_board.get("how", "")),
-		"tutorial": {"axis": 0, "layer": 1, "turns": 1} if n == 1 and not wdt and int(level_board.get("index", -1)) == 0 else {},
-		"first_visit": not wdt and level_stars(n) == 0, "status": state.day_status(), "overnight": overnight.duplicate(true),
-		"era": state.era9(), "v8": false}
+		"tutorial": {"axis": 0, "layer": 1, "turns": 1} if n == 1 and not wdt and int(level_board.get("index", -1)) == 0 and not run_resumed else {},
+		"first_visit": not wdt and level_stars(n) == 0 and not run_resumed, "status": state.day_status(),
+		"overnight": overnight.duplicate(true), "era": state.era9(), "v8": false, "resumed": run_resumed}
 
 
 ## Ende eines Level-Versuchs (nur gewonnen – ein Level kann man nicht verlieren): Sterne, Schritte, Freischalten,
@@ -2154,7 +2176,7 @@ func _finish_level() -> void:
 			"best_stars": Daily.wdt_stars(daily, wdt_key), "streak": streak_w, "next_day": 0, "next_new": 0,
 			"next_open": false, "next_locked": true, "next_line": str(Days.TEXT["wdt_tomorrow"]),
 			"world_complete": false}, true)
-		_keep_for_build()
+		_clear_run()
 		day_won.emit(info)
 		_after_win(streak_w)
 		return
@@ -2191,7 +2213,7 @@ func _finish_level() -> void:
 		"next_line": str(Campaign.TEXT["tomorrow"]) if nn <= Campaign.COUNT and not open else "",
 		"world_complete": complete, "stars_total": _camp_stars_total(), "stars_max": 3 * Campaign.COUNT,
 		"streak": streak}, true)
-	_keep_for_build()
+	_clear_run()                  # geschafft: kein laufendes Level mehr (Build 12: kein Weiterbauen)
 	day_won.emit(info)
 	_after_win(streak)
 
@@ -2426,6 +2448,7 @@ func use_stock(kind: String, fid: int = -1) -> bool:
 			return false
 		stock[id] = int(stock[id]) - 1
 		_save_profile()
+		_save_running()
 		message.emit("Geschützt", "good")
 		state_changed.emit()
 		return true
@@ -2527,6 +2550,165 @@ func new_world() -> bool:
 	if size > 1 and posmod(pick, size) == 0:
 		pick += 1                    # Brett 0 ist das Lehr-Brett
 	return start_level(level_no, posmod(pick, size))
+
+
+# --- Build 12: der laufende Level-Versuch bleibt (App zu, Handy aus) --------------------------------------
+
+## Version des Laufs (user://rekord_lauf.cfg, [lauf]). Passt sie nicht, beginnt das Level neu (nie ein kaputter Stand).
+const RUN_VERSION := 1
+## Der laufende Versuch wurde fortgesetzt (resume_run), nicht neu begonnen: level_info()["resumed"] ist true (keine
+## Start-Karte, keine Vorführung, keine Welle). Jeder neue Versuch setzt es zurück.
+var run_resumed := false
+
+
+## Datei des laufenden Versuchs: neben dem Spielstand (Tests leiten save_path um, der Lauf folgt).
+func run_path() -> String:
+	return save_path.get_basename() + "_lauf.cfg"
+
+
+## Fingerabdruck der Level-Regeln: Ändert ein Update das Level, beginnt ein gespeicherter Versuch neu.
+static func _cfg_hash(cfg: Dictionary) -> String:
+	return var_to_str(cfg).md5_text()
+
+
+## Den laufenden Versuch speichern (nach jeder Runde, nach Zurück, beim Pausieren). Gewonnen oder kein Level: löschen.
+func _save_run() -> void:
+	if state == null or not state.camp or level_no <= 0 or state.day_won or over \
+			or (state.actions9() == 0 and state.steps9() == 0):
+		_clear_run()              # nichts getan: das Level beginnt wie gewohnt (mit Start-Karte)
+		return
+	var d := {"v": RUN_VERSION, "level": level_no, "wdt": wdt_key, "cfg": _cfg_hash(state.day),
+		"state": state.save9(), "undo": undo_state.save9() if undo_state != null and undo_state.camp else {},
+		"board": level_board.duplicate(true), "hint_free": hint_free_left, "undo_free": undo_free_left,
+		"rescue_at": rescue_told_at, "dead_told": dead_told, "offer": rescue_offer.duplicate(true),
+		"attempt_key": attempt_key, "attempt_start": attempt_start, "steps": state.steps9(),
+		"progress": state.progress9(), "target": state.target9()}
+	if wdt_key >= 0:
+		d["wdt_cfg"] = state.day.duplicate(true)
+	var cfg := ConfigFile.new()
+	cfg.set_value("lauf", "daten", d)
+	cfg.save(run_path())
+
+
+## Beim Pausieren/Schließen: nur, wenn gerade ein Level läuft (sonst bleibt ein gespeicherter Versuch, wie er ist).
+## Läuft gerade eine Runde (busy), bleibt der Stand vor ihr: das Brett ist schon weiter, finish_round (Sieg, Netz)
+## aber noch nicht gelaufen – sonst ginge beim Schließen mitten im Siegeszug der Versuch verloren.
+func _save_running() -> void:
+	if state != null and state.camp and level_no > 0 and not busy:
+		_save_run()
+
+
+func _clear_run() -> void:
+	if FileAccess.file_exists(run_path()):
+		DirAccess.remove_absolute(run_path())
+
+
+## Der gespeicherte Versuch, kurz (für die Übersicht: „Weiter“ statt „Los“): {"level", "wdt" (bool), "steps",
+## "progress", "target"} oder {} (keiner oder unbrauchbar).
+func saved_run() -> Dictionary:
+	var d := _load_run()
+	if d.is_empty():
+		return {}
+	return {"level": int(d["level"]), "wdt": int(d.get("wdt", -1)) >= 0, "steps": int(d.get("steps", 0)),
+		"progress": int(d.get("progress", 0)), "target": int(d.get("target", 0))}
+
+
+func _load_run() -> Dictionary:
+	if not FileAccess.file_exists(run_path()):
+		return {}
+	var cfg := ConfigFile.new()
+	if cfg.load(run_path()) != OK:
+		return {}
+	var v: Variant = cfg.get_value("lauf", "daten", {})
+	if not (v is Dictionary):
+		return {}
+	var d: Dictionary = v
+	if int(d.get("v", 0)) != RUN_VERSION or not (d.get("state") is Dictionary):
+		return {}
+	var n := int(d.get("level", 0))
+	if n < 1 or n > Campaign.COUNT:
+		return {}
+	return d
+
+
+## Den gespeicherten Versuch fortsetzen (App-Start, oder das Level wird aus der Übersicht wieder geöffnet): Brett,
+## Schritte, Fortschritt mit Verlusten, Siegel, Gefahren, Werkzeuge, Geschenk-Stand, Zufall – genau wie vorher.
+## false (und der Versuch ist weg), wenn er nicht mehr passt: Level gesperrt, andere Regeln, Welt des Tages von gestern.
+## level_started/day_started tragen dann "resumed": true (keine Start-Karte, keine Welle „Neuer Morgen“).
+func resume_run() -> bool:
+	run_resumed = false
+	var d := _load_run()
+	if d.is_empty():
+		_clear_run()
+		return false
+	_ensure_camp()
+	var n := int(d["level"])
+	var wk := int(d.get("wdt", -1))
+	var cfg: Dictionary = {}
+	if wk >= 0:
+		if wk != today_key() or not (d.get("wdt_cfg") is Dictionary):
+			_clear_run()
+			return false
+		cfg = d["wdt_cfg"]
+	else:
+		if not level_unlocked(n):
+			_clear_run()
+			return false
+		cfg = Campaign.config(n)
+		if _cfg_hash(cfg) != str(d.get("cfg", "")):
+			_clear_run()
+			return false
+	var gs := GameState.load9(d["state"], cfg)
+	if gs == null or gs.day_won:
+		_clear_run()
+		return false
+	if state != null and not state.is_day():
+		_save_best()
+	sek100 = false
+	_end_build()
+	day_no = 0
+	level_no = n
+	wdt_key = wk
+	var b: Variant = d.get("board", {})
+	level_board = (b as Dictionary).duplicate(true) if b is Dictionary else {}
+	day_board = level_board
+	tutorial_step = -1
+	_tut_board = false
+	overnight = {}
+	hint_free_left = int(d.get("hint_free", Balance.HINT_FREE))
+	undo_free_left = int(d.get("undo_free", Balance.UNDO_FREE))
+	attempt_key = int(d.get("attempt_key", today_key()))
+	attempt_start = int(d.get("attempt_start", game_now()))
+	state = gs
+	var ud: Variant = d.get("undo", {})
+	undo_state = GameState.load9(ud, cfg) if ud is Dictionary and not (ud as Dictionary).is_empty() else null
+	dead_told = bool(d.get("dead_told", false))
+	rescue_told_at = int(d.get("rescue_at", -99))
+	var of: Variant = d.get("offer", {})
+	rescue_offer = (of as Dictionary).duplicate(true) if of is Dictionary else {}
+	pending_choice = {}
+	busy = false
+	over = false
+	continued = false
+	new_record = false
+	onboarding = n <= 2
+	new_game_started.emit()
+	state_changed.emit()
+	run_resumed = true
+	var info := level_info()
+	day_started.emit(info)
+	level_started.emit(info)
+	if not rescue_offer.is_empty():
+		level_dead.emit(rescue_offer.duplicate())
+	return true
+
+
+## Build 12: was jetzt zu tun ist (Zeile oben im HUD), aus den Regeln (GameState.next_action, Schlüssel dort).
+## {} außerhalb eines Levels und während eine Runde läuft. "type" "help": das Sicherheitsnetz (take_gift) hilft.
+func next_action() -> Dictionary:
+	if state == null or not state.camp or level_no <= 0 or busy:
+		return {}
+	return state.next_action()
 
 
 func sek100_paused() -> bool:

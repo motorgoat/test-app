@@ -146,12 +146,20 @@ func _update_tilt(delta: float) -> void:
 			_g_base = g
 		_g_base = _g_base.lerp(g, 1.0 - exp(-delta * 0.6))
 		var d := (g - _g_base) / 9.81
-		target = Vector2(clampf(-d.x * 2.6, -1.0, 1.0), clampf(d.z * 2.6, -1.0, 1.0)) * Balance.TILT_MAX
+		# Senkrecht passend zum Ziehen umgekehrt (ORBIT_INVERT_Y): Oberkante des Handys wegkippen wirkt wie Finger nach unten
+		var tz := -d.z if ORBIT_INVERT_Y else d.z
+		target = Vector2(clampf(-d.x * 2.6, -1.0, 1.0), clampf(tz * 2.6, -1.0, 1.0)) * Balance.TILT_MAX
 	_tilt = _tilt.lerp(target, 1.0 - exp(-delta * 6.0))
 
 
+## Senkrecht umgekehrt (Build 12, Wunsch nach dem Spielen am Handy): Finger nach unten zieht die Kamera nach unten
+## (man sieht mehr von der Unterseite), Finger nach oben zeigt mehr von oben. Waagerecht wie bisher.
+const ORBIT_INVERT_Y := true
+
+
 func _rotate_by(px: Vector2) -> void:
-	basis = (basis * Basis(Vector3.UP, -px.x * ORBIT_SPEED) * Basis(Vector3.RIGHT, -px.y * ORBIT_SPEED)).orthonormalized()
+	var vy := px.y if ORBIT_INVERT_Y else -px.y
+	basis = (basis * Basis(Vector3.UP, -px.x * ORBIT_SPEED) * Basis(Vector3.RIGHT, vy * ORBIT_SPEED)).orthonormalized()
 
 
 ## Ziehen: dreht sofort mit, merkt sich die Geschwindigkeit für den Nachschwung.

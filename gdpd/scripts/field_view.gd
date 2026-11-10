@@ -104,6 +104,11 @@ var _smoke: Array = []
 var _time := 0.0
 var _labels_on := true
 var _needs_face := true          # World: Feld zeigt deutlich zur Kamera (facing > 0.4)
+## Schöpfung (Build 12: „Die Icons am Feld entfernen“): keine Symbole an den Feldern – keine Bedürfnis-Plaketten,
+## Abzeichen, Vorschau-Pfeile, „×2“, Kühl-Punkte, „!“/„?“. Was zu tun ist, steht oben (DayUI.act_line). Es bleiben die
+## Lichtränder, Gefahren als Welt-Effekte (Rauchsäule, Gewitterwolke, Flut) und die kurzen +1/−1-Hinweise.
+## World.refresh_all setzt es je Level.
+static var quiet := false
 var _badge: Sprite3D             # Abzeichen über dem Feld (z. B. Tropfen: hier lohnt sich Gießen)
 var _badge_name := ""
 var _target_on := false         # Ziel eines Bonus: Lichtrand in der Bonusfarbe (Regen blau, Blitz gelb)
@@ -295,6 +300,8 @@ func set_labels_visible(on: bool) -> void:
 
 ## Abzeichen über dem Feld: Symbolname (z. B. "rain") oder "" zum Ausblenden. Hüpft leicht.
 func set_badge(icon_name: String) -> void:
+	if quiet:
+		icon_name = ""
 	if icon_name == _badge_name:
 		return
 	_badge_name = icon_name
@@ -310,7 +317,7 @@ func set_supply(mode: int) -> void:
 	if mode == _supply_mode:
 		return
 	_supply_mode = mode
-	if mode != 0 and _supply_icon == null:
+	if mode != 0 and _supply_icon == null and not quiet:
 		_supply_icon = _sprite("up", 0.004, 7)
 		_supply_icon.position = Vector3(0, 0.98, 0)
 		add_child(_supply_icon)
@@ -319,7 +326,7 @@ func set_supply(mode: int) -> void:
 	if _supply_icon == null:
 		return
 	_supply_icon.texture = Style.icon("up" if mode > 0 else "down")
-	_supply_icon.visible = mode != 0 and _labels_on
+	_supply_icon.visible = mode != 0 and _labels_on and not quiet
 	if mode != 0:
 		# kurzer Hüpfer, damit man die Marke beim Drehen sieht
 		_supply_icon.scale = Vector3.ONE * 0.4
@@ -334,6 +341,8 @@ func supply_mode() -> int:
 
 ## Vorschau über dem Feld (+5). "" blendet aus.
 func set_preview(text: String, color: Color) -> void:
+	if quiet:
+		text = ""
 	_preview_label.text = text
 	_preview_label.outline_modulate = color
 	_preview_label.visible = _labels_on and text != ""
@@ -1137,14 +1146,19 @@ func apply_state8(st: Dictionary) -> void:
 	if camp and _kind == K_WATER and met.is_empty() and sealed.is_empty():
 		show = false                    # totes Wasser: Plaketten nur, wo schon eine Quelle angrenzt (sonst überall)
 	_lasting = st.has("sealed")
-	_set_needs(show, met, missing, satt, fed, hungry, shrink_after, sealed, st.get("amounts", st.get("have", {})), hunger_warn,
-		bool(st.get("grows", true)))
+	if quiet:
+		# keine Plaketten; nur ein Feld, das fürs Ziel zählt und versorgt ist, bekommt den goldenen Rand
+		_set_needs(false, met, missing, satt, fed, hungry, shrink_after)
+		set_mark("satt", bool(st.get("goal_kind", false)) and (satt or (not sealed.is_empty() and missing.is_empty())))
+	else:
+		_set_needs(show, met, missing, satt, fed, hungry, shrink_after, sealed, st.get("amounts", st.get("have", {})), hunger_warn,
+			bool(st.get("grows", true)))
 	_set_front(bool(st.get("front", false)))
 	_set_bolt(bool(st.get("bolt", false)))
 	_set_flood_risk(bool(st.get("flood_risk", false)))
 	_set_volcano(bool(st.get("volc", false)) or bool(st.get("crater", false)), bool(st.get("crater", false)))
-	_set_cool(int(st.get("cool", 0)))
-	_set_strength(int(st.get("strength", 0)) if bool(st.get("badge", true)) else 0)
+	_set_cool(0 if quiet else int(st.get("cool", 0)))
+	_set_strength(int(st.get("strength", 0)) if bool(st.get("badge", true)) and not quiet else 0)
 	# Rudel: field_state9 „pack“ = diese Herde wird gejagt; die Raubtiere daneben (World: pack_pred) ducken sich
 	var pack_warn := bool(st.get("pack_warn", false)) or (camp and bool(st.get("pack", false)))
 	var smog_warn := bool(st.get("smog_warn", false)) or (camp and bool(st.get("smog", false)))
@@ -2611,8 +2625,8 @@ func _b_water(_rng: RandomNumberGenerator) -> void:
 		_agent("duck", 1, Vector3(0.08, 0.005, -0.06))
 
 
-## Fels / Stein: in Akt 1–2 schwarzgrauer Basalt (2–3 scharfkantige Brocken), vor den Menschen graue Felsen, danach
-## der Steinbruch mit Abbaukante, Blöcken, Schutt und manchmal einem Steinhauer.
+## Fels / Stein: 2–3 scharfkantige Brocken – in Akt 1 schwarzgrauer Basalt (Look.basalt_dark), ab Akt 2 helle, graue
+## Brocken bis zu den Menschen; danach der Steinbruch mit Abbaukante, Blöcken, Schutt und manchmal einem Steinhauer.
 func _b_stone(rng: RandomNumberGenerator) -> void:
 	if Look.era_flag("basalt") or Look.era_flag("wild"):
 		var basalt := Look.era_flag("basalt")
@@ -2620,7 +2634,7 @@ func _b_stone(rng: RandomNumberGenerator) -> void:
 		var spots := [Vector3(-0.12, 0, -0.08), Vector3(0.12, 0, 0.06), Vector3(-0.02, 0, 0.17)]
 		for k in n:
 			var sp: Vector3 = spots[k] + Vector3(rng.randf_range(-0.04, 0.04), 0, rng.randf_range(-0.04, 0.04))
-			if basalt and Look.era_name.begins_with("glut"):
+			if Look.basalt_dark():
 				_item("basalt", k + _variant, sp, rng.randf() * TAU, rng.randf_range(1.5, 1.9), 0.08)
 			else:
 				_item("boulder", k + _variant, sp, rng.randf() * TAU, rng.randf_range(1.0, 1.3), 0.08)

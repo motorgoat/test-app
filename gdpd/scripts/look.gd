@@ -202,9 +202,18 @@ static func era_ambient(name: String, def: Variant = 0) -> Variant:
 
 
 ## Schlüssel der Modell-Zweige (Back-Cache): ändert er sich, baut eine Art mit Zeitalter-Modell neu.
+## Die 5. Stelle trennt den dunklen Basalt (Glut, Akt 1) von den hellen Felsbrocken (ab Dunst, Akt 2): ohne sie
+## hatten beide denselben Schlüssel, der Back-Cache gab in Akt 2 alten Basalt aus und neue Felder bekamen Brocken.
 static func model_key() -> String:
-	return "%d%d%d%d" % [1 if era_flag("primeval") else 0, 1 if era_flag("wild") else 0, 1 if era_flag("ducks") else 0,
-		1 if era_flag("basalt") else 0]
+	return "%d%d%d%d%d" % [1 if era_flag("primeval") else 0, 1 if era_flag("wild") else 0, 1 if era_flag("ducks") else 0,
+		1 if era_flag("basalt") else 0, 1 if basalt_dark() else 0]
+
+
+## Fels als dunkler Basalt (nur in der Glut-Zeit, Akt 1); danach heller, grauer Fels (GDPD_SCHOEPFUNG_GRAFIK.md 5.x).
+static func basalt_dark() -> bool:
+	if era_flag("basalt_dark"):
+		return true
+	return era_flag("basalt") and era_name.begins_with("glut")
 
 
 ## Jahreszeit (8.2): nur Uniforms im Boden- und Laub-Shader.

@@ -87,11 +87,13 @@ jobs:
           grep -qE "^TOUR-DONE checks=[0-9]+ failed=0" ../shots.log || { echo "Die Screenshot-Tour lief nicht bis zum Ende"; exit 1; }
           for c in creator_finish camp_overview no_spoiler_campaign god_tap_opens l1_goal_card character_coach l1_tutorial_lava \
                    hud_central l1_your_turn no_auto_twist_after_input stars_generous level_success permission_ask \
-                   continue_mode_no_limit menu_settings_submenu level_locked_until_tomorrow next_day_debug_unlocks carry_world \
+                   no_continue_build menu_settings_submenu level_locked_until_tomorrow next_day_debug_unlocks carry_world \
                    streak_increments reminder_scheduled volcano_warn consequence_danger_avoided goal_loss_cue act_transition \
                    rain_from_steam water_alive sky_blue dry_forest_bolt group_merge landgang pack_warn supply_preview \
                    need_seal_stays hold_rest water_turns_with_slice points_shop free_100s daily_world bonus_round_responsive \
                    water_life_visible help_campaign level3_solvable \
+                   action_line action_line_fits no_field_icons action_line_updates volcano_cone_sinks orbit_inverted rocks_act2 \
+                   task_at_top rock_row_counts save_mid_level \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

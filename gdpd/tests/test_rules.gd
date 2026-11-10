@@ -136,6 +136,9 @@ func _init() -> void:
 	test_level_game()
 	test_ui9()
 	test_hint9()
+	test_rows_build12()
+	test_save9()
+	test_next_action9()
 	await process_frame          # das Autoload Game ist jetzt im Baum
 	test_self_move_guard()
 	await test_bonus_game()
@@ -4450,8 +4453,7 @@ func test_points9() -> void:
 		var ab: Array = Days.solution_step(st2)
 		gs.play(ab[0], ab[1])
 	gs.start_free_build()
-	var g0 := gs.build_growth()
-	check(gs.day_won and gs.day_free_build and g0 == 0, "Weiterbauen beginnt bei 0 neuen Wachstümern")
+	check(gs.day_won and not gs.day_free_build, "Build 12: kein Weiterbauen in der Schöpfung (start_free_build tut nichts)")
 	# gekauftes Wunder: 2 Schritte, eins je Art
 	var gm := Campaign.new_state(6, Campaign.board(6, 1))
 	gm.rain = 0
@@ -4481,6 +4483,7 @@ func test_pool_replay9() -> void:
 	var bad := 0
 	var n_boards := 0
 	var stars_ok := true
+	GameState.engine9_mode = true          # die Lösungen kommen aus dem Modell: genau dort nachspielen
 	for n in range(1, Campaign.COUNT + 1):
 		var c := Campaign.config(n)
 		for i in Campaign.pool_size(n):
@@ -4498,7 +4501,39 @@ func test_pool_replay9() -> void:
 		var gs0 := Campaign.new_state(n, Campaign.board(n, 0))
 		if [int(cs[0]), int(cs[1])] != Campaign.stars_of(n) or int(c["par"]) != int(cs[0]) + 4 or gs0.stars9 != Campaign.stars_of(n):
 			stars_ok = false
-	check(n_boards == 600 and bad == 0, "pool_replay9: alle %d Pool-Lösungen gewinnen genau bei solved_in mit ihren Sternen und Punkten (%d abweichend)" % [n_boards, bad])
+	GameState.engine9_mode = false
+	check(n_boards == 600 and bad == 0, "pool_replay9: alle %d Pool-Lösungen gewinnen im Modell-Modus genau bei solved_in mit ihren Sternen und Punkten (%d abweichend)" % [n_boards, bad])
+	# Spielregeln (Build 12, späte Runde): jedes Pool-Brett bleibt lösbar – mit seiner Lösung oder dem Tipp, mit ★★+
+	var by_sol := 0
+	var by_hint := 0
+	var lost: Array = []
+	var t0 := Time.get_ticks_msec()
+	for n2 in range(1, Campaign.COUNT + 1):
+		for i2 in Campaign.pool_size(n2):
+			var b2 := Campaign.board(n2, i2)
+			var g2 := Campaign.new_state(n2, b2)
+			for st2 in (b2["solution"] as Array):
+				var ab2: Array = Days.solution_step(st2)
+				g2.play(ab2[0], ab2[1])
+				if g2.day_won:
+					break
+			if g2.day_won:
+				by_sol += 1
+				continue
+			var g3 := Campaign.new_state(n2, b2)
+			for k3 in 40:
+				if g3.day_won:
+					break
+				var a3 := g3.best_action()
+				if a3.is_empty():
+					break
+				g3.play(a3)
+			if g3.day_won and g3.stars() >= 2:
+				by_hint += 1
+			else:
+				lost.append([n2, i2, g3.day_won, g3.stars()])
+	print("  Pool unter den Spielregeln: %d mit der Lösung, %d mit dem Tipp (%d ms)" % [by_sol, by_hint, Time.get_ticks_msec() - t0])
+	check(lost.is_empty() and by_sol >= 570, "pool_replay9: jedes Pool-Brett unter den Spielregeln gewonnen (Lösung %d, Tipp %d, offen %s)" % [by_sol, by_hint, str(lost.slice(0, 3))])
 	check(stars_ok and Campaign.stars_of(17) == [6, 22] and Campaign.stars_of(1) == [4, 9], "stars_v11: großzügige Sterne-Grenzen (stars11.py), Par = ★★★ + 4")
 
 
@@ -4702,6 +4737,7 @@ func test_solvable9() -> void:
 	var ensure_worst := 0
 	var ensure_lines := 0
 	var carry_worst := 0
+	var start_rows: Array = []
 	for act in range(1, 8):
 		var levels := Campaign.act_levels(act)
 		for chain in 4:
@@ -4723,9 +4759,6 @@ func test_solvable9() -> void:
 					fails.append(["play", lv, chain, res, gs.progress9(), gs.target9()])
 					break
 				won += 1
-				gs.start_free_build()
-				for i in rng.randi_range(0, 40):
-					tw(gs, GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)])
 				if li + 1 < levels.size():
 					var nx := int(levels[li + 1])
 					var tc := Time.get_ticks_usec()
@@ -4737,12 +4770,16 @@ func test_solvable9() -> void:
 					ensure_worst = maxi(ensure_worst, Time.get_ticks_usec() - te)
 					if str(b.get("line", "")) != "":
 						ensure_lines += 1
+					var gl := Campaign.new_state(nx, b)
+					if not gl.lines().is_empty():
+						start_rows.append([nx, chain, str(b.get("how", ""))])
 	print("  Lösbarkeit: %d Starts, %d gewonnen (Zufallsspieler mit Netz), %d ms, längstes Level %s" % [starts, won,
 		Time.get_ticks_msec() - t0, str(max_steps)])
 	# Der Start-Check läuft einmal beim Level-Start auf dem Haupt-Thread: am Handy (~4× langsamer) unter 150 ms
 	print("  Start-Check (Campaign.ensure): höchstens %.1f ms am PC, %d Starts mit Nachschub/Teilen/Pool; carry höchstens %.1f ms" % [ensure_worst / 1000.0, ensure_lines, carry_worst / 1000.0])
 	check(ensure_worst < 35000, "solvable9: Campaign.ensure höchstens %.1f ms (Handy-Budget 150 ms / 4)" % (ensure_worst / 1000.0))
 	check(fails.is_empty() and won == starts, "solvable9: jede getragene Welt erreichbar, Lava-Klumpen ≤ %d, jedes Level gewonnen (%s)" % [GameState.CLUMP_CAP9, str(fails.slice(0, 3))])
+	check(start_rows.is_empty(), "Build 12: keine fertige Reihe am Start einer getragenen Welt nach carry + ensure (%s)" % str(start_rows.slice(0, 3)))
 	# 2b. Level 3 wie beim Spieler (eigene Welt aus Level 1–2): 20 unordentliche Ketten, Level 3 startet erreichbar mit
 	# Lava-Klumpen ≤ CLUMP_CAP9 und wird gewonnen; ohne Geschenk (nur Drehen und Regen) zählt, wie oft es auch so geht
 	var l3_fail: Array = []
@@ -4770,9 +4807,6 @@ func test_solvable9() -> void:
 			if not bool(rr3[0]):
 				l3_fail.append(["play", lv3, ch3, rr3])
 				break
-			g3s.start_free_build()
-			for i3 in r3.randi_range(0, 40):
-				tw(g3s, GameState.MOVES[r3.randi_range(0, GameState.MOVES.size() - 1)])
 			if lv3 < 3:
 				b3 = Campaign.carry(Campaign.decode(g3s.slot_board9()), lv3 + 1, ch3 + 1000 * (lv3 + 1) + 1, ch3)
 				b3["kinds"] = Campaign.decode(Campaign.encode(b3["kinds"]))
@@ -5069,10 +5103,10 @@ func test_level_game() -> void:
 		"Sieg: Sterne, Punkte %d (+%d Serie) gutgeschrieben" % [pts, Points.streak_bonus(1)])
 	check(not (info.get("lines", []) as Array).is_empty() and str((info["lines"] as Array)[0][0]) == "win_done", "Sieg-Karte: Punkte-Zeilen")
 	check(not g.level_unlocked(2) and g.new_level_tomorrow() and str(g.camp["world"]).length() == 54, "Level 2 erst morgen; die Welt ist gespeichert")
-	# Weiterbauen ändert die Welt von morgen
-	check(g.continue_build() and g.state.day_free_build, "Weiterbauen im Level")
-	g.state.play({"type": "twist", "axis": 0, "layer": 0, "turns": 1})
-	g.finish_round({"events": []})
+	# Build 12: kein Weiterbauen – die Welt von morgen ist die Welt beim Sieg
+	check(not g.continue_build() and not g.state.day_free_build and not g.can_resume_build() and not g.resume_build()
+		and g.saved_run().is_empty(), "Build 12: kein Weiterbauen im Level, kein laufender Versuch nach dem Sieg")
+	check(str(g.camp["world"]) == g.state.slot_board9(), "Build 12: die Welt beim Sieg trägt ins nächste Level")
 	var w1 := str(g.camp["world"])
 	# nächster Spieltag: Level 2 offen, getragene Welt (oder Pool-Brett)
 	g.clock_override = t + Daily.DAY
@@ -5118,6 +5152,383 @@ func test_level_game() -> void:
 	DirAccess.remove_absolute(path)
 
 
+# --- Build 12 ------------------------------------------------------------------------------------------------------
+
+## Reihen, die nicht zählen: nach jeder Aktion keine Reihe auf dem Brett, die nicht schon gewachsen ist.
+func _dead_rows(gs: GameState) -> Array:
+	var out: Array = []
+	for ln in gs.lines():
+		if not gs.spent.has(GameState.line_key(ln)):
+			out.append(ids(ln))
+	return out
+
+
+func _has_late_merge(r: Dictionary) -> bool:
+	for e in r["events"]:
+		if str(e["type"]) == "merge" and bool(e.get("late", false)):
+			return true
+	return false
+
+
+## „Drei gleiche in einer geraden Reihe wachsen immer“: Reihen, die die Welt am Rundenende bildet (Abkühlen, Ausbruch,
+## Landgang …), wachsen sofort; Geschenk und Meteor lösen ihre Reihen auf; eine gewachsene Reihe, die ein Ausbruch
+## zurückbringt, wächst wieder; niemand wird für eine Reihe getadelt, die nie wachsen konnte.
+func test_rows_build12() -> void:
+	# Spieler-Fall (Investigation): Level 5, Brett 0 – Lava kühlt zu einer Fels-Reihe, die früher still stehen blieb
+	var g5 := Campaign.new_state(5, Campaign.board(5, 0))
+	tw(g5, [0, -1, 2])
+	var r5 := tw(g5, [1, 1, 1])
+	var trio := [(g5.fields[22] as FieldData).kind, (g5.fields[26] as FieldData).kind, (g5.fields[49] as FieldData).kind]
+	check(_dead_rows(g5).is_empty() and _has_late_merge(r5) and trio != [STONE, STONE, STONE],
+		"rows12: abgekühlte Fels-Reihe (22, 26, 49) wächst sofort (spät) – keine stille Reihe (%s, %s)" % [str(trio), str(_dead_rows(g5))])
+	var g5m := Campaign.new_state(5, Campaign.board(5, 0))
+	GameState.engine9_mode = true
+	tw(g5m, [0, -1, 2])
+	tw(g5m, [1, 1, 1])
+	GameState.engine9_mode = false
+	check(not _dead_rows(g5m).is_empty(), "rows12: im Modell-Modus bleibt die alte Regel (Abgleich mit engine9)")
+	# Level 4 und 3, Brett 0: der Ausbruch macht Lava-Reihen – sie wachsen sofort
+	var ok_e := true
+	for n in [3, 4]:
+		var ge := Campaign.new_state(n, Campaign.board(n, 0))
+		tw(ge, [0, -1, 1])
+		tw(ge, [0, -1, 1])
+		if not _dead_rows(ge).is_empty():
+			ok_e = false
+	var g4 := Campaign.new_state(4, Campaign.board(4, 0))
+	tw(g4, [0, 0, -1])
+	tw(g4, [0, -1, 1])
+	check(ok_e and _dead_rows(g4).is_empty(), "rows12: Ausbruch-Reihen (Level 3/4) und wiederkehrende Reihen wachsen, keine stille Reihe")
+	# Akt 1 und mehr: Pool-Bretter, zufällig gespielt, mit Geschenk und Regen – nach jeder Aktion keine stille Reihe
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1212
+	var acts := 0
+	var dead: Array = []
+	var gifts := 0
+	var repeat_bad := 0
+	for n2 in [1, 2, 3, 4, 5, 9, 11, 12, 19, 24, 28]:
+		for i2 in 4:
+			var gs := Campaign.new_state(int(n2), Campaign.board(int(n2), i2))
+			if not gs.lines().is_empty():
+				dead.append(["start", n2, i2])
+			for k in 30:
+				if gs.day_won:
+					break
+				var r: Dictionary
+				if gs.rain > 0 and rng.randf() < 0.2:
+					var spot := -1
+					for f in gs.fields:
+						if gs.rain_ok9(f):
+							spot = f.id
+							break
+					r = gs.play({"type": "rain", "field": spot}) if spot >= 0 else tw(gs, GameState.MOVES[rng.randi_range(0, 26)])
+				elif k % 9 == 8 and not gs.gift_plan9().is_empty():
+					r = gs.play({"type": "gift"})
+					gifts += 1
+				else:
+					r = tw(gs, GameState.MOVES[rng.randi_range(0, 26)])
+				acts += 1
+				var d := _dead_rows(gs)
+				if not d.is_empty():
+					dead.append([n2, i2, k, d])
+				for e in r["events"]:
+					if str(e["type"]) == "still" and str(e["why"]) == "repeat" and not gs.spent.has(GameState._key9(int(e["fields"][0]), int(e["fields"][1]), int(e["fields"][2]), int(e["kind"]))):
+						repeat_bad += 1
+	check(dead.is_empty() and acts > 500 and gifts > 0, "rows12: %d Aktionen (Drehen, Regen, %d Geschenke) ohne stille Reihe (%s)" % [acts, gifts, str(dead.slice(0, 3))])
+	check(repeat_bad == 0, "rows12: „Zurückgedreht“ nur für Reihen, die schon gewachsen sind (%d falsch)" % repeat_bad)
+	# Getragene Welten aus Akt 1 (carry + ensure): keine fertige Reihe am Start
+	var carried_rows := 0
+	for ch in 6:
+		var b: Dictionary = Campaign.board(1, 1 + ch)
+		b["how"] = "pool"
+		var cr := RandomNumberGenerator.new()
+		cr.seed = 77 + ch
+		for lv in [1, 2, 3, 4, 5]:
+			var gc := Campaign.new_state(lv, b)
+			if not gc.lines().is_empty():
+				carried_rows += 1
+			_net_play(gc, cr, 120)
+			if lv < 5:
+				b = Campaign.carry(Campaign.decode(gc.slot_board9()), lv + 1, ch + 1000 * (lv + 1) + 1, ch)
+				b = Campaign.ensure(lv + 1, b, ch)
+	check(carried_rows == 0, "rows12: getragene Welten in Akt 1 starten ohne fertige Reihe (%d)" % carried_rows)
+	# Meteor schließt 3 Erde (Level 23: Erde → Wiese): die Reihe wächst sofort
+	var g0 := camp_state(23)
+	var f0: FieldData = g0.fields[4]
+	var row_m: Array = []
+	for along in 3:
+		var ln0 := g0.line_through(f0, along)
+		if ln0.size() == 3 and row_m.is_empty():
+			row_m = ln0
+	var third := int(row_m[2]) if row_m.size() == 3 else -1
+	var gm := camp_state(23, {int(row_m[0]): E, int(row_m[1]): E, third: FOREST} if third >= 0 else {})
+	if third >= 0:
+		gm.meteors = 1
+		var rm := gm.play({"type": "meteor", "field": third})
+		check(_types(rm).has("merge") and _dead_rows(gm).is_empty(), "rows12: Meteor macht 3 Erde in einer Reihe → sie wächst sofort")
+	else:
+		check(false, "rows12: Meteor-Aufbau (Reihe mit Feld 0 und 1 gefunden)")
+	# Texte: eine stille Reihe sagt immer, warum (Fels im Ziel-Level ist kein leerer Fehlversuch)
+	var gt := Campaign.new_state(2, Campaign.board(2, 1))
+	check(gt._miss_why([{"type": "still", "why": "stone"}]) == "stone" and gt._miss_why([{"type": "still", "why": "done"}]) == "done"
+		and gt._miss_why([{"type": "still", "why": "thrive"}, {"type": "still", "why": "diag"}]) == "diag",
+		"rows12: _miss_why kennt stone, done, thrive, water_life, people (unter schräg)")
+
+
+## Der laufende Level-Versuch bleibt (App zu): GameState.save9/load9 genau gleich, über ConfigFile; die nächste
+## Drehung gibt dasselbe Ergebnis; Game speichert nach jeder Runde und setzt beim Start fort; Sieg löscht ihn.
+func test_save9() -> void:
+	var path := "user://test_save9_lauf.cfg"
+	var same := 0
+	var cases := 0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	for n in [3, 5, 6, 12, 19, 23, 24, 28, 30]:
+		var gs := Campaign.new_state(n, Campaign.board(n, 2))
+		for k in rng.randi_range(3, 8):
+			if gs.day_won:
+				break
+			if k == 2 and not gs.gift_plan9().is_empty():
+				gs.play({"type": "gift"})
+			else:
+				tw(gs, GameState.MOVES[rng.randi_range(0, 26)])
+		if gs.day_won:
+			continue
+		cases += 1
+		var cf := ConfigFile.new()
+		cf.set_value("lauf", "daten", gs.save9())
+		cf.save(path)
+		var cf2 := ConfigFile.new()
+		cf2.load(path)
+		var g2 := GameState.load9(cf2.get_value("lauf", "daten", {}), Campaign.config(n))
+		if g2 == null:
+			continue
+		var eq: bool = g2.record9() == gs.record9() and g2.spent == gs.spent and g2.standing == gs.standing \
+			and g2.broken == gs.broken and g2.steps9() == gs.steps9() and g2.progress9() == gs.progress9() \
+			and g2.rain == gs.rain and g2.meteors == gs.meteors and g2.volc == gs.volc and g2.gain_at9 == gs.gain_at9 \
+			and g2.next_action()["text"] == gs.next_action()["text"]
+		var m: Array = GameState.MOVES[rng.randi_range(0, 26)]
+		var ra := tw(gs, m)
+		var rb := tw(g2, m)
+		if eq and g2.record9() == gs.record9() and _types(ra) == _types(rb):
+			same += 1
+		else:
+			print("  save9 abweichend: Level %d" % n)
+	DirAccess.remove_absolute(path)
+	check(cases >= 6 and same == cases, "save9: Stand mitten im Level über ConfigFile genau gleich, nächste Drehung gleich (%d/%d)" % [same, cases])
+	var bad := Campaign.new_state(3, Campaign.board(3, 0)).save9()
+	bad["v"] = 99
+	check(GameState.load9(bad, Campaign.config(3)) == null and GameState.load9(Campaign.new_state(3, Campaign.board(3, 0)).save9(), Campaign.config(4)) == null,
+		"save9: andere Version oder anderes Level wird nicht geladen")
+	# Game: Runde → gespeichert; neue App → genau dort weiter; Sieg löscht den Lauf
+	var gpath := "user://test_save9_game.cfg"
+	var t := lt(2026, 11, 12, 10)
+	var g := _daily_game(gpath, t, true)
+	g._clear_run()
+	check(g.start_level(1, 1) and g.saved_run().is_empty(), "save9: ein neuer Versuch hat noch keinen gespeicherten Lauf")
+	var sol: Array = g.level_board["solution"]
+	var half := maxi(1, sol.size() / 2)
+	for st in sol.slice(0, half):
+		var ab: Array = Days.solution_step(st)
+		g.undo_state = (g.state as GameState).clone()
+		var res: Dictionary = g.state.play(ab[0], ab[1])
+		g.finish_round(res)
+	var rec := (g.state as GameState).record9()
+	var hint_left: int = g.hint_free_left
+	var run: Dictionary = g.saved_run()
+	check(not run.is_empty() and int(run["level"]) == 1 and int(run["steps"]) == (g.state as GameState).steps9(),
+		"save9: nach jeder Runde gespeichert (Level 1, %d Schritte)" % int(run.get("steps", -1)))
+	g.free()
+	var g2g := _daily_game(gpath, t + 3600, false)
+	var started := []
+	g2g.level_started.connect(func(info): started.append(info))
+	check(g2g.resume_run() and g2g.level_no == 1 and (g2g.state as GameState).record9() == rec and g2g.hint_free_left == hint_left
+		and not started.is_empty() and bool((started[0] as Dictionary).get("resumed", false)) and g2g.can_undo(),
+		"save9: App neu → Level 1 genau dort weiter (Brett, Schritte, Fortschritt, Zurück), resumed")
+	_replay_in_game_from(g2g, sol.slice(half))
+	check((g2g.state as GameState).day_won and g2g.saved_run().is_empty() and g2g.level_stars(1) > 0,
+		"save9: gewonnen → kein laufender Versuch mehr")
+	# Ein Lauf eines anderen Levels, das neu beginnt (retry), wird gelöscht; kaputte Version: neu
+	g2g.start_level(1, 2)
+	var a2: Dictionary = (g2g.state as GameState).play({"type": "twist", "axis": 0, "layer": 1, "turns": 1})
+	g2g.finish_round(a2)
+	check(not g2g.saved_run().is_empty() and g2g.retry_level() and g2g.saved_run().is_empty(), "save9: Nochmal beginnt neu und löscht den Lauf")
+	var a3: Dictionary = (g2g.state as GameState).play({"type": "twist", "axis": 0, "layer": 1, "turns": 1})
+	g2g.finish_round(a3)
+	var steps_before: int = (g2g.state as GameState).steps9()
+	check(g2g.start_level(1) and (g2g.state as GameState).steps9() == steps_before, "save9: das Level aus der Übersicht wieder öffnen → es geht weiter")
+	var cfr := ConfigFile.new()
+	cfr.load(g2g.run_path())
+	var dd: Dictionary = cfr.get_value("lauf", "daten", {})
+	dd["v"] = 0
+	cfr.set_value("lauf", "daten", dd)
+	cfr.save(g2g.run_path())
+	check(not g2g.resume_run() and not FileAccess.file_exists(g2g.run_path()), "save9: ein Lauf mit anderer Version wird verworfen")
+	g2g.free()
+	DirAccess.remove_absolute(gpath)
+
+
+func _replay_in_game_from(g: Node, sol: Array) -> void:
+	for st in sol:
+		if (g.state as GameState).day_won:
+			break
+		var ab: Array = Days.solution_step(st)
+		var res: Dictionary = g.state.play(ab[0], ab[1])
+		g.finish_round(res)
+
+
+## Die nächste Handlung (Zeile oben im HUD): auf jedem Brett ein kurzer Text, und nie etwas Unmögliches – eine
+## genannte Drehung macht ihre Reihe, versorgt ihr Feld oder wendet ihre Gefahr ab; ein Werkzeug wirkt.
+func test_next_action9() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var n_act := 0
+	var bad: Array = []
+	var words_bad: Array = []
+	var types := {}
+	var worst := 0
+	var total := 0
+	var two_ok := 0
+	var two_n := 0
+	for n in range(1, Campaign.COUNT + 1):
+		for i in 2:
+			var gs := Campaign.new_state(n, Campaign.board(n, i + 1))
+			for k in 14:
+				if gs.day_won:
+					break
+				var t0 := Time.get_ticks_usec()
+				var a := gs.next_action()
+				var dt := Time.get_ticks_usec() - t0
+				worst = maxi(worst, dt)
+				total += dt
+				n_act += 1
+				var tp := str(a.get("type", ""))
+				types[tp] = int(types.get(tp, 0)) + 1
+				var wc := str(a.get("text", "")).split(" ", false).size()
+				if wc < 2 or wc > 6:
+					words_bad.append(str(a.get("text", "")))
+				var mv: Dictionary = a.get("move", {})
+				var why := _action_ok(gs, a)
+				if why == "two_fail":
+					two_n += 1
+				elif why != "":
+					bad.append([n, i, k, tp, str(a["text"]), why])
+				elif int(a.get("steps", 1)) == 2:
+					two_n += 1
+					two_ok += 1
+				# weiter: meist der Vorschlag, manchmal zufällig
+				if not mv.is_empty() and rng.randf() < 0.6:
+					tw(gs, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+				elif str(a.get("tool", "")) == "rain" and int(a.get("field", -1)) >= 0:
+					gs.play({"type": "rain", "field": int(a["field"])})
+				elif str(a.get("tool", "")) == "gift":
+					gs.play({"type": "gift"})
+				else:
+					tw(gs, GameState.MOVES[rng.randi_range(0, 26)])
+	print("  Nächste Handlung: %d Bretter-Stände, Typen %s, %.1f ms im Mittel, höchstens %.1f ms (PC); 2 Züge %d/%d" % [n_act, str(types),
+		float(total) / maxf(1.0, float(n_act)) / 1000.0, worst / 1000.0, two_ok, two_n])
+	check(bad.is_empty(), "next_action: nie etwas Unmögliches (%d Stände, falsch: %s)" % [n_act, str(bad.slice(0, 3))])
+	check(words_bad.is_empty(), "next_action: 2–6 Wörter (%s)" % str(words_bad.slice(0, 3)))
+	check(two_n == 0 or two_ok * 10 >= two_n * 9, "next_action: Vorbereitung über 2 Züge stimmt meist (%d/%d)" % [two_ok, two_n])
+	check(worst < 60000 and types.has("row") and types.has("thrive"), "next_action: billig genug für jede Runde (%.1f ms am PC)" % (worst / 1000.0))
+	# Geschafft, Gefahr, Hinweis-Satz, Feld-Blatt
+	var gw := Campaign.new_state(1, Campaign.board(1, 1))
+	for st in (Campaign.board(1, 1)["solution"] as Array):
+		var ab: Array = Days.solution_step(st)
+		gw.play(ab[0], ab[1])
+	check(str(gw.next_action()["type"]) == "won", "next_action: nach dem Sieg „Geschafft!“")
+	var g20 := Campaign.new_state(20, Campaign.board(20, 1))
+	check(str(g20.next_action()["hint"]).begins_with("Tiere brauchen Futter: ") and str(g20.next_action()["hint"]).ends_with("/6 versorgt"),
+		"next_action: Versorgungs-Satz für satt-Ziele (%s)" % str(g20.next_action()["hint"]))
+	check(GameState.kind_caps9(STONE) == "Gestein" and GameState.kind_caps9(FieldData.LAVA) == "Glut", "kind_caps9: Fels heißt nicht „Essen“")
+	# Vulkan droht und eine Drehung teilt die Lava: „Teil die Lava!“
+	var found_volc := false
+	for i2 in Campaign.pool_size(3):
+		var gv := Campaign.new_state(3, Campaign.board(3, i2))
+		for k2 in 8:
+			if gv.volc >= 0 or gv.day_won:
+				break
+			var a2 := gv.next_action()
+			var mv2: Dictionary = a2.get("move", {})
+			if mv2.is_empty():
+				tw(gv, GameState.MOVES[k2 % 27])
+			else:
+				tw(gv, [int(mv2["axis"]), int(mv2["layer"]), int(mv2["turns"])])
+		if gv.volc >= 0 and not gv.day_won:
+			var av := gv.next_action()
+			if str(av["danger"]) == "volcano":
+				found_volc = true
+				var mv3: Dictionary = av["move"]
+				var rv3 := tw(gv, [int(mv3["axis"]), int(mv3["layer"]), int(mv3["turns"])])
+				check(not _types(rv3).has("erupt"), "next_action: die genannte Drehung verhindert den Ausbruch")
+				break
+	check(found_volc, "next_action: Vulkan droht → „Teil die Lava!“ (Level 3)")
+	# Sackgasse: das Sicherheitsnetz
+	var gd := camp_state(28, {0: FieldData.TOWN, 9: FieldData.TOWN})
+	var ad := gd.next_action()
+	check(str(ad["type"]) == "help" or gd.gift_plan9().is_empty(), "next_action: Sackgasse → „Hol dir Hilfe“ (%s)" % str(ad["text"]))
+
+
+## Stimmt die Handlung auf diesem Stand? "" = ja, sonst warum nicht ("two_fail": die 2-Züge-Vorbereitung ging nicht auf).
+func _action_ok(gs: GameState, a: Dictionary) -> String:
+	var tp := str(a.get("type", ""))
+	if str(a.get("text", "")) == "":
+		return "kein Text"
+	var mv: Dictionary = a.get("move", {})
+	if tp == "won":
+		return "" if gs.day_won else "nicht gewonnen"
+	if tp == "help":
+		return "" if not gs.gift_plan9().is_empty() else "kein Geschenk"
+	if tp == "rain":
+		var f: FieldData = gs.fields[int(a["field"])]
+		return "" if gs.rain_ok9(f) else "Regen wirkt nicht"
+	if not mv.is_empty() and int(a.get("steps", 1)) == 1:
+		var c := gs.clone()
+		var r := tw(c, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+		if tp == "row":
+			for e in r["events"]:
+				if str(e["type"]) == "merge" and int(e["from"]) == int(gs.fields[int(a["fields"][0])].kind):
+					return ""
+			return "keine Reihe"
+		if tp == "thrive":
+			var fid := int(a["fields"][0])
+			var fc: FieldData = c.fields[fid]
+			if fc.kind != (gs.fields[fid] as FieldData).kind or c.satt9(fid) or fc.fed > 0:
+				return ""
+			for e2 in r["events"]:
+				if str(e2["type"]) == "need_sealed" and int(e2["field"]) == fid:
+					return ""
+			return "nicht versorgt"
+		if tp == "group":
+			var gk := -1
+			for sd in gs.goal9:
+				if str((sd as Dictionary)["type"]) == "group":
+					gk = int((sd as Dictionary)["kind"])
+			return "" if c.biggest9(gk) > gs.biggest9(gk) or c.sub_progress9(gs.goal9[0]) > gs.sub_progress9(gs.goal9[0]) else "Gruppe nicht größer"
+		if tp == "danger":
+			var hit := {"volcano": "erupt", "bolt": "bolt", "pack": "pack_hunt", "hunger": "starve", "smog": "polluted",
+				"war": "war_hit", "flood": "flood"}
+			var bad_t := str(hit.get(str(a["danger"]), "?"))
+			return "Gefahr trat ein" if _types(r).has(bad_t) else ""
+		return ""
+	if tp == "goal" and int(a.get("steps", 1)) == 2:
+		var c2 := gs.clone()
+		tw(c2, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+		for m2 in GameState.MOVES:
+			var c3 := c2.clone()
+			var r3 := tw(c3, m2)
+			if _types(r3).has("merge"):
+				return ""
+		return "two_fail"
+	if tp == "goal" and str(a["text"]).begins_with("Bring 3 "):
+		var kk := -1
+		for k in gs.rows9:
+			if str(a["text"]) == "Bring 3 %s in eine Reihe" % FieldData.kind_plural(int(k)):
+				kk = int(k)
+		return "" if kk >= 0 and gs._row_cap9(kk) > 0 else "Reihe geht nicht"
+	return ""
+
+
 func _camp_tests() -> void:
 	test_kinds9()
 	test_groups9()
@@ -5144,6 +5555,9 @@ func _camp_tests() -> void:
 	test_level_game()
 	test_ui9()
 	test_hint9()
+	test_rows_build12()
+	test_save9()
+	test_next_action9()
 	await process_frame
 
 

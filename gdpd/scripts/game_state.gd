@@ -590,6 +590,7 @@ func clone() -> GameState:
 	gs._still_told = _still_told.duplicate()
 	gs._still_calm = _still_calm
 	gs.camp = camp
+	gs._act_seq = _act_seq
 	if camp:
 		gs.level_no = level_no
 		gs.rows9 = rows9              # nur gelesen
@@ -756,6 +757,10 @@ func apply_rotation(axis: int, layer: int, turns: int, row: Array = []) -> void:
 	var now := _line_keys()
 	for k in had:
 		if not now.has(k):
+			# Schöpfung (Build 12): nur eine Reihe, die schon gewachsen ist, gilt als „zurückgedreht“. Eine Reihe, die
+			# nie wachsen konnte, gibt es nicht mehr (die späte Runde löst sie auf); niemand wird dafür getadelt.
+			if camp and not engine9_mode and not spent.has(k):
+				continue
 			_broke_now[k] = true
 
 
@@ -1715,7 +1720,8 @@ func _regrow_closes_row(f: FieldData) -> bool:
 ## standing (stand schon da), diag (schräg zählt hier nicht), finished, water oder "" (keine Reihe).
 func _miss_why(ev: Array) -> String:
 	var why := ""
-	var rank := {"": 0, "water": 1, "finished": 2, "diag": 3, "standing": 4, "spent": 5, "repeat": 6}
+	var rank := {"": 0, "water": 1, "water_life": 1, "stone": 2, "done": 2, "thrive": 2, "people": 2, "finished": 2,
+		"diag": 3, "standing": 4, "spent": 5, "repeat": 6}
 	for e in ev:
 		var t := str(e["type"])
 		var w := ""
@@ -2226,6 +2232,7 @@ func evaluate(action: Dictionary, look: bool = false) -> Dictionary:
 ## action: {"type": "twist", "axis", "layer", "turns", "row"?} oder {"type": "rain"|"bolt"|"monsoon"|"strike"|"flood", "field", "row"?}.
 ## Bei Werkzeugen steht im Ergebnis "bonus": {"kind", "field", "fields", "stages"} (Stand direkt nach dem Werkzeug).
 func play(action: Dictionary, ans: Dictionary = {}) -> Dictionary:
+	_act_seq += 1
 	var t := str(action.get("type", "twist"))
 	if t == "twist" or t == "wait":
 		var turns := int(action.get("turns", 0))
@@ -2568,8 +2575,8 @@ func twists_left() -> int:
 ## Weiterbauen nach dem Sieg beginnen: keine Grenze, kein Scheitern (auch Krieg an Tag 6 ist nur Krieg).
 ## Die Sterne bleiben die des Sieges (day_won, day_won_at bleiben).
 func start_free_build() -> void:
-	if not is_day() or not day_won:
-		return
+	if not is_day() or not day_won or camp:
+		return                    # Schöpfung (Build 12): kein Weiterbauen, die Welt läuft im nächsten Level weiter
 	day_free_build = true
 	no_war = false
 	build_made0 = total_made()
@@ -4183,6 +4190,7 @@ func top_up9(max_n: int) -> Array:
 		if fid < 0:
 			break
 		_setk9(fields[fid], k)
+		_unspend9(fid)
 		(fields[fid] as FieldData).mk = false
 		out.append([fid, k])
 	return out
@@ -4378,6 +4386,8 @@ func _need_hits9(fid: int, k: int) -> float:
 ## wie einen Regen ab).
 func _play_gift9() -> Dictionary:
 	var plan := gift_plan9()
+	if not engine9_mode:
+		_remember_before()
 	_open_turn()
 	trace9 = []
 	var ev: Array = []
@@ -4393,6 +4403,7 @@ func _play_gift9() -> Dictionary:
 		else:
 			_setk9(f, int(a[1]))
 			f.mk = false
+		_unspend9(f.id)
 		f.burning = false
 		if f.id == volc:
 			volc = -1
@@ -4414,6 +4425,12 @@ func _play_gift9() -> Dictionary:
 		war_on = false
 		ev.append({"type": "hold", "rounds": int(held9[hi]), "target": int((goal9[hi] as Dictionary)["target"]), "ok": true})
 	st9["gifts"] = int(st9.get("gifts", 0)) + 1
+	if not engine9_mode and not ids.is_empty():
+		# Build 12: eine Reihe, die das Geschenk schließt, wächst sofort (wie beim Regen)
+		for i in ids:
+			moved[int(i)] = true
+		_resolve_merges9(ev)
+		moved = {}
 	_seal_step9(ev)
 	_check_goal9(ev, false)
 	_tail9(ev, p0)
@@ -4687,6 +4704,10 @@ const METEOR_T9 = [FieldData.CHURCH, FieldData.INDUSTRY, FieldData.PRED, FieldDa
 	FieldData.VILLAGE, FieldData.STONE]
 const _LW9 = {0: 8.0, 1: 6.0, 2: 2.5, 3: 1.0, 4: 0.4}
 
+## Genau wie das Python-Modell engine9 (für den Abgleich tests/xcheck9): ohne die Regeln aus Build 12 (späte Runde,
+## Geschenk und Meteor lösen Reihen auf, Welt-Ereignisse geben gewachsene Reihen frei, nur Gewachsenes ist
+## „zurückgedreht“). Im Spiel immer false.
+static var engine9_mode := false
 var camp := false               # dieser Versuch ist ein Level der Schöpfung (setup_level)
 var level_no := 0               # 1 … 30 (0 = kein Level)
 var rows9: Dictionary = {}      # Art → nächste Art einer Reihe (nur Arten, die heute Reihen bilden)
@@ -5212,10 +5233,26 @@ func _fall9(f: FieldData, nk: int, cause: String, ev: Array) -> void:
 			"progress": progress9(), "cue": "−1 %s" % FieldData.kind_name(k)})
 	f.mk = false
 	_setk9(f, nk)
+	_unspend9(f.id)
 	f.fed = 0
 	f.hungry = 0
 	f.burning = false
 	front.erase(f.id)
+
+
+## Ein Feld verliert seine Art durch die Welt (Gefahr, Landgang, Geschenk, Nachschub): Reihen mit diesem Feld gelten
+## nicht mehr als „schon gewachsen“. Bildet sich dieselbe Reihe wieder, wächst sie (sofort, in der späten Runde).
+## Hin- und Herdrehen bringt nichts: Ohne Ereignis der Welt bleibt eine gewachsene Reihe verbraucht.
+func _unspend9(fid: int) -> void:
+	if engine9_mode or spent.is_empty():
+		return
+	var drop: Array = []
+	for key in spent:
+		var ids3 := int(key) / 32
+		if ids3 % 64 == fid or (ids3 / 64) % 64 == fid or ids3 / 4096 == fid:
+			drop.append(key)
+	for key in drop:
+		spent.erase(key)
 
 
 func _ev9(ev: Array, model_name: String, e: Dictionary) -> void:
@@ -5225,7 +5262,7 @@ func _ev9(ev: Array, model_name: String, e: Dictionary) -> void:
 
 # --- Erschaffen: Reihen, ganze Seiten, Verbrauch ---------------------------------------------
 
-func _resolve_faces9(ev: Array, locked: Dictionary) -> void:
+func _resolve_faces9(ev: Array, locked: Dictionary, src: Dictionary, late: bool = false) -> void:
 	for fc in 6:
 		var ids := face_ids9(fc)
 		var k: int = (fields[int(ids[0])] as FieldData).kind
@@ -5236,7 +5273,7 @@ func _resolve_faces9(ev: Array, locked: Dictionary) -> void:
 		for i in ids:
 			if (fields[int(i)] as FieldData).kind != k:
 				same = false
-			if moved.has(int(i)):
+			if src.has(int(i)):
 				touched = true
 		if not same or not touched:
 			continue
@@ -5255,15 +5292,19 @@ func _resolve_faces9(ev: Array, locked: Dictionary) -> void:
 		if day_free_build:
 			build_new9 += 1
 		_ev9(ev, "face", {"type": "face", "field": int(ids[4]), "fields": ids.duplicate(), "points": 0, "stage": nk,
-			"kind": nk, "from": k})
+			"kind": nk, "from": k, "late": late})
 
 
 ## Reihen, in denen sich gerade etwas verändert hat, wachsen (once: jede Reihe nur einmal), dann Kettenreaktionen.
-func _resolve_merges9(ev: Array) -> void:
+## late (Build 12, „Drei gleiche in einer geraden Reihe wachsen immer“): die späte Runde am Rundenende. src = Felder,
+## deren Art sich durch die Welt geändert hat (Abkühlen, Ausbruch, Landgang, Hunger …); jede Reihe durch sie, die noch
+## nicht gewachsen ist, wächst sofort (Ereignisse mit "late": true). Ohne late: src = die bewegten Felder (moved).
+func _resolve_merges9(ev: Array, late: bool = false, src: Dictionary = {}) -> void:
+	var base: Dictionary = src if late else moved
 	var locked := {}
-	_resolve_faces9(ev, locked)
-	var focus := moved.duplicate()
-	var touched := moved.duplicate()
+	_resolve_faces9(ev, locked, base, late)
+	var focus := base.duplicate()
+	var touched := base.duplicate()
 	for fid in locked:
 		touched[fid] = true
 	var changed := locked.duplicate()
@@ -5275,7 +5316,7 @@ func _resolve_merges9(ev: Array) -> void:
 		var found: Array = []
 		for ln in lines(focus):
 			var lk := line_key(ln)
-			if pass_i == 0:
+			if pass_i == 0 and not late:
 				if not counts(ln):
 					if (broken.has(lk) or spent.has(lk)) and not standing.has(lk) and not told.has(lk):
 						told[lk] = true
@@ -5302,7 +5343,7 @@ func _resolve_merges9(ev: Array) -> void:
 					free.append(i)
 			if skip or free.is_empty():
 				continue
-			var ti := target_index(line, moved if pass_i == 0 else last_focus, tapped)
+			var ti := target_index(line, base if pass_i == 0 else last_focus, tapped)
 			if not free.has(ti):
 				ti = 1 if free.has(1) else int(free[0])
 			if _satt_goal_kind9(k) and satt9((line[ti] as FieldData).id):
@@ -5349,11 +5390,11 @@ func _resolve_merges9(ev: Array) -> void:
 						st9["consumed"] = int(st9["consumed"]) + 1
 				locked[mid.id] = true
 			_ev9(ev, "grow", {"type": "merge", "field": mid.id, "others": others, "points": 0, "combo": 1,
-				"stage": nk, "kind": nk, "from": k, "late": false, "consume": not eaten.is_empty(), "eaten": eaten})
+				"stage": nk, "kind": nk, "from": k, "late": late, "consume": not eaten.is_empty(), "eaten": eaten})
 			if not eaten.is_empty():
 				ev.append({"type": "consume", "field": mid.id, "others": eaten, "from": k, "kind": nk,
-					"left": int(consume9[k])})
-	_still_rows(ev, touched, changed, false)
+					"left": int(consume9[k]), "late": late})
+	_still_rows(ev, touched, changed, late)
 
 
 # --- Gedeihen (3.2): versiegeln, satt, wachsen, Landgang, Hunger --------------------------------
@@ -5445,6 +5486,7 @@ func _thrive_step9(ev: Array) -> void:
 							"after": int(sp[2])})
 						if int(sp[2]) >= 0:
 							_setk9(f, int(sp[2]))
+							_unspend9(f.id)
 							f.mk = false
 						f.fed = 0
 		else:
@@ -5766,6 +5808,10 @@ func _end_round9(ans: Dictionary) -> Dictionary:
 	tapped = -1
 	var got := {"rain": 0, "bolt": 0, "monsoon": 0}
 	var income := 0
+	var kinds0 := PackedInt32Array()
+	if twist and not engine9_mode:
+		for f in fields:
+			kinds0.append(f.kind)
 	if twist:
 		twists += 1
 		for f in fields:
@@ -5798,6 +5844,15 @@ func _end_round9(ans: Dictionary) -> Dictionary:
 				faith -= int(B9["METEOR_FAITH"])
 				meteors += 1
 				_ev9(ev, "meteor_ready", {"type": "meteor_ready", "meteors": meteors})
+		# Build 12: Reihen, die die Welt am Rundenende bildet (Abkühlen, Ausbruch, Landgang, Hunger, Smog …), wachsen
+		# sofort. So steht nie eine Reihe da, die nicht zählt (früher: „3 Felsen in einer Reihe … nichts passiert“).
+		if not engine9_mode:
+			var ch := {}
+			for f in fields:
+				if f.kind != kinds0[f.id]:
+					ch[f.id] = true
+			if not ch.is_empty():
+				_resolve_merges9(ev, true, ch)
 		if rain_every > 0 and twists % rain_every == 0:
 			var r0 := rain
 			rain = mini(int(B9["RAIN_MAX"]), rain + 1)
@@ -5890,6 +5945,8 @@ func _play_tool9(kind: String, fid: int, bought: bool) -> Dictionary:
 		st9["meteors"] = int(st9["meteors"]) + 1
 		stats["strikes"] = int(stats["strikes"]) + 1
 		var k2: int = f.kind
+		if not engine9_mode:
+			_remember_before()
 		_fall9(f, FieldData.EMPTY, "meteor", ev)
 		f.fresh = 0
 		if f.id == bolt:
@@ -5898,6 +5955,11 @@ func _play_tool9(kind: String, fid: int, bought: bool) -> Dictionary:
 		if kind == "strike":
 			ev.append({"type": "strike", "field": f.id, "hit": [{"field": f.id, "from": k2, "kind": FieldData.EMPTY}],
 				"cost": 0, "faith": 0, "meteor": true})
+		if not engine9_mode:
+			# Build 12: eine Reihe, die der Meteor schließt (3 Erde), wächst sofort
+			moved[f.id] = true
+			_resolve_merges9(ev)
+			moved = {}
 		_seal_step9(ev)
 		_check_goal9(ev, false)
 	_tail9(ev, p0)
@@ -6777,3 +6839,896 @@ func level_status9() -> Dictionary:
 		"bolt": bolt, "volc": volc, "pack_warn": pack_warn9.keys(), "smog_warn": smog_warn9.keys(), "war_on": war_on,
 		"front": front.keys(), "flood_warn": flood_warn.keys(), "faith": faith, "rain": rain, "meteors": meteors,
 		"held": held9.duplicate(), "rescue": rescue(), "no_war": false}
+
+
+# =============================================================================
+# Build 12: „Man soll immer genau wissen, was man tun muss“ – die nächste Handlung für die Zeile oben im HUD
+# =============================================================================
+# next_action() rechnet aus dem echten Brett, was jetzt zu tun ist (wenige Worte, kleine Symbole), und sagt nie etwas
+# Unmögliches: Eine Drehung wird nur genannt, wenn es sie gibt (geprüft auf dem Brett), ein Werkzeug nur, wenn es
+# wirkt, ein allgemeines Ziel („Bring 3 Felsen in eine Reihe“) nur, wenn genug Felder der Art auf passenden Plätzen
+# liegen. Geht nichts davon, bietet sie das Sicherheitsnetz an (Game.take_gift). Billig genug für jede Runde: eine
+# Vierteldrehung wird auf dem Brett selbst gedreht und zurückgedreht (keine Kopie, keine Auswertung).
+
+## Wie ein Bedürfnis in der Zeile heißt: „Lava ans Wasser drehen“, sonst „<Art> neben <Quelle> drehen“.
+const ACT_SUN9 := "in die Sonne"
+var _act_seq := 0                 # zählt jede Aktion (play): die Zeile wird nur neu gerechnet, wenn sich etwas ändert
+
+
+## So viele Aktionen (Drehen, Werkzeug, Geschenk) hat dieser Versuch schon (0: noch nichts getan).
+func actions9() -> int:
+	return _act_seq
+var _act_key := ""
+var _act_last: Dictionary = {}
+
+
+## Die nächste Handlung (nur in einem Level, sonst {}). Schlüssel:
+##   "type": "row" (Drehung macht eine Reihe) | "thrive" (Drehung versorgt ein Feld, es wächst bald) | "wait" (versorgte
+##     Felder wachsen von selbst: weiterdrehen) | "rain" | "meteor" (Werkzeug auf "field") | "danger" (Drehung wendet
+##     eine Gefahr ab) | "goal" (mehrere Züge: das nächste Teilziel) | "help" (Sicherheitsnetz: Game.take_gift) | "won"
+##   "text": 2–6 Wörter („Dreh 3 Felsen in eine Reihe“) · "line": text + „ → Art“ (wenn "result" ≥ 0)
+##   "icons": Symbol-Namen davor (Arten/Bedürfnisse) · "result": Art, die entsteht (-1: keine) · "result_icon"
+##   "move": {"axis", "layer", "turns"} (die Scheibe, die nach einer Pause sanft leuchten darf) oder {}
+##   "fields": Feld-IDs, um die es geht (leuchten, wenn es keinen move gibt) · "tool": "rain" | "meteor" | "gift" | ""
+##   "field": Ziel-Feld des Werkzeugs (-1) · "danger": "volcano" | "bolt" | "fire" | "pack" | "hunger" | "smog" |
+##     "war" | "flood" | "" · "steps": 1 (diese Drehung wirkt sofort) oder 2 (Vorbereitung) · "hint": kurzer
+##     Versorgungs-Satz zum Ziel („Tiere brauchen Futter: 2/6 versorgt“) oder "".
+func next_action() -> Dictionary:
+	if not camp:
+		return {}
+	var key := "%d|%d|%d|%d|%d|%d|%d" % [_act_seq, rain, meteors, extra_steps, twists, turn, 1 if day_won else 0]
+	if key != _act_key:
+		_act_last = _next_action9()
+		_act_key = key
+	return _act_last.duplicate(true)
+
+
+func _act9(type: String, text: String, icons: Array, result: int) -> Dictionary:
+	var line := text
+	if result >= 0:
+		line += " → " + FieldData.kind_name(result)
+	return {"type": type, "text": text, "line": line, "icons": icons, "result": result,
+		"result_icon": FieldData.kind_icon(result) if result >= 0 else "", "move": {}, "fields": [], "tool": "",
+		"field": -1, "danger": "", "steps": 1, "hint": ""}
+
+
+## Vierteldrehung nur der Plätze (für next_action): kein Zug, keine Auswertung. turns = -turns dreht zurück.
+func _rot9(axis: int, layer: int, turns: int) -> void:
+	var d := 1 if turns > 0 else -1
+	var n := absi(turns)
+	for f in fields:
+		if f.p[axis] == layer:
+			for i in n:
+				f.p = rv(f.p, axis, d)
+				f.n = rv(f.n, axis, d)
+			_index[pos_key(f.p, f.n)] = f
+	_nb_ok = false
+	_grp_ok = false
+
+
+## Lohnt eine Art für das Ziel? Abstand zur Ziel-Art (0 = Ziel-Art), -1 = gehört nicht zur Kette.
+func _act_dist9(k: int) -> int:
+	return int(chain9[k]) if chain9.has(k) else -1
+
+
+## Wert einer neuen Art (für die Wahl der Drehung): 10 für die Ziel-Art, weniger, je weiter weg; 0 = hilft nicht.
+func _act_val9(from: int, to: int) -> float:
+	var dt := _act_dist9(to)
+	if dt < 0:
+		return 0.0
+	var df := _act_dist9(from)
+	if df >= 0 and dt >= df:
+		return 0.0
+	return maxf(1.0, 10.0 - 2.0 * float(dt))
+
+
+## Wohin ein versorgtes Feld wächst (Gedeihen: up, Landgang: die neue Art), -1 = nirgendwohin.
+func _act_up9(k: int) -> int:
+	var r: Variant = thrive9.get(k)
+	if r == null:
+		return -1
+	if int((r as Dictionary)["up"]) >= 0:
+		return int((r as Dictionary)["up"])
+	var sp: Array = (r as Dictionary)["spawn"]
+	return int(sp[1]) if not sp.is_empty() else -1
+
+
+## Das Teilziel, an dem gerade gearbeitet wird (das erste offene; Ruhe: das erste offene darin). {} = alle erfüllt.
+func _act_goal9() -> Dictionary:
+	for i in goal9.size():
+		if _sub_met9(i):
+			continue
+		var sd: Dictionary = goal9[i]
+		if str(sd["type"]) == "hold":
+			for x in sd["subs"]:
+				if sub_progress9(x) < int((x as Dictionary)["target"]):
+					return x
+			return sd
+		return sd
+	return {}
+
+
+## Ist dieses satt-Ziel-Feld gemeint (Art eines offenen satt-Ziels)?
+func _act_satt_goal9(k: int) -> bool:
+	var g := _act_goal9()
+	return not g.is_empty() and str(g["type"]) == "satt" and int(g["kind"]) == k
+
+
+## Laufende Gefahren mit einer Abhilfe durch Drehen: [{"type", "fields"}]. Feuer hilft nur Regen (siehe unten).
+func _act_threats9() -> Array:
+	var out: Array = []
+	if volc >= 0 and (fields[volc] as FieldData).kind == FieldData.LAVA:
+		out.append({"type": "volcano", "fields": members9(volc)})
+	if bolt >= 0 and bolt_guard9 <= 0:
+		out.append({"type": "bolt", "fields": members9(bolt)})
+	if not pack_warn9.is_empty():
+		out.append({"type": "pack", "fields": pack_warn9.keys()})
+	var hungry: Array = []
+	for f in fields:
+		var r: Variant = thrive9.get(f.kind)
+		if r != null and int((r as Dictionary)["down"]) >= 0 and f.hungry >= int(B9["H"]) - 1:
+			hungry.append(f.id)
+	if not hungry.is_empty():
+		out.append({"type": "hunger", "fields": hungry})
+	if not smog_warn9.is_empty():
+		out.append({"type": "smog", "fields": smog_warn9.keys()})
+	if bool(sys9.get("war", false)) and not church_touch9().is_empty():
+		out.append({"type": "war", "fields": church_touch9()})
+	if not flood_warn.is_empty():
+		var fl: Array = []
+		for fc in flood_warn:
+			fl.append_array(face_ids9(int(fc)))
+		out.append({"type": "flood", "fields": fl})
+	var open: Array = []
+	for t in out:
+		if not _act_fixed9(t):
+			open.append(t)          # nur, was ohne Zutun wirklich eintritt
+	return open
+
+
+## Ist diese Gefahr auf dem jetzigen (gedrehten) Brett abgewendet?
+func _act_fixed9(t: Dictionary) -> bool:
+	var tp := str(t["type"])
+	if tp == "volcano":
+		return (fields[volc] as FieldData).kind != FieldData.LAVA or gsize9(volc) < int(B9["VOLC_AT"])
+	if tp == "bolt":
+		return not dry9(bolt)
+	if tp == "pack":
+		for i in pack_warn9:
+			for g in nb9(int(i)):
+				if (fields[g] as FieldData).kind == FieldData.PRED and gsize9(g) >= int(B9["PACK_AT"]):
+					return false
+		return true
+	if tp == "hunger":
+		for i in t["fields"]:
+			if not satt9(int(i)):
+				return false
+		return true
+	if tp == "smog":
+		for i in smog_warn9:
+			if nb9(int(smog_warn9[i])).has(int(i)):
+				return false
+		return true
+	if tp == "war":
+		return church_touch9().is_empty()
+	if tp == "flood":
+		for fc in flood_warn:
+			if city_weight9(int(fc)) >= int(B9["FLOOD_AT"]):
+				return false
+		return true
+	return false
+
+
+## Was eine Drehung auf dem jetzigen Brett bringt (das Brett ist schon gedreht; ids = die bewegten Felder).
+## {"score", "rows": [[Art, [3 IDs], neue Art]], "satt": [[ID, Art, wird]], "group": +n, "fix": [Gefahr-Typen]}
+func _act_score9(ids: Dictionary, stand: Dictionary, cands: Array, grp: Array, threats: Array) -> Dictionary:
+	var sc := 0.0
+	var rws: Array = []
+	for ln in lines(ids):
+		var lk := line_key(ln)
+		if stand.has(lk) or broken.has(lk) or spent.has(lk):
+			continue
+		var k: int = (ln[0] as FieldData).kind
+		var nk := int(rows9.get(k, k))
+		var v := _act_val9(k, nk)
+		if nk == k or v <= 0.0:
+			continue
+		sc += v
+		rws.append([k, [(ln[0] as FieldData).id, (ln[1] as FieldData).id, (ln[2] as FieldData).id], nk])
+	var st: Array = []
+	for fid in cands:
+		var f: FieldData = fields[int(fid)]
+		if not satt9(f.id):
+			continue
+		var up := _act_up9(f.kind)
+		var v2 := 9.0 if _act_satt_goal9(f.kind) else (_act_val9(f.kind, up) * 0.7 if up >= 0 else 0.0)
+		if v2 > 0.0:
+			sc += v2
+			st.append([f.id, f.kind, up])
+	var gd := 0
+	if not grp.is_empty():
+		gd = biggest9(int(grp[0])) - int(grp[1])
+		if gd > 0:
+			sc += 8.0 * float(gd)
+	var fx: Array = []
+	for t in threats:
+		if _act_fixed9(t):
+			fx.append(str((t as Dictionary)["type"]))
+			sc += 15.0
+	return {"score": sc, "rows": rws, "satt": st, "group": gd, "fix": fx}
+
+
+## Text für ein Feld, das versorgt wird: „Lava ans Wasser drehen“, „Tiere neben Wiese drehen“.
+func _act_need_text9(fid: int, k: int) -> Array:
+	var miss: Array = need_state9(fields[fid])["missing"]
+	var r: Variant = thrive9.get(k)
+	var need := ""
+	if not miss.is_empty():
+		need = str(miss[0])
+	elif r != null:
+		for n in ((r as Dictionary)["needs"] as Dictionary):
+			need = str(n)
+			break
+	var icons: Array = [FieldData.kind_icon(k)]
+	if need == "wet":
+		icons.append(FieldData.kind_icon(FieldData.WATER))
+		return ["%s ans Wasser drehen" % FieldData.kind_name(k), icons]
+	if need == "sun":
+		icons.append("sun")
+		return ["%s %s drehen" % [FieldData.kind_name(k), ACT_SUN9], icons]
+	var src: Array = SOURCES9.get(need, [])
+	var sk := int(src[0]) if not src.is_empty() else -1
+	for s in src:
+		if count(int(s)) > 0:
+			sk = int(s)
+			break
+	if sk < 0:
+		return ["Versorge %s" % FieldData.kind_name(k), icons]
+	icons.append(FieldData.kind_icon(sk))
+	return ["%s neben %s drehen" % [FieldData.kind_name(k), FieldData.kind_name(sk)], icons]
+
+
+const ACT_DANGER9 = {"volcano": "Teil die Lava!", "bolt": "Wasser an den Wald!", "pack": "Trenn die Raubtiere!",
+	"hunger": "Rette die Hungrigen!", "smog": "Weg vom Smog!", "war": "Trenn die Kirchen!", "flood": "Verteil die Städte!"}
+const ACT_DANGER_ICON9 = {"volcano": "lava", "bolt": "bolt", "pack": "pred", "hunger": "hunger", "smog": "smog",
+	"war": "swords", "flood": "water"}
+
+
+func _next_action9() -> Dictionary:
+	if day_won:
+		return _act9("won", "Geschafft!", ["star"], -1)
+	var g := _act_goal9()
+	var hint := _act_hint9(g)
+	var a := _act_pick9(g)
+	a["hint"] = hint
+	return a
+
+
+func _act_pick9(g: Dictionary) -> Dictionary:
+	if not _cache_ready:
+		_build_cache()
+	var stand := _line_keys()
+	var cands: Array = []          # Felder, die versorgt werden könnten und dem Ziel helfen (nur die werden geprüft)
+	for f in fields:
+		if not thrive9.has(f.kind) or f.burning or satt9(f.id):
+			continue
+		if _act_satt_goal9(f.kind) or (_act_up9(f.kind) >= 0 and _act_val9(f.kind, _act_up9(f.kind)) > 0.0):
+			cands.append(f.id)
+	var grp: Array = []
+	if not g.is_empty() and str(g["type"]) == "group":
+		grp = [int(g["kind"]), biggest9(int(g["kind"]))]
+	var threats := _act_threats9()
+	# Feuer: nur Regen hilft (und es breitet sich aus) – zuerst
+	if rain > 0:
+		for f in fields:
+			if f.burning and rain_ok9(f):
+				var af := _act9("rain", "Lösch das Feuer!", ["rain", "fire"], -1)
+				af["tool"] = "rain"
+				af["field"] = f.id
+				af["fields"] = [f.id]
+				af["danger"] = "fire"
+				return af
+	# 1. Eine Drehung: Reihe, Versorgung, Gruppe, Gefahr abwenden (auf dem Brett gedreht und zurückgedreht)
+	var best: Dictionary = {}
+	var best_m: Array = []
+	var best_v := 0.0
+	var fix_b: Dictionary = {}       # die beste Drehung, die eine Gefahr abwendet (Build 12: Gefahr zuerst)
+	var fix_m: Array = []
+	var fix_v := 0.0
+	for m in MOVES:
+		var ax := int(m[0])
+		var ly := int(m[1])
+		var tn := int(m[2])
+		_rot9(ax, ly, tn)
+		var ids := {}
+		for f in fields:
+			if f.p[ax] == ly:
+				ids[f.id] = true
+		var r := _act_score9(ids, stand, cands, grp, threats)
+		_rot9(ax, ly, -tn)
+		var v := float(r["score"]) - (0.01 if absi(tn) == 2 else 0.0)
+		if v > best_v + 0.001:
+			best_v = v
+			best = r
+			best_m = m
+		if not (r["fix"] as Array).is_empty() and v > fix_v + 0.001:
+			fix_v = v
+			fix_b = r
+			fix_m = m
+	_nb_ok = false
+	_grp_ok = false
+	# Droht etwas, sagt die Zeile, wie man es abwendet (wie die Pille „Blitz droht!“), nie einen Zug, der es geschehen
+	# lässt: die beste abwendende Drehung, sonst beim Blitz der Regen (unten)
+	var danger_first := not threats.is_empty() and not best.is_empty() and (best["fix"] as Array).is_empty()
+	if danger_first and not fix_b.is_empty():
+		best = fix_b
+		best_m = fix_m
+		best_v = fix_v
+		danger_first = false
+	if danger_first and bolt >= 0 and rain > 0 and rain_ok9(fields[bolt]):
+		best = {}
+	var progress := not best.is_empty() and (not (best["rows"] as Array).is_empty() or not (best["satt"] as Array).is_empty()
+		or int(best["group"]) > 0)
+	var dangerous := not threats.is_empty()
+	if not best.is_empty() and (progress or not (best["fix"] as Array).is_empty()):
+		var mv := {"axis": int(best_m[0]), "layer": int(best_m[1]), "turns": int(best_m[2])}
+		var fixes: Array = best["fix"]
+		var out: Dictionary = {}
+		if dangerous and not fixes.is_empty() and (not progress or best_v < 15.0 * float(fixes.size()) + 0.5):
+			# die Gefahr zuerst (sie kostet mehr, als die Drehung sonst bringt)
+			var tp := str(fixes[0])
+			out = _act9("danger", str(ACT_DANGER9.get(tp, "Achtung!")), [str(ACT_DANGER_ICON9.get(tp, "info"))], -1)
+			out["danger"] = tp
+			for t in threats:
+				if str((t as Dictionary)["type"]) == tp:
+					out["fields"] = (t as Dictionary)["fields"]
+		if out.is_empty() and not (best["rows"] as Array).is_empty():
+			var rw: Array = (best["rows"] as Array)[0]
+			for x in best["rows"]:
+				if _act_val9(int(x[0]), int(x[2])) > _act_val9(int(rw[0]), int(rw[2])):
+					rw = x
+			var k := int(rw[0])
+			var ic := FieldData.kind_icon(k)
+			out = _act9("row", "Dreh 3 %s in eine Reihe" % FieldData.kind_plural(k), [ic, ic, ic], int(rw[2]))
+			out["fields"] = rw[1]
+		elif out.is_empty() and not (best["satt"] as Array).is_empty():
+			var sa: Array = (best["satt"] as Array)[0]
+			var nt := _act_need_text9(int(sa[0]), int(sa[1]))
+			out = _act9("thrive", str(nt[0]), nt[1], int(sa[2]) if not _act_satt_goal9(int(sa[1])) else -1)
+			out["fields"] = [int(sa[0])]
+		elif out.is_empty():
+			var gk := int(grp[0])
+			out = _act9("row", "Mach die %s größer" % _act_group_name9(gk), [FieldData.kind_icon(gk)], -1)
+			out["type"] = "group"
+			var bigf := -1
+			for f in fields:
+				if f.kind == gk and gsize9(f.id) == int(grp[1]):
+					bigf = f.id
+					break
+			out["fields"] = members9(bigf) if bigf >= 0 else []
+		out["move"] = mv
+		if not fixes.is_empty():
+			out["danger"] = str(fixes[0])
+		return out
+	# Gefahr ohne Abhilfe durch Drehen: Regen hilft beim Blitz
+	if bolt >= 0 and rain > 0 and rain_ok9(fields[bolt]):
+		var ab := _act9("rain", "Gieß den Wald!", ["rain", FieldData.kind_icon(FieldData.FOREST)], -1)
+		ab["tool"] = "rain"
+		ab["field"] = bolt
+		ab["fields"] = [bolt]
+		ab["danger"] = "bolt"
+		return ab
+	# 2. Regen (kostet keinen Schritt): ein Feld wird zu einer Art näher am Ziel
+	var ar := _act_rain9()
+	if not ar.is_empty():
+		return ar
+	# 3. Zwei Drehungen: eine Vorbereitung, nach der eine Reihe geht
+	var two := _act_two9(stand)
+	if not two.is_empty():
+		return two
+	# 4. Versorgte Felder wachsen von selbst
+	for f in fields:
+		var up := _act_up9(f.kind)
+		if up >= 0 and satt9(f.id) and _act_val9(f.kind, up) > 0.0 and not (LEVEL9.has(f.kind) and not up_ok9(f.id, up)):
+			var aw := _act9("wait", "Dreh weiter, %s wächst" % FieldData.kind_name(f.kind), [FieldData.kind_icon(f.kind)], up)
+			aw["fields"] = [f.id]
+			return aw
+	# 5. Sackgasse: das Sicherheitsnetz
+	if (not bool(reach9()["ok"]) or dead9()) and not gift_plan9().is_empty():
+		return _act_help9()
+	# 6. Das nächste Teilziel über mehrere Züge (nur, wenn es so geht)
+	var ag := _act_general9(g)
+	if not ag.is_empty():
+		return ag
+	if stuck9() != "" and not gift_plan9().is_empty():
+		return _act_help9()
+	if rain_every > 0:
+		return _act9("goal", "Dreh weiter, Regen kommt", ["rain"], -1)
+	return _act9("goal", "Dreh eine Scheibe", ["twist"], -1)
+
+
+func _act_help9() -> Dictionary:
+	var ah := _act9("help", "Hol dir Hilfe", ["gift"], -1)
+	ah["tool"] = "gift"
+	return ah
+
+
+func _act_group_name9(k: int) -> String:
+	return "%s-Gruppe" % FieldData.kind_name(k) if k != FieldData.FIELD else "Äcker-Gruppe"
+
+
+## Regen, der ein Feld eine Stufe näher ans Ziel bringt (bevorzugt die Ziel-Art).
+func _act_rain9() -> Dictionary:
+	if rain <= 0:
+		return {}
+	var best := -1
+	var best_v := 0.0
+	for f in fields:
+		if f.burning or not rain_ok9(f):
+			continue
+		var nk := rain_to9(f)
+		var v := _act_val9(f.kind, nk)
+		if v > best_v:
+			best_v = v
+			best = f.id
+	if best < 0:
+		return {}
+	var k: int = (fields[best] as FieldData).kind
+	var a := _act9("rain", "Gieß %s mit Regen" % FieldData.kind_name(k), ["rain", FieldData.kind_icon(k)], rain_to9(fields[best]))
+	a["tool"] = "rain"
+	a["field"] = best
+	a["fields"] = [best]
+	return a
+
+
+## Für die Vorausschau über zwei Drehungen: je Zug (Index in MOVES) die Platz-Vertauschung (neuer Platz je Platz)
+## und die geraden Reihen (Platz-Dreier), die seine Scheibe danach berührt. Einmal berechnet, nur Plätze, kein Brett.
+static var _PERM9: Array = []
+static var _LSLOT9 := PackedInt32Array()
+static var _MLINES9: Array = []
+
+
+static func _build_moves9() -> void:
+	if not _PERM9.is_empty():
+		return
+	_build_cache9()
+	if not _cache_ready:
+		_build_cache()
+	# Plätze als (p, n): einmal über alle Plätze laufen (Reihenfolge wie _SLOT9)
+	var pn: Array = []
+	pn.resize(54)
+	for x in [-1, 0, 1]:
+		for y in [-1, 0, 1]:
+			for z in [-1, 0, 1]:
+				var p := Vector3i(x, y, z)
+				for a in 3:
+					if p[a] == 0:
+						continue
+					var nv := unit(a, p[a])
+					pn[int(_SLOT9[pos_key(p, nv)])] = [p, nv]
+	var i := 0
+	while i < _LINES.size():
+		if _LINES[i + 3] == 0:
+			_LSLOT9.append(int(_SLOT9[_LINES[i]]))
+			_LSLOT9.append(int(_SLOT9[_LINES[i + 1]]))
+			_LSLOT9.append(int(_SLOT9[_LINES[i + 2]]))
+		i += 4
+	for m in MOVES:
+		var ax := int(m[0])
+		var ly := int(m[1])
+		var tn := int(m[2])
+		var d := 1 if tn > 0 else -1
+		var perm := PackedInt32Array()
+		perm.resize(54)
+		var inl := {}
+		for sl in 54:
+			var p2: Vector3i = (pn[sl] as Array)[0]
+			var n2: Vector3i = (pn[sl] as Array)[1]
+			if p2[ax] == ly:
+				for t in absi(tn):
+					p2 = rv(p2, ax, d)
+					n2 = rv(n2, ax, d)
+				perm[sl] = int(_SLOT9[pos_key(p2, n2)])
+				inl[perm[sl]] = true
+			else:
+				perm[sl] = sl
+		_PERM9.append(perm)
+		var ml := PackedInt32Array()
+		for li in _LSLOT9.size() / 3:
+			if inl.has(_LSLOT9[3 * li]) or inl.has(_LSLOT9[3 * li + 1]) or inl.has(_LSLOT9[3 * li + 2]):
+				ml.append(li)
+		_MLINES9.append(ml)
+
+
+## Zwei Drehungen: Nach der ersten geht mit der zweiten eine Reihe, die dem Ziel hilft. Nur Plätze (schnell: Arten und
+## Feld-IDs je Platz werden vertauscht, das Brett bleibt, wie es ist).
+func _act_two9(stand: Dictionary) -> Dictionary:
+	var useful := {}
+	for k in rows9:
+		if _act_val9(int(k), int(rows9[k])) > 0.0 and count(int(k)) >= 3:
+			useful[int(k)] = _act_val9(int(k), int(rows9[k]))
+	if useful.is_empty():
+		return {}
+	_build_moves9()
+	var kd := PackedInt32Array()
+	var idd := PackedInt32Array()
+	kd.resize(54)
+	idd.resize(54)
+	for f in fields:
+		var sl := slot9(f)
+		kd[sl] = f.kind
+		idd[sl] = f.id
+	var k1 := PackedInt32Array()
+	var i1 := PackedInt32Array()
+	k1.resize(54)
+	i1.resize(54)
+	var best_v := 0.0
+	var best: Dictionary = {}
+	for mi in MOVES.size():
+		var m: Array = MOVES[mi]
+		if absi(int(m[2])) == 2:
+			continue
+		var pm: PackedInt32Array = _PERM9[mi]
+		for sl in 54:
+			k1[pm[sl]] = kd[sl]
+			i1[pm[sl]] = idd[sl]
+		for mj in MOVES.size():
+			var m2: Array = MOVES[mj]
+			if int(m2[0]) == int(m[0]) and int(m2[1]) == int(m[1]):
+				continue
+			var p2: PackedInt32Array = _PERM9[mj]
+			# Platz s nach dem zweiten Zug hält, was vorher auf inv[s] lag: über die Reihen der Scheibe prüfen
+			for li in _MLINES9[mj]:
+				var a := _LSLOT9[3 * li]
+				var b := _LSLOT9[3 * li + 1]
+				var c := _LSLOT9[3 * li + 2]
+				var sa := _inv9(p2, a)
+				var kk := k1[sa]
+				if not useful.has(kk):
+					continue
+				var sb := _inv9(p2, b)
+				if k1[sb] != kk:
+					continue
+				var sc := _inv9(p2, c)
+				if k1[sc] != kk:
+					continue
+				var key := _key9(i1[sa], i1[sb], i1[sc], kk)
+				if stand.has(key) or spent.has(key):
+					continue
+				var v: float = useful[kk]
+				if v > best_v:
+					best_v = v
+					best = {"m": m, "k": kk, "ids": [i1[sa], i1[sb], i1[sc]]}
+	if best.is_empty():
+		return {}
+	var k2 := int(best["k"])
+	var ic := FieldData.kind_icon(k2)
+	var out := _act9("goal", "Bring 3 %s in eine Reihe" % FieldData.kind_plural(k2), [ic, ic, ic], int(rows9[k2]))
+	var bm: Array = best["m"]
+	out["move"] = {"axis": int(bm[0]), "layer": int(bm[1]), "turns": int(bm[2])}
+	out["fields"] = best["ids"]
+	out["steps"] = 2
+	return out
+
+
+## Welcher Platz kommt durch die Vertauschung perm auf Platz s? (Vierteldrehungen: höchstens 4 Schritte im Kreis)
+static func _inv9(perm: PackedInt32Array, s: int) -> int:
+	var x := s
+	for i in 4:
+		var y := perm[x]
+		if y == s:
+			return x
+		x = y
+	return s
+
+
+## line_key aus drei Feld-IDs und der Art.
+static func _key9(a0: int, b0: int, c0: int, k: int) -> int:
+	var a := a0
+	var b := b0
+	var c := c0
+	if a > b:
+		var t := a
+		a = b
+		b = t
+	if b > c:
+		var t2 := b
+		b = c
+		c = t2
+	if a > b:
+		var t3 := a
+		a = b
+		b = t3
+	return ((a * 64 + b) * 64 + c) * 32 + k
+
+
+## Das Teilziel über mehrere Züge – nur, was geht: eine Reihen-Art mit genug Feldern auf passenden Plätzen, sonst ein
+## Feld, das versorgt werden kann.
+func _act_general9(g: Dictionary) -> Dictionary:
+	var best_k := -1
+	var best_v := 0.0
+	for k in rows9:
+		var v := _act_val9(int(k), int(rows9[k]))
+		if v > best_v and _row_cap9(int(k)) > 0:
+			best_v = v
+			best_k = int(k)
+	if best_k >= 0:
+		var ic := FieldData.kind_icon(best_k)
+		var a := _act9("goal", "Bring 3 %s in eine Reihe" % FieldData.kind_plural(best_k), [ic, ic, ic], int(rows9[best_k]))
+		return a
+	var bf := -1
+	var bv := 0.0
+	for f in fields:
+		if not thrive9.has(f.kind) or satt9(f.id) or f.burning:
+			continue
+		var v2 := 9.0 if _act_satt_goal9(f.kind) else _act_val9(f.kind, _act_up9(f.kind))
+		if v2 > bv and _needs_ok9(f.kind, FieldData.sticker_type(f.p), _have_kinds9()):
+			bv = v2
+			bf = f.id
+	if bf >= 0:
+		var k2: int = (fields[bf] as FieldData).kind
+		var nt := _act_need_text9(bf, k2)
+		var a2 := _act9("goal", str(nt[0]), nt[1], _act_up9(k2) if not _act_satt_goal9(k2) else -1)
+		a2["fields"] = [bf]
+		return a2
+	return {}
+
+
+func _have_kinds9() -> Dictionary:
+	var hk := {}
+	for f in fields:
+		hk[f.kind] = true
+	return hk
+
+
+## Kurzer Versorgungs-Satz zum Ziel: satt-Ziele „Tiere brauchen Futter: 2/6 versorgt“, sonst die Regel der Art, die
+## durch Nachbarn wächst („Lava braucht 2 Wasser“), oder "".
+func _act_hint9(g: Dictionary) -> String:
+	if g.is_empty():
+		return ""
+	var t := str(g["type"])
+	if t == "satt":
+		var k := int(g["kind"])
+		var r: Variant = thrive9.get(k)
+		if r == null:
+			return ""
+		var ns: Array = []
+		for n in ((r as Dictionary)["needs"] as Dictionary):
+			ns.append(str(NEED_NAME9.get(str(n), n)))
+		return "%s brauchen %s: %d/%d versorgt" % [FieldData.kind_plural(k), " + ".join(PackedStringArray(ns)),
+			sub_progress9(g), int(g["target"])]
+	for k2 in thrive9:
+		var up := _act_up9(int(k2))
+		if up < 0 or _act_val9(int(k2), up) <= 0.0:
+			continue
+		var parts: Array = []
+		for n in ((thrive9[k2] as Dictionary)["needs"] as Dictionary):
+			var amt := int(((thrive9[k2] as Dictionary)["needs"] as Dictionary)[n])
+			var nm := str(NEED_NAME9.get(str(n), n))
+			parts.append(nm if amt <= 1 else "%d %s" % [amt, nm])
+		return "%s + %s → %s" % [FieldData.kind_name(int(k2)), " + ".join(PackedStringArray(parts)), FieldData.kind_name(up)]
+	for k3 in rows9:
+		if _act_val9(int(k3), int(rows9[k3])) > 0.0:
+			return "3 %s → %s" % [FieldData.kind_name(int(k3)), FieldData.kind_name(int(rows9[k3]))]
+	return ""
+
+
+## Was über einem Feld als kurze Überschrift steht (Feld-Blatt): die Familie in Worten der Schöpfung.
+## Fels heißt nie „Essen“ (Build 12).
+## Die Pille einer stillen Reihe oder eines Fehlversuchs in einem Level (Ereignis still/miss, why): [Titel, Zeile].
+## Nie leer, nie „Sammle 0 Glauben“, nie „Schau auf die Zeichen“ (Build 12: keine Symbole mehr an den Feldern).
+## k: Art der Reihe (-1: unbekannt). Die Zeile nennt, was stattdessen geht (die nächste Handlung).
+func still_line9(why: String, k: int = -1) -> Array:
+	var nxt := str(next_action().get("text", "")) if camp else ""
+	if why == "diag":
+		return ["Schräg zählt nicht", "Nur gerade Reihen"]
+	if why == "repeat":
+		return ["Zurückgedreht", "Dreh eine andere Scheibe"]
+	if why == "spent" or why == "standing":
+		return ["Schon gewachsen", "Bring ein neues Feld rein"]
+	if why == "finished":
+		return ["Fertig", nxt]
+	if (why == "stone" or why == "done") and k >= 0 and goal_kinds9.has(k):
+		return ["Zählt schon", nxt]
+	if why == "thrive" or why == "people" or (why == "water_life" and k >= 0 and thrive9.has(k)):
+		var r: Variant = thrive9.get(k)
+		if r != null:
+			var parts: Array = []
+			for n in ((r as Dictionary)["needs"] as Dictionary):
+				var amt := int(((r as Dictionary)["needs"] as Dictionary)[n])
+				var nm := str(NEED_NAME9.get(str(n), n))
+				parts.append(nm if amt <= 1 else "%d %s" % [amt, nm])
+			return ["Wächst durch Nachbarn", "Braucht %s daneben" % " + ".join(PackedStringArray(parts))]
+	if why == "water" or why == "water_life":
+		return ["Wasser wächst nicht", nxt]
+	if k >= 0 and why != "" and why != "other":
+		return ["%s wächst hier nicht" % FieldData.kind_name(k), nxt]
+	return ["Nichts gewachsen", nxt]
+
+
+static func kind_caps9(k: int) -> String:
+	if k == FieldData.LAVA:
+		return "Glut"
+	if k == FieldData.STONE:
+		return "Gestein"
+	if k == FieldData.EMPTY:
+		return "Land"
+	if k == FieldData.WATER:
+		return "Wasser"
+	if FieldData.water_family(k):
+		return "Leben im Wasser"
+	if k == FieldData.MOSS or k == FieldData.FERN or k == FieldData.MEADOW or k == FieldData.FOREST:
+		return "Pflanzen"
+	if k == FieldData.SEED or k == FieldData.FIELD:
+		return "Nahrung"
+	if k == FieldData.ANIMALS or k == FieldData.BIRDS or k == FieldData.PRED:
+		return "Tiere"
+	if k == FieldData.CHURCH:
+		return "Glaube"
+	if k == FieldData.INDUSTRY:
+		return "Industrie"
+	if FieldData.people(k):
+		return "Menschen"
+	return ""
+
+
+# =============================================================================
+# Build 12: Spielstand mitten im Level (Game speichert ihn nach jeder Runde und beim Pausieren, lädt ihn beim Start)
+# =============================================================================
+
+## Version des Level-Stands (save9). Ältere oder neuere Stände werden nicht geladen (das Level beginnt neu).
+const SAVE9_VERSION := 1
+
+
+static func _keys9(d: Dictionary) -> Array:
+	var out: Array = []
+	for k in d:
+		out.append(k)
+	return out
+
+
+static func _set9(a: Variant) -> Dictionary:
+	var out := {}
+	if a is Array:
+		for k in a:
+			out[int(k)] = true
+	return out
+
+
+## Der laufende Stand eines Levels als reine Daten (Zahlen, Texte, Arrays, Dictionaries; für ConfigFile). Alles, was
+## die Regeln weiter brauchen: Brett (Plätze und Feld-Zustände), Schritte, Fortschritt mit Verlusten, Siegel, Gefahren
+## und Warnungen, Werkzeuge, Gnade/Sicherheitsnetz, Zufall. Die Regeln selbst kommen beim Laden aus der Level-Konfig.
+func save9() -> Dictionary:
+	var fl: Array = []
+	for f in fields:
+		fl.append([f.p.x, f.p.y, f.p.z, f.n.x, f.n.y, f.n.z, f.kind, f.fresh, 1 if f.burning else 0, f.fed, f.hungry,
+			f.maxlvl, f.flvl, f.best.duplicate(), 1 if f.mk else 0, f.crater_rest])
+	var sw := {}
+	for k in smog_warn9:
+		sw[int(k)] = int(smog_warn9[k])
+	return {"v": SAVE9_VERSION, "level": level_no, "fields": fl, "turn": turn, "twists": twists,
+		"gift_twists": gift_twists, "extra_steps": extra_steps, "faith": faith, "faith_earned": faith_earned,
+		"rain": rain, "next_rain": next_rain, "meteors": meteors, "bolts": bolts, "bolt": bolt, "volc": volc,
+		"bolt_guard": bolt_guard9, "war_on": war_on, "front": _keys9(front), "flood_warn": _keys9(flood_warn),
+		"pack_warn": _keys9(pack_warn9), "smog_warn": sw, "standing": _keys9(standing), "broken": _keys9(broken),
+		"spent": _keys9(spent), "made": made.duplicate(), "lost": lost9.duplicate(), "held": held9.duplicate(),
+		"peak": peak9, "gain_at": gain_at9, "miracle": _keys9(miracle_bought), "won": day_won, "won_at": day_won_at,
+		"won_told": _won_told, "need_told": _need_told, "era": _era_last, "st": st9.duplicate(), "stats": stats.duplicate(),
+		"ever": _keys9(ever), "recent": recent9.duplicate(), "last_row": last_row.duplicate(), "last_grew": last_grew,
+		"satt0": _keys9(_satt0), "trace": trace9.duplicate(), "misses": misses, "acts": _act_seq,
+		"rng_seed": rng.seed, "rng_state": rng.state, "lcg": lcg}
+
+
+## Einen Level-Stand laden (save9): cfg = die Konfiguration des Levels (Campaign.config, Welt des Tages: ihre eigene).
+## null, wenn der Stand nicht passt (andere Version, anderes Level, kaputt).
+static func load9(d: Dictionary, cfg: Dictionary) -> GameState:
+	if int(d.get("v", 0)) != SAVE9_VERSION or int(d.get("level", -1)) != int(cfg.get("level", -2)):
+		return null
+	var fl: Variant = d.get("fields")
+	if not (fl is Array) or (fl as Array).size() != 54:
+		return null
+	var kinds: Array = []
+	for row in fl:
+		if not (row is Array) or (row as Array).size() < 16:
+			return null
+		kinds.append(int((row as Array)[6]))
+	var gs := GameState.new()
+	gs.setup_level(cfg, kinds, int(d.get("rng_seed", 1)))
+	var seen := {}
+	for i in 54:
+		var r: Array = (fl as Array)[i]
+		var f: FieldData = gs.fields[i]
+		f.p = Vector3i(int(r[0]), int(r[1]), int(r[2]))
+		f.n = Vector3i(int(r[3]), int(r[4]), int(r[5]))
+		f.kind = int(r[6])
+		f.fresh = int(r[7])
+		f.burning = int(r[8]) != 0
+		f.fed = int(r[9])
+		f.hungry = int(r[10])
+		f.maxlvl = int(r[11])
+		f.flvl = int(r[12])
+		f.best = {}
+		if r[13] is Dictionary:
+			for k in (r[13] as Dictionary):
+				f.best[str(k)] = int((r[13] as Dictionary)[k])
+		f.mk = int(r[14]) != 0
+		f.crater_rest = int(r[15])
+		seen[pos_key(f.p, f.n)] = true
+	if seen.size() != 54:
+		return null                  # zwei Felder auf einem Platz: kaputt
+	gs.rebuild_index()
+	gs.turn = int(d.get("turn", 1))
+	gs.twists = int(d.get("twists", 0))
+	gs.gift_twists = int(d.get("gift_twists", 0))
+	gs.extra_steps = int(d.get("extra_steps", 0))
+	gs.faith = int(d.get("faith", 0))
+	gs.faith_earned = int(d.get("faith_earned", 0))
+	gs.rain = int(d.get("rain", 0))
+	gs.next_rain = int(d.get("next_rain", gs.next_rain))
+	gs.meteors = int(d.get("meteors", 0))
+	gs.bolts = int(d.get("bolts", 0))
+	gs.bolt = int(d.get("bolt", -1))
+	gs.volc = int(d.get("volc", -1))
+	gs.bolt_guard9 = int(d.get("bolt_guard", 0))
+	gs.war_on = bool(d.get("war_on", false))
+	gs.front = _set9(d.get("front", []))
+	gs.flood_warn = _set9(d.get("flood_warn", []))
+	gs.pack_warn9 = _set9(d.get("pack_warn", []))
+	gs.smog_warn9 = {}
+	var sw: Variant = d.get("smog_warn", {})
+	if sw is Dictionary:
+		for k in (sw as Dictionary):
+			gs.smog_warn9[int(k)] = int((sw as Dictionary)[k])
+	gs.standing = _set9(d.get("standing", []))
+	gs.broken = _set9(d.get("broken", []))
+	gs.spent = _set9(d.get("spent", []))
+	var md: Variant = d.get("made", [])
+	var ls: Variant = d.get("lost", [])
+	if md is Array and (md as Array).size() == FieldData.KIND_COUNT:
+		for k in FieldData.KIND_COUNT:
+			gs.made[k] = int((md as Array)[k])
+	if ls is Array and (ls as Array).size() == FieldData.KIND_COUNT:
+		for k in FieldData.KIND_COUNT:
+			gs.lost9[k] = int((ls as Array)[k])
+	var hd: Variant = d.get("held", [])
+	if hd is Array and (hd as Array).size() == gs.held9.size():
+		for i in gs.held9.size():
+			gs.held9[i] = int((hd as Array)[i])
+	gs.peak9 = int(d.get("peak", 0))
+	gs.gain_at9 = int(d.get("gain_at", 0))
+	gs.miracle_bought = {}
+	for k in d.get("miracle", []):
+		gs.miracle_bought[str(k)] = true
+	gs.day_won = bool(d.get("won", false))
+	gs.day_won_at = int(d.get("won_at", 0))
+	gs._won_told = bool(d.get("won_told", false))
+	gs._need_told = bool(d.get("need_told", false))
+	gs._era_last = str(d.get("era", gs._era_last))
+	var st: Variant = d.get("st", {})
+	if st is Dictionary:
+		for k in (st as Dictionary):
+			gs.st9[str(k)] = int((st as Dictionary)[k])
+	var sts: Variant = d.get("stats", {})
+	if sts is Dictionary:
+		for k in (sts as Dictionary):
+			gs.stats[str(k)] = int((sts as Dictionary)[k])
+	gs.ever = _set9(d.get("ever", []))
+	gs.recent9 = []
+	for x in d.get("recent", []):
+		gs.recent9.append(str(x))
+	gs.last_row = []
+	for x in d.get("last_row", []):
+		gs.last_row.append(int(x))
+	gs.last_grew = int(d.get("last_grew", 0))
+	gs._satt0 = _set9(d.get("satt0", []))
+	gs.trace9 = []
+	for x in d.get("trace", []):
+		gs.trace9.append(str(x))
+	gs.misses = int(d.get("misses", 0))
+	gs._act_seq = int(d.get("acts", 0))
+	gs.lcg = int(d.get("lcg", gs.lcg))
+	gs.rng.seed = int(d.get("rng_seed", 1))
+	gs.rng.state = int(d.get("rng_state", gs.rng.state))
+	gs._grp_ok = false
+	gs._nb_ok = false
+	return gs

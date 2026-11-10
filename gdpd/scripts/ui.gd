@@ -1133,7 +1133,7 @@ func _build_help() -> void:
 	for key in ["bolt", "monsoon", "strike", "flood"]:
 		inner.add_child(_help_rows[key])
 	# Schöpfung: die Verben der Kampagne und die Gefahren als Folgen (nur, was das Level kennt)
-	_help_rows["c_needs"] = _help_row("hunger", Style.LEAF_TINT, "Nachbarn versorgen", "Manche brauchen Nachbarn. Schau auf die Zeichen.")
+	_help_rows["c_needs"] = _help_row("hunger", Style.LEAF_TINT, "Nachbarn versorgen", "Manche brauchen Nachbarn. Oben steht, was fehlt.")
 	_help_rows["c_lasting"] = _help_row("check", Style.LEAF_TINT, "Versorgt bleibt versorgt", "Einmal satt: bleibt satt.")
 	_help_rows["c_merge"] = _help_row("up", Style.LEAF_TINT, "Zusammen ×2", "Gleiche wachsen zusammen. Gruppen zählen mehr.")
 	_help_rows["c_steps"] = _help_row("steps", Style.SUN_TINT, "Schritte → Sterne", "Weniger Schritte, mehr Sterne.")
@@ -4190,14 +4190,22 @@ func _fill_sheet(fid: int) -> void:
 	sheet_title.text = FieldData.kind_name(k)
 	if f.burning:
 		sheet_caps.text = "Brennt!"
+	elif gs.camp and GameState.kind_caps9(k) != "":
+		sheet_caps.text = GameState.kind_caps9(k)     # Schöpfung (Build 12): Lava „Glut“, Fels „Gestein“, nie „Essen“
 	elif k == FieldData.EMPTY:
 		sheet_caps.text = "Leer"
 	elif f.is_finished():
 		sheet_caps.text = "Fertig · +%d Glaube pro Runde" % int(Balance.INCOME.get(k, 0))
 	elif FieldData.people(k):
 		sheet_caps.text = "Menschen"
+	elif gs.camp and FieldData.WATERS.has(k):
+		sheet_caps.text = "Wasser"          # Schöpfung: Ursuppe, Einzeller … (nicht „Essen“)
+	elif gs.camp and [FieldData.LAVA, FieldData.FELS, FieldData.EMPTY].has(k):
+		sheet_caps.text = "Land"            # Lava, Fels, Erde waren „Essen“ (Build 11, Fels-Karte)
 	elif FieldData.nature(k):
 		sheet_caps.text = "Natur"
+	elif gs.camp and FieldData.LIVING.has(k):
+		sheet_caps.text = "Leben"
 	else:
 		sheet_caps.text = "Essen"
 	# Die Regel als Bild: 3 × Feld → nächste Art (an einer Wahl: beide Möglichkeiten)
@@ -4329,7 +4337,12 @@ func _on_merged(fid: int, points: int, combo: int, stage: int) -> void:
 
 ## Warum ist nichts gewachsen? [Kopfzeile = der Grund, Satz = was man stattdessen tun kann] für die Pille
 ## (why aus GameState._miss_why / still).
-func _miss_text(why: String) -> Array:
+func _miss_text(why: String, k: int = -1) -> Array:
+	# Schöpfung (Build 12): die Regeln sagen, warum, und was stattdessen geht (die nächste Handlung), nie „Zeichen“
+	if Game.state != null and Game.state.camp and why != "slice":
+		var sl: Array = Game.state.still_line9(why, k)
+		if sl.size() >= 2 and str(sl[1]) != "":
+			return sl
 	if why == "repeat":
 		return ["Zurückgedreht", "Dreh eine andere Scheibe"]
 	if why == "slice":
@@ -4352,7 +4365,7 @@ func _miss_text(why: String) -> Array:
 		if why == "stone":
 			return ["Fels wächst hier nicht", _camp_row_line()]
 		if why == "water_life" or why == "thrive":
-			return ["Wächst durch Nachbarn", "Schau auf die Zeichen"]
+			return ["Wächst durch Nachbarn", "Oben steht, was fehlt"]
 	if why == "water":
 		return ["Wasser wächst nie", "Dreh Land in die Reihe"]
 	# Die neuen Tage (GDPD_BALANCE_2.md): Menschen wachsen durch Nachbarn, Stein nie, manche Art heute nicht mehr
@@ -4364,6 +4377,13 @@ func _miss_text(why: String) -> Array:
 		var gl := Days.goal_line(Game.state.day) if Game.state != null and Game.state.is_day() else "Bring 3 gleiche in eine Reihe"
 		return [str(Days.TEXT["done_caps"]), gl]
 	return ["", "Nichts gewachsen"]
+
+
+## Art des Feldes eines Fehlversuchs (-1: unbekannt), für still_line9.
+func _miss_kind(fid: int) -> int:
+	if Game.state == null or fid < 0 or fid >= Game.state.fields.size():
+		return -1
+	return (Game.state.fields[fid] as FieldData).kind
 
 
 ## „Bring 3 Lava in eine Reihe“: die erste Art, die heute Reihen bildet (Schöpfung), sonst die allgemeine Regel.
@@ -4445,7 +4465,7 @@ func _on_still(info: Dictionary) -> void:
 		caps = "Ruht · " + _rest_text(int(info.get("kind", 0)), int(info.get("next", -1)))
 		text = _rest_action(int(info.get("kind", 0)))
 	else:
-		var mt := _miss_text(why)
+		var mt := _miss_text(why, int(info.get("kind", -1)))
 		caps = str(mt[0])
 		text = str(mt[1])
 	Style.haptic(Style.HAPTIC_TAP)
@@ -4468,7 +4488,7 @@ func _on_miss(_fid: int, count: int, why: String = "") -> void:
 	if Game.in_day() and Game.state.no_fire:
 		# Ohne Feuer (Tag 1) zählen Fehlversuche nicht: nur kurz sagen, warum nichts gewachsen ist
 		_miss_streak += 1
-		var mt0 := _miss_text(why)
+		var mt0 := _miss_text(why, _miss_kind(_fid))
 		_show_banner("miss", str(mt0[0]), str(mt0[1]), str(World.STILL_BADGE.get(why, "info")))
 		return
 	_miss_streak += 1
@@ -4479,7 +4499,7 @@ func _on_miss(_fid: int, count: int, why: String = "") -> void:
 	if count < Balance.FIRE_AFTER:
 		# Nur zurückgedreht? Dann sagen, warum die Reihe diesmal nicht wächst
 		# Sagen, warum die Reihe diesmal nicht wächst (zurückgedreht, schon gewachsen, schräg, Wasser …)
-		var mt := _miss_text(why)
+		var mt := _miss_text(why, _miss_kind(_fid))
 		_show_banner("miss", str(mt[0]), str(mt[1]), "fire_off")
 		Style.haptic(Style.HAPTIC_TAP)
 	elif why == "repeat" or why == "slice":

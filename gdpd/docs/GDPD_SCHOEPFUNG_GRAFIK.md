@@ -469,6 +469,11 @@ Haus, kommen nur die neuen Bedürfnisse dazu). Die Grafik macht das sichtbar:
 - **Vorschau beim Drehen:** Wegdrehen eines Nachbarn färbt ein gehaltenes Bedürfnis nicht mehr rot. Rot zeigt nur
   noch, was wirklich verloren ginge (Gefahr, Verlust).
 - Solange die Regel nicht entschieden ist, gilt die heutige Anzeige (`supply_up` / `supply_down`).
+- **Build 12 (Rückmeldung nach Build 11: „zeig oben an, was man machen muss und nicht direkt am Feld. Die Icons am
+  Feld entf.“):** In der Schöpfung tragen die Felder keine Symbole mehr (`FieldView.quiet`): keine Bedürfnis-Plaketten,
+  Häkchen, Pfeile, Abzeichen stiller Reihen, Werkzeug-Abzeichen, „×2“, Kühl-Punkte, „!“/„?“. Es bleiben die Lichtränder
+  (Vorschau grün/rot, Ziel des Werkzeugs, still, der goldene Satt-Ring nur für Ziel-Felder), die Gefahren als
+  Welt-Effekte (Rauchsäule, Gewitterwolke, Flut) und die kurzen „+1“/„−1“-Hinweise. Was zu tun ist, steht oben (9).
 
 ---
 
@@ -610,6 +615,28 @@ Die Regeln haben keine Jahreszeiten; sie erzählen sie über die Level: 13 „Di
 - **100-Sekunden-Challenge:** großer Ring-Timer um den Punkte-Zähler, rot in den letzten 10 s. Feuer kostet 5 s:
   „−5 s“-Plakette fliegt vom Feuer zum Ring. Pausiert die Wahl-Karte, wird der Ring grau.
 - **Abbrechen-Streifen** unten bleibt wie gebaut.
+- **Was jetzt? (Build 12: „man soll immer genau wissen, was man tun muss“):** Unter dem Ziel-Chip, mittig, eine Zeile
+  mit kleinen Symbolen und 2–6 Worten (`DayUI.act_line`): „🔥 → 🪨 3 Lava in eine Reihe“, „Teil die Lava!“ (rot bei
+  Gefahr), „Gieß Lava (Regen)“, grün fürs Sicherheitsnetz. Sie kommt aus `GameState.next_action()` (Regeln; Rückgabe
+  `{text, icons, tone, fields, move, tool}`), wird nach jedem Zug neu gerechnet und hüpft kurz, wenn sie sich ändert.
+  Nach 6 s ohne Eingabe leuchtet die gemeinte Scheibe oder die Felder sanft (`World.ACTION_IDLE`), der gemeinte Knopf
+  (Regen, Wunder, Tipp) pulsiert mit; jede Berührung macht es aus. Ohne `next_action()` zeigt die Zeile das Rezept des
+  offenen Teilziels. Sagt sie „Hol dir Hilfe“ (Sicherheitsnetz), ist die Zeile selbst der Knopf (`Game.take_gift`).
+  Die Pillen stiller Reihen und Fehlversuche kommen in Leveln aus `GameState.still_line9` (nie „Schau auf die
+  Zeichen“); die Feld-Karte nennt die Familie mit `GameState.kind_caps9` (Fels „Gestein“, nie „Essen“).
+- **Späte Reihen** (Build 12): Was Abkühlen, Ausbruch, Landgang oder Wünsche am Rundenende zu einer Reihe machen,
+  wächst sichtbar erst nach diesen Effekten (`merge` mit `late`), danach die stillen Reihen und Fehlversuche.
+- **Weiter, wo die App zuging** (Build 12): Lief beim Schließen ein Level, startet die App direkt darin (keine
+  Übersicht, keine Start-Karte, kein Übergang, keine Welle) – Brett, Schritte, Siegel, Gefahren und Werkzeuge wie
+  vorher (`Game.resume_run`, `user://rekord_lauf.cfg`). Während eine Runde läuft, bleibt der Stand davor gespeichert.
+- **Kein Weiterbauen** (Build 12): Die Sieg-Karte zeigt „Weiter: Level n“, sonst „Nochmal · mehr Sterne“ und
+  „Zur Übersicht“; die Heute-Karte hat keinen Weiterbauen-Knopf mehr.
+- **Ansicht senkrecht umgekehrt** (Build 12, `CameraRig.ORBIT_INVERT_Y`): Finger nach unten zeigt mehr von unten,
+  Finger nach oben mehr von oben (auch zwei Finger und Halten). Das Neigen durch Kippen des Handys folgt derselben
+  Richtung (Oberkante wegkippen wirkt wie Finger nach unten). Waagerecht wie bisher.
+- **Fels** (Build 12): Der Vulkan-Kegel ist ein Ereignis und sinkt 2,4 s nach dem Ausbruch zurück, sofort, wenn der
+  Krater keine Lava mehr ist (früher blieb er für immer und stand dann auf Fels). Dunkler Basalt nur in der Glut-Zeit
+  (`Look.basalt_dark`, 5. Stelle von `model_key`); ab Akt 2 helle Brocken, auch nach Akt 1 in derselben Sitzung.
 
 ---
 
