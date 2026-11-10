@@ -17,13 +17,27 @@ uniform float low_glow = 0.0;
 uniform float haze = 0.0;
 uniform float stars = 0.0;
 uniform float ash = 0.0;
+// Erdgeschichte: Rauch-Säule (Vulkan am Horizont), Staub-Sonne (nach dem Meteor: matte Scheibe hinter Staub)
+uniform float plume = 0.0;
+uniform float dust_sun = 0.0;
+uniform vec3 dust_sun_c : source_color = vec3(1.0, 0.55, 0.3);
+uniform float plume_x = 0.548;          // im Hochformat sieht die Kamera nur uv.x ≈ 0,39 … 0,61 der Himmelsebene
+uniform vec2 dust_uv = vec2(0.46, 0.28);
+// Meteor am Himmel (Einschlag, Vorzeichen): glühender Kopf mit Schweif, zieht langsam schräg nach unten
+uniform float meteor = 0.0;
+uniform vec2 meteor_uv = vec2(0.47, 0.22);
+uniform vec2 meteor_dir = vec2(0.55, 0.85);
+// Sonnen-Lichthof: im Hochformat sieht die Kamera nur uv.x ≈ 0,39 … 0,61 (sun_x < 0: alter Platz sun_uv)
+uniform float sun_x = -1.0;
+uniform float sun_y = 0.2;
 void fragment() {
 	vec2 uv = UV;
 	float y = 1.0 - uv.y;
 	vec3 c = mix(low_c, mid_c, smoothstep(0.05, 0.5, y));
 	c = mix(c, top_c, smoothstep(0.5, 1.0, y));
 	// warmer Lichthof dort, wo die Sonne steht
-	float sd = length((uv - sun_uv) * vec2(1.0, 0.6));
+	vec2 suv = sun_x >= 0.0 ? vec2(sun_x, sun_y) : sun_uv;
+	float sd = length((uv - suv) * vec2(1.0, 0.6));
 	c += low_c * sun_glow * (1.0 - smoothstep(0.0, 0.55, sd)) * 0.5;
 	// Schleier und Haufenwolken, ziehen langsam
 	float n = texture(n_fbm, vec2(uv.x * 0.9 + TIME * 0.004, uv.y * 1.7)).r;
@@ -51,6 +65,38 @@ void fragment() {
 	if (ash > 0.0) {
 		float a = texture(n_fbm, vec2(uv.x * 3.0, uv.y * 1.2 + TIME * 0.01)).r;
 		c = mix(c, c * 0.55, smoothstep(0.55, 0.8, a) * ash);
+	}
+	if (plume > 0.0) {
+		// Rauchfahne eines fernen Vulkans: dünne Säule am Horizont, oben breit und abgedriftet
+		float px = uv.x - plume_x - (y - 0.1) * 0.06 - 0.008 * sin(y * 8.0 + TIME * 0.2);
+		float pw = 0.004 + 0.03 * smoothstep(0.08, 0.6, y);
+		float pn = texture(n_fbm, vec2(px * 9.0, y * 2.0 - TIME * 0.01)).r;
+		float pm = (1.0 - smoothstep(pw * 0.5, pw, abs(px) + (pn - 0.5) * 0.015)) * smoothstep(0.3, 0.42, y) * (1.0 - smoothstep(0.62, 0.85, y));
+		c = mix(c, mix(vec3(0.3, 0.28, 0.27), vec3(0.52, 0.5, 0.47), pn), pm * plume * 0.72);
+		c += glow_c * (1.0 - smoothstep(0.0, 0.005, abs(uv.x - plume_x))) * smoothstep(0.29, 0.31, y) * (1.0 - smoothstep(0.31, 0.34, y)) * plume * 0.12;
+	}
+	if (dust_sun > 0.0) {
+		// matte Scheibe hinter Staub: klein, weicher Rand, vom ziehenden Staub halb verschluckt (keine Strahlen)
+		float sdd = length((uv - dust_uv) * vec2(1.0, 0.5));
+		float veil = texture(n_fbm, vec2(uv.x * 6.0 + TIME * 0.006, uv.y * 3.0)).r;
+		float disc = (1.0 - smoothstep(0.0042, 0.0062, sdd)) * (0.55 + 0.45 * smoothstep(0.35, 0.7, 1.0 - veil));
+		c = mix(c, dust_sun_c * 0.92, disc * dust_sun * 0.8);
+		c += dust_sun_c * (1.0 - smoothstep(0.0, 0.05, sdd)) * dust_sun * 0.18;
+	}
+	if (meteor > 0.0) {
+		// Schweif: hinter dem Kopf (gegen die Flugrichtung), wird nach hinten dünn und dunkler; Kopf weiß-gelb
+		vec2 dir = normalize(meteor_dir);
+		vec2 rel = (uv - meteor_uv) * vec2(1.0, 0.5);
+		float along = dot(rel, dir * vec2(1.0, 0.5) / length(dir * vec2(1.0, 0.5)));
+		vec2 nd = normalize(dir * vec2(1.0, 0.5));
+		float across = abs(rel.x * nd.y - rel.y * nd.x);
+		float tl = clamp(-along / 0.09, 0.0, 1.0);
+		float tail = (1.0 - smoothstep(0.0012 + 0.004 * tl, 0.0025 + 0.008 * tl, across)) * step(along, 0.0) * (1.0 - tl);
+		float flick = 0.85 + 0.15 * sin(TIME * 23.0);
+		c = mix(c, vec3(1.0, 0.62, 0.3), tail * meteor * 0.85);
+		float hd = length(rel);
+		c += vec3(1.0, 0.85, 0.55) * (1.0 - smoothstep(0.0, 0.012, hd)) * meteor * 1.4 * flick;
+		c += vec3(1.0, 0.55, 0.25) * (1.0 - smoothstep(0.0, 0.05, hd)) * meteor * 0.35;
 	}
 	c += vec3(0.85, 0.88, 1.0) * flash;
 	ALBEDO = c;

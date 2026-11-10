@@ -127,6 +127,20 @@ const GROUND := [
 	{"a": "#3a4b20", "b": "#54482b", "acc": "#d8d4c8", "amt": 0.22, "mc": 0.78},                                 # 24 Vögel (Wald, Federn)
 	{"a": "#5a564c", "b": "#6a6656", "acc": "#d8d2c0", "amt": 0.4, "mc": 0.7},                                   # 25 Raubtiere (Fels, Knochen)
 	{"a": "#4a3424", "b": "#5e4430", "fur": 1.0, "mc": 0.6},                                                       # 26 Saat (frische Furchen)
+	# --- Erdgeschichte (GDPD_ERDGESCHICHTE.md 3, GDPD_ERDGESCHICHTE_GRAFIK.md 4–6): Arten 27–39 -----------------------
+	{"a": "#a89a78", "b": "#bcae8a", "acc": "#c8bc9c", "amt": 0.25, "mc": 0.45},                                  # 27 Quallen (Ufer-Sand)
+	{"a": "#8e8470", "b": "#a09682", "acc": "#6e685e", "amt": 0.7, "mc": 0.45},                                   # 28 Trilobiten (Kiesel-Ufer)
+	{"a": "#44502a", "b": "#5a6830", "acc": "#6a5a36", "amt": 0.25, "spk": "#d8c86a", "spk2": "#9ac0b0", "samt": 0.55, "mc": 0.62},  # 29 Insekten (Farn-Humus, Pollen)
+	{"a": "#4a5a2a", "b": "#5c6a32", "acc": "#3a3628", "amt": 0.35, "mc": 0.42, "moss": 0.55},                  # 30 Amphibien (nasses Moos)
+	{"a": "#8a7650", "b": "#9e8862", "acc": "#b4a482", "amt": 0.75, "mc": 0.6},                                   # 31 Reptilien (warmer Fels-Sand)
+	{"a": "#5d6c2c", "b": "#74803a", "acc": "#6a5a36", "amt": 0.4, "path": 0.6, "pc": "#7a6a48", "mc": 0.3},    # 32 Saurier (zertrampelter Farn)
+	{"a": "#4a463e", "b": "#5a564a", "acc": "#d8d2c0", "amt": 0.35, "mc": 0.72},                                  # 33 Raubsaurier (dunkler Fels, Knochen)
+	{"a": "#34481e", "b": "#4c4a28", "acc": "#c8c0a8", "amt": 0.18, "mc": 0.78},                                  # 34 Flugsaurier (Wald, Federn)
+	{"a": "#b6c8d6", "b": "#d2dfe9", "acc": "#eef4f8", "amt": 0.25, "mc": 0.85, "glac": 1.0},                    # 35 Eis (Gletscher)
+	{"a": "#6e6a48", "b": "#827c56", "acc": "#5a4a36", "amt": 0.45, "path": 0.7, "pc": "#6a5a42", "mc": 0.35},  # 36 Mammut (zertrampelte Tundra)
+	{"a": "#56662a", "b": "#6c7234", "acc": "#7a6040", "amt": 0.3, "mc": 0.62},                                   # 37 Affen (Waldrand)
+	{"a": "#7a6a40", "b": "#8c7c4e", "path": 0.8, "pc": "#8a7350", "acc": "#a39d92", "amt": 0.2, "mc": 0.5},    # 38 Frühmenschen (Lagerplatz)
+	{"a": "#5a4a36", "b": "#6c5842", "path": 0.9, "pc": "#7a6248", "acc": "#8a8580", "amt": 0.35, "mc": 0.5},   # 39 Feuerstelle (Asche-Ring)
 ]
 
 ## Arten der Schöpfung (Ids wie FieldData, Spec GDPD_SCHOEPFUNG.md 2)
@@ -136,8 +150,11 @@ const K_CELLS := 19
 const K_ALGAE := 20
 const K_FISH := 21
 ## Wasser-Familie: alle sind für den Boden-Shader Wasser (ein See), das Leben darin ist ein Zustand (w_life)
-const WATERS := [15, 18, 19, 20, 21]
-const WATER_LIFE := {15: 0.0, 18: 0.1, 19: 0.35, 20: 1.0, 21: 1.5}
+const WATERS := [15, 18, 19, 20, 21, 27, 28]
+## Quallen und Trilobiten (Kambrium): das Wasser bleibt klar (Farbe des Zeitalters, ein See mit dem Wasser daneben);
+## das Leben darin zeigen nur die Tiere (leise, GRAFIK 3.3). Ein Lebens-Wert dazwischen gäbe an den Fugen Algen-Ränder.
+const WATER_LIFE := {15: 0.0, 18: 0.1, 19: 0.35, 20: 1.0, 21: 1.5, 27: 0.0, 28: 0.0}
+const K_GLACIER := 35
 
 
 static func is_water(kind: int) -> bool:
@@ -161,6 +178,9 @@ static var water_glint := 1.0
 static var season := 1.0                         # 0 Frühling, 1 Sommer, 2 Herbst, 3 Winter (gemischt: Bruchteile)
 static var sunface := false                      # Akt 4: oben ist Tag
 static var night := 0.0                          # Nachtseite / Nacht-Stimmung: Fenster leuchten heller
+static var blanket := Color(0.92, 0.94, 0.97, 0.0) # Erdgeschichte: Schnee (Eiszeit) / Asche (Meteor), a = Anteil
+static var ice := 0.0                            # Eiszeit: Eis auf Wasser (vom Ufer her)
+static var blanket_veil := 0.0                   # 0 Schnee-Verwehungen, 1 Asche-Schleier
 
 
 ## Setzt ein Zeitalter (Name aus Eras.ERAS oder ein eigener Eintrag). Rechnet nur Werte um; FieldView baut Inhalte
@@ -176,17 +196,45 @@ static func set_era(e: Variant) -> void:
 	water_glint = float(w.get("glint", 1.0))
 	sunface = bool(d.get("sunface", false))
 	_set_ground_all("sunface", 1.0 if sunface else 0.0)
+	var bc := Color(str(d.get("blanket_c", "#eaf0f6")))
+	bc.a = float(d.get("blanket", 0.0))
+	set_blanket(bc, float(d.get("ice", 0.0)), float(d.get("blanket_veil", 0.0)))
 	set_season(float(d.get("season", 1)))
 
 
-## Mischung zweier Zeitalter (Akt 3: Dunst → Blau nach den Algen): Wasser gemischt, Boden und Modelle vom Ziel.
+## Mischung zweier Zeitalter (Dunst → Blau nach den Algen, Asche → Erholung nach den Wiesen, Eiszeit-Einbruch):
+## Wasser, Decke (Schnee/Asche) und Eis gemischt, Boden und Modelle vom Ziel.
 static func set_era_mix(a: String, b: String, t: float) -> void:
 	var da := Eras.get_era(a)
 	set_era(b)
+	era_name = b
 	var wa: Dictionary = da.get("water", {})
 	water_deep = Color(str(wa.get("deep", "#12383f"))).lerp(water_deep, t)
 	water_shallow = Color(str(wa.get("shallow", "#3d7f72"))).lerp(water_shallow, t)
 	water_glint = lerpf(float(wa.get("glint", 1.0)), water_glint, t)
+	var ba := Color(str(da.get("blanket_c", "#eaf0f6")))
+	ba.a = float(da.get("blanket", 0.0))
+	var bb := blanket
+	if bb.a <= 0.0:
+		bb = Color(ba.r, ba.g, ba.b, 0.0)
+	if ba.a <= 0.0:
+		ba = Color(bb.r, bb.g, bb.b, 0.0)
+	set_blanket(ba.lerp(bb, t), lerpf(float(da.get("ice", 0.0)), ice, t),
+		lerpf(float(da.get("blanket_veil", 0.0)), blanket_veil, t))
+
+
+## Decke (Schnee/Asche: Farbe + Anteil in a), Eis auf Wasser und Schleier-Anteil für alle Boden- und Laub-Materialien
+## (auch später gebaute: ground_material/foliage lesen die Werte). Untergrenzen 3.2: Decke höchstens 0,45.
+static func set_blanket(c: Color, ice_v: float, veil: float) -> void:
+	blanket = c
+	blanket.a = clampf(c.a, 0.0, 0.45)
+	ice = clampf(ice_v, 0.0, 1.0)
+	blanket_veil = clampf(veil, 0.0, 1.0)
+	_set_ground_all("blanket", blanket)
+	_set_ground_all("ice", ice)
+	_set_ground_all("blanket_veil", blanket_veil)
+	for fm in _foliage_mats:
+		(fm as ShaderMaterial).set_shader_parameter("blanket", blanket)
 
 
 static func era_flag(name: String) -> bool:
@@ -204,9 +252,18 @@ static func era_ambient(name: String, def: Variant = 0) -> Variant:
 ## Schlüssel der Modell-Zweige (Back-Cache): ändert er sich, baut eine Art mit Zeitalter-Modell neu.
 ## Die 5. Stelle trennt den dunklen Basalt (Glut, Akt 1) von den hellen Felsbrocken (ab Dunst, Akt 2): ohne sie
 ## hatten beide denselben Schlüssel, der Back-Cache gab in Akt 2 alten Basalt aus und neue Felder bekamen Brocken.
+## Erdgeschichte: jeder Gestalt-Zweig (MODEL_FLAGS) ist eine Stelle mehr.
+const MODEL_FLAGS := ["primeval", "wild", "ducks", "basalt", "cambrian", "devon", "carbon", "dino", "ash", "recover", "mammal", "ice",
+	"ape", "fire", "stones"]
+
+
 static func model_key() -> String:
-	return "%d%d%d%d%d" % [1 if era_flag("primeval") else 0, 1 if era_flag("wild") else 0, 1 if era_flag("ducks") else 0,
-		1 if era_flag("basalt") else 0, 1 if basalt_dark() else 0]
+	var k := ""
+	for f in MODEL_FLAGS:
+		k += "1" if era_flag(String(f)) else "0"
+		if f == "basalt":
+			k += "1" if basalt_dark() else "0"
+	return k
 
 
 ## Fels als dunkler Basalt (nur in der Glut-Zeit, Akt 1); danach heller, grauer Fels (GDPD_SCHOEPFUNG_GRAFIK.md 5.x).
@@ -251,7 +308,7 @@ static func _set_ground_all(param: String, v: Variant) -> void:
 
 
 static func ground_params(kind: int) -> Dictionary:
-	var k := clampi(kind, 0, GROUND.size() - 1)
+	var k := kind if kind >= 0 and kind < GROUND.size() else 0     # unbekannte (neue) Art: Erde, nie ein Absturz
 	if _era_ground.has(k):
 		return _era_ground[k]
 	return GROUND[k]
@@ -269,6 +326,9 @@ static func ground_material() -> ShaderMaterial:
 	m.set_shader_parameter("autumn", clampf(1.0 - absf(season - 2.0), 0.0, 1.0))
 	m.set_shader_parameter("winter", clampf(season - 2.0, 0.0, 1.0))
 	m.set_shader_parameter("sunface", 1.0 if sunface else 0.0)
+	m.set_shader_parameter("blanket", blanket)
+	m.set_shader_parameter("ice", ice)
+	m.set_shader_parameter("blanket_veil", blanket_veil)
 	m.set_shader_parameter("lava_flow", 1.0 if quality >= 1 else 0.0)
 	m.set_shader_parameter("life_dots", 1.0 if quality >= 1 else 0.0)
 	var lf := PackedFloat32Array()
@@ -420,7 +480,7 @@ static func _nb_a(kind: int) -> Color:
 static func _nb_b(kind: int) -> Color:
 	var g: Dictionary = ground_params(kind)
 	var c := Color(str(g["b"]))
-	c.a = 1.0 if is_water(kind) else (3.0 if kind == K_LAVA else 0.0)
+	c.a = 1.0 if is_water(kind) else (3.0 if kind == K_LAVA else (4.0 if kind == K_GLACIER else 0.0))
 	return c
 
 
@@ -443,6 +503,8 @@ static func apply_ground(m: ShaderMaterial, kind: int, scorch: float, polluted: 
 	m.set_shader_parameter("mix_c", float(g.get("mc", 0.5)))
 	m.set_shader_parameter("is_water", 1.0 if is_water(kind) else 0.0)
 	m.set_shader_parameter("lava", 1.0 if kind == K_LAVA else 0.0)
+	m.set_shader_parameter("glacier", float(g.get("glac", 0.0)))
+	m.set_shader_parameter("w_fauna", 1.0 if kind == 27 else (2.0 if kind == 28 else 0.0))
 	m.set_shader_parameter("moss", float(g.get("moss", 0.0)))
 	m.set_shader_parameter("cracks", float(g.get("crk", 0.0)))
 	apply_water(m, maxf(water_life(kind), 0.0))
@@ -523,6 +585,7 @@ static func foliage(color: Color, use_vc: bool = false) -> ShaderMaterial:
 	m.set_shader_parameter("spring", clampf(1.0 - season, 0.0, 1.0))
 	m.set_shader_parameter("autumn", clampf(1.0 - absf(season - 2.0), 0.0, 1.0))
 	m.set_shader_parameter("winter", clampf(season - 2.0, 0.0, 1.0))
+	m.set_shader_parameter("blanket", blanket)
 	_cache[key] = m
 	_foliage_mats.append(m)
 	return m

@@ -1,14 +1,14 @@
 extends SceneTree
-## Abgleich der Schöpfungs-Regeln mit dem Python-Modell (docs/GDPD_SCHOEPFUNG.md 16):
+## Abgleich der Kampagnen-Regeln mit dem Python-Modell (docs/GDPD_ERDGESCHICHTE.md 12, engine10):
 ##   godot --headless --script res://tests/xcheck9.gd [-- --cases=<datei.json>] [--out=<datei.json>]
 ## Spielt jeden Fall durch den echten GameState (setup_level + play) und vergleicht nach jeder Aktion die Rekord-Zeile
-## (GameState.record9) über ihre md5 mit dem Modell (gdpd_sim/b5/mk_xcheck.py), im Modell-Modus
+## (GameState.record9) über ihre md5 mit dem Modell (gdpd_sim/b7/mk_xcheck10.py), im Modell-Modus
 ## (GameState.engine9_mode: ohne die Regeln aus Build 12). --out schreibt die Zeilen der ersten
 ## abweichenden Fälle (zum Vergleich mit dem Modell). Endet mit „ 0 abweichend“.
 
 
 func _init() -> void:
-	var path := "res://tests/data/xcheck9_cases.json"
+	var path := "res://tests/data/xcheck10_cases.json"
 	var out := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--cases="):

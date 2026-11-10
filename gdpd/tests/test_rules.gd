@@ -131,14 +131,24 @@ func _init() -> void:
 	test_solvable9()
 	test_rescue_game()
 	test_texts9()
-	test_unlock30()
+	test_texts10()
+	test_unlock60()
 	test_migrate_v3()
+	test_migrate_erde()
+	test_sources10()
+	test_hunt10()
+	test_glacier10()
+	test_impact10()
+	test_rain_kind10()
+	test_thrive10()
+	test_reach10()
 	test_level_game()
 	test_ui9()
 	test_hint9()
 	test_rows_build12()
 	test_save9()
 	test_next_action9()
+	test_next_action_all()
 	test_review12()
 	test_card_close9()
 	await process_frame          # das Autoload Game ist jetzt im Baum
@@ -287,10 +297,10 @@ func test_geometry() -> void:
 # =============================================================================
 
 func test_kind_table() -> void:
-	check(FieldData.KIND_COUNT == 27 and WATER == 15 and STONE == 16 and FieldData.LAVA == 17 and FieldData.SEED == 26,
-		"27 Arten (Schöpfung), Wasser ist 15, Fels 16, Lava 17 … Saat 26")
+	check(FieldData.KIND_COUNT == 40 and WATER == 15 and STONE == 16 and FieldData.LAVA == 17 and FieldData.SEED == 26
+		and FieldData.JELLY == 27 and FieldData.CAMP == 39, "40 Arten (Erdgeschichte), Wasser ist 15, Fels 16, Lava 17 … Saat 26, Qualle 27 … Feuerstelle 39")
 	check((FieldData.NEXT as Array).slice(0, 17) == [MEADOW, FOREST, BIGFOREST, HUT, ANIMALS, HUT, HOUSE, VILLAGE, TOWN, BIGCITY, -1, METROPOLIS, -1, -1, -1, -1, -1]
-		and (FieldData.NEXT as Array).slice(17) == [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1], "NEXT wie in der Spec (neue Arten: nur in der Schöpfung)")
+		and (FieldData.NEXT as Array).slice(17).count(-1) == 23, "NEXT wie in der Spec (neue Arten: nur in der Kampagne)")
 	check((FieldData.DOWN as Array).slice(0, 17) == [E, E, MEADOW, MEADOW, FOREST, BIGFOREST, ANIMALS, HUT, HOUSE, VILLAGE, VILLAGE, TOWN, TOWN, BIGCITY, ANIMALS, WATER, STONE], "DOWN wie in der Spec")
 	check((FieldData.TIER as Array).slice(0, 17) == [0, 1, 2, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9, 10, 5, 0, 0] and Balance.GROW_FAITH.size() == 11, "TIER wie in der Spec, GROW_FAITH mit 11 Einträgen")
 	check(not FieldData.can_row(STONE) and not FieldData.nature(STONE) and not FieldData.people(STONE) and FieldData.kind_name(STONE) == "Fels"
@@ -3848,6 +3858,7 @@ const FERN := FieldData.FERN
 const BIRDS := FieldData.BIRDS
 const PRED := FieldData.PRED
 const SEED := FieldData.SEED
+const DOWN := Vector3i(0, -1, 0)
 
 
 ## Ein Level-Stand mit eigenem Brett: alles Wasser, dazu set ({Feld-ID: Art}). over: Teile der Level-Daten ersetzen.
@@ -3903,23 +3914,34 @@ func _types(r: Dictionary) -> Array:
 
 func test_kinds9() -> void:
 	var nk := FieldData.KIND_COUNT
-	check(nk == 27 and FieldData.CODE == "EwWAgTHhDSKGIMPoRLUzafmnvrs" and FieldData.CODE.length() == nk
+	check(nk == 40 and FieldData.CODE == "EwWAgTHhDSKGIMPoRLUzafmnvrs" + "qtibedxpcjkyF" and FieldData.CODE.length() == nk
 		and FieldData.KIND_NAME[FieldData.LAVA] == "Lava" and FieldData.KIND_NAME[SEED] == "Saat"
-		and FieldData.kind_plural(MOSS) == "Moose" and FieldData.kind_icon(PRED) == "pred", "kinds9: 27 Arten, Namen, CODE")
+		and FieldData.kind_plural(MOSS) == "Moose" and FieldData.kind_icon(PRED) == "pred", "kinds10: 40 Arten, Namen, CODE endet mit qtibedxpcjkyF")
 	check(FieldData.water_family(WATER) and FieldData.water_family(FISH) and FieldData.water_family(SOUP)
-		and not FieldData.water_family(MOSS) and FieldData.WATERS.size() == 5, "kinds9: Wasser-Familie (Wasser, Ursuppe, Einzeller, Algen, Fische)")
+		and FieldData.water_family(FieldData.JELLY) and FieldData.water_family(FieldData.TRILO) and not FieldData.water_family(FieldData.ICE)
+		and not FieldData.water_family(MOSS) and FieldData.WATERS.size() == 7, "kinds10: Wasser-Familie mit Quallen und Trilobiten, Eis nicht")
+	var names_ok := (FieldData.kind_name(FieldData.JELLY) == "Qualle" and FieldData.kind_plural(FieldData.JELLY) == "Quallen"
+		and FieldData.kind_name(FieldData.TRILO) == "Trilobit" and FieldData.kind_plural(FieldData.MAMMOTH) == "Mammuts"
+		and str(FieldData.KIND_ARTICLE[FieldData.ICE]) == "Eis" and str(FieldData.KIND_ARTICLE[FieldData.CAMP]) == "eine Feuerstelle"
+		and FieldData.kind_icon(FieldData.SAURO) == "sauro" and FieldData.kind_icon(FieldData.EARLY) == "early"
+		and FieldData.LIVING.has(FieldData.AMPHIB) and FieldData.LIVING.has(FieldData.EARLY) and not FieldData.LIVING.has(FieldData.ICE))
+	var tiers := [5, 5, 5, 6, 6, 7, 8, 7, 0, 7, 8, 9, 9]
+	for i in 13:
+		if FieldData.tier(27 + i) != int(tiers[i]):
+			names_ok = false
+	check(names_ok, "kinds10: Namen, Mehrzahl, Artikel, Symbole, Stufen und Lebende der Arten 27–39")
 	var nk_ok := true
 	for k in nk:
 		if FieldData.DOWN.size() != nk or FieldData.TIER.size() != nk or FieldData.KIND_HELP.size() != nk:
 			nk_ok = false
-	check(nk_ok and Balance.KIND_COUNT == nk, "kinds9: alle Tabellen haben 27 Einträge")
+	check(nk_ok and Balance.KIND_COUNT == nk, "kinds10: alle Tabellen haben 40 Einträge")
 	var rt := true
 	for n in range(1, Campaign.COUNT + 1):
 		for i in Campaign.pool_size(n):
 			var b := Campaign.board(n, i)
 			if Campaign.encode(b["kinds"]) != str(b["board"]) or Campaign.decode(str(b["board"])) != b["kinds"]:
 				rt = false
-	check(rt and Campaign.pool_size(1) == 20 and Campaign.pool_size(30) == 20, "kinds9: decode(encode(b)) == b für jedes Pool-Brett")
+	check(rt and Campaign.pool_size(1) == 20 and Campaign.pool_size(Campaign.COUNT) == 20, "kinds10: decode(encode(b)) == b für jedes Pool-Brett")
 
 
 func test_groups9() -> void:
@@ -3936,7 +3958,7 @@ func test_groups9() -> void:
 	check(gs.gsize9(a) == 3 and gs.gsize9(b) == 3 and gs.group_id9(a) == gs.group_id9(b) and gs.gsize9(c) == 1,
 		"groups: gleiche Arten über Kanten = eine Gruppe (3) und eine zweite (1)")
 	check(gs.supply9(f, "heat") == 3 + 1, "groups: Angebot = Summe der VERSCHIEDENEN Gruppen (3 + 1 = %d)" % gs.supply9(f, "heat"))
-	var g3 := camp_state(27)
+	var g3 := camp_state(54)
 	for k in [a, b, link]:
 		(g3.fields[int(k)] as FieldData).kind = FieldData.FOREST
 	(g3.fields[f] as FieldData).kind = FieldData.TOWN
@@ -3979,21 +4001,21 @@ func test_thrive9() -> void:
 	var k1 := (g2.fields[4] as FieldData).kind
 	tw(g2, mm)
 	check(k1 == LAVA and (g2.fields[4] as FieldData).kind == FieldData.STONE, "cooling: Lava mit genau 2 Wasser wird nach 2 Runden Fels")
-	# Landgang (Level 19): Fisch neben Wiese → Tiere auf der Wiese, der Fisch wird Algen
-	var g19 := camp_state(19)
+	# Landgang (Level 25): Fisch neben Moos → Amphibie auf dem Moos, der Fisch wird Algen
+	var g19 := camp_state(25)
 	var fn := g19.nb9(4)
 	var meadow := int(fn[0])
-	g19 = camp_state(19, {4: FISH, meadow: MEADOW})
+	g19 = camp_state(25, {4: FISH, meadow: MOSS})
 	var m19 := move_avoiding(g19, [4, meadow])
 	var spawned := false
 	for i in 3:
 		var r := tw(g19, m19)
 		if _types(r).has("spawn"):
 			spawned = true
-	check(spawned and (g19.fields[meadow] as FieldData).kind == ANIMALS and (g19.fields[4] as FieldData).kind == ALGAE,
-		"thrive: Landgang – Fisch + Wiese → Tiere, der Fisch wird Algen")
-	# Hunger (Level 20): Tiere ohne Pflanzen: Warnung bei H − 1, verhungern bei H → Wald (nicht Erde)
-	var g20 := camp_state(20, {4: ANIMALS})
+	check(spawned and (g19.fields[meadow] as FieldData).kind == FieldData.AMPHIB and (g19.fields[4] as FieldData).kind == ALGAE,
+		"thrive: Landgang – Fisch + Moos → Amphibie, der Fisch wird Algen")
+	# Hunger (Level 35): Tiere ohne Pflanzen: Warnung bei H − 1, verhungern bei H → Wald (nicht Erde)
+	var g20 := camp_state(35, {4: ANIMALS})
 	(g20.fields[4] as FieldData).hungry = 0
 	var m20 := move_avoiding(g20, [4] + Array(g20.nb9(4)))
 	var seen: Array = []
@@ -4002,15 +4024,15 @@ func test_thrive9() -> void:
 	check(not (seen[1] as Array).has("hunger_warn") and (seen[2] as Array).has("hunger_warn") and (seen[3] as Array).has("starve")
 		and (g20.fields[4] as FieldData).kind == FOREST, "starve_to_forest: Warnung in Runde 3, Runde 4 verhungert → Wald")
 	# Vorrat: ein Tier vom Start-Brett hat 3 Runden extra
-	var g20b := camp_state(20, {4: ANIMALS})
+	var g20b := camp_state(35, {4: ANIMALS})
 	var m20b := move_avoiding(g20b, [4] + Array(g20b.nb9(4)))
 	var starved := false
 	for i in 6:
 		if _types(tw(g20b, m20b)).has("starve"):
 			starved = true
 	check(not starved and (g20b.fields[4] as FieldData).kind == ANIMALS, "Vorrat: Tiere vom Start-Brett verhungern nicht in 6 Runden")
-	# Hütte verhungert nie (Level 24: keine down-Art)
-	var g24 := camp_state(24, {4: HUT})
+	# Hütte verhungert nie (Level 49: keine down-Art)
+	var g24 := camp_state(49, {4: HUT})
 	var m24 := move_avoiding(g24, [4] + Array(g24.nb9(4)))
 	var hk := true
 	for i in 8:
@@ -4018,14 +4040,14 @@ func test_thrive9() -> void:
 		if (g24.fields[4] as FieldData).kind != HUT:
 			hk = false
 	check(hk, "thrive: eine Hütte verhungert nie")
-	# Dorf ohne Arbeit verhungert zur Hütte (Level 26), Stadt zum Dorf (Level 27)
-	var g26 := camp_state(26, {4: VILLAGE, int(camp_state(26).nb9(4)[0]): ANIMALS})
+	# Dorf ohne Arbeit verhungert zur Hütte (Level 53), Stadt zum Dorf (Level 54)
+	var g26 := camp_state(53, {4: VILLAGE, int(camp_state(53).nb9(4)[0]): ANIMALS})
 	(g26.fields[4] as FieldData).hungry = 0
 	var m26 := move_avoiding(g26, [4] + Array(g26.nb9(4)))
 	for i in 4:
 		tw(g26, m26)
 	check((g26.fields[4] as FieldData).kind == HUT, "starve: Dorf, dessen 🔨 nie da war, wird nach H Runden Hütte")
-	var g27 := camp_state(27, {4: TOWN})
+	var g27 := camp_state(54, {4: TOWN})
 	(g27.fields[4] as FieldData).hungry = 0
 	var m27 := move_avoiding(g27, [4] + Array(g27.nb9(4)))
 	for i in 4:
@@ -4035,10 +4057,10 @@ func test_thrive9() -> void:
 
 func test_lasting_supply() -> void:
 	# Hütte neben Tieren: am Rundenende wird 🍞 versiegelt (need_sealed einmal)
-	var probe := camp_state(24)
+	var probe := camp_state(49)
 	var h := 4
 	var a := other_nb(probe, h)
-	var gs := camp_state(24, {h: HUT, a: ANIMALS})
+	var gs := camp_state(49, {h: HUT, a: ANIMALS})
 	var m := move_avoiding(gs, [h, a])
 	var r := tw(gs, m)
 	var sealed := 0
@@ -4061,10 +4083,10 @@ func test_lasting_supply() -> void:
 				again += 1
 	check(again == 0 and gs.satt9(h), "lasting: 5 Runden später noch satt, kein zweites need_sealed")
 	# Tiere satt bleiben (Level 20): keine Hunger-Warnung, nachdem die Wiese weg ist
-	var p20 := camp_state(20)
+	var p20 := camp_state(35)
 	var t := 4
 	var w := other_nb(p20, t)
-	var g20 := camp_state(20, {t: ANIMALS, w: MEADOW})
+	var g20 := camp_state(35, {t: ANIMALS, w: MEADOW})
 	(g20.fields[t] as FieldData).hungry = 0
 	tw(g20, move_avoiding(g20, [t, w]))
 	var away2 := move_avoiding(g20, [t], w)
@@ -4077,7 +4099,7 @@ func test_lasting_supply() -> void:
 	check(not warn and (g20.fields[t] as FieldData).kind == ANIMALS and (g20.fields[t] as FieldData).hungry == 0,
 		"lasting: Tiere, einmal gefüttert, hungern nie (Wiese weggedreht, 5 Runden)")
 	# Regen versorgt: gleich versiegelt (Level 20: Regen macht Erde neben hungrigen Tieren zur Wiese, dann weggedreht)
-	var g20r := camp_state(20, {t: ANIMALS, w: FieldData.EMPTY})
+	var g20r := camp_state(35, {t: ANIMALS, w: FieldData.EMPTY})
 	g20r.rain = 1
 	var rr := g20r.play({"type": "rain", "field": w})
 	var pr := g20r.goal_progress()
@@ -4087,15 +4109,15 @@ func test_lasting_supply() -> void:
 	check(sealed_r and not g20r.nb9(t).has(w), "lasting_rain: Regen → Wiese versiegelt, Wiese weggedreht")
 	check(sealed_r and g20r.satt9(t) and g20r.goal_progress() >= pr, "lasting_rain: nach dem Regen bleiben die Tiere satt, der Fortschritt bleibt")
 	# Ein Feuer löscht die Siegel (Level 24: Hütte brennt → Wiese)
-	var gf := camp_state(24, {h: HUT, a: ANIMALS})
+	var gf := camp_state(49, {h: HUT, a: ANIMALS})
 	tw(gf, move_avoiding(gf, [h, a]))
 	(gf.fields[h] as FieldData).burning = true
 	tw(gf, move_avoiding(gf, [h, a]))
 	check((gf.fields[h] as FieldData).kind == MEADOW and (gf.fields[h] as FieldData).best.is_empty(), "lasting: Feuer löscht die Siegel (Hütte → Wiese)")
 	# Hütte → Dorf behält 🍞 versiegelt, nur 🔨 ist neu (Level 26)
-	var p26 := camp_state(26)
+	var p26 := camp_state(53)
 	var n26 := p26.nb9(h)
-	var gd := camp_state(26, {h: HUT, int(n26[0]): ANIMALS, int(n26[1]): FieldData.STONE})
+	var gd := camp_state(53, {h: HUT, int(n26[0]): ANIMALS, int(n26[1]): FieldData.STONE})
 	var md := move_avoiding(gd, [h, int(n26[0]), int(n26[1])])
 	var grew := false
 	for i in 3:
@@ -4107,7 +4129,7 @@ func test_lasting_supply() -> void:
 	check(grew and fd.best.has("food") and not fd.best.has("work") or (grew and gd.satt9(h)),
 		"lasting: Hütte → Dorf behält 🍞 (%s)" % str(fd.best))
 	# best dreht mit: 4 Vierteldrehungen derselben Scheibe
-	var gq := camp_state(24, {h: HUT, a: ANIMALS})
+	var gq := camp_state(49, {h: HUT, a: ANIMALS})
 	tw(gq, move_avoiding(gq, [h, a]))
 	var b0: Dictionary = (gq.fields[h] as FieldData).best.duplicate()
 	var p_0 := (gq.fields[h] as FieldData).p
@@ -4185,7 +4207,7 @@ func test_volcano9() -> void:
 
 func test_bolt9() -> void:
 	# Level 12: nur trockene Wald-Gruppen (≥ 3, kein Wasser daneben) werden gewarnt
-	var gs := camp_state(12)
+	var gs := camp_state(21)
 	for fd in gs.fields:
 		fd.kind = FieldData.EMPTY
 	var top3: Array = []
@@ -4210,7 +4232,7 @@ func test_bolt9() -> void:
 	var r2 := tw(gs, m2)
 	check(_types(r2).has("bolt_miss") and not _types(r2).has("bolt"), "bolt9: Wasser an den Wald → bolt_miss")
 	# Wald am Wasser wird nie gewarnt: kein Blitz nach Zeit (12 Runden, der ganze Wald berührt Wasser)
-	var g3 := camp_state(12)
+	var g3 := camp_state(21)
 	for fd in g3.fields:
 		if fd.n == UP:
 			fd.kind = FOREST
@@ -4221,7 +4243,7 @@ func test_bolt9() -> void:
 			warned = true
 	check(not warned, "bolt9: Wald am Wasser wird nie gewarnt (kein Blitz nach Zeit)")
 	# Regen auf das gewarnte Feld hebt die Warnung auf
-	var g4 := camp_state(12)
+	var g4 := camp_state(21)
 	for fd in g4.fields:
 		fd.kind = FieldData.EMPTY
 	for i in top3:
@@ -4233,7 +4255,7 @@ func test_bolt9() -> void:
 	var rr := g4.play({"type": "rain", "field": bf})
 	check(bf >= 0 and g4.bolt == -1 and _types(rr).has("bolt_cancel"), "bolt9: Regen auf das gewarnte Feld → bolt_cancel")
 	# Feuer springt nie auf nasse Felder
-	var g5 := camp_state(12)
+	var g5 := camp_state(21)
 	for fd in g5.fields:
 		fd.kind = FOREST if fd.n == UP else WATER
 	g5._grp_ok = false
@@ -4252,7 +4274,7 @@ func test_bolt9() -> void:
 
 func test_pack_smog9() -> void:
 	# Rudel (Level 23): 3 Raubtiere am Stück neben Tieren warnen; trennt man sie, jagen sie nicht
-	var gs := camp_state(23)
+	var gs := camp_state(38)
 	var top3: Array = []
 	for fd in gs.fields:
 		if fd.n == UP and fd.p.z == -1:
@@ -4275,18 +4297,18 @@ func test_pack_smog9() -> void:
 	var r3 := tw(g2, m)
 	check(not _types(r3).has("pack_hunt") and (g2.fields[prey] as FieldData).kind == ANIMALS, "pack: getrennt → keine Jagd")
 	# Meteor auf ein Raubtier hebt das Rudel auf
-	var g3 := camp_state(23)
+	var g3 := camp_state(38)
 	for i in top3:
 		(g3.fields[int(i)] as FieldData).kind = PRED
 	(g3.fields[prey] as FieldData).kind = ANIMALS
 	g3._grp_ok = false
 	tw(g3, m)
-	check(g3.meteors == 1 and g3.meteor_ok9(g3.fields[int(top3[1])]), "meteor: Level 23 hat einen Meteor")
+	check(g3.meteors == 1 and g3.meteor_ok9(g3.fields[int(top3[1])]), "meteor: Level 38 (Rudel) hat einen Meteor")
 	g3.play({"type": "meteor", "field": int(top3[1])})
 	var r4 := tw(g3, m)
 	check(g3.meteors == 0 and not _types(r4).has("pack_hunt"), "meteor: ein Raubtier weg → keine Jagd")
 	# Smog (Level 28): Industrie neben Natur warnt; weggedreht welkt nichts
-	var g4 := camp_state(28)
+	var g4 := camp_state(57)
 	var ind := 4
 	var nat := other_nb(g4, ind)
 	(g4.fields[ind] as FieldData).kind = INDUSTRY
@@ -4327,7 +4349,7 @@ func test_goal_progress9() -> void:
 	g4.end_round()
 	check(g4.goal_progress() == 1 and int(g4.lost9[FieldData.STONE]) == 0, "make: Fels → Erde wächst, kein Verlust")
 	# satt-Ziel (Level 20): zählt satte Tiere; group-Ziel (Level 15): größte Gruppe
-	var g15 := camp_state(15)
+	var g15 := camp_state(51)
 	for fd in g15.fields:
 		if fd.n == UP and fd.p.z == -1:
 			fd.kind = FieldData.FIELD
@@ -4346,7 +4368,7 @@ func test_goal_progress9() -> void:
 			lost = true
 	check(not lost and gl.twists_left() == -1 and gl.day_status()["limit"] == 0, "no_step_limit: ein Level kann man nicht verlieren")
 	# Ära (10): Leben im Wasser ändert die Welt → Ereignis era
-	var g9 := camp_state(9)
+	var g9 := camp_state(10)
 	var r9: Array = []
 	for fd in g9.fields:
 		if fd.n == UP and fd.p.z == 0:
@@ -4356,9 +4378,9 @@ func test_goal_progress9() -> void:
 	g9.moved = {int(r9[1]): true}
 	var re9 := g9.end_round()
 	check(_types(re9).has("era") and int(g9.era9()["life"]) == 2 and int(g9.era9()["act"]) == 3, "era: Algen im Meer → Ereignis era (Leben 2)")
-	# hold (Level 30): Ruhe zählt nur Runden ohne Schaden
-	var g30 := Campaign.new_state(30, Campaign.board(30, 0))
-	check(g30.goal_type() == "hold" and int(g30.held9[0]) == 0, "hold: Level 30 hat ein Ruhe-Ziel")
+	# hold (Level 60): Ruhe zählt nur Runden ohne Schaden
+	var g30 := Campaign.new_state(60, Campaign.board(60, 0))
+	check(g30.goal_type() == "hold" and int(g30.held9[0]) == 0, "hold: Level 60 hat ein Ruhe-Ziel")
 
 
 func test_mercy9() -> void:
@@ -4440,9 +4462,9 @@ func test_points9() -> void:
 
 func test_xcheck9() -> void:
 	var X = load("res://tests/xcheck9.gd")
-	var r: Dictionary = X.run("res://tests/data/xcheck9_cases.json")
-	check(int(r["cases"]) >= 200 and int(r["steps"]) > 4000 and int(r["bad"]) == 0,
-		"xcheck9: Abgleich mit engine9.py: %d Fälle, %d Schritte, %d abweichend" % [int(r["cases"]), int(r["steps"]), int(r["bad"])])
+	var r: Dictionary = X.run("res://tests/data/xcheck10_cases.json")
+	check(int(r["cases"]) >= 250 and int(r["steps"]) > 5000 and int(r["bad"]) == 0,
+		"xcheck10: Abgleich mit engine10.py (neue, umgebaute und alte Level, Pool-Lösungen): %d Fälle, %d Schritte, %d abweichend" % [int(r["cases"]), int(r["steps"]), int(r["bad"])])
 
 
 func test_pool_replay9() -> void:
@@ -4468,7 +4490,7 @@ func test_pool_replay9() -> void:
 		if [int(cs[0]), int(cs[1])] != Campaign.stars_of(n) or int(c["par"]) != int(cs[0]) + 4 or gs0.stars9 != Campaign.stars_of(n):
 			stars_ok = false
 	GameState.engine9_mode = false
-	check(n_boards == 600 and bad == 0, "pool_replay9: alle %d Pool-Lösungen gewinnen im Modell-Modus genau bei solved_in mit ihren Sternen und Punkten (%d abweichend)" % [n_boards, bad])
+	check(n_boards == 20 * Campaign.COUNT and bad == 0, "pool_replay10: alle %d Pool-Lösungen gewinnen im Modell-Modus genau bei solved_in mit ihren Sternen und Punkten (%d abweichend)" % [n_boards, bad])
 	# Spielregeln (Build 12, späte Runde): jedes Pool-Brett bleibt lösbar – mit seiner Lösung oder dem Tipp, mit ★★+
 	var by_sol := 0
 	var by_hint := 0
@@ -4499,8 +4521,9 @@ func test_pool_replay9() -> void:
 			else:
 				lost.append([n2, i2, g3.day_won, g3.stars()])
 	print("  Pool unter den Spielregeln: %d mit der Lösung, %d mit dem Tipp (%d ms)" % [by_sol, by_hint, Time.get_ticks_msec() - t0])
-	check(lost.is_empty() and by_sol >= 570, "pool_replay9: jedes Pool-Brett unter den Spielregeln gewonnen (Lösung %d, Tipp %d, offen %s)" % [by_sol, by_hint, str(lost.slice(0, 3))])
-	check(stars_ok and Campaign.stars_of(17) == [6, 22] and Campaign.stars_of(1) == [4, 9], "stars_v11: großzügige Sterne-Grenzen (stars11.py), Par = ★★★ + 4")
+	check(lost.is_empty() and by_sol >= 19 * Campaign.COUNT, "pool_replay10: jedes Pool-Brett unter den Spielregeln gewonnen (Lösung %d, Tipp %d, offen %s)" % [by_sol, by_hint, str(lost.slice(0, 3))])
+	check(stars_ok and Campaign.stars_of(16) == [5, 19] and Campaign.stars_of(1) == [4, 10] and Campaign.stars_of(59) == [5, 19]
+		and Campaign.par_of(34) == 8, "stars_erde: Sterne-Grenzen und Par aus den Daten (stars12.py), Par = ★★★ + 4")
 
 
 func test_start_rules9() -> void:
@@ -4529,20 +4552,20 @@ func test_start_rules9() -> void:
 
 func test_rain9() -> void:
 	# Level 20–23: Regen auf einen Wald neben einer Wiese lockt Tiere; ohne Wiese geht er nicht
-	var probe := camp_state(20)
+	var probe := camp_state(35)
 	var f := 4
 	var w := int(probe.nb9(f)[0])
-	var gs := camp_state(20, {f: FOREST, w: MEADOW})
+	var gs := camp_state(35, {f: FOREST, w: MEADOW})
 	check(gs.rain_ok9(gs.fields[f]) and gs.rain_to9(gs.fields[f]) == ANIMALS, "rain_lure: Wald neben Wiese → Tiere")
-	var g2 := camp_state(20, {f: FOREST})
+	var g2 := camp_state(35, {f: FOREST})
 	check(not g2.rain_ok9(g2.fields[f]), "rain_lure: Wald ohne Wiese: kein Regen")
-	# Level 19: Regen macht Wasser am Ufer zu Algen
-	var g19 := camp_state(19, {w: MEADOW})
-	check(g19.rain_to9(g19.fields[f]) == ALGAE, "rain19: Wasser am Ufer wird Algen")
-	# Level 25: Regen auf Wiese neben Menschen → Saat, sonst Wald
-	var g25 := camp_state(25, {f: MEADOW, w: HUT})
-	var g25b := camp_state(25, {f: MEADOW})
-	check(g25.rain_to9(g25.fields[f]) == SEED and g25b.rain_to9(g25b.fields[f]) == FOREST, "rain25: Wiese neben Hütte → Saat, sonst Wald")
+	# Level 12: Regen macht Wasser am Ufer zu Algen
+	var g19 := camp_state(12, {w: MEADOW})
+	check(g19.rain_to9(g19.fields[f]) == ALGAE, "rain12: Wasser am Ufer wird Algen")
+	# Level 52: Regen auf Wiese neben Menschen → Saat, sonst Wald
+	var g25 := camp_state(52, {f: MEADOW, w: HUT})
+	var g25b := camp_state(52, {f: MEADOW})
+	check(g25.rain_to9(g25.fields[f]) == SEED and g25b.rain_to9(g25b.fields[f]) == FOREST, "rain52: Wiese neben Hütte → Saat, sonst Wald")
 
 
 func test_dangers_consequence9() -> void:
@@ -4615,7 +4638,8 @@ func test_carry9() -> void:
 	# Die Welt von gestern: genau die Start-Mischung, Startbedingungen erfüllt oder Pool-Brett; deterministisch
 	var ok := true
 	var carried := 0
-	for n in [2, 3, 6, 10, 14, 18, 21, 26, 27, 30]:
+	for n in [2, 3, 6, 7, 9, 10, 13, 14, 16, 17, 19, 22, 24, 26, 27, 29, 31, 32, 33, 35, 37, 39, 41, 42, 44, 45, 47, 49, 51,
+			53, 55, 58, 60]:
 		var prev := Campaign.new_state(n - 1, Campaign.board(n - 1, 4))
 		for st in (Campaign.board(n - 1, 4)["solution"] as Array):
 			var ab: Array = Days.solution_step(st)
@@ -4639,8 +4663,14 @@ func test_carry9() -> void:
 		elif c1["kinds"] != Campaign.board(n, 0)["kinds"]:
 			ok = false
 	var first := Campaign.carry(Campaign.board(4, 0)["kinds"], 5, 1)
-	check(ok and carried >= 5, "carry9: getragene Welt = genau die Mischung, Startbedingungen, deterministisch (%d getragen)" % carried)
-	check(str(first["how"]) == "fallback", "carry9: ein neuer Akt beginnt auf einem frischen Pool-Brett")
+	check(ok and carried >= 15, "carry10: getragene Welt = genau die Mischung, Startbedingungen, deterministisch (%d getragen)" % carried)
+	var firsts := true
+	for e in range(2, Campaign.era_count() + 1):
+		var n1 := int(Campaign.era_levels(e)[0])
+		var prev1: Array = Campaign.board(n1 - 1, 0)["kinds"]
+		if str(Campaign.carry(prev1, n1, 1)["how"]) != "fallback" or not Campaign.first_of_era(n1):
+			firsts = false
+	check(str(first["how"]) == "fallback" and firsts, "carry10: jedes neue Zeitalter beginnt auf einem frischen Pool-Brett")
 
 
 ## Ein Spieler, der zufällig dreht und gießt (der schlechteste Spieler der Prüfung), mit dem Sicherheitsnetz wie
@@ -4693,7 +4723,7 @@ func test_solvable9() -> void:
 			var gp := Campaign.new_state(n, Campaign.board(n, i))
 			if not bool(gp.reach9()["ok"]) or gp.stuck9() != "":
 				bad_pool.append([n, i])
-	check(bad_pool.is_empty(), "solvable9: reach9 hält jedes der 600 Pool-Bretter für erreichbar (%s)" % str(bad_pool.slice(0, 5)))
+	check(bad_pool.is_empty(), "reach10: reach9 hält jedes der %d Pool-Bretter für erreichbar (%s)" % [20 * Campaign.COUNT, str(bad_pool.slice(0, 5))])
 	# 2. Ketten je Akt: Pool-Brett → zufällig spielen (mit Netz) → 0–40 Drehungen Weiterbauen → carry + ensure → …
 	var t0 := Time.get_ticks_msec()
 	var fails: Array = []
@@ -4704,9 +4734,9 @@ func test_solvable9() -> void:
 	var ensure_lines := 0
 	var carry_worst := 0
 	var start_rows: Array = []
-	for act in range(1, 8):
+	for act in range(1, Campaign.era_count() + 1):
 		var levels := Campaign.act_levels(act)
-		for chain in 4:
+		for chain in 2:
 			var rng := RandomNumberGenerator.new()
 			rng.seed = act * 101 + chain * 7
 			var b: Dictionary = Campaign.board(int(levels[0]), 1 + chain)
@@ -4843,35 +4873,35 @@ func test_solvable9() -> void:
 	check(gd.progress9() == p_d + 1 and bool(gd.reach9()["ok"]) and gd.stuck9() == "" and bool(rg.get("gift", false))
 		and (rg["bonus"]["fields"] as Array).size() >= 2,
 		"solvable9: Geschenk = +1 Fels und Lava-Nachschub (%d → %d, %d Felder)" % [p_d, gd.progress9(), (rg["bonus"]["fields"] as Array).size()])
-	# 5. Level 16 (echte Sackgasse aus der Prüfung): Algen nur auf Ecken und Mitten, keine Kante → keine Reihe mehr
+	# 5. Level 15 (echte Sackgasse aus der Prüfung): Quallen nur auf Ecken und Mitten, keine Kante → keine Reihe mehr
 	var a16 := {}
-	var gg := camp_state(16)
+	var gg := camp_state(15)
 	var corners := 0
 	var centres := 0
 	for fd3 in gg.fields:
 		var t := FieldData.sticker_type(fd3.p)
 		if t == 3 and corners < 8:
-			a16[fd3.id] = FieldData.ALGAE
+			a16[fd3.id] = FieldData.JELLY
 			corners += 1
 		elif t == 1 and centres < 2:
-			a16[fd3.id] = FieldData.ALGAE
+			a16[fd3.id] = FieldData.JELLY
 			centres += 1
-	var g16 := camp_state(16, a16)
+	var g16 := camp_state(15, a16)
 	g16.made[FieldData.FISH] = 5
 	var r16 := g16.reach9()
-	check(not bool(r16["ok"]) and str(r16.get("why", "")) == "rows" and g16.stuck9() == "dead", "solvable9: Level 16 mit Algen ohne Kante ist eine Sackgasse (%s)" % str(r16))
+	check(not bool(r16["ok"]) and str(r16.get("why", "")) == "rows" and g16.stuck9() == "dead", "solvable9: Level 15 mit Quallen ohne Kante ist eine Sackgasse (%s)" % str(r16))
 	g16.play({"type": "gift"})
 	check(g16.day_won, "solvable9: das Geschenk macht den sechsten Fisch")
-	# Level 17: Fische nur auf Ecken verschiedener Steine → kein Schwarm aus 5 möglich
+	# Level 16: Fische nur auf Ecken verschiedener Steine → kein Schwarm aus 5 möglich
 	var f17 := {}
 	var cubes := {}
 	for fd4 in gg.fields:
 		if FieldData.sticker_type(fd4.p) == 3 and not cubes.has(fd4.p) and cubes.size() < 6:
 			cubes[fd4.p] = true
 			f17[fd4.id] = FieldData.FISH
-	var g17 := camp_state(17, f17)
+	var g17 := camp_state(16, f17)
 	var b0 := g17.biggest9(FieldData.FISH)
-	check(not bool(g17.reach9()["ok"]) and g17.stuck9() == "dead", "solvable9: Level 17 mit Fischen nur auf Ecken ist eine Sackgasse")
+	check(not bool(g17.reach9()["ok"]) and g17.stuck9() == "dead", "solvable9: Level 16 mit Fischen nur auf Ecken ist eine Sackgasse")
 	g17.play({"type": "gift"})
 	check(g17.biggest9(FieldData.FISH) >= b0 + 1, "solvable9: das Geschenk lässt den Schwarm wachsen (%d → %d)" % [b0, g17.biggest9(FieldData.FISH)])
 	# 6. Das Geschenk bringt in jedem Level vom Pool-Start Fortschritt (Ruhe-Ziel: ein Teilziel mehr satt)
@@ -4883,7 +4913,7 @@ func test_solvable9() -> void:
 		gx.play({"type": "gift"})
 		if gx._subs_sum9() <= s0 and gx.progress9() <= p0:
 			no_gift.append(n)
-	check(no_gift.is_empty(), "solvable9: das Geschenk bringt in allen 30 Leveln Fortschritt (%s)" % str(no_gift))
+	check(no_gift.is_empty(), "gift10: das Geschenk bringt in allen %d Leveln Fortschritt (%s)" % [Campaign.COUNT, str(no_gift)])
 	# 7. Stocken: STALL9 Schritte ohne neuen Fortschritt
 	var gst := Campaign.new_state(5, Campaign.board(5, 1))
 	gst.twists = 9
@@ -4967,13 +4997,505 @@ func test_texts9() -> void:
 	check(not spoil and str(at["name"]) == "?", "texts9: gesperrte Level und Akte zeigen nur „?“ und ein Schloss")
 
 
-func test_unlock30() -> void:
+# --- Erdgeschichte (docs/GDPD_ERDGESCHICHTE.md 13) ----------------------------------------------------------------
+
+## Ein Nachbar-Feld von f auf einem anderen Würfelchen, das nicht in avoid liegt.
+func _nb_free(gs: GameState, f: int, avoid: Array) -> int:
+	for g in gs.nb9(f):
+		if (gs.fields[g] as FieldData).p != (gs.fields[f] as FieldData).p and not avoid.has(int(g)):
+			return int(g)
+	return -1
+
+
+## 2 Zeitalter-Quellen: 🌲 Wald, 🐞 Insekten, ❄ Eis, 🔥 Feuerstelle, 🌾 Farn, 🍖 Saurier, 🦶 Moos.
+func test_sources10() -> void:
+	var cases := [[24, FieldData.FERN, FOREST, "wood"], [26, FieldData.AMPHIB, FieldData.INSECTS, "bugs"],
+		[41, FieldData.MAMMOTH, FieldData.ICE, "cold"], [47, FieldData.EARLY, FieldData.CAMP, "heat"],
+		[28, FieldData.SAURO, FieldData.FERN, "plants"], [29, FieldData.REX, FieldData.SAURO, "prey"],
+		[25, FISH, MOSS, "shore"]]
+	var bad: Array = []
+	for c in cases:
+		var probe := camp_state(int(c[0]))
+		var nb := other_nb(probe, 4)
+		var gs := camp_state(int(c[0]), {4: int(c[1]), nb: int(c[2])})
+		if gs.supply9(4, str(c[3])) != 1 or gs.src_kind9(str(c[3])) != int(c[2]):
+			bad.append(str(c[3]))
+	check(bad.is_empty() and GameState.NEED_NAME9["wood"] == "Holz" and GameState.NEED_ICON9["cold"] == "cold",
+		"sources10: neue Quellen (Holz, Insekten, Kälte, Feuer, Farn, Saurier, Moos) %s" % str(bad))
+	# alte Level: dieselben Quellen wie vorher (kein altes Level hat einen der neuen Nachbarn)
+	var old_ok := true
+	for n in range(1, Campaign.COUNT + 1):
+		var c2 := Campaign.config(n)
+		if c2.get("old") == null:
+			continue
+		var comp: Dictionary = c2["comp"]
+		for key in comp:
+			var k := int(str(key))
+			if k >= FieldData.JELLY and not [15, 16, 22, 25, 28, 29, 30, 31, 38, 49].has(n):
+				old_ok = false
+	check(old_ok, "sources10: unveränderte alte Level haben keine neuen Arten")
+
+
+## 3 Jagd: Raubsaurier ≥ 3 warnen die Saurier daneben; geteilt keine Jagd; eine Herde (≥ 3) ist sicher; gejagt = Verlust.
+func test_hunt10() -> void:
+	var gs := camp_state(32)
+	var top3: Array = []
+	for fd in gs.fields:
+		if fd.n == UP and fd.p.z == -1:
+			fd.kind = FieldData.REX
+			top3.append(fd.id)
+	var prey := -1
+	for fd in gs.fields:
+		if fd.n == UP and fd.p.z == 0 and fd.p.x == 0:
+			fd.kind = FieldData.SAURO
+			fd.mk = true
+			prey = fd.id
+	gs.made[FieldData.SAURO] = 1
+	gs._grp_ok = false
+	var m := move_avoiding(gs, top3 + [prey])
+	var r1 := tw(gs, m)
+	var warn_ev: Dictionary = {}
+	for e in r1["events"]:
+		if str(e["type"]) == "pack_warn":
+			warn_ev = e
+	check(gs.pack_warn9.has(prey) and int(warn_ev.get("hunter", -1)) == FieldData.REX
+		and Campaign.pill(warn_ev) == ["Raubsaurier jagen!", "Trenn die Raubsaurier"], "hunt10: 3 Raubsaurier warnen den Saurier daneben (%s)" % str(Campaign.pill(warn_ev)))
+	var na := gs.next_action()
+	check(str(na["text"]) == "Trenn die Raubsaurier!" or str(na["danger"]) != "pack", "hunt10: die Zeile nennt die Raubsaurier (%s)" % str(na["text"]))
+	var g2 := gs.clone()
+	var r2 := tw(gs, m)
+	check(_types(r2).has("pack_hunt") and _types(r2).has("goal_loss") and (gs.fields[prey] as FieldData).kind == FieldData.FERN,
+		"hunt10: eine Runde später gejagt (Saurier → Farn), ein gemachtes Ziel-Feld zählt −1")
+	(g2.fields[int(top3[1])] as FieldData).kind = FieldData.EMPTY
+	g2._grp_ok = false
+	var r3 := tw(g2, m)
+	check(not _types(r3).has("pack_hunt") and (g2.fields[prey] as FieldData).kind == FieldData.SAURO, "hunt10: getrennt → keine Jagd")
+	# Herde (Level 33): ein Saurier in einer Gruppe von 3 wird nicht gewarnt, ein einzelner schon
+	var gh := camp_state(33)
+	var single := -1
+	var herd: Array = []
+	for fd in gh.fields:
+		if fd.n == UP and fd.p.z == -1:
+			fd.kind = FieldData.REX
+		elif fd.n == UP and fd.p.z == 0:
+			fd.kind = FieldData.SAURO
+			herd.append(fd.id)
+	gh._grp_ok = false
+	var tg := gh.hunt_targets9()
+	check(tg.is_empty() and gh.gsize9(int(herd[0])) == 3, "hunt10: eine Herde aus 3 ist sicher")
+	(gh.fields[int(herd[0])] as FieldData).kind = WATER
+	(gh.fields[int(herd[2])] as FieldData).kind = WATER
+	single = int(herd[1])
+	gh._grp_ok = false
+	check(gh.hunt_targets9().has(single), "hunt10: ein einzelner Saurier neben dem Rudel ist Beute")
+	# das alte Rudel ist dieselbe Regel (Level 38 = altes 23, pack + hunt)
+	var g38 := camp_state(38)
+	check(g38.hunt9.size() == 1 and int((g38.hunt9[0] as Dictionary)["hunter"]) == PRED and int((g38.hunt9[0] as Dictionary)["to"]) == MEADOW
+		and bool(g38.sys9["pack"]), "hunt10: das Rudel (Level 38) ist eine Jagd: Raubtiere ≥ 3 → Tiere werden Wiese")
+	var g48 := camp_state(48)
+	check(int((g48.hunt9[0] as Dictionary)["hunter"]) == FieldData.EARLY and Campaign.pill({"type": "pack_warn", "hunter": FieldData.EARLY})[0] == "Die Tiere fliehen!",
+		"hunt10: zu viele Jäger (Level 48) verjagen die Tiere")
+
+
+## 4 Gletscher: Eis ≥ 4 warnt, eine Runde später frieren höchstens 2 Nachbarn ein (Krater zuerst); Mammut und
+## Feuerstelle nie, nichts neben einer Feuerstelle; Ruhe; Eis in der Sonne taut.
+func test_glacier10() -> void:
+	var gs := camp_state(40)
+	var ice: Array = []
+	for fd in gs.fields:
+		if fd.n == DOWN and fd.p.z == -1:
+			fd.kind = FieldData.ICE
+			ice.append(fd.id)
+	var c0 := -1
+	for fd in gs.fields:
+		if fd.n == DOWN and fd.p.z == 0 and fd.p.x == -1:
+			fd.kind = FieldData.ICE
+			ice.append(fd.id)
+	for fd in gs.fields:
+		if fd.n == DOWN and fd.kind == WATER:
+			fd.kind = ANIMALS
+	gs._grp_ok = false
+	check(gs.biggest9(FieldData.ICE) == 4, "glacier: Testbrett mit 4 Eis am Stück")
+	var m := [1, 1, 1]           # die obere Scheibe: weit weg von der unteren Seite
+	var r1 := tw(gs, m)
+	var thr: Array = gs.glacier_threat9(gs.glac9)
+	check(_types(r1).has("glacier_warn") and gs.glac9 >= 0 and ice.has(gs.glac9) and thr.size() == 2,
+		"glacier: eine Eis-Gruppe ≥ 4 warnt („Gletscher wächst!“), 2 Felder bedroht")
+	var na := gs.next_action()
+	check(str(na["danger"]) != "glacier" or str(na["text"]) == "Teil das Eis!", "glacier: die Zeile „Teil das Eis!“ (%s)" % str(na["text"]))
+	var gcalm := gs.clone()
+	var r2 := tw(gs, m)
+	var frozen := 0
+	for e in r2["events"]:
+		if str(e["type"]) == "freeze":
+			frozen += 1
+			if not thr.has(int(e["field"])):
+				frozen = 99
+	var rest := true
+	for i in ice:
+		if int(gs.glac_rest9[int(i)]) <= 0:
+			rest = false
+	check(frozen == 2 and rest and gs.glac9 == -1, "glacier: eine Runde später frieren genau die 2 bedrohten Nachbarn ein, die Gruppe ruht")
+	# geteilt → glacier_calm
+	(gcalm.fields[int(ice[0])] as FieldData).kind = WATER
+	gcalm._grp_ok = false
+	var r3 := tw(gcalm, m)
+	check(_types(r3).has("glacier_calm") and not _types(r3).has("freeze"), "glacier: geteiltes Eis → Ruhe, nichts friert")
+	# Mammut nie; nichts neben einer Feuerstelle
+	var gm := camp_state(47)
+	for fd in gm.fields:
+		if fd.n == DOWN and fd.p.z == -1:
+			fd.kind = FieldData.ICE
+		elif fd.n == DOWN and fd.p.z == 0:
+			fd.kind = FieldData.EARLY
+		elif fd.n == DOWN and fd.p.z == 1 and fd.p.x == 0:
+			fd.kind = FieldData.CAMP
+	(gm.fields[gm.field_at(Vector3i(-1, -1, 0), DOWN).id] as FieldData).kind = FieldData.ICE
+	gm._grp_ok = false
+	var early_safe := true
+	var cand: Array = []
+	for fd in gm.fields:
+		if fd.kind == FieldData.EARLY:
+			cand.append(fd.id)
+	for i in cand:
+		if gm.freezable9(int(i)) == gm._next_to9(int(i), FieldData.CAMP):
+			early_safe = false
+	var gmm := camp_state(41, {4: FieldData.MAMMOTH})
+	check(early_safe and not gmm.freezable9(4) and not camp_state(41, {4: FieldData.CAMP}).freezable9(4),
+		"glacier: neben einer Feuerstelle friert nichts ein; Mammut und Feuerstelle nie")
+	# Tauen: Eis auf der Sonnenseite (oben) wird nach 2 Runden Wasser (Level 40), in Level 41 nicht
+	var gt := camp_state(40, {4: FieldData.ICE})
+	var top := gt.field_at(UP, UP).id
+	gt = camp_state(40, {top: FieldData.ICE})
+	var mt := move_avoiding(gt, [top])
+	var thawed := false
+	for i in 2:
+		for e in tw(gt, mt)["events"]:
+			if str(e["type"]) == "thrive" and int(e["field"]) == top and int(e["kind"]) == WATER:
+				thawed = true
+	var gt2 := camp_state(40, {gt.field_at(DOWN, DOWN).id: FieldData.ICE})
+	var bot := gt2.field_at(DOWN, DOWN).id
+	for i in 3:
+		tw(gt2, move_avoiding(gt2, [bot]))
+	check(thawed and (gt.fields[top] as FieldData).kind == WATER and (gt2.fields[bot] as FieldData).kind == FieldData.ICE
+		and Campaign.thrive_pill(FieldData.ICE, WATER) == "Eis taut", "thaw: Eis in der Sonne taut (spätestens nach 2 Runden), unten nie („Eis taut“)")
+	var g41 := camp_state(41)
+	check(not g41.thrive9.has(FieldData.ICE) and g41.rain_to9(g41.fields[4]) == -1, "thaw: in Level 41 (Höhepunkt der Eiszeit) taut nichts")
+	# Teilen beim Start einer übernommenen Welt (Campaign.ensure): Eis-Klumpen über 5 werden geteilt
+	var kinds: Array = []
+	for i in 54:
+		kinds.append(WATER)
+	var probe := camp_state(41)
+	var clump: Array = [0]
+	var seen := {0: true}
+	while clump.size() < 8:
+		for fid in clump.duplicate():
+			for h in probe.nb9(int(fid)):
+				if not seen.has(int(h)) and clump.size() < 8:
+					seen[int(h)] = true
+					clump.append(int(h))
+	var comp: Dictionary = Campaign.config(41)["comp"]
+	var rest_k: Array = []
+	for key in comp:
+		for j in int(comp[key]):
+			rest_k.append(int(str(key)))
+	rest_k.erase(FieldData.ICE)
+	var ice_n := 0
+	for fid in clump:
+		kinds[int(fid)] = FieldData.ICE
+		ice_n += 1
+	var free: Array = []
+	for i in 54:
+		if not seen.has(i):
+			free.append(i)
+	var fi := 0
+	for k in rest_k:
+		if int(k) == FieldData.ICE:
+			continue
+		kinds[int(free[fi])] = int(k)
+		fi += 1
+	var e3 := Campaign.ensure(41, {"kinds": kinds, "seed": 3, "how": "stored"}, 1)
+	var ge := Campaign.new_state(41, e3)
+	check(ge.biggest9(FieldData.ICE) <= Campaign.CLUMP_CAP_ICE or str(e3["how"]) == "fallback",
+		"ensure10: ein Eis-Klumpen aus der eigenen Welt wird geteilt (%d → %d, %s)" % [8, ge.biggest9(FieldData.ICE), str(e3.get("line", ""))])
+
+
+## 5 Einschlag: gewarnt vom Start, nach der ersten Drehung ist jeder Saurier Asche (Erde), kein Verlust, nur einmal.
+func test_impact10() -> void:
+	var b := Campaign.board(34, 0)
+	var gs := Campaign.new_state(34, b)
+	var dinos := 0
+	for fd in gs.fields:
+		if [FieldData.SAURO, FieldData.REX, FieldData.PTERO].has(fd.kind):
+			dinos += 1
+	var na := gs.next_action()
+	check(gs.impact_pending9() and str(na["text"]) == "Dreh, der Meteor kommt" and str(na["danger"]) == "impact"
+		and not (na["move"] as Dictionary).is_empty() and Campaign.PILL["impact_warn"][0] == "Meteor kommt!",
+		"impact: Level 34 warnt vom Start („Dreh, der Meteor kommt“, Pille „Meteor kommt!“)")
+	check(bool(gs.reach9()["ok"]) and gs.stuck9() == "", "impact: vor dem Einschlag ist das Ziel erreichbar (aus der Asche wird Wiese)")
+	var before := gs.clone()
+	var mv: Dictionary = na["move"]
+	var r := tw(gs, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+	var left := 0
+	for fd in gs.fields:
+		if [FieldData.SAURO, FieldData.REX, FieldData.PTERO].has(fd.kind):
+			left += 1
+	var imp: Dictionary = {}
+	for e in r["events"]:
+		if str(e["type"]) == "impact":
+			imp = e
+	check(dinos == 15 and left == 0 and (imp.get("fields", []) as Array).size() == dinos and not _types(r).has("goal_loss")
+		and gs.impact_done9 and not gs.impact_pending9() and int(gs.lost9[FieldData.MEADOW]) == 0,
+		"impact: nach der ersten Drehung sind alle %d Saurier Asche, kein Verlust" % dinos)
+	check(_dead_rows(gs).is_empty(), "impact: Reihen durch die neue Asche wachsen gleich (späte Runde)")
+	check(str(gs.era9()["era"]) == Campaign.look_key("asche") and str(before.era9()["era"]) == Campaign.look_key("saurier")
+		and bool(gs.era9().get("impact_done", false)), "impact: der Look wechselt zu Asche")
+	var r2 := tw(gs, [1, 1, 1])
+	check(not _types(r2).has("impact") and not before.impact_done9, "impact: nur einmal; der Stand davor (Zurück) hat ihn noch vor sich")
+	var gl := GameState.load9(gs.save9(), Campaign.config(34))
+	check(gl != null and gl.impact_done9 and not gl.impact_pending9(), "impact: gespeichert und geladen bleibt er geschehen")
+	# Aus Asche wird Wiese: Erde mit 🌾 3 (Farn-Gruppe daneben)
+	var g34 := camp_state(34, {}, {"impact": null})
+	var ash := 4
+	var nbs := g34.nb9(ash)
+	var plants := {ash: FieldData.EMPTY}
+	for j in 3:
+		plants[int(nbs[j])] = FieldData.FERN
+	var gp := camp_state(34, plants)
+	gp.impact_done9 = true
+	var mp := move_avoiding(gp, [ash, int(nbs[0]), int(nbs[1]), int(nbs[2])])
+	for i in 2:
+		tw(gp, mp)
+	check((gp.fields[ash] as FieldData).kind == MEADOW and gp.goal_progress() >= 1 and Campaign.thrive_pill(FieldData.EMPTY, MEADOW) == "Asche wird Wiese",
+		"impact: Asche mit 🌾 3 wird Wiese („Asche wird Wiese“)")
+
+
+## 6 Regen lockt: ein Wald neben Farn wird Saurier (28–33), neben Wiese Tiere (40–42); sonst kein Regen.
+func test_rain_kind10() -> void:
+	var probe := camp_state(28)
+	var f := 4
+	var w := other_nb(probe, f)
+	var g := camp_state(28, {f: FOREST, w: FieldData.FERN})
+	g.rain = 1
+	var g2 := camp_state(28, {f: FOREST, w: MEADOW})
+	g2.rain = 1
+	var g3 := camp_state(40, {f: FOREST, w: MEADOW})
+	g3.rain = 1
+	var g4 := camp_state(41, {f: WATER, w: MEADOW})
+	g4.rain = 1
+	check(g.rain_ok9(g.fields[f]) and g.rain_to9(g.fields[f]) == FieldData.SAURO and not g2.rain_ok9(g2.fields[f])
+		and g3.rain_to9(g3.fields[f]) == ANIMALS and g4.rain_to9(g4.fields[f]) == FieldData.ICE,
+		"rain_kind_cond: Regen lockt Saurier (neben Farn), Tiere (neben Wiese); Regen wird Schnee am Ufer")
+
+
+## 7 Gedeihen der neuen Arten: Trilobit, Insekten, Flugsaurier, Affen, Feuerstelle; Amphibien verhungern zu Moos.
+func test_thrive10() -> void:
+	var cases := [[13, FieldData.JELLY, [STONE, STONE], FieldData.TRILO], [24, FieldData.FERN, [FOREST, FOREST], FieldData.INSECTS],
+		[30, FOREST, [FISH, FISH], FieldData.PTERO], [43, ANIMALS, [FOREST, FOREST], FieldData.APES],
+		[46, FieldData.EARLY, [STONE, FOREST], FieldData.CAMP], [22, FieldData.FERN, [WATER], FOREST]]
+	var bad: Array = []
+	for c in cases:
+		var n := int(c[0])
+		var probe := camp_state(n)
+		var f := 4 if n != 22 else probe.field_at(UP, UP).id
+		var set := {f: int(c[1])}
+		var used: Array = []
+		for src in c[2]:
+			var g := _nb_free(probe, f, used)
+			used.append(g)
+			set[g] = int(src)
+		for g2 in probe.nb9(f):
+			if not set.has(int(g2)):
+				set[int(g2)] = STONE if n == 22 else FieldData.EMPTY
+		var gs := camp_state(n, set)
+		var mv := move_avoiding(gs, [f] + used)
+		var got := false
+		for i in 3:
+			var r := tw(gs, mv)
+			for e in r["events"]:
+				if str(e["type"]) == "thrive" and int(e["field"]) == f and int(e["kind"]) == int(c[3]):
+					got = true
+			if got:
+				break
+		if not got:
+			bad.append([n, FieldData.kind_name(int(c[3])), (gs.fields[f] as FieldData).kind])
+	check(bad.is_empty(), "thrive_new: Trilobit, Insekten, Flugsaurier, Affen, Feuerstelle, Farn → Wald im Licht (%s)" % str(bad))
+	check(Campaign.thrive_pill(FieldData.FERN, FieldData.INSECTS) == "Es summt!" and Campaign.thrive_pill(FieldData.EARLY, FieldData.CAMP) == "Feuer brennt!"
+		and Campaign.thrive_pill(FOREST, FieldData.PTERO) == "Flugsaurier fliegt" and Campaign.thrive_pill(FOREST, FieldData.BIRDS) == "Vögel nisten",
+		"thrive_new: Pillen je Weg („Es summt!“, „Feuer brennt!“ …)")
+	# Amphibie ohne Insekten verhungert zu Moos; einmal versorgt (🐞 versiegelt) nie mehr
+	var ga := camp_state(26, {4: FieldData.AMPHIB})
+	(ga.fields[4] as FieldData).hungry = 0
+	var ma := move_avoiding(ga, [4] + Array(ga.nb9(4)))
+	for i in 4:
+		tw(ga, ma)
+	var nb := other_nb(camp_state(26), 4)
+	var gb := camp_state(26, {4: FieldData.AMPHIB, nb: FieldData.INSECTS})
+	(gb.fields[4] as FieldData).hungry = 0
+	tw(gb, move_avoiding(gb, [4, nb]))
+	var mb := move_avoiding(gb, [4], nb)
+	tw(gb, mb)
+	var mb2 := move_avoiding(gb, [4])
+	for i in 5:
+		tw(gb, mb2)
+	check((ga.fields[4] as FieldData).kind == MOSS and (gb.fields[4] as FieldData).kind == FieldData.AMPHIB and gb.satt9(4),
+		"thrive_new: Amphibie ohne Insekten wird Moos; einmal versorgt bleibt sie")
+
+
+## 10 Sackgassen der neuen Ziel-Arten werden erkannt, das Geschenk bringt +1 (make, group, satt); Level 53 nach
+## Sticker-Art (Hütten auf Mitten, an die nie ein Wald kommt: Modell-Spiele levels10.generate(53, 47/78/84)).
+func test_reach10() -> void:
+	var bad: Array = []
+	for n in range(1, Campaign.COUNT + 1):
+		var c := Campaign.config(n)
+		var g0: Array = (c["goal"] as Array)[0]
+		var t := str(g0[0])
+		if t != "make" and t != "group":
+			continue
+		var probe := camp_state(n)
+		var gk := int((g0[1] as Array)[0]) if t == "make" else int(g0[1])
+		var ks := {gk: true}
+		var src := probe._sources9(ks, true)
+		var filler := -1
+		for k in [STONE, FieldData.EMPTY, LAVA, MEADOW, WATER, FieldData.CAMP, FieldData.CHURCH]:
+			if not src.has(k) and k != gk and not probe.thrive9.has(k):
+				filler = k
+				break
+		var set := {}
+		if t == "group":
+			var cubes := {}
+			for fd in probe.fields:
+				set[fd.id] = filler
+				if FieldData.sticker_type(fd.p) == 3 and not cubes.has(fd.p) and cubes.size() < 6:
+					cubes[fd.p] = true
+					set[fd.id] = gk
+		else:
+			for fd in probe.fields:
+				set[fd.id] = filler
+		var gs := camp_state(n, set)
+		if bool(gs.reach9()["ok"]):
+			bad.append([n, "ok", filler])
+			continue
+		var p0 := gs.progress9()
+		gs.play({"type": "gift"})
+		if gs.progress9() < p0 + 1:
+			bad.append([n, "gift", p0, gs.progress9()])
+	check(bad.is_empty(), "reach10/gift10: jede Sackgasse eines make-/group-Ziels erkannt, das Geschenk bringt +1 (%s)" % str(bad.slice(0, 4)))
+	# Level 53: die drei Spiele des Modells, die ohne Netz festsaßen (alle versorgten Hütten auf Mitten ohne Wald)
+	var f := FileAccess.open("res://tests/data/l53_dead.json", FileAccess.READ)
+	var games: Array = JSON.parse_string(f.get_as_text()) if f != null else []
+	var found := 0
+	for gd in games:
+		var gdd: Dictionary = gd
+		GameState.engine9_mode = true
+		var gs2 := Campaign.new_state(53, {"kinds": Campaign.decode(str(gdd["board"])), "seed": int(gdd["seed"])})
+		for a in gdd["actions"]:
+			var aa: Array = a
+			if str(aa[0]) == "twist":
+				tw(gs2, aa[1])
+			else:
+				gs2.play({"type": str(aa[0]), "field": int(aa[1])})
+		GameState.engine9_mode = false
+		if Campaign.encode(Campaign.decode(gs2.slot_board9())) == "" or gs2.day_won:
+			continue
+		var r := gs2.reach9()
+		var p1 := gs2.progress9()
+		if not bool(r["ok"]) and gs2.stuck9() == "dead":
+			gs2.play({"type": "gift"})
+			if gs2.progress9() >= p1 + 1:
+				found += 1
+	check(games.size() == 3 and found == 3, "reach10: Level 53 – Hütten auf Mitten ohne Wald: erkannt, Geschenk +1 (%d/%d)" % [found, games.size()])
+
+
+## 11 Die nächste Handlung auf jedem Pool-Brett nach jedem Schritt der Lösung (jedes vierte Brett, alle Level).
+func test_next_action_all() -> void:
+	var bad: Array = []
+	var n_act := 0
+	for n in range(1, Campaign.COUNT + 1):
+		for i in range(0, Campaign.pool_size(n), 4):
+			var b := Campaign.board(n, i)
+			var gs := Campaign.new_state(n, b)
+			for st in (b["solution"] as Array):
+				var a := gs.next_action()
+				n_act += 1
+				var txt := str(a.get("text", ""))
+				var wc := txt.split(" ", false).size()
+				var why := _action_ok(gs, a)
+				if txt == "" or wc > 6 or (why != "" and why != "two_fail"):
+					bad.append([n, i, txt, why])
+				var ab: Array = Days.solution_step(st)
+				gs.play(ab[0], ab[1])
+				if gs.day_won:
+					break
+	check(bad.is_empty(), "next_action_all: %d Stände auf allen Leveln, immer ≤ 6 Wörter und möglich (%s)" % [n_act, str(bad.slice(0, 3))])
+
+
+## 13 Keine Genesis-Wörter in den Spieler-Texten; Texte kurz; Zeitalter ohne Spoiler.
+func test_texts10() -> void:
+	var bad: Array = []
+	var re := RegEx.new()
+	re.compile("Tag [1-7]\\b|Schöpfung|siebte|Und es war gut|Genesis")
+	var all: Array = Campaign.player_texts()
+	for k in Days.TEXT:
+		if ["today_new", "today_done", "today", "wdt", "wdt_tomorrow", "complete", "wdt_first_tomorrow"].has(str(k)):
+			all.append(str(Days.TEXT[k]))
+	all.append(Campaign.TEXT["title"])
+	for t in all:
+		if re.search(str(t)) != null:
+			bad.append(str(t))
+	var long: Array = []
+	for t in Campaign.player_texts():
+		if str(t).split(" ", false).size() > 8:
+			long.append(str(t))
+	check(bad.is_empty() and long.is_empty(), "texts10: keine Genesis-Wörter, nie mehr als 8 Wörter (%s %s)" % [str(bad.slice(0, 3)), str(long.slice(0, 3))])
+	var spoil := false
+	for e in range(1, Campaign.era_count() + 1):
+		var t2 := Campaign.era_tile(e, false)
+		if str(t2["name"]) != "?" or str(t2["icon"]) != "lock" or not (t2["levels"] as Array).is_empty() or str(t2["id"]) != "":
+			spoil = true
+	check(not spoil and Campaign.era_count() == 20 and Campaign.COUNT == 60 and str(Campaign.era_info(9)["title"]) == "Saurierzeit"
+		and Campaign.era_of(34) == "meteor" and Campaign.era_index(60) == 20, "texts10: 20 Zeitalter, 60 Level; gesperrte Zeitalter nur „?“")
+
+
+## 15 Ein neues Level je Spieltag bis 60; die Kette springt über schon geschaffte (nach der Umstellung) am selben Tag.
+func test_unlock60() -> void:
 	var c := GameScript.fresh_camp()
-	check(Daily.level_unlocked(c, 1, 100) and not Daily.level_unlocked(c, 2, 100), "unlock30: am Anfang ist nur Level 1 offen")
-	(c["stars"] as Array)[0] = 2
-	Daily.register_level_win(c, 1, 100)
-	check(not Daily.level_unlocked(c, 2, 100) and Daily.new_level_tomorrow(c, 100), "unlock30: nach dem ersten Sieg kommt Level 2 erst morgen")
-	check(Daily.level_unlocked(c, 2, 101) and Daily.level_unlocked(c, 1, 101), "unlock30: am nächsten Spieltag ist Level 2 offen")
+	check((c["stars"] as Array).size() == Campaign.COUNT and Daily.level_unlocked(c, 1, 100) and not Daily.level_unlocked(c, 2, 100),
+		"unlock60: am Anfang ist nur Level 1 offen")
+	var day := 100
+	var ok := true
+	for n in range(1, Campaign.COUNT + 1):
+		if not Daily.level_unlocked(c, n, day) or (n < Campaign.COUNT and Daily.level_unlocked(c, n + 1, day)):
+			ok = false
+		(c["stars"] as Array)[n - 1] = 2
+		Daily.register_level_win(c, n, day)
+		if n < Campaign.COUNT and (Daily.level_unlocked(c, n + 1, day) or not Daily.new_level_tomorrow(c, day)):
+			ok = false
+		day += 1
+	check(ok and int(c["pos"]) == Campaign.COUNT and Daily.all_won(c) and not Daily.wdt_available_camp(c, day - 1)
+		and Daily.wdt_available_camp(c, day), "unlock60: ein neues Level je Spieltag bis %d, danach die Welt des Tages" % Campaign.COUNT)
+	# Kette über schon geschaffte: Level 5 schon geschafft (z. B. alt), Kette bei 3 → am nächsten Tag öffnen 4 (neu)
+	var k := GameScript.fresh_camp()
+	for n2 in [1, 2, 3, 5, 6]:
+		(k["stars"] as Array)[n2 - 1] = 2
+	k["pos"] = 3
+	k["last_new_key"] = 10
+	check(Daily.next_new_level(k) == 4 and not Daily.level_unlocked(k, 5, 10) and Daily.level_unlocked(k, 3, 10), "unlock60: Level 5 (schon geschafft) bleibt versteckt")
+	(k["stars"] as Array)[3] = 1
+	Daily.register_level_win(k, 4, 11)
+	check(int(k["pos"]) == 4 and Daily.next_new_level(k) == 7 and not Daily.level_unlocked(k, 5, 11) and Daily.level_unlocked(k, 5, 12)
+		and Daily.level_unlocked(k, 6, 12) and Daily.level_unlocked(k, 7, 12) and not Daily.level_unlocked(k, 8, 12),
+		"unlock60: am nächsten Spieltag öffnen 5 und 6 (geschafft) mit dem neuen Level 7")
+	# Nachholen zählt nicht als neues Level des Tages
+	var h := GameScript.fresh_camp()
+	for n3 in [1, 2, 4]:
+		(h["stars"] as Array)[n3 - 1] = 2
+	h["pos"] = 4
+	h["last_new_key"] = 20
+	check(Daily.catchup(h, 3) and Daily.level_unlocked(h, 3, 20) and Daily.next_new_level(h) == 5, "unlock60: Level 3 offen zum Nachholen")
+	(h["stars"] as Array)[2] = 3
+	Daily.register_level_win(h, 3, 21)
+	check(int(h["pos"]) == 4 and int(h["last_new_key"]) == 20 and Daily.level_unlocked(h, 5, 21), "unlock60: ein Sieg beim Nachholen sperrt das neue Level nicht")
 	# Schnellstart: 3 neue Level je Spieltag bis fast_to
 	var f := GameScript.fresh_camp()
 	f["fast_to"] = 8
@@ -4982,13 +5504,7 @@ func test_unlock30() -> void:
 		(f["stars"] as Array)[n - 1] = 1
 		Daily.register_level_win(f, n, 200)
 	check(not Daily.level_unlocked(f, 4, 200) and Daily.level_unlocked(f, 4, 201), "fasttrack: höchstens 3 neue je Spieltag")
-	# Welt des Tages erst nach Level 30 (Veteranen jeden Tag)
-	var w := GameScript.fresh_camp()
-	check(not Daily.wdt_available_camp(w, 300), "wdt: nicht während der Kampagne")
-	for i in Campaign.COUNT:
-		(w["stars"] as Array)[i] = 1
-	(w["won_key"] as Array)[Campaign.COUNT - 1] = 300
-	check(not Daily.wdt_available_camp(w, 300) and Daily.wdt_available_camp(w, 301), "wdt: ab dem Spieltag nach Level 30")
+	# Welt des Tages: Vorlagen (eine je Zeitalter), nur aus geschafften Leveln
 	var v := GameScript.fresh_camp()
 	v["veteran"] = true
 	check(not Daily.wdt_available_camp(v, 5), "wdt: Veteran auf Level 1: noch keine Welt des Tages (nie spoilern)")
@@ -5000,10 +5516,107 @@ func test_unlock30() -> void:
 		vmax = maxi(vmax, Campaign.wdt_template(kk, v["stars"]))
 	check(vmax == 3 and Campaign.wdt_config(7, "", v["stars"]).get("level", 0) == 3 and not Campaign.wdt_board(7, v["stars"]).is_empty(),
 		"wdt: Veteran sieht nur Vorlagen aus geschafften Leveln (höchstens %d)" % vmax)
-	var t1 := Campaign.wdt_template(0)
-	var t2 := Campaign.wdt_template(1)
-	check(Campaign.WDT.has(t1) and t1 != t2 and Campaign.wdt_board_index(0) >= 1 and not Campaign.wdt_config(3).is_empty(),
-		"wdt: Vorlagen wechseln, nie Brett 0")
+	check(Campaign.WDT == [3, 7, 11, 14, 16, 20, 23, 27, 32, 35, 38, 40, 44, 47, 48, 51, 54, 56, 58, 59]
+		and Campaign.wdt_board_index(0) >= 1 and Campaign.wdt_template(0) != Campaign.wdt_template(1), "wdt: 20 Vorlagen (eine je Zeitalter), nie Brett 0")
+
+
+## 14 Umstellung „Die Schöpfung“ (30 Level) → „Erdgeschichte“ (60): Sterne, Schritte, Siegtage und bezahlte Punkte
+## wandern mit; Position P, „Nachholen“, versteckte geschaffte Level; zweites Laden ändert nichts.
+func test_migrate_erde() -> void:
+	var path := "user://test_migrate_erde.cfg"
+	check(Campaign.old_to_new(1) == 1 and Campaign.old_to_new(7) == 8 and Campaign.old_to_new(14) == 50 and Campaign.old_to_new(23) == 38
+		and Campaign.old_to_new(30) == 60 and Campaign.pos_of_old(19) == 25 and Campaign.pos_of_old(24) == 49 and Campaign.pos_of_old(30) == 60
+		and Campaign.pos_of_old(13) == 22 and Campaign.pos_of_old(18) == 22, "migrate_erde: OLD_TO_NEW und POS_OF_OLD aus den Daten")
+	var t := lt(2026, 11, 12, 10)
+	var cfg := ConfigFile.new()
+	var st: Array = []
+	var sp: Array = []
+	var wk: Array = []
+	var lb: Array = []
+	for j in 30:
+		st.append(2 if j < 19 else 0)
+		sp.append(5 + j if j < 19 else 0)
+		wk.append(20000 + j if j < 19 else -1)
+		lb.append(60 + j if j < 19 else 0)
+	(st as Array)[13] = 3
+	cfg.set_value("konto", "version", 2)
+	cfg.set_value("konto", "punkte", 777)
+	cfg.set_value("punkte", "level_best", lb)
+	cfg.set_value("punkte", "extras", [])
+	cfg.set_value("kampagne", "version", 1)
+	cfg.set_value("kampagne", "sterne", st)
+	cfg.set_value("kampagne", "schritte", sp)
+	cfg.set_value("kampagne", "gewonnen_am", wk)
+	cfg.set_value("kampagne", "letzter_neuer", Daily.day_key(t) - 1)
+	cfg.set_value("kampagne", "welt", "R".repeat(54))
+	cfg.set_value("kampagne", "welt_level", 19)
+	cfg.set_value("kampagne", "start", Campaign.board(28, 1)["board"])
+	cfg.set_value("kampagne", "start_level", 20)
+	cfg.set_value("kampagne", "brett", [])
+	cfg.save(path)
+	# ein laufender Versuch des alten Levels 20 liegt daneben
+	var run := ConfigFile.new()
+	run.set_value("lauf", "daten", {"v": 1, "level": 20, "wdt": -1, "cfg": "x", "state": {}})
+	run.save(path.get_basename() + "_lauf.cfg")
+	var g := _daily_game(path, t, false)
+	var c: Dictionary = g.camp
+	var cu: Array = []
+	for n in range(1, 25):
+		if g.level_unlocked(n) and g.level_stars(n) == 0:
+			cu.append(n)
+	check(int(c["pos"]) == 25 and cu == [7, 11, 12, 13, 14, 17, 20, 23, 24], "migrate_erde: altes 1–19 → Position 25, Nachholen %s" % str(cu))
+	check(g.level_stars(22) == 2 and g.level_stars(25) == 2 and g.level_stars(30) == 2 and g.level_stars(50) == 3 and g.level_stars(51) == 2
+		and int((c["steps"] as Array)[24]) == 5 + 18 and int((c["won_key"] as Array)[49]) == 20013, "migrate_erde: Sterne, Schritte, Siegtage wandern mit")
+	check(not g.level_unlocked(26) and not g.level_unlocked(30) and not g.level_unlocked(50) and g.new_level_tomorrow(),
+		"migrate_erde: Level 26 erst am nächsten Spieltag; 30, 50, 51 geschafft aber versteckt")
+	check(g.points == 777 and int((g.pdata["level_best"] as Array)[49]) == 73 and int((g.pdata["level_best"] as Array)[13]) == 0,
+		"migrate_erde: Punkte bleiben, bestes bezahltes Ergebnis wandert mit (nichts wird neu bezahlt)")
+	check(str(c["world"]) == "R".repeat(54) and int(c["world_level"]) == 25 and str(c["start"]) == Campaign.board(28, 1)["board"]
+		and int(c["start_level"]) == 28 and g.saved_run().is_empty(),
+		"migrate_erde: die Welt von 19 (→ 25) passt vor 26; Start-Brett mit gleicher Mischung bleibt (20 → 28); laufender Versuch neu")
+	var ov: Dictionary = g.campaign_overview()
+	var shown := ""
+	for a in ov["eras"]:
+		shown += str((a as Dictionary)["name"]) + ","
+	check(g.take_migrated() and not g.take_migrated() and shown.begins_with("Urerde,Urozean") and not shown.contains("Saurierzeit")
+		and shown.ends_with("?,"), "migrate_erde: „Die Welt ist größer geworden.“ einmal; Zeitalter bis zur Position, dann „?“ (%s)" % shown)
+	var ti: Dictionary = g.camp_today_info()
+	check(str(ti["state"]) == "catchup" and int(ti["day"]) == 7 and str(ti["caps"]) == "Nachholen · Level 7",
+		"migrate_erde: Heute-Karte bietet das erste Nachholen an (%s %s)" % [str(ti["state"]), str(ti.get("day", ""))])
+	g._save_profile()
+	g.free()
+	var g2 := _daily_game(path, t, false)
+	check(int(g2.camp["pos"]) == 25 and g2.level_stars(50) == 3 and g2.points == 777, "migrate_erde: zweites Laden ändert nichts")
+	g2.clock_override = t + Daily.DAY
+	check(g2.level_unlocked(26) and not g2.level_unlocked(27) and g2.current_level() == 26, "migrate_erde: am nächsten Spieltag Level 26")
+	var on_r := Balance.CAMPAIGN_ON
+	Balance.CAMPAIGN_ON = true
+	var rtag: String = g2.reminder_tag()
+	Balance.CAMPAIGN_ON = on_r
+	check(rtag == "Level 26" and not rtag.contains(str(Campaign.config(26).get("title", "x"))) and not rtag.contains("Tag"),
+		"migrate_erde: Erinnerungen nennen nur die Nummer des nächsten Levels (%s)" % rtag)
+	g2.free()
+	# alte Kampagne fertig (30 Level): alles offen, Welt des Tages bleibt
+	var c3 := ConfigFile.new()
+	var st3: Array = []
+	var wk3: Array = []
+	for j in 30:
+		st3.append(1)
+		wk3.append(20000 + j)
+	c3.set_value("kampagne", "version", 1)
+	c3.set_value("kampagne", "sterne", st3)
+	c3.set_value("kampagne", "gewonnen_am", wk3)
+	c3.set_value("kampagne", "letzter_neuer", 20029)
+	c3.save(path)
+	var g3 := _daily_game(path, t, false)
+	var all_open := true
+	for n in range(1, Campaign.COUNT + 1):
+		if not g3.level_unlocked(n):
+			all_open = false
+	check(int(g3.camp["pos"]) == 60 and all_open and Daily.wdt_available_camp(g3.camp, g3.today_key()) and not Daily.all_won(g3.camp),
+		"migrate_erde: alte Kampagne fertig → alle 60 offen (30 zum Nachholen), Welt des Tages bleibt")
+	g3.free()
+	DirAccess.remove_absolute(path)
 
 
 ## Spielstand v2 → v3 (GDPD_SCHOEPFUNG.md 13.1, GDPD_PUNKTE_LADEN.md 8.2): Münzen → Punkte, alte Sterne → Punkte,
@@ -5020,8 +5633,8 @@ func test_migrate_v3() -> void:
 	cfg.save(path)
 	var g := _daily_game(path, lt(2026, 11, 12, 9), false)
 	check(g.points == 140 + 5 * 20 and g.credits == g.points and g.points_migrated == g.points, "migrate_v3: 7 Münzen → 140 Punkte, + 20 je alter Stern (%d)" % g.points)
-	check(int(g.camp["fast_to"]) == 8 and not bool(g.camp["veteran"]) and int(g.camp["thanks"]) == 100 and g.level_unlocked(1)
-		and not g.level_unlocked(2), "migrate_v3: alte Tage 1–2 → Schnellstart bis Level 8, Level 1 offen")
+	check(int(g.camp["fast_to"]) == 9 and not bool(g.camp["veteran"]) and int(g.camp["thanks"]) == 100 and g.level_unlocked(1)
+		and not g.level_unlocked(2), "migrate_v3: alte Tage 1–2 → Schnellstart bis Level 9, Level 1 offen")
 	check(int((g.pdata["heute"] as Array)[1]) == 20, "migrate_v3: Bau-Münzen von heute → Weiterbauen-Zähler")
 	g._save_profile()
 	g.free()
@@ -5031,7 +5644,7 @@ func test_migrate_v3() -> void:
 		and not c2.has_section_key("konto", "credits") and c2.has_section("kampagne") and c2.has_section("punkte")
 		and int(c2.get_value("schoepfung", "version", 0)) == 3, "migrate_v3: [konto] punkte, version 2, credits weg, [kampagne] und [punkte] da")
 	var g2 := _daily_game(path, lt(2026, 11, 12, 9), false)
-	check(g2.points == 240 and int(g2.camp["fast_to"]) == 8, "migrate_v3: zweites Laden ändert nichts")
+	check(g2.points == 240 and int(g2.camp["fast_to"]) == 9, "migrate_v3: zweites Laden ändert nichts")
 	g2.free()
 	# alle 7 Tage geschafft: Schnellstart bis 28, die Welt des Tages bleibt
 	var c3 := ConfigFile.new()
@@ -5040,8 +5653,8 @@ func test_migrate_v3() -> void:
 	c3.set_value("schoepfung", "fertig", true)
 	c3.save(path)
 	var g3 := _daily_game(path, lt(2026, 11, 12, 9), false)
-	check(g3.points == 60 + 13 * 20 and int(g3.camp["fast_to"]) == 28 and bool(g3.camp["veteran"])
-		and not Daily.wdt_available_camp(g3.camp, g3.today_key()), "migrate_v3: alle 7 Tage → Schnellstart bis 28, Welt des Tages ab dem ersten Vorlage-Level")
+	check(g3.points == 60 + 13 * 20 and int(g3.camp["fast_to"]) == 57 and bool(g3.camp["veteran"])
+		and not Daily.wdt_available_camp(g3.camp, g3.today_key()), "migrate_v3: alle 7 Tage → Schnellstart bis 57, Welt des Tages ab dem ersten Vorlage-Level")
 	g3.free()
 	# neuer Spieler: 60 Punkte, kein Schnellstart
 	var g4 := _daily_game(path, lt(2026, 11, 12, 9), true)
@@ -5102,8 +5715,11 @@ func test_level_game() -> void:
 			var ld: Dictionary = lv
 			if not bool(ld["open"]) and str(ld["title"]) != "?":
 				locked_ok = false
-	check(locked_ok and (ov["acts"] as Array).size() == 7 and str(((ov["acts"] as Array)[6] as Dictionary)["name"]) == "?",
-		"Übersicht: gesperrte Level und Akte nur „?“ (kein Spoiler)")
+	var eras_ov: Array = ov["eras"]
+	check(locked_ok and (ov["acts"] as Array).size() == Campaign.era_count() and str(((ov["acts"] as Array)[6] as Dictionary)["name"]) == "?"
+		and eras_ov.size() == 2 and str((eras_ov[0] as Dictionary)["name"]) == "Urerde" and str((eras_ov[1] as Dictionary)["name"]) == "?"
+		and ((eras_ov[1] as Dictionary)["levels"] as Array).is_empty(),
+		"Übersicht: ein erreichtes Zeitalter „Urerde“ und eine „?“-Kachel; gesperrte Level und Zeitalter nur „?“ (kein Spoiler)")
 	# Die Welt für morgen kommt nur aus dem neuesten Level: Level 2 geschafft, dann Level 1 wiederholt → bleibt Level 2
 	g2.start_level(2, 1)
 	_replay_in_game(g2)
@@ -5219,7 +5835,7 @@ func test_rows_build12() -> void:
 				b = Campaign.ensure(lv + 1, b, ch)
 	check(carried_rows == 0, "rows12: getragene Welten in Akt 1 starten ohne fertige Reihe (%d)" % carried_rows)
 	# Meteor schließt 3 Erde (Level 23: Erde → Wiese): die Reihe wächst sofort
-	var g0 := camp_state(23)
+	var g0 := camp_state(38)
 	var f0: FieldData = g0.fields[4]
 	var row_m: Array = []
 	for along in 3:
@@ -5227,7 +5843,7 @@ func test_rows_build12() -> void:
 		if ln0.size() == 3 and row_m.is_empty():
 			row_m = ln0
 	var third := int(row_m[2]) if row_m.size() == 3 else -1
-	var gm := camp_state(23, {int(row_m[0]): E, int(row_m[1]): E, third: FOREST} if third >= 0 else {})
+	var gm := camp_state(38, {int(row_m[0]): E, int(row_m[1]): E, third: FOREST} if third >= 0 else {})
 	if third >= 0:
 		gm.meteors = 1
 		var rm := gm.play({"type": "meteor", "field": third})
@@ -5543,7 +6159,7 @@ func test_next_action9() -> void:
 		var ab: Array = Days.solution_step(st)
 		gw.play(ab[0], ab[1])
 	check(str(gw.next_action()["type"]) == "won", "next_action: nach dem Sieg „Geschafft!“")
-	var g20 := Campaign.new_state(20, Campaign.board(20, 1))
+	var g20 := Campaign.new_state(35, Campaign.board(35, 1))
 	check(str(g20.next_action()["hint"]).begins_with("Tiere brauchen Futter: ") and str(g20.next_action()["hint"]).ends_with("/6 versorgt"),
 		"next_action: Versorgungs-Satz für satt-Ziele (%s)" % str(g20.next_action()["hint"]))
 	check(GameState.kind_caps9(STONE) == "Gestein" and GameState.kind_caps9(FieldData.LAVA) == "Glut", "kind_caps9: Fels heißt nicht „Essen“")
@@ -5570,7 +6186,7 @@ func test_next_action9() -> void:
 				break
 	check(found_volc, "next_action: Vulkan droht → „Teil die Lava!“ (Level 3)")
 	# Sackgasse: das Sicherheitsnetz
-	var gd := camp_state(28, {0: FieldData.TOWN, 9: FieldData.TOWN})
+	var gd := camp_state(57, {0: FieldData.TOWN, 9: FieldData.TOWN})
 	var ad := gd.next_action()
 	check(str(ad["type"]) == "help" or gd.gift_plan9().is_empty(), "next_action: Sackgasse → „Hol dir Hilfe“ (%s)" % str(ad["text"]))
 
@@ -5610,10 +6226,13 @@ func _action_ok(gs: GameState, a: Dictionary) -> String:
 			for sd in gs.goal9:
 				if str((sd as Dictionary)["type"]) == "group":
 					gk = int((sd as Dictionary)["kind"])
-			return "" if c.biggest9(gk) > gs.biggest9(gk) or c.sub_progress9(gs.goal9[0]) > gs.sub_progress9(gs.goal9[0]) else "Gruppe nicht größer"
+			var c0 := gs.clone()
+			c0.apply_rotation(int(mv["axis"]), int(mv["layer"]), int(mv["turns"]))      # die Drehung selbst (vor Jagd/Hunger der Runde)
+			return "" if c.biggest9(gk) > gs.biggest9(gk) or c0.biggest9(gk) > gs.biggest9(gk) \
+				or c.sub_progress9(gs.goal9[0]) > gs.sub_progress9(gs.goal9[0]) else "Gruppe nicht größer"
 		if tp == "danger":
 			var hit := {"volcano": "erupt", "bolt": "bolt", "pack": "pack_hunt", "hunger": "starve", "smog": "polluted",
-				"war": "war_hit", "flood": "flood"}
+				"war": "war_hit", "flood": "flood", "glacier": "freeze", "impact": "-"}
 			var bad_t := str(hit.get(str(a["danger"]), "?"))
 			return "Gefahr trat ein" if _types(r).has(bad_t) else ""
 		return ""
@@ -5656,14 +6275,24 @@ func _camp_tests() -> void:
 	test_solvable9()
 	test_rescue_game()
 	test_texts9()
-	test_unlock30()
+	test_texts10()
+	test_unlock60()
 	test_migrate_v3()
+	test_migrate_erde()
+	test_sources10()
+	test_hunt10()
+	test_glacier10()
+	test_impact10()
+	test_rain_kind10()
+	test_thrive10()
+	test_reach10()
 	test_level_game()
 	test_ui9()
 	test_hint9()
 	test_rows_build12()
 	test_save9()
 	test_next_action9()
+	test_next_action_all()
 	await process_frame
 
 
@@ -5679,7 +6308,8 @@ func test_ui9() -> void:
 	var ti: Dictionary = g.today_info()
 	check(str(ti.get("state", "")) == "new" and int(ti["day"]) == 1 and str(ti["title"]) == "Glut" and bool(ti.get("camp", false)),
 		"Heute-Karte: Level 1 neu (%s)" % str(ti.get("title", "")))
-	check(not g.free_play_unlocked() and g.free_locked_text() == "Nach der Schöpfung." and g.stars_max() == 90, "freies Spiel erst nach der Schöpfung")
+	check(not g.free_play_unlocked() and g.free_locked_text() == "Nach der Erdgeschichte." and g.stars_max() == 3 * Campaign.COUNT,
+		"freies Spiel erst nach der Erdgeschichte")
 	check(g.start_level(1), "UI: Level 1 startet")
 	_replay_in_game(g)
 	ti = g.today_info()
@@ -5702,9 +6332,9 @@ func test_ui9() -> void:
 	g.wear("stirnband", true)
 	check(str(g.character.get("kopf", "")) == "stirnband", "Laden: Teil angelegt")
 	check(g.refund("stirnband") and g.points == 175 and str(g.character.get("kopf", "")) == "" and not g.owned.has("stirnband"), "Laden: zurückgeben erstattet alles")
-	# Level 12: Blitzschutz aus dem Vorrat (2 Schritte, je Level einmal)
+	# Level 21 (Wälder, Blitz): Blitzschutz aus dem Vorrat (2 Schritte, je Level einmal)
 	g.debug_open_all = true
-	check(g.start_level(12, 0), "Level 12 startet")
+	check(g.start_level(21, 0), "Level 21 startet")
 	g.stock["blitzschutz"] = 2
 	var s0: int = g.state.steps9()
 	check(g.use_stock("guard") and g.state.bolt_guard9 == 5 and g.state.steps9() == s0 + 2 and int(g.stock["blitzschutz"]) == 1, "Blitzschutz: 5 Runden, zählt 2 Schritte")
@@ -5717,7 +6347,7 @@ func test_ui9() -> void:
 				guard_bolts += 1
 	check(guard_bolts == 0 and g.state.bolt_guard9 == 0, "Blitzschutz: kein Blitz, keine Warnung in 5 Runden")
 	# „Zurück“ nimmt die Drehung zurück, der Schritt bleibt gezählt
-	g.start_level(12, 0)
+	g.start_level(21, 0)
 	g.play_turn(0, 1, 1)
 	if g.has_choice():
 		g.choose_default()
@@ -5808,8 +6438,8 @@ func test_hint9() -> void:
 				if not (g9.simulate(act)["state"] as GameState).day_won:
 					g9.play(act)
 	# Sackgasse (dead9): Level 28 braucht 3 Städte, nur 2 Menschen-Felder übrig und keine Regel macht neue
-	check(camp_state(28, {0: FieldData.TOWN, 9: FieldData.TOWN}).dead9() and not camp_state(28, {0: FieldData.TOWN, 9: FieldData.TOWN, 18: HUT}).dead9()
-		and not camp_state(24, {0: HUT}).dead9(), "dead9: Level 28 mit 2 Städten ist eine Sackgasse, mit 3 Menschen-Feldern nicht; Level 24 (Reihen machen Hütten) nie")
+	check(camp_state(57, {0: FieldData.TOWN, 9: FieldData.TOWN}).dead9() and not camp_state(57, {0: FieldData.TOWN, 9: FieldData.TOWN, 18: HUT}).dead9()
+		and not camp_state(49, {0: HUT}).dead9(), "dead9: Level 28 mit 2 Städten ist eine Sackgasse, mit 3 Menschen-Feldern nicht; Level 24 (Reihen machen Hütten) nie")
 	print("  Tipp-Suche Level 24–29: höchstens %d Simulationen, %.0f ms" % [most, wall])
 	check(most > 0 and most <= 150, "hint9: die Tipp-Suche bleibt begrenzt (%d Simulationen ≤ 150)" % most)
 	check(wins == tried and two * 10 >= tried * 7, "hint9: der Tipp gewinnt jedes geprüfte Level (%d/%d), meist ★★+ (%d)" % [wins, tried, two])

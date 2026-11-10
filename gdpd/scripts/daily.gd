@@ -343,15 +343,22 @@ static func register_first_win(d: Dictionary, n: int, today: int) -> void:
 	d["last_new_key"] = maxi(int(d["last_new_key"]), today)
 
 
-# --- Die Schöpfung: ein neues Level je Spieltag (GDPD_SCHOEPFUNG.md 4, 13) -----------------------------
-# c: Kampagnen-Zustand (Game.camp, gespeichert in [kampagne]): "stars" (Array 30, beste Sterne je Level),
-# "won_key" (Array 30, Spieltag des ersten Siegs, −1), "last_new_key" (Spieltag des letzten ersten Siegs),
-# "fast_to" (Schnellstart bis zu diesem Level, 0 = keiner), "fast_day" ([Spieltag, erste Siege an ihm]),
-# "veteran" (die alten 7 Tage geschafft: Welt des Tages auch während der Kampagne).
+# --- Die Erdgeschichte: ein neues Level je Spieltag (GDPD_ERDGESCHICHTE.md 9, 13 item 15) --------------------------
+# c: Kampagnen-Zustand (Game.camp, gespeichert in [kampagne]): "stars" (Array, beste Sterne je Level), "won_key"
+# (Array, Spieltag des ersten Siegs, −1), "pos" (die Kette: so weit hat das tägliche Freischalten geführt; jedes Level
+# ≤ pos ist offen, ungeschaffte davon zum „Nachholen“), "last_new_key" (Spieltag des letzten ersten Siegs in der Kette),
+# "fast_to" (Schnellstart bis zu diesem Level, 0 = keiner), "fast_day" ([Spieltag, erste Siege an ihm]), "veteran"
+# (Welt des Tages auch während der Kampagne).
+# Das Freischalten führt die Kette weiter: Das nächste neue Level ist das erste ungeschaffte nach pos; schon geschaffte
+# dazwischen (nach einem alten Spielstand) öffnen am selben Spieltag mit, versteckt bleiben sie bis dahin.
 
-## Das nächste neue Level (das erste noch nicht geschaffte; 31 = keins mehr).
+## Das nächste neue Level der Kette (das erste ungeschaffte nach pos; count + 1 = keins mehr).
 static func next_new_level(c: Dictionary) -> int:
-	return next_new_day(c["stars"])
+	var st: Array = c["stars"]
+	var n := maxi(0, int(c.get("pos", 0))) + 1
+	while n <= st.size() and int(st[n - 1]) > 0:
+		n += 1
+	return n
 
 
 ## Erste Siege am Spieltag today (für den Schnellstart).
@@ -388,19 +395,21 @@ static func new_level_tomorrow(c: Dictionary, today: int) -> bool:
 	return next_new_level(c) <= (c["stars"] as Array).size() and not new_level_open(c, today)
 
 
-## Ist Level n spielbar? Level 1 immer; sonst muss das Level davor geschafft sein und n schon geschafft
-## (Wiederholung) oder das heute offene neue Level sein.
+## Ist Level n spielbar? Level 1 immer; jedes Level der Kette (≤ pos: geschafft oder „Nachholen“); das heute offene
+## neue Level und die schon geschafften davor, über die das Freischalten heute springt.
 static func level_unlocked(c: Dictionary, n: int, today: int) -> bool:
 	var st: Array = c["stars"]
 	if n < 1 or n > st.size():
 		return false
-	if n == 1:
+	if n == 1 or n <= int(c.get("pos", 0)):
 		return true
-	if int(st[n - 2]) <= 0:
-		return false
-	if int(st[n - 1]) > 0:
-		return true
-	return n == next_new_level(c) and new_level_open(c, today)
+	return n <= next_new_level(c) and new_level_open(c, today)
+
+
+## Ein Level zum Nachholen: offen, noch nicht geschafft, liegt hinter dem neuen Level (nach einem alten Spielstand).
+static func catchup(c: Dictionary, n: int) -> bool:
+	var st: Array = c["stars"]
+	return n >= 1 and n <= st.size() and n <= int(c.get("pos", 0)) and int(st[n - 1]) <= 0
 
 
 ## Höchstes freies Level (Spielstand [kampagne] level).
@@ -409,20 +418,38 @@ static func level_free(c: Dictionary, today: int) -> int:
 	var cnt := (c["stars"] as Array).size()
 	if nn > cnt:
 		return cnt
-	return nn if level_unlocked(c, nn, today) else maxi(1, nn - 1)
+	return nn if level_unlocked(c, nn, today) else maxi(1, int(c.get("pos", 0)))
 
 
-## Der erste Sieg von Level n am Spieltag today.
+## Der erste Sieg von Level n am Spieltag today. War n das neue Level der Kette, rückt die Kette vor (sie springt über
+## schon geschaffte); ein Sieg beim Nachholen ändert das tägliche Freischalten nicht.
 static func register_level_win(c: Dictionary, n: int, today: int) -> void:
 	var won: Array = c["won_key"]
 	if n >= 1 and n <= won.size():
 		won[n - 1] = today
+	var st: Array = c["stars"]
+	var q := maxi(0, int(c.get("pos", 0)))
+	var head := n > q
+	for m in range(q + 1, n):
+		if m >= 1 and m <= st.size() and int(st[m - 1]) <= 0:
+			head = false
+	if not head:
+		return
+	c["pos"] = n
 	c["last_new_key"] = maxi(int(c.get("last_new_key", -1)), today)
 	c["fast_day"] = [today, firsts_on(c, today) + 1]
 
 
-## Welt des Tages in der Schöpfung: ab dem Spieltag nach dem ersten Sieg von Level 30; Veteranen (alte 7 Tage
-## geschafft) jeden Tag, sobald ein Vorlage-Level (Campaign.WDT) geschafft ist.
+## Alle Level geschafft? (Die Kampagne ist erst dann „fertig“.)
+static func all_won(c: Dictionary) -> bool:
+	for v in c["stars"]:
+		if int(v) <= 0:
+			return false
+	return not (c["stars"] as Array).is_empty()
+
+
+## Welt des Tages in der Kampagne: ab dem Spieltag nach dem ersten Sieg des letzten Levels; Veteranen (alte 7 Tage
+## oder die alte Kampagne geschafft) jeden Tag, sobald ein Vorlage-Level (Campaign.WDT) geschafft ist.
 static func wdt_available_camp(c: Dictionary, today: int) -> bool:
 	if bool(c.get("veteran", false)):
 		return not Campaign.wdt_pool(c["stars"]).is_empty()     # nur Welten aus schon geschafften Leveln

@@ -1035,6 +1035,8 @@ static func get_model(name: String, variant: int = 0) -> Array:
 			_crust(parts, seed)
 		"moss":
 			_moss(parts, seed)
+		_:
+			ErdModels.model(name, parts, seed, variant)
 	var out: Array = []
 	for k in parts:
 		var mb: MB = parts[k]
@@ -1831,13 +1833,17 @@ static func scatter(rng: RandomNumberGenerator, count: int, obst: Array, half: f
 
 ## Gras und Blumen. density: Büschel; flowers: Blüten; lush 0..1 (Paradies); dry: welk.
 static func cover(key: String, rng: RandomNumberGenerator, obst: Array, density: int, flowers: int, dry: bool,
-		pebbles: int = 0, tall: float = 1.0, half: float = 0.31) -> Array:
+		pebbles: int = 0, tall: float = 1.0, half: float = 0.31, gold: bool = false) -> Array:
 	if _models.has("cover|" + key):
 		return _models["cover|" + key]
 	var g := MB.new()
 	var s := MB.new()
 	var lo := Color("#507428") if not dry else Color("#76683e")
 	var hi := Color("#9fbc58") if not dry else Color("#b8a066")
+	if dry and gold:
+		# Savanne (Erdgeschichte): helles, goldenes Gras statt dunkler, trockener Büschel
+		lo = Color("#9a8048")
+		hi = Color("#e6cc80")
 	for p in scatter(rng, density, obst, half):
 		var pp: Vector3 = p
 		var sd := rng.randf() * 100.0
@@ -1941,7 +1947,8 @@ static func creature_mesh(kind: String, variant: int) -> Mesh:
 		"bird":
 			_bird(m)
 		_:
-			_person(m, variant)
+			if not ErdModels.creature(kind, variant, m):
+				_person(m, variant)
 	var mesh := m.commit()
 	_meshes[key] = mesh
 	return mesh

@@ -14,7 +14,7 @@ extends RefCounted
 ##   goal_line(cfg) („Lass 8 Wiesen wachsen“) · limit_line(twists) · star_line(cfg) · TEXT (alle festen Sätze)
 
 const PACK_ID := "schoepfung"
-const PACK_TITLE := "Die Schöpfung in 7 Tagen"
+const PACK_TITLE := "Die Welt in 7 Tagen"
 const BOARDS_PATH := "res://data/days_schoepfung.json"
 const PACKS_DIR := "res://data/packs"
 ## Ein Zeichen je Art im Brett-Text (Index = Art): E Erde, w Wiese, W Wald, A Acker, g Großer Wald, T Tiere, H Hütte,
@@ -119,7 +119,7 @@ const DAYS = [
 
 ## Feste Sätze für die Oberfläche (einfaches Deutsch, du-Form). %d = Zahl.
 const TEXT = {
-	"title": "Die Schöpfung in 7 Tagen",
+	"title": "Die Welt in 7 Tagen",
 	"day": "Tag %d",
 	"day_title": "Tag %d · %s",
 	"limit": "in %d Drehungen",
@@ -153,7 +153,7 @@ const TEXT = {
 	"free": "Freies Spiel",
 	"free_locked": "Nach Tag 7",
 	"locked": "Erst Tag %d schaffen.",
-	"banner_new": "Neu: 7 Tage Schöpfung",
+	"banner_new": "Neu: 7 Tage",
 	"rest": "Wächst erst später.",
 	# Täglich spielen (GDPD_TAEGLICH_CHARAKTER.md 1, 2): neutrale Systemtexte (die Sätze des Charakters macht Voice)
 	"today_new": "Heute neu",

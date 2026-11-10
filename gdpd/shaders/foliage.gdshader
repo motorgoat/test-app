@@ -13,7 +13,9 @@ uniform sampler2D n_fbm : repeat_enable, filter_linear_mipmap;
 uniform float spring = 0.0;
 uniform float autumn = 0.0;
 uniform float winter = 0.0;
+uniform vec4 blanket = vec4(0.92, 0.94, 0.97, 0.0);   // Schnee/Asche auf nach oben zeigendem Laub (Feld-Raum)
 varying vec3 lp;
+varying float up_n;
 varying float hue;
 varying float ao;
 void vertex() {
@@ -28,6 +30,7 @@ void vertex() {
 	VERTEX.x += sin(TIME * speed + vp) * sway * w * g;
 	VERTEX.z += cos(TIME * speed * 0.83 + vp * 1.3) * sway * 0.6 * w * g;
 	lp = VERTEX;
+	up_n = NORMAL.y;
 	hue = fract(sin(seed * 1.37 + 12.9898) * 43758.5453);
 	// eigene Meshes (use_vc) bringen ihre Abdunklung in den Vertexfarben mit
 	ao = use_vc ? 1.0 : clamp(0.62 + VERTEX.y * 7.0, 0.55, 1.0);
@@ -44,6 +47,10 @@ void fragment() {
 		vec3 fall = mix(vec3(1.5, 0.82, 0.22), vec3(1.35, 1.1, 0.3), hue) * lum;
 		c = mix(c, fall, autumn * green * (1.0 - conifer) * 0.85);
 		c = mix(c, vec3(lum) * vec3(0.95, 0.95, 1.0), winter * 0.6);
+	}
+	if (blanket.a > 0.0) {
+		float sn = smoothstep(0.15, 0.6, up_n + (n - 0.5) * 0.5) * smoothstep(0.0, 0.5, blanket.a + 0.2);
+		c = mix(c, blanket.rgb * (0.85 + 0.2 * n), sn * 0.7);
 	}
 	ALBEDO = c * ao;
 	ROUGHNESS = 0.85;

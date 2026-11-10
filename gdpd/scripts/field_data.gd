@@ -1,7 +1,8 @@
 class_name FieldData
 extends RefCounted
 ## Ein Feld auf dem Würfel. Reine Daten, keine Darstellung.
-## Dazu die Art-Tabelle von gdpd (17 Arten, siehe docs/GDPD_7_TAGE.md, Abschnitt 1; Stein: GDPD_BALANCE_2.md 4.1).
+## Dazu die Art-Tabelle von gdpd (40 Arten: 0–16 docs/GDPD_7_TAGE.md 1, 17–26 GDPD_SCHOEPFUNG.md 2,
+## 27–39 die Erdgeschichte, GDPD_ERDGESCHICHTE.md 3).
 
 # --- Arten (kind) -------------------------------------------------------------------
 # Baum „Die Schöpfung in 7 Tagen“ (docs/GDPD_7_TAGE.md, Abschnitt 1): Land → Pflanzen → Tiere → Menschen → Nahrung,
@@ -36,61 +37,93 @@ const FERN := 23          # Farn
 const BIRDS := 24         # Vögel
 const PRED := 25          # Raubtiere: brauchen Beute (🍖)
 const SEED := 26          # Saat: mit Sonne und Wasser → Acker (reif)
-const KIND_COUNT := 27
+# --- Erdgeschichte (docs/GDPD_ERDGESCHICHTE.md 3): 13 neue Arten, Ids 27–39 ------------------------------------
+const JELLY := 27         # Quallen (Wasser-Familie): 3 Algen in einer Reihe
+const TRILO := 28         # Trilobiten (Wasser-Familie): Qualle mit ⛰⛰
+const INSECTS := 29       # Insekten: Farn mit 🌲🌲; geben 🐞
+const AMPHIB := 30        # Amphibien: Landgang auf Moos; brauchen 🐞
+const REPTILE := 31       # Reptilien: 3 Amphibien in einer Reihe
+const SAURO := 32         # Saurier (Pflanzenfresser): brauchen 🌾, geben 🍖
+const REX := 33           # Raubsaurier: brauchen 🍖
+const PTERO := 34         # Flugsaurier: Wald mit 🐟🐟
+const ICE := 35           # Eis: gibt ❄, taut in der Sonne, Gletscher friert Nachbarn ein (kein Wasser: brennt nicht, gibt kein 💧)
+const MAMMOTH := 36       # Mammut: braucht 🌾 und ❄, friert nie ein
+const APES := 37          # Affen: Tiere mit 🌲🌲
+const EARLY := 38         # Frühmenschen: 3 Affen in einer Reihe
+const CAMP := 39          # Feuerstelle (fertig): Frühmensch mit ⛰ + 🌲; gibt 🔥, daneben friert nichts ein
+const KIND_COUNT := 40
 ## Wasser-Familie: zählt als Wasser (nass, ein Wasser-Körper, Flut, brennt nie).
-const WATERS = [WATER, SOUP, CELLS, ALGAE, FISH]
+const WATERS = [WATER, SOUP, CELLS, ALGAE, FISH, JELLY, TRILO]
 ## Lebende Arten, die verhungern können (Hunger-Symbole).
-const LIVING = [ANIMALS, PRED, HUT, VILLAGE, TOWN]
-## Ein Buchstabe je Art für Brett-Texte (Index = Art), wie im Python-Modell (engine9.CODE).
-const CODE := "EwWAgTHhDSKGIMPoRLUzafmnvrs"
+const LIVING = [ANIMALS, PRED, HUT, VILLAGE, TOWN, AMPHIB, SAURO, REX, MAMMOTH, APES, EARLY]
+## Ein Buchstabe je Art für Brett-Texte (Index = Art), wie im Python-Modell (engine10.CODE).
+const CODE := "EwWAgTHhDSKGIMPoRLUzafmnvrsqtibedxpcjkyF"
 
 const KIND_KEY = ["empty", "meadow", "forest", "field", "bigforest", "animals", "hut", "house", "village", "town",
 	"church", "bigcity", "industry", "metropolis", "paradise", "water", "stone",
-	"lava", "soup", "cells", "algae", "fish", "moss", "fern", "birds", "pred", "seed"]
+	"lava", "soup", "cells", "algae", "fish", "moss", "fern", "birds", "pred", "seed",
+	"jelly", "trilo", "insects", "amphib", "reptile", "sauro", "rex", "ptero", "ice", "mammoth", "apes", "early", "camp"]
 const KIND_NAME = ["Erde", "Wiese", "Wald", "Acker", "Großer Wald", "Tiere", "Hütte", "Haus", "Dorf", "Stadt",
 	"Kirche", "Großstadt", "Industrie", "Metropole", "Paradies", "Wasser", "Fels",
-	"Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moos", "Farn", "Vögel", "Raubtiere", "Saat"]
+	"Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moos", "Farn", "Vögel", "Raubtiere", "Saat",
+	"Qualle", "Trilobit", "Insekten", "Amphibie", "Reptil", "Saurier", "Raubsaurier", "Flugsaurier", "Eis", "Mammut",
+	"Affe", "Frühmensch", "Feuerstelle"]
 const KIND_SHORT = ["Erde", "Wiese", "Wald", "Acker", "gr. Wald", "Tiere", "Hütte", "Haus", "Dorf", "Stadt",
 	"Kirche", "Großstadt", "Industrie", "Metropole", "Paradies", "Wasser", "Fels",
-	"Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moos", "Farn", "Vögel", "Raubtiere", "Saat"]
+	"Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moos", "Farn", "Vögel", "Raubtiere", "Saat",
+	"Qualle", "Trilobit", "Insekten", "Amphibie", "Reptil", "Saurier", "Raubsaurier", "Flugsaurier", "Eis", "Mammut",
+	"Affe", "Frühmensch", "Feuerstelle"]
 const KIND_ARTICLE = ["Erde", "eine Wiese", "einen Wald", "einen Acker", "einen großen Wald", "Tiere", "eine Hütte",
 	"ein Haus", "ein Dorf", "eine Stadt", "eine Kirche", "eine Großstadt", "Industrie", "eine Metropole", "ein Paradies",
 	"Wasser", "einen Fels", "Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moos", "einen Farn", "Vögel",
-	"Raubtiere", "Saat"]
+	"Raubtiere", "Saat", "eine Qualle", "einen Trilobiten", "Insekten", "eine Amphibie", "ein Reptil", "einen Saurier",
+	"einen Raubsaurier", "einen Flugsaurier", "Eis", "ein Mammut", "einen Affen", "einen Frühmenschen", "eine Feuerstelle"]
 ## Mehrzahl für Ziele („Lass 8 Wiesen wachsen“).
 const KIND_PLURAL = ["Erde", "Wiesen", "Wälder", "Äcker", "große Wälder", "Tiere", "Hütten", "Häuser", "Dörfer",
 	"Städte", "Kirchen", "Großstädte", "Industrien", "Metropolen", "Paradiese", "Wasser", "Felsen",
-	"Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moose", "Farne", "Vögel", "Raubtiere", "Saaten"]
+	"Lava", "Ursuppe", "Einzeller", "Algen", "Fische", "Moose", "Farne", "Vögel", "Raubtiere", "Saaten",
+	"Quallen", "Trilobiten", "Insekten", "Amphibien", "Reptilien", "Saurier", "Raubsaurier", "Flugsaurier", "Eis",
+	"Mammuts", "Affen", "Frühmenschen", "Feuerstellen"]
 ## Icon-Namen (res://icons/<name>.svg). Fehlt eins, nimmt die Oberfläche KIND_ICON_FALLBACK.
 const KIND_ICON = ["empty", "meadow", "smallforest", "field", "nature", "animals", "hut", "house", "village", "town",
 	"church", "bigcity", "industry", "metropolis", "paradise", "water", "stone",
-	"lava", "soup", "cells", "algae", "fish", "moss", "fern", "birds", "pred", "seed"]
+	"lava", "soup", "cells", "algae", "fish", "moss", "fern", "birds", "pred", "seed",
+	"jelly", "trilo", "insects", "amphib", "reptile", "sauro", "rex", "ptero", "ice", "mammoth", "apes", "early", "camp"]
 const KIND_ICON_FALLBACK = {"field": "meadow", "animals": "paw", "paradise": "nature", "smallforest": "nature", "water": "rain",
 	"stone": "empty", "lava": "fire", "soup": "water", "cells": "water", "algae": "water", "fish": "water",
-	"moss": "meadow", "fern": "nature", "birds": "nature", "pred": "paw", "seed": "meadow"}
+	"moss": "meadow", "fern": "nature", "birds": "nature", "pred": "paw", "seed": "meadow",
+	"jelly": "fish", "trilo": "fish", "insects": "nature", "amphib": "paw", "reptile": "paw", "sauro": "animals",
+	"rex": "pred", "ptero": "birds", "ice": "water", "mammoth": "animals", "apes": "animals", "early": "hut",
+	"camp": "fire"}
 ## Stufe: Reihenfolge, Glaube fürs Wachsen (Balance.GROW_FAITH), Diagonalen. Schöpfung: Platz auf der Lebensleiter
 ## (nur für Symbole und Sortierung, keine Regel benutzt sie; GDPD_SCHOEPFUNG.md 2).
 const TIER = [0, 1, 2, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9, 10, 5, 0, 0,
-	0, 1, 2, 3, 4, 3, 4, 6, 7, 4]
+	0, 1, 2, 3, 4, 3, 4, 6, 7, 4,
+	5, 5, 5, 6, 6, 7, 8, 7, 0, 7, 8, 9, 9]
 ## Familie: land (Erde), nature, food, people, faith (Kirche, zählt zu den Menschen), industry, none (Wasser),
 ## geology (Lava, Fels), water (Leben im Wasser), plant, animal.
 const FAMILY = ["land", "nature", "nature", "food", "nature", "nature", "people", "people", "people", "people",
 	"faith", "people", "industry", "people", "nature", "none", "none",
-	"geology", "water", "water", "water", "water", "plant", "plant", "animal", "animal", "food"]
+	"geology", "water", "water", "water", "water", "plant", "plant", "animal", "animal", "food",
+	"water", "water", "animal", "animal", "animal", "animal", "animal", "animal", "geology", "animal", "animal",
+	"people", "geology"]
 ## Nächste Art bei einer neuen Dreierreihe (der Standardweg; -1: fertig oder Wasser). Eine Wahl hat als Option 1 diesen Weg.
 ## Die Schöpfung hat ihre eigene Reihen-Tabelle je Level (Campaign); die neuen Arten wachsen im freien Spiel nicht.
 const NEXT = [MEADOW, FOREST, BIGFOREST, HUT, ANIMALS, HUT, HOUSE, VILLAGE, TOWN, BIGCITY, -1, METROPOLIS, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
 ## Wahl („Dein Wille geschehe“): Art → [Option 1 (Standard), Option 2]. Welche davon gerade gilt, entscheidet der
 ## Spielstand (GameState.is_choice: an einem Tag erst ab dem Tag, an dem Option 2 freigeschaltet ist).
 const CHOICE = {MEADOW: [FOREST, FIELD], VILLAGE: [TOWN, CHURCH], TOWN: [BIGCITY, INDUSTRY], ANIMALS: [HUT, PARADISE]}
 ## Fällt (Feuer, Krieg, Gewitter, Flut, Smog) auf diese Art. Erde bleibt Erde, Wasser bleibt Wasser.
 const DOWN = [EMPTY, EMPTY, MEADOW, MEADOW, FOREST, BIGFOREST, ANIMALS, HUT, HOUSE, VILLAGE, VILLAGE, TOWN, TOWN,
 	BIGCITY, ANIMALS, WATER, STONE,
-	LAVA, WATER, SOUP, CELLS, ALGAE, EMPTY, MOSS, FOREST, ANIMALS, MEADOW]
+	LAVA, WATER, SOUP, CELLS, ALGAE, EMPTY, MOSS, FOREST, ANIMALS, MEADOW,
+	ALGAE, ALGAE, FERN, MOSS, MOSS, FOREST, SAURO, FERN, WATER, ANIMALS, MEADOW, APES, STONE]
 ## Zeitalter (0 Urzeit … 6 Moderne), das diese Art beim ersten Bau erreicht (Natur ändert nichts; nur freies Spiel).
 const AGE_OF = [0, 0, 0, 1, 0, 0, 1, 2, 3, 4, 4, 5, 5, 6, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 # --- Texte für die Wahl-Karte ------------------------------------------------------------
 const CHOICE_HEADER := "Dein Wille geschehe"
@@ -131,6 +164,19 @@ const KIND_HELP = [
 	"Vögel. Brauchen Fische.",
 	"Raubtiere. Brauchen Tiere.",
 	"Saat. Braucht Sonne und Wasser.",
+	"Qualle. Lebt im Meer.",
+	"Trilobit. Panzer aus Stein.",
+	"Insekten. Futter für Frösche.",
+	"Amphibie. Braucht Insekten.",
+	"Reptil. Legt Eier an Land.",
+	"Saurier. Braucht Pflanzen.",
+	"Raubsaurier. Braucht Saurier.",
+	"Flugsaurier. Fängt Fische.",
+	"Eis. Taut in der Sonne.",
+	"Mammut. Braucht Gras und Eis.",
+	"Affe. Lebt in den Bäumen.",
+	"Frühmensch. Braucht Feuer.",
+	"Feuerstelle. Wärmt und hält Eis fern.",
 ]
 ## Texte, solange die Wahl dieser Art noch nicht freigeschaltet ist (vor Tag 5 bzw. in den 7 Tagen).
 const KIND_HELP_NO_CHOICE = {MEADOW: "Wiese. Wird Wald.",
@@ -245,9 +291,9 @@ static func can_row(k: int) -> bool:
 	return k != WATER and k != STONE and valid(k) and not finished(k) and k < LAVA
 
 
-## Wasser-Familie (Wasser, Ursuppe, Einzeller, Algen, Fische): nass, ein Wasser-Körper, brennt nie.
+## Wasser-Familie (Wasser, Ursuppe, Einzeller, Algen, Fische, Quallen, Trilobiten): nass, ein Wasser-Körper, brennt nie.
 static func water_family(k: int) -> bool:
-	return k == WATER or k == SOUP or k == CELLS or k == ALGAE or k == FISH
+	return k == WATER or k == SOUP or k == CELLS or k == ALGAE or k == FISH or k == JELLY or k == TRILO
 
 
 ## Kurzer Buchstabe eines Felds im Brett-Text (CODE).

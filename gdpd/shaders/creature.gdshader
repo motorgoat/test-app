@@ -11,6 +11,7 @@ uniform float hop = 0.0;
 uniform float rate = 11.0;
 uniform float phase = 0.0;
 uniform float tint = 0.0;     // 0..1 traurig/grau (Hunger)
+uniform float stride = 1.0;   // Schrittweite der Beine (große Tiere: Langhals, Mammut schreiten kürzer)
 
 vec2 rot2(vec2 d, float a) {
 	float c = cos(a);
@@ -25,7 +26,7 @@ void vertex() {
 	float t = TIME * rate + phase;
 	float sw = sin(t);
 	if (part == 1.0 || part == 2.0) {
-		float a = (part == 1.0 ? 1.0 : -1.0) * sw * 0.6 * walk;
+		float a = (part == 1.0 ? 1.0 : -1.0) * sw * 0.6 * walk * stride;
 		VERTEX.xy = piv + rot2(VERTEX.xy - piv, a);
 	} else if (part == 5.0 || part == 6.0) {
 		float sg = part == 5.0 ? -1.0 : 1.0;
@@ -37,6 +38,10 @@ void vertex() {
 		VERTEX.xy = piv + rot2(VERTEX.xy - piv, -graze * 1.05 + idle + chew);
 	} else if (part == 7.0) {
 		VERTEX.z += sin(TIME * 5.0 + phase) * 0.35 * (piv.y - VERTEX.y);
+	} else if (part == 8.0) {
+		// waagrechter Schwanz (Saurier, Mammut nicht): Welle läuft zur Spitze, Ausschlag wächst mit dem Abstand
+		float dl = max(piv.x - VERTEX.x, 0.0);
+		VERTEX.z += sin(TIME * 1.6 + phase - dl * 30.0) * 0.22 * dl * (1.0 + walk);
 	}
 	if (part >= 4.0 && part <= 6.0) {
 		vec2 hp = vec2(0.0, hip);

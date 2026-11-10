@@ -146,15 +146,15 @@ func _update_tilt(delta: float) -> void:
 			_g_base = g
 		_g_base = _g_base.lerp(g, 1.0 - exp(-delta * 0.6))
 		var d := (g - _g_base) / 9.81
-		# Senkrecht passend zum Ziehen umgekehrt (ORBIT_INVERT_Y): Oberkante des Handys wegkippen wirkt wie Finger nach unten
-		var tz := -d.z if ORBIT_INVERT_Y else d.z
+		# Kippen senkrecht umgekehrt (TILT_INVERT_Y, Wunsch nach Build 12): nur das Handy-Kippen, nicht das Ziehen
+		var tz := -d.z if TILT_INVERT_Y else d.z
 		target = Vector2(clampf(-d.x * 2.6, -1.0, 1.0), clampf(tz * 2.6, -1.0, 1.0)) * Balance.TILT_MAX
 	_tilt = _tilt.lerp(target, 1.0 - exp(-delta * 6.0))
 
 
-## Senkrecht umgekehrt (Build 12, Wunsch nach dem Spielen am Handy): Finger nach unten zieht die Kamera nach unten
-## (man sieht mehr von der Unterseite), Finger nach oben zeigt mehr von oben. Waagerecht wie bisher.
-const ORBIT_INVERT_Y := true
+## Ziehen mit dem Finger wie vor Build 12 (nicht umgekehrt). Umgekehrt ist nur das Kippen des Handys (TILT_INVERT_Y).
+const ORBIT_INVERT_Y := false
+const TILT_INVERT_Y := true
 
 
 func _rotate_by(px: Vector2) -> void:

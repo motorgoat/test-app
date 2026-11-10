@@ -134,7 +134,8 @@ func _initialize() -> void:
 	if FieldView.KIND_TILE.size() != FieldView.KIND_COUNT or FieldView.KIND_ICON.size() != FieldView.KIND_COUNT:
 		_fail("Tabellen-Länge")
 	for k in FieldView.KIND_COUNT:
-		if not ResourceLoader.exists("res://icons/%s.svg" % FieldView.KIND_ICON[k]):
+		# eigenes Symbol oder (neue Arten, solange das SVG fehlt) das Ersatz-Symbol aus ICON_FALLBACK
+		if not ResourceLoader.exists("res://icons/%s.svg" % FieldView.kind_icon(k)):
 			_fail("Symbol fehlt: " + FieldView.KIND_ICON[k])
 	if FieldView.KIND_ICON[FieldData.WATER] != "water":
 		_fail("Wasser fehlt in FieldView")
@@ -185,6 +186,7 @@ func _initialize() -> void:
 		if Style.icon(FieldView.icon_name(String(n2))) == null:
 			_fail("Bedürfnis-Symbol fehlt: " + String(n2))
 	_test_eras(root)
+	_test_erde(root)
 	_test_merge(root)
 	_test_wave_frame()
 	for cr in ["sheep", "cow", "deer", "hare", "duck", "person"]:
@@ -241,13 +243,160 @@ func _test_eras(root: Node3D) -> void:
 	Look.set_era("tag")
 	probe.era_changed()
 	# Level → Zeitalter (Spec 4.1)
+	# (nur solange die alte Akt-Zuordnung Eras.act_of besteht; die Erdgeschichte nimmt das Zeitalter aus den Level-Daten)
+	var es: Script = load("res://scripts/eras.gd")
+	var has_acts := false
+	for md in es.get_script_method_list():
+		if String((md as Dictionary)["name"]) == "act_of":
+			has_acts = true
 	var want := {1: "glut", 4: "glut_kuehl", 6: "dunst", 10: "blau", 13: "fruehling", 14: "sommer", 15: "herbst", 17: "tag",
 		24: "menschen", 27: "abend", 30: "vollendet"}
-	for lv in want:
-		if Eras.of(0, int(lv)) != String(want[lv]):
-			_fail("Eras.of Level %d: %s" % [int(lv), Eras.of(0, int(lv))])
+	for lv in (want if has_acts else {}):
+		var got: Variant = es.call("of", 0, int(lv))
+		if str(got) != String(want[lv]):
+			_fail("Eras.of Level %d: %s" % [int(lv), str(got)])
 	Look.set_era(_era if _era != "" else "tag")
 	probe.queue_free()
+
+
+# --- Erdgeschichte (GDPD_ERDGESCHICHTE_GRAFIK.md): Zeitalter, Decke, Eis, Gletscher, Gestalten, neue Modelle ------
+
+const ERDE_ERAS := ["kambrium", "meer", "landgang", "karbon", "saurier", "asche", "erholung", "saeuger", "eiszeit", "savanne", "feuer",
+	"jaeger", "glaube"]
+const ERDE_CREATURES := ["sauro", "trex", "raptor", "ptero", "mammoth", "ape", "hunter", "shrew", "trilobite", "jelly", "dragonfly", "amph",
+	"lizard", "cave_lion", "antelope", "horse", "armorfish"]
+const ERDE_PLANTS := ["cycad", "araucaria", "acacia", "campfire", "lepido", "skeleton", "stone_circle", "fur_tent", "eggs", "drying_rack",
+	"ice_block", "ice_rock", "charred"]
+
+
+## Jedes neue Zeitalter: Stimmung vorhanden, Licht über den Untergrenzen (3.2), totes Wasser nicht zu dunkel; Decke und
+## Eis auf alten und neu gebauten Boden-Materialien und auf dem Laub; Mischung Asche → Erholung; Gletscher-Boden;
+## Gestalten der Arten je Zeitalter (Agenten, Wassertiere, Flieger); jedes neue Tier und jede Pflanze baut im Budget;
+## eine unbekannte Art wird Erde.
+func _test_erde(root: Node3D) -> void:
+	var moods: Dictionary = (load("res://scripts/world.gd") as Script).get_script_constant_map().get("MOODS", {})
+	for en in ERDE_ERAS:
+		if not Eras.has(String(en)):
+			_fail("Zeitalter fehlt: " + String(en))
+			continue
+		var ed: Dictionary = Eras.get_era(String(en))
+		var mn := String(ed["mood"])
+		if not moods.has(mn):
+			_fail("Stimmung fehlt: " + mn)
+			continue
+		var m: Dictionary = moods[mn]
+		if float(m["sun_e"]) < 0.8 or float(m["fill_e"]) < 0.6 or float(m["amb_e"]) < 0.85 or float(m["sat"]) < 0.75:
+			_fail("Licht unter den Untergrenzen: " + mn)
+		var deep := Color(str((ed.get("water", {}) as Dictionary).get("deep", "#12383f")))
+		if deep.get_luminance() < Color("#2a3438").get_luminance() - 0.06:
+			# nur totes, trübes Wasser muss hell genug sein (klares, tiefes Wasser darf dunkel sein)
+			if float((ed.get("water", {}) as Dictionary).get("glint", 1.0)) < 0.5:
+				_fail("totes Wasser zu dunkel: " + String(en))
+		if float(ed.get("blanket", 0.0)) > 0.45:
+			_fail("Decke über 0,45: " + String(en))
+	# Decke und Eis: vorhandenes und neu gebautes Boden-Material, Laub (CHECK era_blanket)
+	Look.set_era("tag")
+	var g_old := Look.ground_material()
+	Look.set_era("eiszeit")
+	var g_new := Look.ground_material()
+	var fol := Look.foliage(Color("#406030"), true)
+	for gm in [g_old, g_new]:
+		var bc: Color = (gm as ShaderMaterial).get_shader_parameter("blanket")
+		if absf(bc.a - 0.4) > 0.001 or absf(float((gm as ShaderMaterial).get_shader_parameter("ice")) - 0.55) > 0.001:
+			_fail("Eiszeit: Decke/Eis fehlt auf einem Boden-Material")
+	if absf(((fol as ShaderMaterial).get_shader_parameter("blanket") as Color).a - 0.4) > 0.001:
+		_fail("Eiszeit: kein Schnee auf dem Laub")
+	Look.set_era("asche")
+	if absf(Look.blanket.a - 0.42) > 0.001 or Look.blanket_veil < 0.99:
+		_fail("Aschewinter: Asche-Schleier")
+	Look.set_era_mix("asche", "erholung", 0.5)
+	if Look.blanket.a <= 0.06 or Look.blanket.a >= 0.42 or Look.era_name != "erholung":
+		_fail("Erholung: Asche nicht gemischt (%.2f)" % Look.blanket.a)
+	Look.set_era("tag")
+	if Look.blanket.a != 0.0 or Look.ice != 0.0:
+		_fail("heute: Decke/Eis bleibt")
+	# Modell-Schlüssel: jedes Zeitalter mit eigenen Gestalten hat einen eigenen Schlüssel (Back-Cache)
+	var keys := {}
+	for en in ["tag", "kambrium", "meer", "karbon", "saurier", "asche", "erholung", "saeuger", "eiszeit", "savanne", "feuer", "jaeger", "glaube"]:
+		Look.set_era(String(en))
+		var mk := Look.model_key()
+		if keys.has(mk) and not (["saeuger", "tag"].has(String(en)) and ["saeuger", "tag"].has(String(keys[mk]))):
+			_fail("gleicher Modell-Schlüssel: %s und %s" % [en, keys[mk]])
+		keys[mk] = en
+	# Gestalten je Zeitalter (CHECK era_models): [Zeitalter, Art, muss haben, darf nicht haben]
+	var probe := FieldView.new()
+	root.add_child(probe)
+	probe.position = Vector3(260, 0, 0)
+	var fd := FieldData.new()
+	fd.id = 4                       # Variante 0
+	probe.build(fd)
+	var cases := [["saurier", FieldView.K_SAURO, "sauro", "bison"], ["saurier", FieldView.K_REX, "trex", "wolf"],
+		["saurier", FieldView.K_ANIMALS, "shrew", "bison"], ["saurier", FieldView.K_PTERO, "ptero", "bird"],
+		["eiszeit", FieldView.K_MAMMOTH, "mammoth", "sauro"], ["eiszeit", FieldView.K_ANIMALS, "bison", "antelope"],
+		["eiszeit", FieldView.K_PRED, "cave_lion", "wolf"], ["savanne", FieldView.K_ANIMALS, "antelope", "bison"],
+		["savanne", FieldView.K_APES, "ape", "person"], ["savanne", FieldView.K_EARLY, "hunter", "person"],
+		["feuer", FieldView.K_CAMP, "hunter", "person"], ["feuer", FieldView.K_HUT, "hunter", "person"],
+		["jaeger", FieldView.K_HUT, "hunter", "person"], ["saeuger", FieldView.K_ANIMALS, "horse", "shrew"],
+		["erholung", FieldView.K_ANIMALS, "shrew", "bison"], ["asche", FieldView.K_ANIMALS, "shrew", "bison"],
+		["karbon", FieldView.K_AMPHIB, "amph", "newt"], ["karbon", FieldView.K_REPTILE, "lizard", "newt"],
+		["karbon", FieldView.K_INSECTS, "dragonfly", "bird"], ["karbon", FieldView.K_FOREST, "dragonfly", "deer"],
+		["kambrium", FieldView.K_JELLY, "jelly", "fish"], ["kambrium", FieldView.K_TRILO, "trilobite", "fish"],
+		["meer", FieldView.K_FISH, "armorfish", "duck"], ["tag", FieldView.K_PRED, "wolf", "cave_lion"],
+		["menschen", FieldView.K_ANIMALS, "sheep", "shrew"], ["glaube", FieldView.K_CHURCH, "person", "hunter"]]
+	for cv in cases:
+		var c: Array = cv
+		Look.set_era(String(c[0]))
+		probe.set_kind(FieldView.K_EMPTY)
+		probe.set_kind(int(c[1]))
+		probe.era_changed()
+		var seen: Array = probe.agent_kinds() + probe.flyer_kinds()
+		if not seen.has(String(c[2])) or seen.has(String(c[3])):
+			_fail("Gestalt %s/%s: %s" % [c[0], FieldView.KIND_KEY[int(c[1])], str(seen)])
+	# Gletscher (Art Eis): Boden-Shader zeigt die Eisdecke; Lagerfeuer hat seine Glut
+	Look.set_era("eiszeit")
+	probe.set_kind(FieldView.K_ICE)
+	if float(probe._ground.get_shader_parameter("glacier")) != 1.0:
+		_fail("Eis ohne Gletscher-Boden")
+	Look.set_era("feuer")
+	probe.set_kind(FieldView.K_CAMP)
+	if probe._glow == null:
+		_fail("Feuerstelle ohne Glut")
+	# unbekannte (spätere) Art: Erde statt Absturz
+	probe.set_kind(77)
+	if probe.get_kind() != FieldView.K_EMPTY:
+		_fail("unbekannte Art nicht Erde")
+	# Einschlag: Tiere kippen um (keine Bewegung mehr)
+	Look.set_era("saurier")
+	probe.set_kind(FieldView.K_SAURO)
+	probe.topple(0.1)
+	for st in probe.agent_states():
+		if String(st) != "dead":
+			_fail("Saurier kippt nicht um")
+	Look.set_era("tag")
+	probe.queue_free()
+	# neue Tiere und Pflanzen: nicht leer, im Dreiecks-Budget (Tiere ≤ 700, Pflanzen ≤ 1200), Tiere mit Teilen
+	for cr in ERDE_CREATURES:
+		for vr in 3:
+			var arr := Models.arrays_of(Models.creature_mesh(String(cr), vr))
+			var nv := (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() if not arr.is_empty() else 0
+			if nv < 30 or nv / 3 > 700:
+				_fail("Figur %s/%d: %d Dreiecke" % [cr, vr, nv / 3])
+			if ["sauro", "trex", "mammoth", "ape", "amph", "lizard", "cave_lion", "antelope", "horse", "shrew"].has(String(cr)):
+				var parts_seen := {}
+				for t in (arr[Mesh.ARRAY_TEX_UV] as PackedVector2Array):
+					parts_seen[int(roundf(t.x))] = true
+				if not (parts_seen.has(1) and parts_seen.has(3)):
+					_fail("Figur ohne Beine/Kopf: %s" % cr)
+	for nm in ERDE_PLANTS:
+		for vr in 3:
+			var tris := 0
+			var parts := Models.get_model(String(nm), vr)
+			for part_v in parts:
+				var arr := Models.arrays_of((part_v as Array)[0])
+				tris += (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+			if parts.is_empty() or tris > 1200:
+				_fail("Modell %s/%d: %d Dreiecke" % [nm, vr, tris])
+	print("Erdgeschichte geprüft: %d Zeitalter, %d Tiere, %d Pflanzen" % [ERDE_ERAS.size(), ERDE_CREATURES.size(), ERDE_PLANTS.size()])
 
 
 ## Zusammenwachsen (5.1): Besitz-Regel – eine Fuge gehört nur einem Feld (keine doppelten Fugen-Teile); getrennt

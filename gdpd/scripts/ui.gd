@@ -325,7 +325,7 @@ const TOOLTIPS = {
 	"sek100": {"icon": "timer", "title": "100 Sekunden", "body": "Uhr ab erster Drehung. Feuer: −5 s."},
 	"mode_sek100": {"icon": "timer", "title": "100 Sekunden", "body": "So viel Glauben wie möglich. Feuer: −5 s."},
 	"shop": {"icon": "shop", "title": "Laden", "body": "Wunder, Hilfe, Gott. Nur Schönes."},
-	"menu_days": {"icon": "days", "title": "Die Schöpfung", "body": "Alle Level und Sterne."},
+	"menu_days": {"icon": "days", "title": "Erdgeschichte", "body": "Alle Zeitalter und Sterne."},
 	"points": {"icon": "points", "title": "Deine Punkte", "body": "Für Level, Serie und Bauen."},
 	"score": {"icon": "faith", "title": "Glaube", "body": "Kommt vom Wachsen und von Wünschen."},
 	"scale": {"icon": "balance", "title": "Weltwaage", "body": "Links Natur, rechts Stadt."},
@@ -1140,8 +1140,10 @@ func _build_help() -> void:
 	_help_rows["c_volcano"] = _help_row("volcano", Style.FIRE_TINT, "Vulkan", "Zu viel Lava auf einem Haufen bricht aus.")
 	_help_rows["c_bolt"] = _help_row("lightning", Style.FIRE_TINT, "Blitz", "Trockener Wald ohne Wasser brennt.")
 	_help_rows["c_hunger"] = _help_row("hunger", Style.FIRE_TINT, "Hunger", "Ohne Futter hungern sie.")
-	_help_rows["c_pack"] = _help_row("pred", Style.FIRE_TINT, "Rudel", "Viele Raubtiere jagen Herden.")
-	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack"]:
+	_help_rows["c_pack"] = _help_row("pred", Style.FIRE_TINT, "Jagd", "3 Jäger jagen. Trenn sie.")
+	_help_rows["c_glacier"] = _help_row("ice", Style.WATER_TINT, "Gletscher", "Zu viel Eis friert. Teil es.")
+	_help_rows["c_impact"] = _help_row("meteor_fall", Style.FIRE_TINT, "Einschlag", "Der Meteor trifft die Saurier.")
+	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack", "c_glacier", "c_impact"]:
 		inner.add_child(_help_rows[key])
 	inner.add_child(_help_row("hand", Style.SUN_TINT, "Erklärungen", "Halte ein Symbol gedrückt."))
 	var v: VBoxContainer = help_card.get_meta("body")
@@ -1250,12 +1252,7 @@ func _build_menu() -> void:
 	_make_holdable(ask_row, "always_ask")
 	gv.add_child(ask_row)
 	_ask_rows = [l2, ask_row]      # erst, wenn man schon eine Wahl-Karte gesehen hat
-	# Art zu reden (der Gott selbst steht oben auf der Hauptseite)
-	var tb := _vbox(8)
-	inner.add_child(tb)
-	tb.add_child(_caps("Art zu reden"))
-	_tone_seg = _segmented([["lieb", "Lieb"], ["frech", "Frech"], ["streng", "Streng"]], _on_tone_picked)
-	tb.add_child(_tone_seg)
+	# Art zu reden gehört zum Gott (Menü → Dein Gott → Name & Art), nicht in die Einstellungen
 	_build_menu_reminder(inner)
 	# Kacheln: Hilfe, Tutorial, Profil (bald)
 	var tiles := _hbox(8)
@@ -1484,7 +1481,8 @@ func _refresh_menu_daily() -> void:
 	_menu_char_name.text = Voice.char_name()
 	_menu_char_sub.text = "%s · %s" % [str((Character.BASES.get(str(char_look().get("basis", "bart")), {}) as Dictionary).get("title", "")),
 		str(Character.TONE_TITLE.get(Voice.tone(), "Lieb"))]
-	_sync_segmented(_tone_seg, Voice.tone())
+	if _tone_seg != null:
+		_sync_segmented(_tone_seg, Voice.tone())
 	var mode := str(Game.remind.get("mode", "auto"))
 	_sync_segmented(_remind_seg, mode)
 	var fixed := int(Game.remind.get("fixed_min", 1080))
@@ -2795,8 +2793,14 @@ func _tint_for_icon(icon_name: String) -> Color:
 			return PUNISH_TINT
 		"flood":
 			return Style.WATER_TINT
-		"paw":
+		"paw", "sauro", "rex", "ptero", "amphib", "reptile", "mammoth", "apes", "insects", "bugs", "pred", "birds":
 			return Style.STAGE_TINT[FieldData.ANIMALS]
+		"jelly", "trilo", "fish", "cells", "algae", "soup", "water", "ice", "cold":
+			return Style.WATER_TINT
+		"lava", "volcano", "camp", "meteor", "meteor_fall":
+			return Style.FIRE_TINT
+		"early", "moss", "fern", "wood":
+			return Style.STAGE_TINT[FieldData.MEADOW] if icon_name != "early" else Style.STAGE_TINT[FieldData.HUT]
 	var si := STAGE_ICON.find(icon_name)
 	if si >= 0 and si < Style.STAGE_TINT.size():
 		return Style.STAGE_TINT[si]
@@ -4564,6 +4568,11 @@ func _on_disaster(kind: String, fid: int) -> void:
 
 
 func _on_deltas(list: Array, _gain: int) -> void:
+	if Game.state != null and Game.state.camp:
+		# Erdgeschichte: Erde ist Asche oder Boden, kein „weg“ (der Einschlag macht viele Felder zu Erde); was entsteht,
+		# sagen die Pillen der Kampagne (Wachsen, −1, Einschlag)
+		refresh()
+		return
 	for d in list:
 		var fid := int(d["field"])
 		match str(d["change"]):
@@ -4986,10 +4995,10 @@ func _show_help() -> void:
 		fire_t.text = "Flammen & Herzen"
 		fire_l.text = "3 Flammen: Feuer. Kostet ein Herz."
 	var camp := gs != null and gs.camp
-	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack"]:
+	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack", "c_glacier", "c_impact"]:
 		(_help_rows[key] as Control).visible = false
 	if camp:
-		# Schöpfung: keine Regeln des freien Spiels (Wahl, Waage, Wünsche, Flammen, Herzen, Gewitter …)
+		# Erdgeschichte: keine Regeln des freien Spiels (Wahl, Waage, Wünsche, Flammen, Herzen, Gewitter …)
 		for key in ["tree", "will", "faith", "scale", "wish", "goal", "fire", "bolt", "monsoon", "strike", "flood"]:
 			(_help_rows[key] as Control).visible = false
 		(_help_rows["faith"] as Control).visible = bool(gs.sys9.get("faith", false))
@@ -5003,12 +5012,19 @@ func _show_help() -> void:
 				hunger = true
 		(_help_rows["c_needs"] as Control).visible = thr
 		(_help_rows["c_lasting"] as Control).visible = thr
-		(_help_rows["c_merge"] as Control).visible = Game.level_no >= 15
+		(_help_rows["c_merge"] as Control).visible = Game.level_no >= 11
 		(_help_rows["c_steps"] as Control).visible = true
 		(_help_rows["c_volcano"] as Control).visible = bool(gs.sys9.get("volcano", false))
 		(_help_rows["c_bolt"] as Control).visible = bool(gs.sys9.get("bolt", false))
 		(_help_rows["c_hunger"] as Control).visible = hunger
 		(_help_rows["c_pack"] as Control).visible = bool(gs.sys9.get("pack", false))
+		if bool(gs.sys9.get("pack", false)) and not gs.hunt9.is_empty():
+			var hk := int((gs.hunt9[0] as Dictionary).get("hunter", FieldData.PRED)) if gs.hunt9[0] is Dictionary else FieldData.PRED
+			var pic := ((_help_rows["c_pack"] as Control).get_child(0) as Control)
+			if pic is PanelContainer and Style.icon(FieldData.kind_icon(hk)) != null:
+				_set_tile(pic as PanelContainer, FieldData.kind_icon(hk), Style.FIRE_TINT)
+		(_help_rows["c_glacier"] as Control).visible = bool(gs.sys9.get("glacier", false))
+		(_help_rows["c_impact"] as Control).visible = bool(gs.sys9.get("impact", false))
 	_open_modal(help_card)
 
 

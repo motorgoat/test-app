@@ -69,6 +69,16 @@ uniform float cracks = 0.0;          // Urboden: feine Trockenrisse
 uniform float spring = 0.0;
 uniform float autumn = 0.0;
 uniform float winter = 0.0;
+// Erdgeschichte (GDPD_ERDGESCHICHTE_GRAFIK.md): Decke aus Schnee (Eiszeit) oder Asche (nach dem Meteor), Eis auf Wasser
+uniform vec4 blanket = vec4(0.92, 0.94, 0.97, 0.0);   // rgb Farbe, a Anteil 0..1 (welt-weit gleich: nahtlos)
+uniform float blanket_veil = 0.0;                     // 0 Verwehungen (Schnee), 1 Schleier (Asche: gleichmäßig, halb deckend)
+uniform float ice = 0.0;                              // 0 offen, 0,5 Eisrand am Ufer, 1 ganz zugefroren (Rinnen bleiben)
+// Art Eis (Gletscher, GDPD_ERDGESCHICHTE.md 3): weiß-blaue Eisdecke mit Spalten, an Fugen wie Lava gemischt (nb_b.a = 4):
+// mehrere Eisfelder sind ein Gletscher
+uniform float glacier = 0.0;
+// Tiere im klaren Wasser (Kambrium), nur im Inneren des Felds (an der Fuge 0: kein Rand zum Wasser daneben):
+// 1 Quallen (rosa Leuchten, treibt), 2 Trilobiten (heller Grund mit dunklen Ovalen)
+uniform float w_fauna = 0.0;
 uniform float sunface = 0.0;
 uniform float day = 1.0;
 uniform float shore = 0.355;         // so weit reicht das Wasser zum Land hin (Zellen-Koordinaten)
@@ -244,6 +254,7 @@ void fragment() {
 
 	// Wasser: Abstandsfeld über die Nachbarn (Kerne, Brücken, Füllungen, Meerengen) mit runden Ecken
 	bool has_w = is_water > 0.5 || w_seg_n > 0;
+	float icem = 0.0;
 	float wd = 1.0;
 	vec3 wn = vec3(0.0);
 	if (has_w) {
@@ -263,7 +274,9 @@ void fragment() {
 	// Höhen-Mischen (beide Seiten rechnen an der Fuge mit demselben Rauschen). Gleiche Art zählt als „selbst“.
 	vec3 col_top = top;
 	float lav = lava;
+	float glc = glacier;
 	float wl = w_life;
+	float life_edge = smoothstep(0.35, 0.5, max(abs(ue.x), abs(ue.y)));
 	vec3 fx = vec3(scorch, polluted, wet);
 	if (nb_on > 0.5) {
 		// unregelmäßiger Innenrand: verschoben um Rauschen, an der Fuge selbst unverschoben (dort je 1/2)
@@ -294,6 +307,7 @@ void fragment() {
 		vec3 acc = vec3(0.0);
 		vec3 fxa = fx * bs;
 		float lva = 0.0;
+		float gla = 0.0;
 		float sum = bs;
 		// Leben im Wasser: weich (lineare Gewichte über die ganze Übergangsbreite), nicht als scharfe Höhen-Grenze
 		float wla = w_life * ws0;
@@ -306,7 +320,8 @@ void fragment() {
 					acc += approx(nb_a[i].rgb, nb_b[i].rgb, big, fine) * bi;
 				}
 				fxa += nb_fx[i].xyz * bi;
-				if (nb_b[i].a > 2.5) { lva += bi; }
+				if (nb_b[i].a > 2.5 && nb_b[i].a < 3.5) { lva += bi; }
+				if (nb_b[i].a > 3.5) { gla += bi; }
 				sum += bi;
 			}
 		}
@@ -317,12 +332,28 @@ void fragment() {
 		col_top = (acc + own * bself) / sum;
 		fx = fxa / sum;
 		lav = (lava * bself + lva) / sum;
+		glc = (glacier * bself + gla) / sum;
 		for (int i = 0; i < 8; i++) {
 			wla += (nb_life[i] < -0.5 ? w_life : nb_life[i]) * wgt[i];
 		}
 		// jedes Feld behält sein eigenes Leben; nur im letzten Stück zur Fuge mischt es (an der Fuge beide gleich)
-		float life_edge = smoothstep(0.35, 0.5, max(abs(ue.x), abs(ue.y)));
+		life_edge = smoothstep(0.35, 0.5, max(abs(ue.x), abs(ue.y)));
 		wl = mix(w_life, wla, life_edge);
+	}
+
+	float gl_m = 0.0;
+	if (glc > 0.002) {
+		// Gletscher: Schollen (Zellen in Würfel-Koordinaten, laufen über Fugen weiter), blaue Spalten, Schnee-Wehen,
+		// heller Rand zum Land. Blau-weiß, damit es sich auch auf der Schneedecke der Eiszeit abhebt.
+		// kräftiger blau als Schnee: Gletscher und Schneedecke müssen sich in der Eiszeit klar trennen
+		// Spalten als feine, lange Linien (gefaltetes Rauschen in Würfel-Koordinaten, laufen über Fugen weiter)
+		float gv = 1.0 - abs(tri_fbm(cp, tw, 0.62, vec2(0.41, 0.23), dpx, dpy) * 2.0 - 1.0);
+		float crev = smoothstep(0.95, 0.988, gv + (fine - 0.5) * 0.03) * 0.75;
+		vec3 ic = mix(vec3(0.38, 0.6, 0.78), vec3(0.66, 0.82, 0.93), smoothstep(0.25, 0.75, big * 0.7 + fine * 0.3));
+		ic = mix(ic, vec3(0.1, 0.27, 0.48), crev * 0.9);
+		ic = mix(ic, vec3(0.92, 0.95, 0.98), smoothstep(0.66, 0.82, big * 0.5 + fine * 0.5) * 0.5);
+		gl_m = smoothstep(0.25, 0.6, glc);
+		col_top = mix(col_top, ic, gl_m);
 	}
 
 	vec3 lava_emi = vec3(0.0);
@@ -419,12 +450,43 @@ void fragment() {
 			float ring = (1.0 - smoothstep(0.0, 0.025, abs(rd - age * 0.35))) * (1.0 - age) * step(0.45, rr);
 			wc = mix(wc, w_foam, ring * fishv * 0.6 * inw * smoothstep(0.0, 0.04, -wd));   // auch im tiefen Wasser
 		}
+		if (w_fauna > 0.5) {
+			float inner = (1.0 - life_edge) * inw;
+			if (w_fauna < 1.5) {
+				// Quallen: weiche, rosa leuchtende Glocken unter der Oberfläche, treiben mit dem Wasser
+				// wenige große Glocken je Feld (Zellrauschen grob abgetastet), weicher Rand, pulsierend
+				float jc = texture(n_cell, fc * 0.2 + vec2(t * 0.002, -t * 0.0015)).r;
+				float jd = (1.0 - smoothstep(0.05, 0.22, jc)) * (0.7 + 0.3 * sin(t * 3.1 + h1 * 8.0));
+				wc = mix(wc, vec3(0.86, 0.6, 0.82), jd * 0.6 * inner);
+				lava_emi += vec3(0.55, 0.25, 0.5) * jd * 0.4 * inner;
+			} else {
+				// Trilobiten: der Grund schimmert hell durch, darauf dunkle, ovale Panzer
+				wc = mix(wc, mix(w_shallow, vec3(0.62, 0.6, 0.5), 0.45), 0.4 * inner);
+				float tc = texture(n_cell, fc * vec2(0.24, 0.34) + vec2(0.37, 0.11)).r;
+				wc = mix(wc, vec3(0.2, 0.17, 0.14), (1.0 - smoothstep(0.06, 0.13, tc)) * 0.8 * inner);
+			}
+		}
 		// Lava am Ufer: Wasser spiegelt die Glut, kocht am Rand
 		lava_emi += lava_hot * smoothstep(0.0, 0.25, lav) * inw * (1.0 - smoothstep(0.0, 0.2, -wd)) * 0.8;
 		// nasser Sand und Uferkante
 		vec3 land = col_top * mix(0.72, 1.0, smoothstep(0.0, 0.06, wd));
 		land *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.012, wd));
 		col_top = mix(land, wc, inw);
+		if (ice > 0.0) {
+			// Eis wächst vom Ufer her (Abstand zum Ufer -wd, unregelmäßig); Schollen mit Rissen, Schnee-Staub darauf,
+			// am Rand zum offenen Wasser eine helle Kante. Alles in Würfel-Koordinaten bzw. aus wd: läuft über Fugen.
+			float reach = ice * 0.34 + (big - 0.5) * 0.12 + (fine - 0.5) * 0.03;
+			icem = (1.0 - smoothstep(reach - 0.012, reach + 0.004, -wd)) * inw;
+			icem = max(icem, smoothstep(0.92, 1.0, ice) * inw * (1.0 - 0.85 * smoothstep(0.62, 0.7, h1 * 0.5 + big * 0.5)));
+			float ck = tri_cell(cp, tw, 2.6, vec2(0.13, 0.57), dpx, dpy) + (fine - 0.5) * 0.06;
+			vec3 ic = mix(vec3(0.62, 0.74, 0.8), vec3(0.86, 0.91, 0.94), smoothstep(0.3, 0.8, big * 0.6 + fine * 0.4));
+			ic = mix(ic, vec3(0.42, 0.56, 0.64), smoothstep(0.8, 0.9, ck) * (1.0 - smoothstep(0.92, 0.98, ck)) * 0.8);
+			ic = mix(ic, vec3(0.95, 0.97, 0.99), smoothstep(0.55, 0.8, fine) * 0.5);
+			float rim_i = (1.0 - smoothstep(0.0, 0.02, reach - (-wd))) * step(icem, 0.99);
+			ic = mix(ic, vec3(0.95, 0.98, 1.0), rim_i * 0.5);
+			col_top = mix(col_top, ic, icem);
+			wn *= 1.0 - icem;
+		}
 	}
 
 	// Seiten: Grasnarbe oben, darunter Erdschichten
@@ -464,7 +526,21 @@ void fragment() {
 		col *= tint;
 	}
 
-	float water = has_w ? (1.0 - smoothstep(-0.006, 0.006, wd)) * topness : 0.0;
+	// Decke (Schnee / Asche): Flecken aus Würfel-Rauschen, nur Oberseiten, nicht auf Wasser (Eis zählt als Land),
+	// nicht auf Lava; Pflaster halb. Welt-weit ein Wert: nahtlos über alle Fugen und Kanten.
+	if (blanket.a > 0.0) {
+		// große, ruhige Verwehungen (tiefes Rauschen), nur der Rand franst fein aus – keine Tarnmuster-Flecken
+		// Würfel-Koordinaten, tiefe Frequenz: wenige große Wehen je Seite, laufen über alle Fugen (ein Muster)
+		float drift = tri_fbm(cp, tw, 0.42, vec2(0.31, 0.77), dpx, dpy);
+		float bn = drift * 0.78 + big * 0.12 + fine * 0.1;
+		float thr = 1.0 - blanket.a;
+		float bl = mix(smoothstep(thr - 0.07, thr + 0.05, bn) * (0.86 + 0.14 * fine), blanket.a * (0.88 + 0.12 * bn), blanket_veil);
+		bl *= smoothstep(0.2, 0.85, topness) * (1.0 - 0.5 * cobble);
+		bl *= (1.0 - smoothstep(0.0, 0.2, lav)) * (has_w ? max(smoothstep(0.0, 0.05, wd), icem * 0.6) : 1.0);
+		bl *= 1.0 - 0.7 * gl_m;
+		col = mix(col, blanket.rgb * (0.9 + 0.12 * fine), bl);
+	}
+	float water = has_w ? (1.0 - smoothstep(-0.006, 0.006, wd)) * topness * (1.0 - 0.85 * icem) : 0.0;
 	vec3 emi = vec3(0.0);
 	// gebogene Würfelkante (nur an Außenseiten liegt |uv| über 0,502)
 	float bend = smoothstep(0.5, 0.53, max(abs(uv.x), abs(uv.y)));
@@ -504,7 +580,7 @@ void fragment() {
 	}
 	ALBEDO = min(col, vec3(1.0));
 	// auf der gebogenen Würfelkante kein Spiegel-Glanz (sonst eine Perlenschnur aus Lichtpunkten)
-	ROUGHNESS = mix(mix(mix(0.95, 0.78, cobble), 0.32, fx.z), 0.13 + 0.27 * bend, water);
+	ROUGHNESS = mix(mix(mix(mix(0.95, 0.78, cobble), 0.45, gl_m * topness), 0.32, fx.z), 0.13 + 0.27 * bend, water);
 	SPECULAR = mix(mix(0.3, 0.55, fx.z), 0.5 - 0.3 * bend, water);
 	EMISSION = emi + lava_emi * topness + pulse_c * pulse * (0.35 + 0.65 * smoothstep(0.3, 0.5, m)) * 0.9;
 }

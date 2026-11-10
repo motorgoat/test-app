@@ -8,7 +8,7 @@ extends RefCounted
 #   Hütte → Haus → Dorf → Stadt | Kirche ★, Stadt → Großstadt | Industrie ★, Großstadt → Metropole ★. Wasser: nie.
 #   ★ = fertig: wächst nicht mehr, bildet keine Reihe, bringt jede Drehung Glauben.
 static var MAX_STAGE := 15                # höchste Art-Nummer (alter Name, Oberfläche)
-static var KIND_COUNT := 27
+static var KIND_COUNT := 40
 # Glaube fürs Wachsen nach Stufe (tier) der Art vor dem Wachsen, × Kombo.
 static var GROW_FAITH := [0, 2, 4, 7, 11, 16, 24, 35, 50, 75, 100]
 static var MERGE_POINTS := GROW_FAITH     # alter Name
@@ -168,7 +168,7 @@ static var UNDO_FREE := 1
 static var MIRACLE_STEPS := 2            # gekauftes Wunder zählt so viele Schritte
 static var MIRACLE_PER_KIND := 1         # je Art und Level
 static var HELP_MAX := 3                 # gekaufte Hilfen je Level
-static var CAMPAIGN_LEVELS := 30         # Die Schöpfung: so viele Level (ein neues je Spieltag)
+static var CAMPAIGN_LEVELS := 60         # Erdgeschichte: so viele Level (gilt: Campaign.COUNT aus den Daten)
 static var CAMPAIGN_ON := true          # Start in der Schöpfung (Game.start_level) statt in den 7 Tagen; die Oberfläche
                                          # schaltet das um, sobald sie die Kampagne zeigt
 static var FAST_TRACK_PER_DAY := 3       # Veteranen: so viele neue Level je Spieltag bis schnell_bis

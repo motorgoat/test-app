@@ -37,35 +37,47 @@ Nach dem Sieg kann man weiterbauen („Extra: 4 Hütten satt“). Nach Tag 7: �
 Daten dazu. Regeln, Tabellen und Prüfungen: [`docs/GDPD_BALANCE_2.md`](docs/GDPD_BALANCE_2.md) (gilt vor der
 älteren Spec [`docs/GDPD_7_TAGE.md`](docs/GDPD_7_TAGE.md)); Grafik: [`docs/GDPD_GRAFIK.md`](docs/GDPD_GRAFIK.md).
 
-## Die Schöpfung (Kampagne)
+## Erdgeschichte (Kampagne)
 
-30 Level in 7 Akten entlang der Erdgeschichte (glühende Erde → Urmeer → Pflanzen → Sonne → Fische und Vögel →
-Tiere und Menschen → Ruhe), ein neues Level je Spieltag. Spec: `docs/GDPD_SCHOEPFUNG.md`, Punkte und Laden:
-`docs/GDPD_PUNKTE_LADEN.md`.
+60 Level in 20 Zeitaltern der Erdgeschichte (Urerde, Urozean, Erstes Leben, Kambrium, Zeit der Fische, Grün an Land,
+Urwald, Landgang, Saurierzeit, Der Einschlag, Säugetiere, Eiszeit, Affen, Feuer, Jäger und Sammler, Ackerbau, Glaube,
+Städte, Industrie, Gleichgewicht), ein neues Level je Spieltag, offen erweiterbar (Zeitalter und Level sind Daten).
+Ohne Bibel-Rahmen (Entscheidung vom 10. November 2026). Spec: [`docs/GDPD_ERDGESCHICHTE.md`](docs/GDPD_ERDGESCHICHTE.md),
+Grafik: [`docs/GDPD_ERDGESCHICHTE_GRAFIK.md`](docs/GDPD_ERDGESCHICHTE_GRAFIK.md), Punkte und Laden:
+`docs/GDPD_PUNKTE_LADEN.md`. Die 30 Level der früheren Kampagne „Die Schöpfung“ leben darin weiter (ein alter
+Spielstand wird umgestellt: Sterne wandern mit, übersprungene neue Level sind zum Nachholen offen).
 
-- Regeln: `scripts/game_state.gd` (`setup_level`, Abschnitt „Die Schöpfung“): Erschaffen (Reihen, `once`), Gedeihen
+- Regeln: `scripts/game_state.gd` (`setup_level`, Kampagnen-Abschnitt): Erschaffen (Reihen, `once`), Gedeihen
   (Bedürfnisse aus den Nachbarn; einmal versorgt bleibt versorgt), Zusammenwachsen (Gruppen geben Stärke bis 3),
-  Gefahren nur als Folge und immer eine Runde vorher gewarnt, kein Schritt-Limit.
-- Daten: `data/kampagne_schoepfung.json` (Level-Regeln, Texte, 20 geprüfte Start-Bretter je Level mit Lösung), gelesen
-  von `scripts/campaign.gd` (auch: Welt läuft im Akt weiter, Welt des Tages, Ära).
-- Fortschritt und Punkte: `scripts/game.gd` (`start_level`, `[kampagne]`), `scripts/daily.gd` (ein neues Level je
-  Spieltag, Schnellstart), `scripts/points.gd` (Punkte-Formel, Tages-Grenzen, Umstellung der Münzen).
-- Abgleich mit dem Python-Modell: `godot --headless --script res://tests/xcheck9.gd` (in `test_rules.gd` mit 200 Fällen);
-  nur die Schöpfungs-Tests: `godot --headless --script res://tests/test_rules.gd -- --camp`.
-- Oberfläche (`Balance.CAMPAIGN_ON = true`, das Spiel startet in der Schöpfung): Übersicht mit den 7 Akten
-  (Genesis-Tage) und ihren Leveln – gesperrt nur Schloss/„?“, nie ein Titel; Heute-Karte, Serie und Woche; Antippen
-  des eigenen Gottes öffnet ihn. Start-Karte mit Geschichte und Aufgabe („Ohne Limit. Schritte zählen.“), Ziel-Chip
-  mit bis zu zwei Teilzielen, Schritte-Ring mit der nächsten Sterne-Grenze („★★★ bis 4“), Verlust-Plakette „−1 Fels“
-  fliegt zum Chip, Pillen für die Gefahren (immer eine Runde vorher), Akt-Übergang (Himmel/Wasser wechseln), das
-  Neue fliegt an seinen Platz, kurze Sätze vom eigenen Gott. Sieg-Karte mit Sternen und Punkte-Zeilen (kein „Weiterbauen“ mehr, Build 12).
+  Gefahren nur als Folge und immer eine Runde vorher gewarnt (Vulkan, Blitz, Jagd, Gletscher, Smog, Flut, Krieg; der
+  Einschlag ist erzählt und vom Start an angekündigt), kein Schritt-Limit; 40 Arten (`scripts/field_data.gd`).
+- Daten: `data/kampagne_erde.json` (Zeitalter, Level-Regeln, Texte, Looks, alte → neue Level, 20 geprüfte
+  Start-Bretter je Level mit Lösung), gelesen von `scripts/campaign.gd` (auch: Welt läuft im Zeitalter weiter, Welt des
+  Tages, Zeitalter-Look).
+- Fortschritt und Punkte: `scripts/game.gd` (`start_level`, `[kampagne]` Version 2 mit der Umstellung), `scripts/daily.gd`
+  (ein neues Level je Spieltag, Nachholen, Schnellstart), `scripts/points.gd` (Punkte-Formel, Tages-Grenzen).
+- Abgleich mit dem Python-Modell (`engine10`): `godot --headless --script res://tests/xcheck9.gd` (in `test_rules.gd`
+  mit 260 Fällen; alle 2000 Fälle: `-- --cases=<xcheck10_all.json>`); nur die Kampagnen-Tests:
+  `godot --headless --script res://tests/test_rules.gd -- --camp`.
+- Oberfläche (`Balance.CAMPAIGN_ON = true`, das Spiel startet in der Erdgeschichte): Übersicht mit den erreichten
+  Zeitaltern (Name, Symbol, Level mit Sternen; nachzuholende Level mit blauem Punkt) und genau einer „?“-Kachel für das
+  nächste – nie ein Name, eine Zeile oder ein Level-Titel, die noch nicht offen sind; Heute-Karte (neues Level,
+  „Nachholen · Level 7“ nach einem alten Spielstand, Welt des Tages), Serie und Woche; Antippen des eigenen Gottes
+  öffnet ihn. Start-Karte „Saurierzeit · Level 28“ mit Geschichte und Aufgabe („Ohne Limit. Schritte zählen.“),
+  Ziel-Chip mit bis zu zwei Teilzielen, Schritte-Ring mit der nächsten Sterne-Grenze („★★★ bis 4“), oben immer die
+  nächste Handlung, Verlust-Plakette „−1 Fels“ fliegt zum Chip, Pillen für die Gefahren (immer eine Runde vorher:
+  Vulkan, Blitz, Jagd mit ihren Jägern, Gletscher, „Meteor kommt!“ am Start des Einschlags), Zeitalter-Übergang
+  (Himmel/Wasser wechseln, kurz „Neues Zeitalter · Kambrium · Das Meer wimmelt.“), das Neue (eigene Symbole der 13
+  neuen Arten) fliegt an seinen Platz, kurze Sätze vom eigenen Gott; nach der Umstellung sagt er einmal „Die Welt ist
+  größer geworden.“. Erinnerungen nennen nur die Nummer des nächsten Levels. Sieg-Karte mit Sternen und Punkte-Zeilen.
   `scripts/day_ui.gd` (Kampagnen-Zweige `_fill_acts`, `_fill_goal_card9`, `_refresh_hud9`, `_pill9`).
 - **Laden** (`scripts/shop_ui.gd`, `Game.shop_items/buy/refund/use_stock`): Wunder (Regen, Blitzschutz, Meteor – erst
   wenn sie im Spiel vorkamen), Hilfe (Tipp, Zurück, Serienschutz), Gott (6 neue Teile zum Anprobieren und Zurückgeben),
   Welten („Bald mehr“). Kauf immer mit Bestätigung (✦ vorher → nachher); ein gekauftes Wunder zählt 2 Schritte.
   Im Level: Tipp gratis in Level 1–5, einmal je Level und als Rettung, sonst aus dem Vorrat; Zurück einmal frei.
-- **Menü**: Weiter · Die Schöpfung · Freies Spiel · Laden · Dein Gott; alles andere unter „Einstellungen“ (Ton,
+- **Menü**: Weiter · Erdgeschichte · Freies Spiel · Laden · Dein Gott; alles andere unter „Einstellungen“ (Ton,
   Art zu reden, Erinnerung, Wahl-Karte, Hilfe, Tutorial, Test-Knöpfe).
-- **Freies Spiel** (nach der Schöpfung): Einfach, Mittel, Schwer und die **100-Sekunden-Challenge** (ersetzt
+- **Freies Spiel** (nach der Erdgeschichte): Einfach, Mittel, Schwer und die **100-Sekunden-Challenge** (ersetzt
   „40 Drehungen“): Uhr ab der ersten Drehung, Feuer −5 s (keine Herzen), die große Wahl-Karte hält die Uhr an, kein
   Tipp/Zurück, Rekord je Modus; „Neues Spiel“ auf der Ergebnis-Karte startet wieder die Challenge.
 - **Versorgt bleibt versorgt:** Ein Bedürfnis, das einmal gedeckt war, bleibt gedeckt (goldenes Häkchen) – auch wenn

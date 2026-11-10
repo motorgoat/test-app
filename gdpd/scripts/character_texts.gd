@@ -350,7 +350,7 @@ const NOTIFY := {
 	],
 	"streng": [
 		{"id": "s01", "cat": "A", "text": "Heute ist {tag} bereit."},
-		{"id": "s02", "cat": "A", "text": "Zeit für deine Schöpfung."},
+		{"id": "s02", "cat": "A", "text": "Zeit für deine Welt."},
 		{"id": "s03", "cat": "A", "text": "Ich zähle auf dich."},
 		{"id": "s04", "cat": "A", "text": "Die Welt baut sich nicht allein."},
 		{"id": "s05", "cat": "A", "streak": true, "text": "{streak} Tage. Bleib dran."},

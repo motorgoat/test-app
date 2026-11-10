@@ -1,0 +1,389 @@
+--- a/scripts/models.gd
++++ b/scripts/models.gd
+@@ -1035,6 +1035,8 @@
+ 			_crust(parts, seed)
+ 		"moss":
+ 			_moss(parts, seed)
++		_:
++			ErdModels.model(name, parts, seed, variant)
+ 	var out: Array = []
+ 	for k in parts:
+ 		var mb: MB = parts[k]
+@@ -1941,7 +1943,8 @@
+ 		"bird":
+ 			_bird(m)
+ 		_:
+-			_person(m, variant)
++			if not ErdModels.creature(kind, variant, m):
++				_person(m, variant)
+ 	var mesh := m.commit()
+ 	_meshes[key] = mesh
+ 	return mesh
+--- a/scripts/field_view.gd
++++ b/scripts/field_view.gd
+@@ -1895,9 +1895,11 @@
+ 
+ const HERD_SCALE := 1.6         # Herden und Wölfe gut sichtbar (nicht als Punkte auf der Wiese)
+ const AGENT_SPEED := {"sheep": 0.022, "cow": 0.018, "deer": 0.035, "hare": 0.05, "duck": 0.015, "person": 0.028,
+-	"bison": 0.016, "wolf": 0.03, "newt": 0.02}
++	"bison": 0.016, "wolf": 0.03, "newt": 0.02, "sauro": 0.012, "trex": 0.02, "raptor": 0.045, "mammoth": 0.014, "ape": 0.03,
++	"hunter": 0.028, "shrew": 0.05, "amph": 0.015}
+ const AGENT_RATE := {"sheep": 13.0, "cow": 9.0, "deer": 11.0, "hare": 18.0, "duck": 4.0, "person": 11.0, "bison": 8.0,
+-	"wolf": 12.0, "newt": 16.0}
++	"wolf": 12.0, "newt": 16.0, "sauro": 4.0, "trex": 6.0, "raptor": 15.0, "mammoth": 5.0, "ape": 10.0, "hunter": 11.0,
++	"shrew": 22.0, "amph": 9.0}
+ 
+ 
+ func _agent(kind: String, variant: int, pos: Vector3, yaw: float = -100.0, scl: float = 1.0) -> void:
+@@ -2344,6 +2346,12 @@
+ 	var types := ["oak", "spruce", "beech", "birch", "spruce", "oak", "pine"]
+ 	if primeval:
+ 		types = ["tree_fern", "horsetail", "tree_fern", "spruce", "tree_fern", "horsetail", "pine"]
++	if Look.era_flag("dino"):
++		types = ["araucaria", "cycad", "tree_fern", "araucaria", "cycad", "tree_fern", "araucaria"]
++	elif Look.era_flag("ice"):
++		types = ["spruce", "pine", "spruce", "birch", "spruce", "pine", "spruce"]
++	elif Look.era_flag("ape"):
++		types = ["acacia", "bush", "acacia", "bush", "acacia", "bush", "acacia"]
+ 	var spots: Array = []
+ 	if big:
+ 		spots = [Vector3(-0.2, 0, -0.2), Vector3(0.0, 0, -0.22), Vector3(0.2, 0, -0.19), Vector3(-0.21, 0, 0.01),
+@@ -2423,6 +2431,39 @@
+ func _b_animals(rng: RandomNumberGenerator) -> void:
+ 	var pts := [Vector3(-0.08, 0, -0.08), Vector3(0.06, 0, -0.04), Vector3(-0.04, 0, 0.1), Vector3(0.1, 0, 0.1), Vector3(-0.16, 0, 0.02),
+ 		Vector3(0.16, 0, -0.14)]
++	if Look.era_flag("dino"):
++		# Langhälse: zwei (drei bei Variante 3) große Pflanzenfresser zwischen Palmfarnen; der Hals senkt sich zum Fressen
++		_item("cycad", _variant, Vector3(0.22, 0, 0.2), rng.randf() * TAU, 1.2, 0.06)
++		_item("fern", _variant + 1, Vector3(-0.22, 0, -0.2), rng.randf() * TAU, 1.1, 0.05)
++		_cover(60, 0, false, 5, 0.8)
++		# ein großes Tier und ein Junges (Variante 3: zwei Große): groß genug für 120 px Kachelbreite
++		var sp := [Vector3(-0.04, 0, -0.03), Vector3(0.1, 0, 0.1)]
++		_agent("sauro", _variant, _R(sp[0]), -100.0, 1.3)
++		_agent("sauro", _variant + 1, _R(sp[1]), -100.0, 1.3 if _variant == 3 else 0.65)
++		return
++	if Look.era_flag("ice"):
++		_item("ice_rock", _variant, Vector3(0.22, 0, 0.2), rng.randf() * TAU, 1.0, 0.05)
++		_cover(50, 0, true, 6, 0.6)
++		var spm := [Vector3(-0.08, 0, -0.06), Vector3(0.08, 0, 0.04), Vector3(-0.04, 0, 0.14)]
++		for k in (3 if _variant % 2 == 0 else 2):
++			_agent("mammoth", k + _variant, _R(spm[k]), -100.0, 1.25)
++		return
++	if Look.era_flag("ape"):
++		_item("acacia", _variant, Vector3(0.18, 0, -0.16), rng.randf() * TAU, 1.2, 0.08)
++		_cover(90, 2, true, 3, 1.0)
++		var spa := [Vector3(-0.08, 0, 0.0), Vector3(0.04, 0, 0.1), Vector3(-0.12, 0, 0.14), Vector3(0.1, 0, -0.02)]
++		for k in 4:
++			_agent("ape", k + _variant, _R(spa[k]), -100.0, 1.5)
++		return
++	if Look.era_flag("recover"):
++		# Nach dem Meteor: die ersten Säugetiere (klein, flink) zwischen frischen Farnen
++		_item("fern", _variant, Vector3(0.18, 0, 0.16), rng.randf() * TAU, 1.0, 0.05)
++		_item("fern", _variant + 2, Vector3(-0.16, 0, -0.18), rng.randf() * TAU, 0.9, 0.05)
++		_cover(30, 0, true, 8, 0.5)
++		var sps := [Vector3(-0.05, 0, -0.02), Vector3(0.05, 0, 0.06), Vector3(-0.1, 0, 0.1), Vector3(0.08, 0, -0.08), Vector3(0.0, 0, 0.14)]
++		for k in 5:
++			_agent("shrew", k + _variant, _R(sps[k]), -100.0, 2.0)
++		return
+ 	if Look.era_flag("wild"):
+ 		_tree("bush_dry" if _wither else "bush", 7 + _variant, Vector3(0.23, 0, 0.21), rng, 1.1)
+ 		_cover(70, 2 if _wither else 4, _wither or _sad > 0.5, 5, 0.6)
+@@ -2698,6 +2739,18 @@
+ 
+ ## Raubtiere: Fels mit dunklem Gras, eine Höhle, Knochen als helle Punkte, 1–2 graue Wölfe.
+ func _b_pred(rng: RandomNumberGenerator) -> void:
++	if Look.era_flag("dino"):
++		# Raubsaurier: dunkler Fels mit Farnen, Knochen; ein großer Räuber oder ein Rudel aus drei kleinen
++		_item("boulder", _variant + 2, Vector3(0.2, 0, -0.18), rng.randf() * TAU, 1.1, 0.06)
++		_item("bones", _variant, Vector3(-0.16, 0, 0.16), rng.randf() * TAU, 1.6, 0.0)
++		_item("fern", _variant, Vector3(-0.2, 0, -0.18), rng.randf() * TAU, 1.0, 0.05)
++		_cover(40, 0, true, 10, 0.75)
++		if _variant % 2 == 0:
++			_agent("trex", _variant, _R(Vector3(0.0, 0, 0.02)), -100.0, 1.35)
++		else:
++			for k in 3:
++				_agent("raptor", _variant + k, _R([Vector3(-0.06, 0, 0.0), Vector3(0.06, 0, 0.06), Vector3(0.04, 0, -0.08)][k]), -100.0, 1.6)
++		return
+ 	_item("den", _variant, Vector3(-0.1, 0, -0.12), rng.randf_range(-0.3, 0.3), 1.3, 0.12)
+ 	_item("boulder", _variant + 2, Vector3(0.2, 0, -0.18), rng.randf() * TAU, 0.9, 0.06)
+ 	_item("bones", _variant, Vector3(0.1, 0, 0.14), rng.randf() * TAU, 1.3, 0.0)
+@@ -2811,7 +2864,7 @@
+ func _make_birds() -> void:
+ 	var mm := MultiMesh.new()
+ 	mm.transform_format = MultiMesh.TRANSFORM_3D
+-	mm.mesh = Models.creature_mesh("bird", 0)
++	mm.mesh = Models.creature_mesh("ptero" if Look.era_flag("dino") else "bird", 0)
+ 	mm.instance_count = BIRD_N if Look.quality >= 1 else 2
+ 	_birds = MultiMeshInstance3D.new()
+ 	_birds.multimesh = mm
+--- a/scripts/world.gd
++++ b/scripts/world.gd
+@@ -739,6 +739,32 @@
+ 		"top": Color("#6a6458"), "mid": Color("#a89a80"), "low": Color("#c9b48e"), "cloud": Color("#b8ad98"), "clouds": 1.6, "sunglow": 0.35,
+ 		"fog": 0.006, "fog_c": Color("#a89a80"), "warm": Vector3(1.05, 1.0, 0.9), "cool": Vector3(0.97, 0.98, 1.0), "sat": 0.85, "con": 1.0,
+ 		"vig": 0.36, "life": 0.0, "lowglow": 0.0, "haze": 0.7, "stars": 0.0, "ash": 0.0},
++	# PROTOTYP Erdgeschichte (GDPD_ERDGESCHICHTE_GRAFIK.md 2)
++	"saurier": {"sun": Vector3(-34, -50, 0), "sun_c": Color("#ffe0a8"), "sun_e": 1.25, "fill_c": Color("#a8c0d0"), "fill_e": 0.8,
++		"amb_c": Color("#a4b0a8"), "amb_e": 0.95, "exp": 1.0, "glow": 0.65,
++		"top": Color("#6d8aa0"), "mid": Color("#c6cdb6"), "low": Color("#e4cfa2"), "cloud": Color("#f6f0e0"), "clouds": 1.25, "sunglow": 0.45,
++		"fog": 0.004, "fog_c": Color("#c2c6aa"), "warm": Vector3(1.06, 1.01, 0.9), "cool": Vector3(0.94, 0.99, 1.04), "sat": 1.08, "con": 1.05,
++		"vig": 0.32, "life": 1.0, "lowglow": 0.06, "haze": 0.25, "stars": 0.0, "ash": 0.0, "plume": 1.0, "dust_sun": 0.0},
++	"asche": {"sun": Vector3(-24, -36, 0), "sun_c": Color("#e0a878"), "sun_e": 0.82, "fill_c": Color("#9a8078"), "fill_e": 0.72,
++		"amb_c": Color("#8a7e7a"), "amb_e": 1.0, "exp": 1.04, "glow": 0.8,
++		"top": Color("#141012"), "mid": Color("#3a2c28"), "low": Color("#7a3e22"), "cloud": Color("#3c3230"), "clouds": 1.7, "sunglow": 0.0,
++		"fog": 0.0, "fog_c": Color("#4a3a34"), "warm": Vector3(1.06, 0.98, 0.9), "cool": Vector3(0.96, 0.95, 1.0), "sat": 0.78, "con": 1.04,
++		"vig": 0.42, "life": 0.0, "lowglow": 0.4, "haze": 0.55, "stars": 0.0, "ash": 0.7, "plume": 0.0, "dust_sun": 0.8},
++	"erholung": {"sun": Vector3(-34, -46, 0), "sun_c": Color("#f0d0a8"), "sun_e": 0.95, "fill_c": Color("#9aa0a8"), "fill_e": 0.78,
++		"amb_c": Color("#9a9894"), "amb_e": 0.95, "exp": 1.0, "glow": 0.6,
++		"top": Color("#5c6672"), "mid": Color("#a8a49a"), "low": Color("#c8b49a"), "cloud": Color("#c8c2b8"), "clouds": 1.5, "sunglow": 0.3,
++		"fog": 0.003, "fog_c": Color("#a8a49a"), "warm": Vector3(1.04, 1.0, 0.94), "cool": Vector3(0.96, 0.98, 1.02), "sat": 0.88, "con": 1.02,
++		"vig": 0.36, "life": 0.0, "lowglow": 0.0, "haze": 0.35, "stars": 0.0, "ash": 0.2, "plume": 0.0, "dust_sun": 0.3},
++	"eiszeit": {"sun": Vector3(-22, -42, 0), "sun_c": Color("#fff0dc"), "sun_e": 1.15, "fill_c": Color("#a8c4ec"), "fill_e": 0.85,
++		"amb_c": Color("#b4c4da"), "amb_e": 0.92, "exp": 0.96, "glow": 0.55,
++		"top": Color("#6f8cb0"), "mid": Color("#cfdbe6"), "low": Color("#eef0ee"), "cloud": Color("#f6f8fa"), "clouds": 1.3, "sunglow": 0.5,
++		"fog": 0.003, "fog_c": Color("#d8e0e8"), "warm": Vector3(1.02, 1.0, 0.98), "cool": Vector3(0.92, 0.97, 1.08), "sat": 0.94, "con": 1.06,
++		"vig": 0.3, "life": 0.0, "lowglow": 0.0, "haze": 0.15, "stars": 0.0, "ash": 0.0, "plume": 0.0, "dust_sun": 0.0},
++	"savanne": {"sun": Vector3(-30, -46, 0), "sun_c": Color("#ffd8a0"), "sun_e": 1.3, "fill_c": Color("#b0b8d0"), "fill_e": 0.78,
++		"amb_c": Color("#b4aa98"), "amb_e": 0.95, "exp": 1.0, "glow": 0.7,
++		"top": Color("#6f92c0"), "mid": Color("#d8d8c8"), "low": Color("#f0d8a8"), "cloud": Color("#fffaf0"), "clouds": 0.8, "sunglow": 0.6,
++		"fog": 0.0, "fog_c": Color("#e0d4b8"), "warm": Vector3(1.08, 1.0, 0.88), "cool": Vector3(0.94, 0.97, 1.05), "sat": 1.05, "con": 1.05,
++		"vig": 0.3, "life": 1.0, "lowglow": 0.0, "haze": 0.1, "stars": 0.0, "ash": 0.0, "plume": 0.0, "dust_sun": 0.0},
+ 	"nacht": {"sun": Vector3(-34, -52, 0), "sun_c": Color("#9fb4e8"), "sun_e": 0.55, "fill_c": Color("#5a6a9a"), "fill_e": 0.62,
+ 		"amb_c": Color("#56658a"), "amb_e": 0.85, "exp": 1.0, "glow": 1.0,
+ 		"top": Color("#070b1a"), "mid": Color("#16203a"), "low": Color("#2a3352"), "cloud": Color("#3a4560"), "clouds": 0.6, "sunglow": 0.15,
+@@ -814,6 +840,8 @@
+ 		_backdrop_mat.set_shader_parameter("haze", float(m.get("haze", 0.0)))
+ 		_backdrop_mat.set_shader_parameter("stars", float(m.get("stars", 0.0)))
+ 		_backdrop_mat.set_shader_parameter("ash", float(m.get("ash", 0.0)))
++		_backdrop_mat.set_shader_parameter("plume", float(m.get("plume", 0.0)))
++		_backdrop_mat.set_shader_parameter("dust_sun", float(m.get("dust_sun", 0.0)))
+ 	if _post_mat != null:
+ 		_post_mat.set_shader_parameter("warm", m["warm"])
+ 		_post_mat.set_shader_parameter("cool", m["cool"])
+--- a/scripts/look.gd
++++ b/scripts/look.gd
+@@ -161,6 +161,9 @@
+ static var season := 1.0                         # 0 Frühling, 1 Sommer, 2 Herbst, 3 Winter (gemischt: Bruchteile)
+ static var sunface := false                      # Akt 4: oben ist Tag
+ static var night := 0.0                          # Nachtseite / Nacht-Stimmung: Fenster leuchten heller
++static var blanket := Color(0.92, 0.94, 0.97, 0.0) # Erdgeschichte: Schnee (Eiszeit) / Asche (Meteor), a = Anteil
++static var ice := 0.0                            # Eiszeit: Eis auf Wasser (vom Ufer her)
++static var blanket_veil := 0.0                   # 0 Schnee-Verwehungen, 1 Asche-Schleier
+ 
+ 
+ ## Setzt ein Zeitalter (Name aus Eras.ERAS oder ein eigener Eintrag). Rechnet nur Werte um; FieldView baut Inhalte
+@@ -176,6 +179,15 @@
+ 	water_glint = float(w.get("glint", 1.0))
+ 	sunface = bool(d.get("sunface", false))
+ 	_set_ground_all("sunface", 1.0 if sunface else 0.0)
++	blanket = Color(str(d.get("blanket_c", "#eaf0f6")))
++	blanket.a = float(d.get("blanket", 0.0))
++	ice = float(d.get("ice", 0.0))
++	_set_ground_all("blanket", blanket)
++	_set_ground_all("ice", ice)
++	blanket_veil = float(d.get("blanket_veil", 0.0))
++	_set_ground_all("blanket_veil", blanket_veil)
++	for fm in _foliage_mats:
++		(fm as ShaderMaterial).set_shader_parameter("blanket", blanket)
+ 	set_season(float(d.get("season", 1)))
+ 
+ 
+@@ -269,6 +281,9 @@
+ 	m.set_shader_parameter("autumn", clampf(1.0 - absf(season - 2.0), 0.0, 1.0))
+ 	m.set_shader_parameter("winter", clampf(season - 2.0, 0.0, 1.0))
+ 	m.set_shader_parameter("sunface", 1.0 if sunface else 0.0)
++	m.set_shader_parameter("blanket", blanket)
++	m.set_shader_parameter("ice", ice)
++	m.set_shader_parameter("blanket_veil", blanket_veil)
+ 	m.set_shader_parameter("lava_flow", 1.0 if quality >= 1 else 0.0)
+ 	m.set_shader_parameter("life_dots", 1.0 if quality >= 1 else 0.0)
+ 	var lf := PackedFloat32Array()
+@@ -523,6 +538,7 @@
+ 	m.set_shader_parameter("spring", clampf(1.0 - season, 0.0, 1.0))
+ 	m.set_shader_parameter("autumn", clampf(1.0 - absf(season - 2.0), 0.0, 1.0))
+ 	m.set_shader_parameter("winter", clampf(season - 2.0, 0.0, 1.0))
++	m.set_shader_parameter("blanket", blanket)
+ 	_cache[key] = m
+ 	_foliage_mats.append(m)
+ 	return m
+--- a/scripts/eras.gd
++++ b/scripts/eras.gd
+@@ -19,7 +19,35 @@
+ const SHORE_DARK := {"a": "#34302c", "b": "#403a35", "acc": "#4c453f", "amt": 0.4, "mc": 0.45}   # dunkler, nasser Rand
+ const SHORE_OCHRE := {"a": "#6b6152", "b": "#7d725f", "acc": "#8a806e", "amt": 0.3, "mc": 0.45}
+ 
++# --- PROTOTYP Erdgeschichte (GDPD_ERDGESCHICHTE_GRAFIK.md 2) ---
++const TUNDRA := {"a": "#76784e", "b": "#8c8a5c", "acc": "#a8a49a", "amt": 0.4, "mc": 0.4}          # Wiese → Tundra
++const FROST := {"a": "#6e665c", "b": "#807870", "acc": "#9a958e", "amt": 0.5, "mc": 0.5, "crk": 0.6} # Erde → Frostboden
++const SAVANNA := {"a": "#a08a48", "b": "#b89e58", "spk": "#d8c890", "spk2": "#8a7a3a", "samt": 0.3, "mc": 0.3}  # Wiese → Savanne
++const ASHSOIL := {"a": "#504b47", "b": "#57524d", "acc": "#6e6a66", "amt": 0.3, "mc": 0.5}         # Erde nach dem Einschlag
++
+ const ERAS := {
++	"saurier": {"mood": "saurier", "water": {"deep": "#14383a", "shallow": "#3f7a66", "glint": 1.0},
++		"ground": {5: {"a": "#5d6c2c", "b": "#74803a", "acc": "#6a5a36", "amt": 0.4, "path": 0.6, "pc": "#7a6a48", "mc": 0.3},
++			23: {"a": "#3a5222", "b": "#4c6a2a", "acc": "#5a4a30", "amt": 0.25, "mc": 0.7},
++			2: {"a": "#2c3c1a", "b": "#3c4822", "acc": "#5a4a30", "amt": 0.3, "mc": 0.8}},
++		"ambient": {"embers": 0, "fireflies": 0, "pollen": true, "birds": false, "steam": false},
++		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": false, "dino": true}, "season": 1, "sunface": false},
++	"asche": {"mood": "asche", "water": {"deep": "#34403f", "shallow": "#6a6c64", "glint": 0.3}, "ground": {0: ASHSOIL},
++		"ambient": {"embers": 24, "fireflies": 0, "pollen": false, "birds": false, "steam": false},
++		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": false, "ash": true}, "season": 1, "sunface": false,
++		"blanket": 0.42, "blanket_c": "#77736e", "blanket_veil": 1.0},
++	"erholung": {"mood": "erholung", "water": {"deep": "#1c3438", "shallow": "#4a6a62", "glint": 0.7}, "ground": {},
++		"ambient": {"embers": 0, "fireflies": 0, "pollen": false, "birds": false, "steam": false},
++		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": false, "ash": true, "recover": true}, "season": 1, "sunface": false,
++		"blanket": 0.22, "blanket_c": "#8a8682", "blanket_veil": 1.0},
++	"eiszeit": {"mood": "eiszeit", "water": {"deep": "#1c3a4a", "shallow": "#5a8090", "glint": 0.8}, "ground": {1: TUNDRA, 0: FROST},
++		"ambient": {"embers": 0, "fireflies": 0, "pollen": false, "birds": false, "steam": false},
++		"models": {"primeval": false, "wild": true, "ducks": false, "basalt": false, "ice": true}, "season": 1, "sunface": false,
++		"blanket": 0.4, "blanket_c": "#eaf0f6", "ice": 0.55},
++	"savanne": {"mood": "savanne", "water": {"deep": "#1c3a3a", "shallow": "#5a8070", "glint": 1.0}, "ground": {1: SAVANNA},
++		"ambient": {"embers": 0, "fireflies": 0, "pollen": true, "birds": true, "steam": false},
++		"models": {"primeval": false, "wild": true, "ducks": false, "basalt": false, "ape": true}, "season": 1, "sunface": false},
++
+ 	"glut": {"mood": "glut", "water": {"deep": "#1c2a33", "shallow": "#3d4c55", "glint": 0.8},
+ 		"ground": {16: BASALT, 0: URBODEN_DARK, 15: SHORE_DARK},
+ 		"ambient": {"embers": 60, "fireflies": 0, "pollen": false, "birds": false, "steam": true},
+--- a/shaders/ground.gdshader
++++ b/shaders/ground.gdshader
+@@ -69,6 +69,10 @@
+ uniform float spring = 0.0;
+ uniform float autumn = 0.0;
+ uniform float winter = 0.0;
++// Erdgeschichte (GDPD_ERDGESCHICHTE_GRAFIK.md): Decke aus Schnee (Eiszeit) oder Asche (nach dem Meteor), Eis auf Wasser
++uniform vec4 blanket = vec4(0.92, 0.94, 0.97, 0.0);   // rgb Farbe, a Anteil 0..1 (welt-weit gleich: nahtlos)
++uniform float blanket_veil = 0.0;                     // 0 Verwehungen (Schnee), 1 Schleier (Asche: gleichmäßig, halb deckend)
++uniform float ice = 0.0;                              // 0 offen, 0,5 Eisrand am Ufer, 1 ganz zugefroren (Rinnen bleiben)
+ uniform float sunface = 0.0;
+ uniform float day = 1.0;
+ uniform float shore = 0.355;         // so weit reicht das Wasser zum Land hin (Zellen-Koordinaten)
+@@ -244,6 +248,7 @@
+ 
+ 	// Wasser: Abstandsfeld über die Nachbarn (Kerne, Brücken, Füllungen, Meerengen) mit runden Ecken
+ 	bool has_w = is_water > 0.5 || w_seg_n > 0;
++	float icem = 0.0;
+ 	float wd = 1.0;
+ 	vec3 wn = vec3(0.0);
+ 	if (has_w) {
+@@ -425,6 +430,21 @@
+ 		vec3 land = col_top * mix(0.72, 1.0, smoothstep(0.0, 0.06, wd));
+ 		land *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.012, wd));
+ 		col_top = mix(land, wc, inw);
++		if (ice > 0.0) {
++			// Eis wächst vom Ufer her (Abstand zum Ufer -wd, unregelmäßig); Schollen mit Rissen, Schnee-Staub darauf,
++			// am Rand zum offenen Wasser eine helle Kante. Alles in Würfel-Koordinaten bzw. aus wd: läuft über Fugen.
++			float reach = ice * 0.34 + (big - 0.5) * 0.12 + (fine - 0.5) * 0.03;
++			icem = (1.0 - smoothstep(reach - 0.012, reach + 0.004, -wd)) * inw;
++			icem = max(icem, smoothstep(0.92, 1.0, ice) * inw * (1.0 - 0.85 * smoothstep(0.62, 0.7, h1 * 0.5 + big * 0.5)));
++			float ck = tri_cell(cp, tw, 2.6, vec2(0.13, 0.57), dpx, dpy) + (fine - 0.5) * 0.06;
++			vec3 ic = mix(vec3(0.62, 0.74, 0.8), vec3(0.86, 0.91, 0.94), smoothstep(0.3, 0.8, big * 0.6 + fine * 0.4));
++			ic = mix(ic, vec3(0.42, 0.56, 0.64), smoothstep(0.8, 0.9, ck) * (1.0 - smoothstep(0.92, 0.98, ck)) * 0.8);
++			ic = mix(ic, vec3(0.95, 0.97, 0.99), smoothstep(0.55, 0.8, fine) * 0.5);
++			float rim_i = (1.0 - smoothstep(0.0, 0.02, reach - (-wd))) * step(icem, 0.99);
++			ic = mix(ic, vec3(0.95, 0.98, 1.0), rim_i * 0.5);
++			col_top = mix(col_top, ic, icem);
++			wn *= 1.0 - icem;
++		}
+ 	}
+ 
+ 	// Seiten: Grasnarbe oben, darunter Erdschichten
+@@ -464,7 +484,18 @@
+ 		col *= tint;
+ 	}
+ 
+-	float water = has_w ? (1.0 - smoothstep(-0.006, 0.006, wd)) * topness : 0.0;
++	// Decke (Schnee / Asche): Flecken aus Würfel-Rauschen, nur Oberseiten, nicht auf Wasser (Eis zählt als Land),
++	// nicht auf Lava; Pflaster halb. Welt-weit ein Wert: nahtlos über alle Fugen und Kanten.
++	if (blanket.a > 0.0) {
++		// große, ruhige Verwehungen (tiefes Rauschen), nur der Rand franst fein aus – keine Tarnmuster-Flecken
++		float bn = big * 0.85 + fine * 0.15;
++		float thr = 1.0 - blanket.a;
++		float bl = mix(smoothstep(thr - 0.05, thr + 0.05, bn), blanket.a * (0.88 + 0.12 * bn), blanket_veil);
++		bl *= smoothstep(0.2, 0.85, topness) * (1.0 - 0.5 * cobble);
++		bl *= (1.0 - smoothstep(0.0, 0.2, lav)) * (has_w ? max(smoothstep(0.0, 0.05, wd), icem * 0.6) : 1.0);
++		col = mix(col, blanket.rgb * (0.9 + 0.12 * fine), bl);
++	}
++	float water = has_w ? (1.0 - smoothstep(-0.006, 0.006, wd)) * topness * (1.0 - 0.85 * icem) : 0.0;
+ 	vec3 emi = vec3(0.0);
+ 	// gebogene Würfelkante (nur an Außenseiten liegt |uv| über 0,502)
+ 	float bend = smoothstep(0.5, 0.53, max(abs(uv.x), abs(uv.y)));
+--- a/shaders/foliage.gdshader
++++ b/shaders/foliage.gdshader
+@@ -13,7 +13,9 @@
+ uniform float spring = 0.0;
+ uniform float autumn = 0.0;
+ uniform float winter = 0.0;
++uniform vec4 blanket = vec4(0.92, 0.94, 0.97, 0.0);   // Schnee/Asche auf nach oben zeigendem Laub (Feld-Raum)
+ varying vec3 lp;
++varying float up_n;
+ varying float hue;
+ varying float ao;
+ void vertex() {
+@@ -28,6 +30,7 @@
+ 	VERTEX.x += sin(TIME * speed + vp) * sway * w * g;
+ 	VERTEX.z += cos(TIME * speed * 0.83 + vp * 1.3) * sway * 0.6 * w * g;
+ 	lp = VERTEX;
++	up_n = NORMAL.y;
+ 	hue = fract(sin(seed * 1.37 + 12.9898) * 43758.5453);
+ 	// eigene Meshes (use_vc) bringen ihre Abdunklung in den Vertexfarben mit
+ 	ao = use_vc ? 1.0 : clamp(0.62 + VERTEX.y * 7.0, 0.55, 1.0);
+@@ -45,6 +48,10 @@
+ 		c = mix(c, fall, autumn * green * (1.0 - conifer) * 0.85);
+ 		c = mix(c, vec3(lum) * vec3(0.95, 0.95, 1.0), winter * 0.6);
+ 	}
++	if (blanket.a > 0.0) {
++		float sn = smoothstep(0.15, 0.6, up_n + (n - 0.5) * 0.5) * smoothstep(0.0, 0.5, blanket.a + 0.2);
++		c = mix(c, blanket.rgb * (0.85 + 0.2 * n), sn * 0.7);
++	}
+ 	ALBEDO = c * ao;
+ 	ROUGHNESS = 0.85;
+ 	BACKLIGHT = c * 0.45;
+--- a/shaders/backdrop.gdshader
++++ b/shaders/backdrop.gdshader
+@@ -17,6 +17,12 @@
+ uniform float haze = 0.0;
+ uniform float stars = 0.0;
+ uniform float ash = 0.0;
++// Erdgeschichte: Rauch-Säule (Vulkan am Horizont), Staub-Sonne (nach dem Meteor: matte Scheibe hinter Staub)
++uniform float plume = 0.0;
++uniform float dust_sun = 0.0;
++uniform vec3 dust_sun_c : source_color = vec3(1.0, 0.55, 0.3);
++uniform float plume_x = 0.575;          // im Hochformat sieht die Kamera nur uv.x ≈ 0,39 … 0,61 der Himmelsebene
++uniform vec2 dust_uv = vec2(0.45, 0.3);
+ void fragment() {
+ 	vec2 uv = UV;
+ 	float y = 1.0 - uv.y;
+@@ -52,6 +58,20 @@
+ 		float a = texture(n_fbm, vec2(uv.x * 3.0, uv.y * 1.2 + TIME * 0.01)).r;
+ 		c = mix(c, c * 0.55, smoothstep(0.55, 0.8, a) * ash);
+ 	}
++	if (plume > 0.0) {
++		// Rauchfahne eines fernen Vulkans: dünne Säule am Horizont, oben breit und abgedriftet
++		float px = uv.x - plume_x - (y - 0.1) * 0.06 - 0.008 * sin(y * 8.0 + TIME * 0.2);
++		float pw = 0.004 + 0.03 * smoothstep(0.08, 0.6, y);
++		float pn = texture(n_fbm, vec2(px * 9.0, y * 2.0 - TIME * 0.01)).r;
++		float pm = (1.0 - smoothstep(pw * 0.5, pw, abs(px) + (pn - 0.5) * 0.015)) * smoothstep(0.3, 0.42, y) * (1.0 - smoothstep(0.62, 0.85, y));
++		c = mix(c, mix(vec3(0.42, 0.4, 0.4), vec3(0.62, 0.6, 0.58), pn), pm * plume * 0.5);
++		c += glow_c * (1.0 - smoothstep(0.0, 0.01, abs(uv.x - plume_x))) * smoothstep(0.28, 0.32, y) * (1.0 - smoothstep(0.32, 0.36, y)) * plume * 0.35;
++	}
++	if (dust_sun > 0.0) {
++		float sdd = length((uv - dust_uv) * vec2(1.0, 0.5));
++		c = mix(c, dust_sun_c, (1.0 - smoothstep(0.008, 0.011, sdd)) * dust_sun * 0.85);
++		c += dust_sun_c * (1.0 - smoothstep(0.0, 0.08, sdd)) * dust_sun * 0.25;
++	}
+ 	c += vec3(0.85, 0.88, 1.0) * flash;
+ 	ALBEDO = c;
+ }
+--- a/shaders/creature.gdshader
++++ b/shaders/creature.gdshader
+@@ -37,6 +37,10 @@
+ 		VERTEX.xy = piv + rot2(VERTEX.xy - piv, -graze * 1.05 + idle + chew);
+ 	} else if (part == 7.0) {
+ 		VERTEX.z += sin(TIME * 5.0 + phase) * 0.35 * (piv.y - VERTEX.y);
++	} else if (part == 8.0) {
++		// waagrechter Schwanz (Saurier, Mammut nicht): Welle läuft zur Spitze, Ausschlag wächst mit dem Abstand
++		float dl = max(piv.x - VERTEX.x, 0.0);
++		VERTEX.z += sin(TIME * 1.6 + phase - dl * 30.0) * 0.22 * dl * (1.0 + walk);
+ 	}
+ 	if (part >= 4.0 && part <= 6.0) {
+ 		vec2 hp = vec2(0.0, hip);

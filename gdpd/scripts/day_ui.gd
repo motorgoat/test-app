@@ -148,8 +148,8 @@ var ov_coin_num: Label
 var ov_coin_chip: PanelContainer
 var ov_char_btn: Button           # Antippen des eigenen Gottes öffnet ihn (ansehen, ändern, Art zu reden)
 var ov_days_box: VBoxContainer    # die 7 Tage (alte Oberfläche)
-var ov_acts_box: VBoxContainer    # die Schöpfung: 7 Akte mit ihren Leveln
-var ov_acts: Array = []           # je Akt: {"panel", "tile", "caps", "name", "stars", "levels": [{"btn", "num", "lock", "stars", "n"}]}
+var ov_acts_box: VBoxContainer    # die Erdgeschichte: die Zeitalter mit ihren Leveln (erreichte + eine „?“-Kachel)
+var ov_acts: Array = []           # je Zeitalter: {"panel", "tile", "caps", "name", "line", "flow", "stars", "levels": [{"btn", "num", "lock", "stars", "n"}]}
 var chip2: HBoxContainer          # zweites Teilziel im Chip (🐺 1/2 · 🦌 3/4)
 var chip2_icon: TextureRect
 var chip2_num: Label
@@ -707,7 +707,7 @@ func _build_overview() -> void:
 	_build_today_card()
 	# 3. Diese Woche
 	_build_week()
-	# 4. Die 7 Tage (4 + 3) – oder die Schöpfung (7 Akte mit ihren Leveln) – und „Freies Spiel“
+	# 4. Die 7 Tage (4 + 3) – oder die Erdgeschichte (Zeitalter mit ihren Leveln) – und „Freies Spiel“
 	ov_days_box = ui._vbox(14)
 	ov_box.add_child(ov_days_box)
 	var head := ui._hbox(8)
@@ -737,7 +737,7 @@ func _build_overview() -> void:
 		row.add_child(_day_tile(n))
 	ov_acts_box = ui._vbox(12)
 	ov_box.add_child(ov_acts_box)
-	for a in range(1, 8):
+	for a in range(1, Campaign.era_count() + 1):
 		ov_acts_box.add_child(_act_tile(a))
 	ov_days_box.visible = not Balance.CAMPAIGN_ON
 	ov_acts_box.visible = Balance.CAMPAIGN_ON
@@ -893,8 +893,8 @@ func _day_tile(n: int) -> Button:
 	return b
 
 
-## Ein Akt der Schöpfung (ein Genesis-Tag): Kopf (Symbol, „Tag 1“, Name – nur, wenn erreicht), darunter die Level
-## als Kacheln mit Nummer und Sternen. Gesperrt: nur ein Schloss oder „?“ (nie Titel oder Symbol).
+## Ein Zeitalter der Erdgeschichte: Kopf (Symbol, „Zeitalter 3“, Name – nur, wenn erreicht), darunter die Level
+## als Kacheln mit Nummer und Sternen. Nicht erreicht: eine einzige „?“-Kachel ohne Level (nie Name oder Symbol).
 func _act_tile(a: int) -> PanelContainer:
 	var p := PanelContainer.new()
 	var sb := Style.lift(Style.box(Style.SURFACE, Style.R_CARD, 16, 14), 1)
@@ -915,6 +915,9 @@ func _act_tile(a: int) -> PanelContainer:
 	tv.add_child(caps)
 	var nm := ui._label("?", 19, Style.INK, Style.W_BLACK)
 	tv.add_child(nm)
+	var ln := ui._label("", 14, Style.INK_3, Style.W_LABEL)
+	ln.visible = false
+	tv.add_child(ln)
 	var sh := ui._hbox(3)
 	h.add_child(sh)
 	var si := ui._icon("star", 18)
@@ -959,7 +962,7 @@ func _act_tile(a: int) -> PanelContainer:
 			stars.append(st)
 		lv.append({"btn": b, "num": num, "lock": lk, "stars": stars, "n": int(n)})
 		flow.add_child(b)
-	ov_acts.append({"panel": p, "tile": tl, "caps": caps, "name": nm, "stars": sl, "levels": lv, "act": a})
+	ov_acts.append({"panel": p, "tile": tl, "caps": caps, "name": nm, "line": ln, "flow": flow, "stars": sl, "levels": lv, "act": a})
 	return p
 
 
@@ -1392,7 +1395,8 @@ func show_overview(animate: bool = true) -> void:
 	var tiles: Array = [today_card]
 	if Balance.CAMPAIGN_ON:
 		for t in ov_acts:
-			tiles.append((t as Dictionary)["panel"])
+			if ((t as Dictionary)["panel"] as Control).visible:
+				tiles.append((t as Dictionary)["panel"])
 	else:
 		for t in ov_tiles:
 			tiles.append((t as Dictionary)["btn"])
@@ -1481,13 +1485,19 @@ func _fill_overview() -> void:
 	_fill_week(ti.get("week", []) as Array, streak, int(ti.get("best", 0)))
 	ov_debug.visible = OS.is_debug_build()
 	_ov_say_state()
+	if Balance.CAMPAIGN_ON and Game.take_migrated():
+		# Nach der Umstellung auf die Erdgeschichte (einmal): der Charakter sagt es, das erste Nachholen-Level pulst
+		_migrated_note = true
+		ov_say.text = str(Campaign.TEXT["bigger"])
+		_ov_said_key = "migrated"
+		ui._speak(ov_char, "happy", "", Style.SURFACE, overview.visible)
 
 
 ## Die Heute-Karte (1.6): neuer Tag · heute geschafft (morgen geht's weiter) · Welt des Tages · vollendet.
 func _fill_today(ti: Dictionary) -> void:
 	var state := str(ti.get("state", "new"))
 	var day := int(ti.get("day", 1))
-	var done := state != "new" and state != "wdt"
+	var done := state != "new" and state != "wdt" and state != "catchup"
 	tc_caps.text = str(ti.get("caps", ""))
 	tc_caps.add_theme_color_override("font_color", Style.LEAF_DEEP if done else Style.SUN_DEEP)
 	tc_title.text = str(ti.get("title", ""))
@@ -1595,26 +1605,43 @@ func _pulse_current() -> void:
 		for l in (a as Dictionary)["levels"]:
 			ui._pulse((l as Dictionary)["btn"], false)
 	ui._pulse(tc_go, false)
+	if _migrated_note:
+		_migrated_note = false
+		var cb := first_catchup_btn()
+		if cb != null:
+			get_tree().create_timer(0.6).timeout.connect(ui._pulse.bind(cb, true))
 	if tc_go.visible:
 		get_tree().create_timer(0.6).timeout.connect(ui._pulse.bind(tc_go, true))
 
 
-## Die Akte und ihre Level füllen. Erreichte Akte zeigen Namen und Symbol, Level Nummer und Sterne; gesperrte nur
-## ein Schloss (das nächste neue, morgen: Mond). Das aktuelle Level hat einen goldenen Rand.
+## Die Zeitalter und ihre Level füllen. Erreichte Zeitalter zeigen Namen und Symbol, Level Nummer und Sterne (ein
+## nachzuholendes Level einen blauen Punkt); danach genau eine „?“-Kachel ohne Namen und Level (das nächste Zeitalter,
+## morgen: Mond), alle späteren bleiben unsichtbar (nie spoilern). Das aktuelle Level hat einen goldenen Rand.
 func _fill_acts(ti: Dictionary) -> void:
 	var ov := Game.campaign_overview()
 	var cur := int(ov.get("current", 1))
 	var nn := Game.next_new_level()
 	var tomorrow := Game.new_level_tomorrow()
 	var acts: Array = ov.get("acts", [])
+	var locked_shown := false
 	for i in ov_acts.size():
 		var t: Dictionary = ov_acts[i]
 		var at: Dictionary = acts[i] if i < acts.size() else {}
-		var reached := str(at.get("icon", "lock")) != "lock"
-		(t["name"] as Label).text = str(at.get("name", "?"))
+		var reached := bool(at.get("reached", false))
+		var panel: Control = t["panel"]
+		panel.visible = reached or not locked_shown
+		if not reached:
+			if locked_shown:
+				continue
+			locked_shown = true
+		var morgen_era := not reached and tomorrow and nn <= Campaign.COUNT and Campaign.era_index(nn) == int(t["act"])
+		(t["name"] as Label).text = str(at.get("name", "?")) if reached else str(Campaign.TEXT["locked_short"])
 		(t["name"] as Label).add_theme_color_override("font_color", Style.INK if reached else Style.INK_3)
-		var ic := str(at.get("icon", "lock"))
-		ui._set_tile(t["tile"], ic, ui._tint_for_icon(ic) if reached else Style.SURFACE_3)
+		(t["line"] as Label).visible = not reached
+		(t["line"] as Label).text = str(Campaign.TEXT["locked"]) if morgen_era else str(Campaign.TEXT["later"])
+		(t["flow"] as Control).visible = reached
+		var ic := str(at.get("icon", "lock")) if reached else ("moon" if morgen_era else "lock")
+		ui._set_tile(t["tile"], ic, ui._tint_for_icon(ic) if reached else (Color("#E1E6F6") if morgen_era else Style.SURFACE_3))
 		var sum := 0
 		var lvs: Array = at.get("levels", [])
 		var has_cur := false
@@ -1622,36 +1649,48 @@ func _fill_acts(ti: Dictionary) -> void:
 			var l: Dictionary = (t["levels"] as Array)[j]
 			var lt: Dictionary = lvs[j] if j < lvs.size() else {}
 			var n := int(l["n"])
-			var open := bool(lt.get("open", false))
+			var open := reached and bool(lt.get("open", false))
 			var st := int(lt.get("stars", 0))
+			var catchup := open and bool(lt.get("catchup", false))
 			sum += st
 			var morgen := not open and tomorrow and n == nn
 			var is_cur := open and n == cur and str(ti.get("state", "")) == "new"
 			has_cur = has_cur or (open and n == cur)
 			(l["num"] as Label).visible = open
 			var lk: TextureRect = l["lock"]
-			lk.visible = not open
-			lk.texture = Style.icon("moon" if morgen else "lock")
-			lk.modulate.a = 0.8 if morgen else 0.45
+			lk.visible = not open or catchup
+			lk.texture = Style.icon("dot" if catchup else ("moon" if morgen else "lock"))
+			lk.modulate = Style.MONSOON_DEEP if catchup else Color(1, 1, 1, 0.8 if morgen else 0.45)
 			for k in 3:
 				var sr: TextureRect = (l["stars"] as Array)[k]
-				sr.visible = open
+				sr.visible = open and not catchup
 				sr.texture = Style.icon("star" if k < st else "star_empty")
 			var b: Button = l["btn"]
 			var nsb: StyleBoxFlat = b.get_meta("sb")
-			nsb.bg_color = (Style.SUN_TINT if is_cur else Style.SURFACE_2) if open else (Color("#EEF0FA") if morgen else Color(Style.SURFACE_2, 0.7))
-			nsb.border_color = Style.SUN
-			nsb.set_border_width_all(3 if is_cur else 0)
+			nsb.bg_color = (Style.SUN_TINT if is_cur else (Color("#E8F1FB") if catchup else Style.SURFACE_2)) if open else (Color("#EEF0FA") if morgen else Color(Style.SURFACE_2, 0.7))
+			nsb.border_color = Style.SUN if not catchup or is_cur else Style.MONSOON
+			nsb.set_border_width_all(3 if is_cur else (2 if catchup else 0))
 			b.set_meta("current", is_cur)
 			b.set_meta("morgen", morgen)
 			b.set_meta("open", open)
+			b.set_meta("catchup", catchup)
 		(t["stars"] as Label).text = "%d/%d" % [sum, 3 * (t["levels"] as Array).size()]
 		(t["stars"] as Label).get_parent().visible = reached
-		var psb: StyleBoxFlat = (t["panel"] as Control).get_meta("sb")
-		psb.bg_color = Style.SURFACE if reached else Color(Style.SURFACE, 0.6)
+		var psb: StyleBoxFlat = panel.get_meta("sb")
+		psb.bg_color = Style.SURFACE if reached else (Color("#EEF0FA") if morgen_era else Color(Style.SURFACE, 0.6))
 		psb.border_color = Style.SUN
 		psb.set_border_width_all(2 if has_cur else 0)
 		(t["caps"] as Label).add_theme_color_override("font_color", Style.SUN_DEEP if has_cur else Style.INK_3)
+
+
+## Das erste Level zum Nachholen (0 = keins), für die Pulse nach der Umstellung.
+func first_catchup_btn() -> Button:
+	for a in ov_acts:
+		for l in (a as Dictionary)["levels"]:
+			var b: Button = (l as Dictionary)["btn"]
+			if bool(b.get_meta("catchup", false)) and b.is_visible_in_tree():
+				return b
+	return null
 
 
 ## Das Level-Kärtchen n (Tour, Tests).
@@ -1876,9 +1915,10 @@ func _on_day_started(info: Dictionary) -> void:
 			_hold = {}
 			_go_resumed.call_deferred()
 			return
-		# Ein neuer Akt (Genesis-Tag): erst der Übergang (3 s, ohne Text), dann die Ziel-Karte
-		if Campaign.first_of_act(n) and n > 1 and not bool(info.get("wdt", false)) and not Game.coach_seen.has("act_%d" % int(info.get("act", 0))):
-			Game.coach_seen["act_%d" % int(info.get("act", 0))] = true
+		# Ein neues Zeitalter: erst der Übergang (Himmel und Wasser wechseln, kurz der Name), dann die Ziel-Karte
+		var ek := "era_%s" % str(info.get("era_id", info.get("act", 0)))
+		if Campaign.first_of_era(n) and n > 1 and not bool(info.get("wdt", false)) and not Game.coach_seen.has(ek):
+			Game.coach_seen[ek] = true
 			Game.save_settings()
 			_act_then_card(info.get("era", {}), _end_gen)
 			return
@@ -1896,17 +1936,77 @@ func _on_day_started(info: Dictionary) -> void:
 	_open_goal_card.call_deferred()
 
 
-var act_shown := 0                 # Tour: so viele Akt-Übergänge liefen
+var act_shown := 0                 # Tour: so viele Zeitalter-Übergänge liefen
+var era_shown := ""                # Tour: der Titel des letzten Zeitalter-Übergangs
+var _migrated_note := false        # Übersicht: „Die Welt ist größer geworden.“ wurde gerade gesagt
 
 
 func _act_then_card(era: Dictionary, gen: int) -> void:
 	act_shown += 1
+	era_shown = str(_info.get("era_title", ""))
 	ui.top.visible = false
+	_show_era_title(era_shown, str(_info.get("era_line", "")), str(Campaign.ICON.get(int(_info.get("act", 0)), "")))
 	await ui.world.act_transition(era)
+	_hide_era_title()
 	if gen != _end_gen:
 		return
 	ui.top.visible = true
 	_open_goal_card()
+
+
+var era_title_card: PanelContainer      # Zeitalter-Übergang: „Neues Zeitalter“ · Name · Zeile (kurz, über dem Würfel)
+var _era_title_label: Label
+var _era_line_label: Label
+var _era_icon: PanelContainer
+
+
+func _show_era_title(title: String, line: String, icon_name: String) -> void:
+	if title == "":
+		return
+	if era_title_card == null:
+		era_title_card = PanelContainer.new()
+		era_title_card.add_theme_stylebox_override("panel", Style.card(Style.R_CARD, 2, 26, 18))
+		era_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var v := ui._vbox(4)
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		era_title_card.add_child(v)
+		_era_icon = ui._tile("star", 58, Style.SUN_TINT, 0.32)
+		_era_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(_era_icon)
+		var caps := ui._caps(str(Campaign.TEXT["era_new"]), Style.SUN_DEEP)
+		caps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(caps)
+		_era_title_label = ui._label("", 30, Style.INK, Style.W_BLACK)
+		_era_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(_era_title_label)
+		_era_line_label = ui._label("", 17, Style.INK_2, Style.W_LABEL)
+		_era_line_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(_era_line_label)
+		ui.root.add_child(era_title_card)
+	_era_title_label.text = title
+	_era_line_label.text = line
+	_era_line_label.visible = line != ""
+	var ic := icon_name if icon_name != "" and Style.icon(icon_name) != null else "star"
+	ui._set_tile(_era_icon, ic, ui._tint_for_icon(ic))
+	era_title_card.visible = true
+	era_title_card.reset_size()
+	var vs := ui._vs()
+	var sz := era_title_card.get_combined_minimum_size()
+	era_title_card.size = sz
+	era_title_card.position = Vector2((vs.x - sz.x) * 0.5, vs.y * 0.16)
+	era_title_card.modulate.a = 0.0
+	var tw := ui._fx(era_title_card, "a")
+	tw.tween_interval(0.35)
+	tw.tween_property(era_title_card, "modulate:a", 1.0, 0.45)
+
+
+func _hide_era_title() -> void:
+	if era_title_card == null or not era_title_card.visible:
+		return
+	var tw := ui._fx(era_title_card, "a")
+	tw.tween_property(era_title_card, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(era_title_card.hide)
 
 
 ## Was in Level n neu ist und wohin es nach „Los!“ fliegt: [Symbol, Titel, Ziel ("rain" | "strike" | "chip")] oder [].
@@ -1931,6 +2031,20 @@ func _reveal9(info: Dictionary) -> Array:
 		icon = "sun"
 	elif title.contains("Hunger"):
 		icon = "hunger"
+	elif title.contains("Einschlag"):
+		icon = "meteor_fall"
+	elif title.contains("Eiszeit") or title.contains("Tauwetter"):
+		icon = "ice"
+	elif title.contains("Jagd"):
+		icon = "rex"
+	elif title.contains("Jäger"):
+		icon = "early"
+	elif title.contains("Landgang"):
+		icon = "amphib"
+	elif title.contains("Feuer") or title.contains("Wärme"):
+		icon = "camp"
+	elif title.contains("Sauerstoff"):
+		icon = "algae"
 	if Style.icon(icon) == null:
 		icon = "star"
 	return [icon, title, target]
@@ -2014,13 +2128,14 @@ func _fill_goal_card(info: Dictionary) -> void:
 	gc_mercy.text = str(Days.TEXT["mercy"]) % mercy
 
 
-## Ziel-Karte eines Levels der Schöpfung: Akt und Level, die Geschichte (der Charakter erzählt), die Aufgabe, kein
+## Ziel-Karte eines Levels der Erdgeschichte: Zeitalter und Level, die Geschichte (der Charakter erzählt), die Aufgabe, kein
 ## Limit (Schritte zählen), die Sterne-Grenzen, das Neue.
 func _fill_goal_card9(info: Dictionary) -> void:
 	var n := int(info["day"])
 	var wdt := bool(info.get("wdt", false))
-	gc_caps.text = str(info.get("caps", "")) if wdt else "%s · %s · Level %d" % [str(Campaign.TEXT["act_caps"]) % int(info.get("act", 1)),
-		str(info.get("act_name", "")), n]
+	gc_caps.text = str(info.get("caps", "")) if wdt else "%s · Level %d" % [str(info.get("era_title", info.get("act_name", ""))), n]
+	if not wdt and bool(info.get("catchup", false)):
+		gc_caps.text = "%s · %s" % [str(Campaign.TEXT["catchup"]), gc_caps.text]
 	var intro := str(info.get("story", ""))
 	if wdt:
 		intro = Voice.line("wdt_open")
@@ -2135,8 +2250,19 @@ func _go9(n: int) -> void:
 		Game.save_settings()
 		get_tree().create_timer(delay).timeout.connect(_reveal_fly9.bind(rv, _end_gen))
 		delay += 1.95
+	if bool(_info.get("impact_warn", false)) and Game.state != null and Game.state.impact_pending9():
+		# Der Einschlag ist angekündigt (Spec 4.3): die Pille gleich nach dem Neuen, der Meteor steht schon am Himmel
+		get_tree().create_timer(delay).timeout.connect(_impact_pill.bind(_end_gen))
+		delay += 2.2
 	if not Game.coach_seen.has("lvl_coach_%d" % n) and not bool(_info.get("wdt", false)):
 		get_tree().create_timer(delay).timeout.connect(_first_coach9.bind(n, _end_gen))
+
+
+func _impact_pill(gen: int) -> void:
+	if gen != _end_gen or not Game.in_day() or Game.state == null or not Game.state.impact_pending9():
+		return
+	pill9_last = "impact_warn"
+	ui._show_banner("war", "", str((Campaign.PILL["impact_warn"] as Array)[0]), "meteor_fall")
 
 
 func _first_coach9(n: int, gen: int) -> void:
@@ -2779,14 +2905,15 @@ func _pill8(result: Dictionary) -> void:
 const PILL9_RANK = {"goal_loss": 10, "erupt": 9, "volcano_warn": 9, "bolt": 8, "bolt_warn": 8, "pack_warn": 8, "pack_hunt": 7,
 	"hunger_warn": 7, "starve": 7, "smog_warn": 6, "polluted": 6, "war_start": 9, "flood_warn": 8, "flood": 7, "war_hit": 6,
 	"need_sealed": 5, "spawn": 5, "mercy": 5, "meteor_ready": 4, "volcano_calm": 4, "bolt_cancel": 4,
-	"thrive": 3, "steam": 3, "satt_new": 2, "hold": 2}
+	"thrive": 3, "steam": 3, "satt_new": 2, "hold": 2, "impact": 11, "glacier_warn": 9, "freeze": 8, "glacier_calm": 4}
 const PILL9_ICON = {"goal_loss": "down", "erupt": "volcano", "volcano_warn": "volcano", "volcano_calm": "check",
 	"bolt": "fire", "bolt_warn": "lightning", "bolt_cancel": "rain", "pack_warn": "pred", "pack_hunt": "pred",
 	"hunger_warn": "hunger", "starve": "hunger", "smog_warn": "smog", "polluted": "smog", "spawn": "animals",
 	"steam": "rain", "meteor_ready": "meteor", "mercy": "spark", "need_sealed": "check", "thrive": "up",
-	"satt_new": "check", "hold": "moon", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood"}
+	"satt_new": "check", "hold": "moon", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood",
+	"impact": "meteor_fall", "glacier_warn": "ice", "freeze": "ice", "glacier_calm": "check"}
 const PILL9_WAR = ["goal_loss", "erupt", "volcano_warn", "bolt", "bolt_warn", "pack_warn", "pack_hunt", "hunger_warn",
-	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood"]
+	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood", "impact", "glacier_warn", "freeze"]
 var _sealed_said := false
 var _rain_coach_due := ""            # Level 5: der Regen-Tipp wartet auf den ersten Dampf
 var _steam_said := false
@@ -2822,14 +2949,25 @@ func _pill9(result: Dictionary) -> void:
 	var tt := str(best["type"])
 	var caps := ""
 	var line := ""
-	if Campaign.PILL.has(tt):
-		caps = str((Campaign.PILL[tt] as Array)[0])
-		line = str((Campaign.PILL[tt] as Array)[1])
+	var pl := Campaign.pill(best)
+	if pl.size() >= 2:
+		caps = str(pl[0])
+		line = str(pl[1])
+	var icon := str(PILL9_ICON.get(tt, "info"))
 	match tt:
 		"goal_loss":
 			caps = str(Campaign.TEXT["loss"]) % FieldData.kind_name(int(best.get("kind", 0)))
 		"thrive":
-			caps = str(Campaign.THRIVE_PILL.get(int(best.get("from", -1)), ""))
+			caps = Campaign.thrive_pill(int(best.get("from", -1)), int(best.get("kind", -1)))
+			if int(best.get("kind", -1)) >= 0 and Style.icon(FieldData.kind_icon(int(best["kind"]))) != null:
+				icon = FieldData.kind_icon(int(best["kind"]))
+		"pack_warn", "pack_hunt":
+			var hk := int(best.get("hunter", FieldData.PRED))
+			if Style.icon(FieldData.kind_icon(hk)) != null:
+				icon = FieldData.kind_icon(hk)
+		"spawn":
+			if Style.icon(FieldData.kind_icon(int(best.get("kind", FieldData.AMPHIB)))) != null:
+				icon = FieldData.kind_icon(int(best.get("kind", FieldData.AMPHIB)))
 		"satt_new":
 			_satt_said = true
 			caps = str(Days.TEXT["satt_goal"]) % FieldData.kind_name(int(best.get("kind", FieldData.HUT))) + "!"
@@ -2847,7 +2985,7 @@ func _pill9(result: Dictionary) -> void:
 		line = caps
 		caps = ""
 	pill9_last = tt
-	ui._show_banner("war" if PILL9_WAR.has(tt) else "still", caps, line, str(PILL9_ICON.get(tt, "info")))
+	ui._show_banner("war" if PILL9_WAR.has(tt) else "still", caps, line, icon)
 
 
 func _goal_icon(info: Dictionary) -> String:
@@ -3111,7 +3249,7 @@ func tooltip(key: String) -> Dictionary:
 			return {"icon": "lock", "title": "Level %d" % ln, "body": Game.level_locked_text(ln)}
 		var lc := Campaign.config(ln)
 		var lst := Game.level_stars(ln)
-		var lb := "%s. %s" % [str(lc.get("story", "")), Campaign.goal_line(lc)]
+		var lb := "%s %s." % [str(lc.get("story", "")), Campaign.goal_line(lc)]
 		if lst > 0:
 			lb += " Dein Bestes: %d %s." % [lst, "Stern" if lst == 1 else "Sterne"]
 		return {"icon": str(Campaign.ICON.get(int(lc.get("act", 1)), "star")), "title": "Level %d · %s" % [ln, str(lc.get("title", ""))], "body": lb}

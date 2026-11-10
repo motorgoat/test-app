@@ -181,3 +181,7 @@
   nur der Erdgeschichte in Zeitaltern (z. B. Urerde, Urozean, erstes Leben, Kambrium, Fische, Landgang,
   Saurierzeit, Meteor, Säugetiere, Eiszeit, Affen, Frühmenschen, Ackerbau, Städte, Industrie, Gleichgewicht)
   mit vielen Leveln; ein Level pro Tag, offen erweiterbar.
+- Spec dazu: `docs/GDPD_ERDGESCHICHTE.md` (20 Zeitalter, 60 Level, 13 neue Arten, Jagd/Gletscher/Einschlag als
+  Folgen, Übernahme alter Spielstände; mit Bots geprüft). Umgesetzt (Regeln, Grafik, Oberfläche): Übersicht nach
+  Zeitaltern (nur erreichte mit Namen, danach ein „?“), Zeitalter-Übergang mit kurzem Namen, keine Genesis-Wörter mehr,
+  alte Spielstände wandern mit („Nachholen“). Offen: am echten Handy prüfen.

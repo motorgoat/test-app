@@ -278,6 +278,12 @@ func _reset(seed_value: int, endless_mode: bool, lvl: int, with_hearts: bool) ->
 	sys9 = {}
 	volc = -1
 	pack_warn9 = {}
+	hunt9 = []
+	glacier9 = {}
+	glac9 = -1
+	glac_rest9 = []
+	impact9 = {}
+	impact_done9 = false
 	smog_warn9 = {}
 	meteors = 0
 	held9 = []
@@ -608,6 +614,12 @@ func clone() -> GameState:
 		gs.lost9 = lost9.duplicate()
 		gs.volc = volc
 		gs.pack_warn9 = pack_warn9.duplicate()
+		gs.hunt9 = hunt9              # nur gelesen
+		gs.glacier9 = glacier9        # nur gelesen
+		gs.impact9 = impact9          # nur gelesen
+		gs.glac9 = glac9
+		gs.glac_rest9 = glac_rest9.duplicate()
+		gs.impact_done9 = impact_done9
 		gs.smog_warn9 = smog_warn9.duplicate()
 		gs.meteors = meteors
 		gs.held9 = held9.duplicate()
@@ -3856,6 +3868,14 @@ func _sources9(ks: Dictionary, rows: bool) -> Dictionary:
 	var grew := true
 	while grew:
 		grew = false
+		if impact_pending9():
+			# Einschlag (4.3): die Saurier werden sicher zu Asche (Erde), aus der die Wiesen wachsen
+			var kill: Dictionary = impact9["kill"]
+			for kk in kill:
+				var to0 := int(kill[kk])
+				if (ks.has(to0) or out.has(to0)) and not out.has(int(kk)) and not ks.has(int(kk)):
+					out[int(kk)] = true
+					grew = true
 		for k in thrive9:
 			var up: Variant = (thrive9[k] as Dictionary).get("up")
 			if up != null and int(up) >= 0 and (ks.has(int(up)) or out.has(int(up))) and not out.has(int(k)) \
@@ -3870,7 +3890,8 @@ func _sources9(ks: Dictionary, rows: bool) -> Dictionary:
 				grew = true
 		for k4 in thrive9:
 			var sp: Variant = (thrive9[k4] as Dictionary).get("spawn")
-			if sp is Array and (sp as Array).size() >= 2 and (ks.has(int((sp as Array)[1])) or out.has(int((sp as Array)[1]))):
+			if sp is Array and (sp as Array).size() >= 2 and (ks.has(int((sp as Array)[1])) or out.has(int((sp as Array)[1]))) \
+					and _spawner_ok9(int(k4)):
 				for on in (sp as Array)[0]:
 					if not out.has(int(on)) and not ks.has(int(on)):
 						out[int(on)] = true      # Landgang: ein Feld dieser Art wird zur neuen Art
@@ -3882,6 +3903,19 @@ func _sources9(ks: Dictionary, rows: bool) -> Dictionary:
 					out[int(k2)] = true
 					grew = true
 	return out
+
+
+## Landgang braucht einen, der an Land geht (Fische): da oder machbar (Reihe aus 3 da, Regen auf eine vorhandene Art).
+func _spawner_ok9(k: int) -> bool:
+	if count(k) > 0:
+		return true
+	for k2 in rows9:
+		if int(rows9[k2]) == k and count(int(k2)) >= 3:
+			return true
+	for it in rain9:
+		if int((it as Array)[2]) == k and count(int((it as Array)[0])) > 0 and (rain > 0 or rain_every > 0):
+			return true
+	return false
 
 
 ## Wie viele Felder der Art s noch durch Reihen weiterwachsen können (optimistisch). Eine Reihe ist Ecke-Kante-Ecke
@@ -3979,9 +4013,25 @@ func _group_bound9(k: int, extra: int) -> int:
 	return best
 
 
-## Kann ein Feld (Sticker-Art t) die Bedürfnisse von Art k je erfüllt bekommen? Quellen, die es gibt (an einer
-## Sticker-Art, die t berührt) oder die das Level noch machen kann.
-func _needs_ok9(k: int, t: int, have_kind: Dictionary) -> bool:
+## Sticker-Arten anderer Steine, die eine Sticker-Art je berühren kann (Ecke – Kante – Mitte). Sticker desselben Steins
+## berühren sich immer (feste Partner) und zählen nur als sie selbst.
+const REACH9 = {3: [2], 2: [3, 1], 1: [2]}
+
+
+## Kann Feld h je neben Feld fid liegen? (anderer Stein: nach Sticker-Art; derselbe Stein: immer Nachbarn)
+func _can_touch9(fid: int, h: int) -> bool:
+	if h == fid:
+		return false
+	var a: FieldData = fields[fid]
+	var b: FieldData = fields[h]
+	if a.p == b.p:
+		return true
+	return (REACH9[FieldData.sticker_type(a.p)] as Array).has(FieldData.sticker_type(b.p))
+
+
+## Kann ein Feld (Sticker-Art t; fid ≥ 0: genau dieses Feld) die Bedürfnisse von Art k je erfüllt bekommen? Quellen,
+## die es gibt (an einer Sticker-Art, die t berührt) oder die das Level noch machen kann.
+func _needs_ok9(k: int, t: int, have_kind: Dictionary, fid: int = -1) -> bool:
 	var r: Variant = thrive9.get(k)
 	if r == null:
 		return true
@@ -3997,12 +4047,23 @@ func _needs_ok9(k: int, t: int, have_kind: Dictionary) -> bool:
 		var ks := {}
 		for x in src:
 			ks[int(x)] = true
+		# eine Quelle (oder ein Feld, das an Ort und Stelle zur Quelle wird: Gedeihen, Regen) auf einer Sticker-Art,
+		# die t berührt; Reihen können eine neue Quelle überall hinlegen (optimistisch). GDPD_ERDGESCHICHTE.md 6:
+		# eine Hütte auf einer Mitte, an die nie ein Wald kommt, wird nie ein Dorf (🔨 nach Sticker-Art).
+		var free := _sources9(ks, false)
 		var found := false
 		for f in fields:
-			if ks.has(f.kind) and (TOUCH9[t] as Array).has(FieldData.sticker_type(f.p)):
+			if not (ks.has(f.kind) or free.has(f.kind)):
+				continue
+			if (fid >= 0 and _can_touch9(fid, f.id)) or (fid < 0 and (TOUCH9[t] as Array).has(FieldData.sticker_type(f.p))):
 				found = true
 				break
-		if not found and int(_supply9(ks)["supply"]) <= 0:
+		if not found:
+			for s2 in _sources9(ks, true):
+				if not free.has(s2) and rows9.has(int(s2)) and _row_cap9(int(s2)) > 0:
+					found = true
+					break
+		if not found:
 			return false
 	return true
 
@@ -4080,7 +4141,8 @@ func reach9() -> Dictionary:
 					if not reach.has(f.kind):
 						continue
 					have += 1
-					if satt9(f.id) or _needs_ok9(k1, FieldData.sticker_type(f.p), have_kind):
+					# eine Vorstufe (Hütte für ein Dorf-Ziel) zählt nur, wenn sie die Bedürfnisse der Ziel-Art je bekommt
+					if (f.kind == k1 and satt9(f.id)) or _needs_ok9(k1, FieldData.sticker_type(f.p), have_kind, f.id):
 						good += 1
 					elif bad_f < 0:
 						bad_f = f.id
@@ -4097,18 +4159,21 @@ func _missing_src9(k: int, fid: int) -> int:
 	var r: Variant = thrive9.get(k)
 	if r == null:
 		return k
-	var miss: Array = need_state9(fields[fid])["missing"] if fid >= 0 else []
-	for need in ((r as Dictionary)["needs"] as Dictionary):
+	var nd: Dictionary = (r as Dictionary)["needs"]
+	for need in nd:
 		var ns := str(need)
 		if ns == "sun":
 			continue
-		if not miss.is_empty() and not miss.has(ns):
-			continue
+		if fid >= 0:
+			# fehlt es diesem Feld als Art k? (eine Hütte für ein Dorf-Ziel: 🍞 versiegelt, 🔨 fehlt)
+			var have := maxi(supply9(fid, ns), int((fields[fid] as FieldData).best.get(ns, 0)))
+			if have >= int(nd[need]):
+				continue
 		if ns == "wet":
 			return FieldData.WATER
-		var src: Array = SOURCES9.get(ns, [])
-		if not src.is_empty():
-			return int(src[0])
+		var sk := src_kind9(ns)
+		if sk >= 0:
+			return sk
 	return k
 
 
@@ -4350,7 +4415,7 @@ func _gift_satt9(x: Dictionary) -> Array:
 					to = -2
 					break
 				if to == -1:
-					to = FieldData.WATER if ns == "wet" else (int((SOURCES9[ns] as Array)[0]) if SOURCES9.has(ns) else -1)
+					to = c.src_kind9(ns)
 			if to < 0:
 				break
 			var g := c._filler9(0, fid, -1, to)
@@ -4415,6 +4480,8 @@ func _play_gift9() -> Dictionary:
 		f.burning = false
 		if f.id == volc:
 			volc = -1
+		if f.id == glac9:
+			glac9 = -1
 		if f.id == bolt:
 			bolt = -1
 		ids.append(f.id)
@@ -4426,6 +4493,7 @@ func _play_gift9() -> Dictionary:
 		# Ruhe: alle Warnungen erlöschen (kein Blitz, kein Ausbruch, kein Rudel, kein Smog, keine Flut, keine Front)
 		bolt = -1
 		volc = -1
+		glac9 = -1
 		pack_warn9 = {}
 		smog_warn9 = {}
 		flood_warn = {}
@@ -4691,25 +4759,36 @@ const LOW9 = [FieldData.EMPTY, FieldData.MEADOW, FieldData.FIELD, FieldData.SEED
 const ERUPTS9 = [FieldData.STONE, FieldData.EMPTY, FieldData.MOSS, FieldData.FERN, FieldData.FOREST, FieldData.MEADOW]
 const CITY_W9 = {FieldData.VILLAGE: 1, FieldData.TOWN: 2, FieldData.INDUSTRY: 2}
 ## Schaden (Ruhe-Ziel „hold“: eine Runde ohne diese Ereignisse; Warnungen sind erlaubt). Namen wie im Modell.
-const DAMAGE9 = ["starve", "burnt", "erupt", "war_hit", "flood", "smog", "pack_hunt", "goal_loss", "bolt", "ignite"]
+const DAMAGE9 = ["starve", "burnt", "erupt", "war_hit", "flood", "smog", "pack_hunt", "goal_loss", "bolt", "ignite",
+	"freeze"]
 ## Bedürfnis → Arten, die es geben (3.4). sun und wet sind besonders (Sonnenseite, Zahl der Wasser-Nachbarn).
-const SOURCES9 = {"heat": [FieldData.LAVA], "mineral": [FieldData.STONE], "spark": [FieldData.LAVA, FieldData.CELLS],
-	"algae": [FieldData.ALGAE], "fish": [FieldData.FISH], "shore": [FieldData.MEADOW],
-	"plants": [FieldData.MEADOW, FieldData.FOREST], "prey": [FieldData.ANIMALS],
-	"food": [FieldData.ANIMALS, FieldData.FIELD], "work": [FieldData.FOREST, FieldData.STONE, FieldData.INDUSTRY],
-	"faith": [FieldData.CHURCH]}
+## Erdgeschichte (GDPD_ERDGESCHICHTE.md 3.1): 🌲 Holz, 🐞 Insekten, ❄ Kälte; 🔥 auch von der Feuerstelle, 🌾 vom Farn,
+## 🍖 vom Saurier, 🦶 vom Moos (kein altes Level hat diese Nachbarn: alle alten Level laufen gleich).
+const SOURCES9 = {"heat": [FieldData.LAVA, FieldData.CAMP], "mineral": [FieldData.STONE],
+	"spark": [FieldData.LAVA, FieldData.CELLS], "algae": [FieldData.ALGAE], "fish": [FieldData.FISH],
+	"shore": [FieldData.MEADOW, FieldData.MOSS], "plants": [FieldData.MEADOW, FieldData.FOREST, FieldData.FERN],
+	"prey": [FieldData.ANIMALS, FieldData.SAURO], "food": [FieldData.ANIMALS, FieldData.FIELD],
+	"work": [FieldData.FOREST, FieldData.STONE, FieldData.INDUSTRY], "faith": [FieldData.CHURCH],
+	"wood": [FieldData.FOREST], "bugs": [FieldData.INSECTS], "cold": [FieldData.ICE]}
 ## Bedürfnis → Symbol (icons/<name>.svg; fehlt eins, nimmt die Oberfläche ein Ersatz-Symbol).
 const NEED_ICON9 = {"heat": "heat", "mineral": "mineral", "spark": "spark", "algae": "algae", "fish": "fishneed",
 	"shore": "shore", "plants": "plants", "prey": "prey", "food": "hunger", "work": "work", "faith": "faith",
-	"sun": "sun", "wet": "rain"}
+	"sun": "sun", "wet": "rain", "wood": "wood", "bugs": "bugs", "cold": "cold"}
 const NEED_NAME9 = {"heat": "Wärme", "mineral": "Fels", "spark": "Leben", "algae": "Algen", "fish": "Fische",
 	"shore": "Ufer", "plants": "Futter", "prey": "Beute", "food": "Nahrung", "work": "Arbeit", "faith": "Glaube",
-	"sun": "Sonne", "wet": "Wasser"}
+	"sun": "Sonne", "wet": "Wasser", "wood": "Holz", "bugs": "Insekten", "cold": "Kälte"}
 ## Gekaufte Wunder (GDPD_PUNKTE_LADEN.md 1, 4): zählen 2 Schritte, je Art höchstens eins je Level.
 const MIRACLE_STEPS := 2
 ## Meteor-Ziele, die der Tipp prüft (wie bot9.METEOR_T).
 const METEOR_T9 = [FieldData.CHURCH, FieldData.INDUSTRY, FieldData.PRED, FieldData.LAVA, FieldData.TOWN,
-	FieldData.VILLAGE, FieldData.STONE]
+	FieldData.VILLAGE, FieldData.STONE, FieldData.REX, FieldData.ICE]
+## Gletscher (GDPD_ERDGESCHICHTE.md 4.2, die Vulkan-Regel mit anderen Zahlen): ab so großer Eis-Gruppe gewarnt, so viele
+## Nachbarn frieren ein, so viele Runden ruht die Gruppe danach. Was einfriert, wenn das Level nichts anderes sagt.
+const B10 = {"GLAC_AT": 4, "GLAC_MAX": 2, "GLAC_REST": 2}
+const FREEZE9 = [FieldData.WATER, FieldData.MEADOW, FieldData.FOREST, FieldData.ANIMALS, FieldData.EMPTY, FieldData.MOSS,
+	FieldData.FERN, FieldData.APES, FieldData.EARLY]
+## Die alte Rudel-Regel als Jagd (Level „Rudel“ der Schöpfung): Raubtiere ≥ 3 jagen Tiere, die zur Wiese werden.
+const PACK_HUNT9 = [FieldData.PRED, [FieldData.ANIMALS], FieldData.MEADOW, 3, 0]
 const _LW9 = {0: 8.0, 1: 6.0, 2: 2.5, 3: 1.0, 4: 0.4}
 
 ## Genau wie das Python-Modell engine9 (für den Abgleich tests/xcheck9): ohne die Regeln aus Build 12 (späte Runde,
@@ -4732,7 +4811,16 @@ var lost9: Array = []           # Art → so viele gemachte Ziel-Felder sind dur
 var goal_kinds9: Dictionary = {}
 var chain9: Dictionary = {}     # Art → Schritte bis zu einer Ziel-Art (für den Tipp; nur gelesen)
 var volc := -1                  # gewarnter Krater (bricht aus, wenn die Lava-Gruppe dann noch ≥ 5 ist)
-var pack_warn9: Dictionary = {} # Tiere-Feld → true: das Rudel jagt es in der nächsten Runde
+var pack_warn9: Dictionary = {} # Beute-Feld → true: Jäger (Rudel, Raubsaurier, Frühmenschen) jagen es in der nächsten Runde
+## Jagd (GDPD_ERDGESCHICHTE.md 4.1): [{"hunter", "prey": [Arten], "to", "at", "herd"}] (das alte Rudel ist eine davon).
+var hunt9: Array = []
+## Gletscher (4.2): {"at", "max", "rest", "over": {Art: true}, "immune": {Art: true}} oder {} (kein Gletscher).
+var glacier9: Dictionary = {}
+var glac9 := -1                 # gewarnter Gletscher-Krater (friert ein, wenn die Eis-Gruppe dann noch ≥ at ist)
+var glac_rest9: Array = []      # Feld-ID → so viele Runden ruht dieses Eis noch (warnt nicht wieder)
+## Einschlag (4.3): {"at": Runde, "kill": {Art: wird zu}} oder {} (nur im Level „Einschlag“).
+var impact9: Dictionary = {}
+var impact_done9 := false
 var smog_warn9: Dictionary = {} # Natur-Feld → Industrie-Feld: welkt in der nächsten Runde
 var meteors := 0                # Meteor-Ladungen (Level 23: eine; ab 27 aus Glauben)
 var held9: Array = []           # Ruhe-Ziel: so viele Runden in Folge hält alles
@@ -4801,7 +4889,7 @@ func face_ids9(fc: int) -> Array:
 
 # --- Aufbau --------------------------------------------------------------------------------
 
-## Ein Level der Schöpfung: cfg = Campaign.config(n) (die Level-Daten aus data/kampagne_schoepfung.json),
+## Ein Level der Kampagne: cfg = Campaign.config(n) (die Level-Daten aus data/kampagne_erde.json),
 ## kinds = 54 Arten (Feld-ID-Reihenfolge), seed_value = Seed des Bretts (Blitz-Zufall wie im Modell).
 func setup_level(cfg: Dictionary, kinds: Array, seed_value: int = 1) -> void:
 	_reset(seed_value if seed_value != 0 else 1, true, 2, false)
@@ -4869,7 +4957,13 @@ func _apply_level_rules(cfg: Dictionary, seed_value: int) -> void:
 	rain9 = []
 	for item in cfg.get("rain", []):
 		var it: Array = item
-		rain9.append([int(it[0]), str(it[1]) if it[1] != null else "", int(it[2])])
+		# Bedingung: "" | shore | people | nopeople | sun | meadow, oder eine Art (das Feld muss sie berühren, 4.4)
+		var cond: Variant = ""
+		if it[1] is float or it[1] is int:
+			cond = int(it[1])
+		elif it[1] != null:
+			cond = str(it[1])
+		rain9.append([int(it[0]), cond, int(it[2])])
 	burn9 = {}
 	var bn: Dictionary = cfg.get("burn", {})
 	for key in bn:
@@ -4882,8 +4976,42 @@ func _apply_level_rules(cfg: Dictionary, seed_value: int) -> void:
 		if str(sub["type"]) == "make":
 			for k in sub["kinds"]:
 				goal_kinds9[int(k)] = true
+	# Jagd (4.1): cfg.hunt = [[Jäger, [Beute], fällt zu, ab, Herde]]; ohne hunt ist das alte Rudel (pack) eine Jagd
+	hunt9 = []
+	var hl: Array = cfg.get("hunt", []) if cfg.get("hunt") is Array else []
+	if hl.is_empty() and bool(cfg.get("pack", false)):
+		hl = [PACK_HUNT9]
+	for h in hl:
+		var ha: Array = h
+		var prey: Array = []
+		for k in ha[1]:
+			prey.append(int(k))
+		hunt9.append({"hunter": int(ha[0]), "prey": prey, "to": int(ha[2]), "at": int(ha[3]) if ha.size() > 3 else 3,
+			"herd": int(ha[4]) if ha.size() > 4 and ha[4] != null else 0})
+	# Gletscher (4.2): die Vulkan-Regel mit anderen Zahlen
+	glacier9 = {}
+	if cfg.get("glacier") is Dictionary:
+		var gl: Dictionary = cfg["glacier"]
+		var over := {}
+		for k in gl.get("over", FREEZE9):
+			over[int(k)] = true
+		var imm := {}
+		for k in gl.get("immune", []):
+			imm[int(k)] = true
+		glacier9 = {"at": int(gl.get("at", B10["GLAC_AT"])), "max": int(gl.get("max", B10["GLAC_MAX"])),
+			"rest": int(gl.get("rest", B10["GLAC_REST"])), "over": over, "immune": imm}
+	# Einschlag (4.3): nach Runde at wird jedes Feld einer kill-Art zu der genannten Art
+	impact9 = {}
+	if cfg.get("impact") is Dictionary:
+		var im: Dictionary = cfg["impact"]
+		var kill := {}
+		var kd: Dictionary = im.get("kill", {})
+		for key in kd:
+			kill[int(str(key))] = int(kd[key])
+		impact9 = {"at": int(im.get("at", 1)), "kill": kill}
 	sys9 = {"volcano": bool(cfg.get("volcano", false)), "bolt": bool(cfg.get("bolt", false)),
-		"pack": bool(cfg.get("pack", false)), "war": bool(cfg.get("war", false)), "smog": bool(cfg.get("smog", false)),
+		"pack": not hunt9.is_empty(), "glacier": not glacier9.is_empty(), "impact": not impact9.is_empty(),
+		"war": bool(cfg.get("war", false)), "smog": bool(cfg.get("smog", false)),
 		"flood": bool(cfg.get("flood", false)), "faith": bool(cfg.get("faith", false)),
 		"steam_rain": bool(cfg.get("steam_rain", false)), "lasting": bool(cfg.get("lasting", true)),
 		"mercy": bool(cfg.get("mercy", true))}
@@ -4906,6 +5034,11 @@ func _apply_level_rules(cfg: Dictionary, seed_value: int) -> void:
 		held9.append(0)
 	volc = -1
 	pack_warn9 = {}
+	glac9 = -1
+	glac_rest9 = []
+	for i in maxi(54, fields.size()):
+		glac_rest9.append(0)
+	impact_done9 = false
 	smog_warn9 = {}
 	peak9 = 0
 	gain_at9 = 0
@@ -4919,7 +5052,8 @@ func _apply_level_rules(cfg: Dictionary, seed_value: int) -> void:
 	st9 = {"rows": 0, "thr": 0, "spawn": 0, "starve": 0, "lost": 0, "burnt": 0, "strikes": 0, "bolt_warns": 0,
 		"volc_warns": 0, "eruptions": 0, "cooled": 0, "wars": 0, "war_hits": 0, "smogged": 0, "flooded": 0,
 		"floods": 0, "pack_hunts": 0, "rains": 0, "mercy": 0, "meteors": 0, "steam": 0, "consumed": 0,
-		"hunger_warns": 0, "gifts": 0}
+		"hunger_warns": 0, "gifts": 0, "hunts": 0, "hunt_warns": 0, "glac_warns": 0, "freezes": 0, "frozen": 0,
+		"thawed": 0, "impact": 0}
 	chain9 = _chain_dist9()
 	_rebuild_rules()
 
@@ -5648,38 +5782,170 @@ func _volcano_step9(ev: Array) -> void:
 		_ev9(ev, "volcano_warn", {"type": "volcano_warn", "crater": volc, "field": volc, "fields": members9(volc)})
 
 
-func _pack_step9(ev: Array) -> void:
-	var A := int(B9["PACK_AT"])
-	if not pack_warn9.is_empty():
-		var hunt: Array = []
-		for i in pack_warn9:
-			var f: FieldData = fields[int(i)]
-			if f.kind != FieldData.ANIMALS:
+## Jagd (GDPD_ERDGESCHICHTE.md 4.1, das alte Rudel ist eine davon): Beute-Felder neben einer Jäger-Gruppe ≥ at, außer sie
+## stehen in einer Herde (Beute-Gruppe ≥ herd, wenn herd > 0).
+func hunt_targets9() -> Dictionary:
+	var out := {}
+	for h in hunt9:
+		var hd: Dictionary = h
+		var hk := int(hd["hunter"])
+		var prey: Array = hd["prey"]
+		var herd := int(hd["herd"])
+		for f in fields:
+			if f.kind != hk or gsize9(f.id) < int(hd["at"]):
 				continue
 			for g in nb9(f.id):
-				if (fields[g] as FieldData).kind == FieldData.PRED and gsize9(g) >= A:
-					hunt.append(f.id)
-					break
+				var gk: int = (fields[g] as FieldData).kind
+				if prey.has(gk) and not (herd > 0 and gsize9(g) >= herd):
+					out[g] = true
+	return out
+
+
+## Die Jagd-Regel, die ein Beute-Feld der Art k trifft ({} = keine).
+func _hunt_rule9(k: int) -> Dictionary:
+	for h in hunt9:
+		if ((h as Dictionary)["prey"] as Array).has(k):
+			return h
+	return {}
+
+
+## Wer jagt (für Pille, Zeile und Bild): der Jäger der ersten Regel, die eines der Felder trifft.
+func hunter_of9(ids: Array) -> int:
+	for i in ids:
+		var r := _hunt_rule9((fields[int(i)] as FieldData).kind)
+		if not r.is_empty():
+			return int(r["hunter"])
+	return int((hunt9[0] as Dictionary)["hunter"]) if not hunt9.is_empty() else FieldData.PRED
+
+
+## Jagd: Gewarnte Beute, die noch Ziel ist, fällt (eine Runde nach der Warnung); dann neu warnen (nicht in der Runde,
+## in der gejagt wurde).
+func _pack_step9(ev: Array) -> void:
+	if not pack_warn9.is_empty():
+		var now := hunt_targets9()
+		var hunt: Array = []
+		for i in pack_warn9:
+			if now.has(int(i)):
+				hunt.append(int(i))
 		hunt.sort()
 		for i in hunt:
 			var fd: FieldData = fields[int(i)]
-			_fall9(fd, FieldData.MEADOW, "pack", ev)
+			var k: int = fd.kind
+			var rule := _hunt_rule9(k)
+			var to := int(rule.get("to", FieldData.MEADOW))
+			_fall9(fd, to, "pack", ev)
+			st9["hunts"] = int(st9["hunts"]) + 1
 			st9["pack_hunts"] = int(st9["pack_hunts"]) + 1
-			_ev9(ev, "pack_hunt", {"type": "pack_hunt", "field": fd.id, "from": FieldData.ANIMALS, "kind": FieldData.MEADOW})
+			_ev9(ev, "pack_hunt", {"type": "pack_hunt", "field": fd.id, "from": k, "kind": to,
+				"hunter": int(rule.get("hunter", FieldData.PRED))})
 		pack_warn9 = {}
 		if not hunt.is_empty():
 			return
-	var warn := {}
-	for f in fields:
-		if f.kind == FieldData.PRED and gsize9(f.id) >= A:
-			for g in nb9(f.id):
-				if (fields[g] as FieldData).kind == FieldData.ANIMALS:
-					warn[g] = true
+	var warn := hunt_targets9()
 	if not warn.is_empty():
 		pack_warn9 = warn
+		st9["hunt_warns"] = int(st9["hunt_warns"]) + 1
 		var ws: Array = warn.keys()
 		ws.sort()
-		_ev9(ev, "pack_warn", {"type": "pack_warn", "fields": ws})
+		_ev9(ev, "pack_warn", {"type": "pack_warn", "fields": ws, "hunter": hunter_of9(ws)})
+
+
+## Gletscher: darf Feld g einfrieren? (Art in over, nicht immun, nicht neben einer Feuerstelle)
+func freezable9(g: int) -> bool:
+	if glacier9.is_empty():
+		return false
+	var k: int = (fields[g] as FieldData).kind
+	if not (glacier9["over"] as Dictionary).has(k) or (glacier9["immune"] as Dictionary).has(k):
+		return false
+	return not _next_to9(g, FieldData.CAMP)
+
+
+## Die Felder, die ein Gletscher-Krater c einfrieren würde (Krater zuerst, dann nach ID; höchstens max).
+func glacier_threat9(c: int) -> Array:
+	if c < 0 or glacier9.is_empty():
+		return []
+	var grp := members9(c)
+	var gset := {}
+	for g in grp:
+		gset[int(g)] = true
+	var order: Array = [c]
+	for g in grp:
+		if int(g) != c:
+			order.append(int(g))
+	var near: Array = []
+	for h in order:
+		for g in nb9(int(h)):
+			if not gset.has(g) and not near.has(g) and freezable9(g):
+				near.append(g)
+	return near.slice(0, int(glacier9["max"]))
+
+
+## Gletscher (4.2): eine Eis-Gruppe ≥ at wird gewarnt; ist sie eine Runde später noch so groß, frieren bis zu max
+## Nachbarn ein (Ereignis freeze, ein Verlust auf einem gemachten Ziel-Feld) und die Gruppe ruht rest Runden.
+func _glacier_step9(ev: Array) -> void:
+	var A := int(glacier9["at"])
+	for i in glac_rest9.size():
+		if int(glac_rest9[i]) > 0:
+			glac_rest9[i] = int(glac_rest9[i]) - 1
+	if glac9 >= 0:
+		var c := glac9
+		glac9 = -1
+		if (fields[c] as FieldData).kind == FieldData.ICE and gsize9(c) >= A:
+			for g in glacier_threat9(c):
+				var fd: FieldData = fields[int(g)]
+				var k: int = fd.kind
+				_fall9(fd, FieldData.ICE, "ice", ev)
+				st9["frozen"] = int(st9["frozen"]) + 1
+				_ev9(ev, "freeze", {"type": "freeze", "crater": c, "field": fd.id, "from": k, "kind": FieldData.ICE})
+			st9["freezes"] = int(st9["freezes"]) + 1
+			for g in members9(c):
+				glac_rest9[int(g)] = int(glacier9["rest"]) + 1
+		else:
+			_ev9(ev, "glacier_calm", {"type": "glacier_calm", "crater": c})
+		return
+	var best := -1
+	var best_s := -1
+	var best_n := -1
+	for f in fields:
+		if f.kind != FieldData.ICE or int(glac_rest9[f.id]) != 0 or gsize9(f.id) < A:
+			continue
+		var n := 0
+		for g in nb9(f.id):
+			if (fields[g] as FieldData).kind == FieldData.ICE:
+				n += 1
+		var sz := gsize9(f.id)
+		if sz > best_s or (sz == best_s and (n > best_n or (n == best_n and f.id < best))):
+			best = f.id
+			best_s = sz
+			best_n = n
+	if best >= 0:
+		glac9 = best
+		st9["glac_warns"] = int(st9["glac_warns"]) + 1
+		_ev9(ev, "glacier_warn", {"type": "glacier_warn", "crater": glac9, "field": glac9, "fields": members9(glac9),
+			"threat": glacier_threat9(glac9)})
+
+
+## Einschlag (4.3, nur Level „Einschlag“): am Ende der Runde at wird jedes Feld einer kill-Art zur genannten Art (die
+## Saurier werden Asche = Erde). Nie ein Verlust (das Ziel zählt Wiesen), gezeigt und erklärt, von Anfang an gewarnt.
+func _impact_step9(ev: Array) -> void:
+	if impact_done9 or twists != int(impact9["at"]):
+		return
+	impact_done9 = true
+	var kill: Dictionary = impact9["kill"]
+	var hit: Array = []
+	var from := {}
+	for f in fields:
+		if kill.has(f.kind):
+			from[f.id] = f.kind
+			_fall9(f, int(kill[f.kind]), "impact", ev)
+			hit.append(f.id)
+	st9["impact"] = hit.size()
+	_ev9(ev, "impact", {"type": "impact", "fields": hit, "from": from, "kind": FieldData.EMPTY})
+
+
+## Steht der Einschlag noch bevor? (Level „Einschlag“ vor der ersten Drehung: Warnung, Zeile „Dreh, der Meteor kommt“)
+func impact_pending9() -> bool:
+	return camp and not impact9.is_empty() and not impact_done9
 
 
 func _smog_step9(ev: Array) -> void:
@@ -5825,11 +6091,15 @@ func _end_round9(ans: Dictionary) -> Dictionary:
 		for f in fields:
 			if f.fresh > 0:
 				f.fresh -= 1
+		if bool(sys9["impact"]):
+			_impact_step9(ev)
 		_fire_step9(ev)
 		if bool(sys9["bolt"]):
 			_bolt_step9(ev)
 		if bool(sys9["volcano"]):
 			_volcano_step9(ev)
+		if bool(sys9["glacier"]):
+			_glacier_step9(ev)
 		if bool(sys9["smog"]):
 			_smog_step9(ev)
 		if bool(sys9["flood"]):
@@ -5955,6 +6225,8 @@ func _play_tool9(kind: String, fid: int, bought: bool) -> Dictionary:
 		var k2: int = f.kind
 		if not engine9_mode:
 			_remember_before()
+		if f.id == glac9:
+			glac9 = -1
 		_fall9(f, FieldData.EMPTY, "meteor", ev)
 		f.fresh = 0
 		if f.id == bolt:
@@ -6030,7 +6302,8 @@ func _tail9(ev: Array, p0: Array) -> void:
 
 
 static func _era_key9(e: Dictionary) -> String:
-	return "%d|%.2f|%d" % [int(e.get("act", 0)), float(e.get("sky_blue", 0.0)), int(e.get("life", 0))]
+	return "%d|%.2f|%d|%s|%.2f|%.2f" % [int(e.get("act", 0)), float(e.get("sky_blue", 0.0)), int(e.get("life", 0)),
+		str(e.get("era", "")), float(e.get("dust_clear", 0.0)), float(e.get("smog", 0.0))]
 
 
 func _close9(ev: Array, got: Dictionary, delta: int, income: int) -> Dictionary:
@@ -6228,7 +6501,12 @@ func rain_to9(f: FieldData) -> int:
 		var it: Array = item
 		if int(it[0]) != f.kind:
 			continue
-		var cond := str(it[1])
+		var cv: Variant = it[1]
+		if cv is int:
+			if not _next_to9(f.id, int(cv)):
+				continue            # „Regen lockt Saurier/Tiere“: nur neben dieser Art (GDPD_ERDGESCHICHTE.md 4.4)
+			return int(it[2])
+		var cond := str(cv)
 		if cond == "shore":
 			var any_land := false
 			for g in nb9(f.id):
@@ -6320,7 +6598,10 @@ func field_state9(f: FieldData) -> Dictionary:
 		"burning": f.burning, "fresh": f.fresh, "front": front.has(f.id),
 		"bolt": f.id == bolt, "wet": wet9(f.id), "mk": f.mk, "group": group_id9(f.id), "size": gsize9(f.id),
 		"strength": strength9(f.id), "crater": f.id == volc, "crater_rest": f.crater_rest, "dry": dry9(f.id),
-		"pack": pack_warn9.has(f.id), "smog": smog_warn9.has(f.id), "sun": face_index(f) == SUN_FACE}
+		"pack": pack_warn9.has(f.id), "smog": smog_warn9.has(f.id), "sun": face_index(f) == SUN_FACE,
+		"glacier": f.id == glac9, "frost": glac9 >= 0 and glacier_threat9(glac9).has(f.id),
+		"glac_rest": int(glac_rest9[f.id]) if f.id < glac_rest9.size() else 0,
+		"impact": impact_pending9() and (impact9["kill"] as Dictionary).has(f.kind)}
 
 
 ## Teilziele für den Chip: [{"type", "kind", "kinds", "value", "target", "met", "icon"}].
@@ -6337,17 +6618,28 @@ func sub_status9() -> Array:
 	return out
 
 
-## Die Ära für die Darstellung (World.set_era): Akt, Level, Blau des Himmels, Leben im Wasser.
+## Das Zeitalter für die Darstellung (World.set_era, Campaign.era): "era" (Look-Schlüssel in Eras), "era_id", "act"
+## (Nummer des Zeitalters), Level, sky_blue (Erstes Leben: Algen / 8), dust_clear (nach dem Einschlag: Wiesen / 10),
+## life (0 totes Wasser … 3 Fische), smog (Industrie: 0,15 je Feld). Nach dem Einschlag gilt der Look "after" (Asche).
 func era9() -> Dictionary:
 	var e := Campaign.era(level_no)
-	var algae := count(FieldData.ALGAE)
-	if int(e.get("act", 0)) == 3:
-		e["sky_blue"] = clampf(maxf(0.25, float(algae) / 8.0), 0.0, 1.0)
+	if str(e.get("sky_mix", "")) == "algae":
+		e["sky_blue"] = clampf(maxf(0.25, float(count(FieldData.ALGAE)) / 8.0), 0.0, 1.0)
+	if bool(e.get("dust", false)):
+		e["dust_clear"] = clampf(float(count(FieldData.MEADOW)) / 10.0, 0.0, 1.0)
+		e["sky_blue"] = e["dust_clear"]       # World.set_era mischt mix_from → era mit sky_blue (Asche → Erholung)
+	if impact_done9 and str(e.get("after", "")) != "":
+		e["era"] = str(e["after"])
+		e["look"] = str(e.get("after_look", e["after"]))
+		e["impact_done"] = true
 	var life := 0
-	for k in [FieldData.CELLS, FieldData.ALGAE, FieldData.FISH]:
-		if count(k) > 0:
-			life = maxi(life, [FieldData.CELLS, FieldData.ALGAE, FieldData.FISH].find(k) + 1)
+	var ladder := [FieldData.CELLS, FieldData.ALGAE, FieldData.FISH, FieldData.JELLY, FieldData.TRILO]
+	for i in ladder.size():
+		if count(int(ladder[i])) > 0:
+			life = maxi(life, mini(i + 1, 3))
 	e["life"] = life
+	if bool(sys9.get("smog", false)):
+		e["smog"] = minf(0.6, 0.15 * float(count(FieldData.INDUSTRY)))
 	return e
 
 
@@ -6455,6 +6747,7 @@ func preview9(axis: int, layer: int, turns: int, post: GameState = null) -> Dict
 		"war_risk": bool(sys9["war"]) and not t.church_touch9().is_empty(), "flood_risk": fr, "fire_risk": fire,
 		"goal_delta": gd, "volcano_risk": volcano_risk, "bolt_risk": bolt_risk,
 		"pack_risk": bool(sys9["pack"]) and not post.pack_warn9.is_empty(),
+		"glacier_risk": post.glac9 >= 0 or post.trace9.has("freeze"), "impact": impact_pending9(),
 		"smog_risk": post.smog_warn9.keys(), "hunger": hunger, "merge": mg, "sealed": sealed}
 
 
@@ -6642,6 +6935,26 @@ func _danger_value9() -> float:
 			if f.kind == FieldData.LAVA and gsize9(f.id) == int(B9["VOLC_AT"]) - 1:
 				v -= 0.5
 	v -= 8.0 * float(pack_warn9.size())
+	if not glacier9.is_empty():
+		# Gletscher (wie bot10.danger_value): gewarnte Gruppe kostet, mehr je bedrohtem Ziel-, Lebe- oder satt-Ziel-Feld
+		if glac9 >= 0:
+			var ggrp := {}
+			for g in members9(glac9):
+				ggrp[int(g)] = true
+			var gnear := {}
+			for h in ggrp:
+				for x in nb9(int(h)):
+					if not ggrp.has(x) and freezable9(x):
+						gnear[x] = true
+			var gn := 0
+			for x in gnear:
+				var xf: FieldData = fields[int(x)]
+				if xf.mk or FieldData.LIVING.has(xf.kind) or _satt_goal_kind9(xf.kind):
+					gn += 1
+			v -= 10.0 + 6.0 * float(gn)
+		for f in fields:
+			if f.kind == FieldData.ICE and gsize9(f.id) == int(glacier9["at"]) - 1:
+				v -= 0.5
 	v -= 5.0 * float(smog_warn9.size())
 	if bool(sys9["war"]):
 		if war_on:
@@ -6770,6 +7083,13 @@ func record9() -> String:
 		"1" if war_on else "0", _ids_str9(fr), _ids_str9(fw), str(faith), str(meteors), str(rain), str(twists),
 		"1" if day_won else "0", ",".join(md), ",".join(ls), ",".join(pr), ",".join(sa), ",".join(bst),
 		",".join(grp), ",".join(tr)])
+	# Erdgeschichte (xcheck10): Gletscher-Krater, Ruhe je Feld, Einschlag geschehen
+	var gr := PackedStringArray()
+	for v in glac_rest9:
+		gr.append(str(int(v)))
+	out.append(str(glac9))
+	out.append(",".join(gr))
+	out.append("1" if impact_done9 else "0")
 	return "|".join(out)
 
 
@@ -6812,6 +7132,12 @@ func _still_why9(k: int, diag: bool, key: int) -> String:
 		return "water_life"
 	if k == FieldData.CHURCH or k == FieldData.INDUSTRY:
 		return "finished"
+	if not impact9.is_empty() and (impact9["kill"] as Dictionary).has(k):
+		return "dino"                 # Level „Einschlag“: Saurier sind hier keine Reihen-Art
+	if k == FieldData.ICE:
+		return "ice"
+	if k == FieldData.CAMP:
+		return "camp"
 	if thrive9.has(k):
 		return "people" if LEVEL9.has(k) else "thrive"
 	if k == FieldData.STONE:
@@ -6845,6 +7171,8 @@ func level_status9() -> Dictionary:
 		"extra_level": extra_level, "extra_max": extra_max(), "extra_target": extra_target(),
 		"extra_text": extra_text9(extra_level + 1), "needs": goal_needs(), "need_icons": goal_need_icons(),
 		"bolt": bolt, "volc": volc, "pack_warn": pack_warn9.keys(), "smog_warn": smog_warn9.keys(), "war_on": war_on,
+		"hunter": hunter_of9(pack_warn9.keys()) if not pack_warn9.is_empty() else -1, "glac": glac9,
+		"glac_threat": glacier_threat9(glac9), "impact": impact_pending9(),
 		"front": front.keys(), "flood_warn": flood_warn.keys(), "faith": faith, "rain": rain, "meteors": meteors,
 		"held": held9.duplicate(), "rescue": rescue(), "no_war": false}
 
@@ -6971,6 +7299,10 @@ func _act_threats9() -> Array:
 		out.append({"type": "bolt", "fields": members9(bolt)})
 	if not pack_warn9.is_empty():
 		out.append({"type": "pack", "fields": pack_warn9.keys()})
+	if glac9 >= 0 and (fields[glac9] as FieldData).kind == FieldData.ICE:
+		var gf := members9(glac9)
+		gf.append_array(glacier_threat9(glac9))
+		out.append({"type": "glacier", "fields": gf})
 	var hungry: Array = []
 	for f in fields:
 		var r: Variant = thrive9.get(f.kind)
@@ -7002,11 +7334,13 @@ func _act_fixed9(t: Dictionary) -> bool:
 	if tp == "bolt":
 		return not dry9(bolt)
 	if tp == "pack":
+		var now := hunt_targets9()
 		for i in pack_warn9:
-			for g in nb9(int(i)):
-				if (fields[g] as FieldData).kind == FieldData.PRED and gsize9(g) >= int(B9["PACK_AT"]):
-					return false
+			if now.has(int(i)):
+				return false
 		return true
+	if tp == "glacier":
+		return (fields[glac9] as FieldData).kind != FieldData.ICE or gsize9(glac9) < int(glacier9["at"])
 	if tp == "hunger":
 		for i in t["fields"]:
 			if not satt9(int(i)):
@@ -7059,11 +7393,42 @@ func _act_score9(ids: Dictionary, stand: Dictionary, cands: Array, grp: Array, t
 		if gd > 0:
 			sc += 8.0 * float(gd)
 	var fx: Array = []
+	var herd := false
 	for t in threats:
 		if _act_fixed9(t):
 			fx.append(str((t as Dictionary)["type"]))
 			sc += 15.0
-	return {"score": sc, "rows": rws, "satt": st, "group": gd, "fix": fx}
+			if str((t as Dictionary)["type"]) == "pack":
+				herd = _act_herd_fix9()
+	return {"score": sc, "rows": rws, "satt": st, "group": gd, "fix": fx, "herd": herd}
+
+
+## Wendet das (gedrehte) Brett die Jagd ab, weil die gewarnte Beute jetzt eine Herde ist (noch neben den Jägern)?
+func _act_herd_fix9() -> bool:
+	for i in pack_warn9:
+		var f: FieldData = fields[int(i)]
+		var rule := _hunt_rule9(f.kind)
+		if rule.is_empty() or int(rule["herd"]) <= 0 or gsize9(f.id) < int(rule["herd"]):
+			continue
+		for g in nb9(f.id):
+			var h: FieldData = fields[g]
+			if h.kind == int(rule["hunter"]) and gsize9(g) >= int(rule["at"]):
+				return true
+	return false
+
+
+## Text und Symbol der Zeile für eine Gefahr: die Jagd nennt ihre Jäger („Trenn die Raubsaurier!“).
+func _act_danger_text9(tp: String, herd: bool = false) -> Array:
+	if tp == "pack":
+		var hk := hunter_of9(pack_warn9.keys())
+		if herd:
+			var pk := FieldData.ANIMALS
+			for i in pack_warn9:
+				pk = (fields[int(i)] as FieldData).kind
+				break
+			return ["Bilde eine Herde!", FieldData.kind_icon(pk)]
+		return [str(ACT_HUNT9.get(hk, "Trenn die Jäger!")), FieldData.kind_icon(hk)]
+	return [str(ACT_DANGER9.get(tp, "Achtung!")), str(ACT_DANGER_ICON9.get(tp, "info"))]
 
 
 ## Text für ein Feld, das versorgt wird: „Lava ans Wasser drehen“, „Tiere neben Wiese drehen“.
@@ -7084,22 +7449,54 @@ func _act_need_text9(fid: int, k: int) -> Array:
 	if need == "sun":
 		icons.append("sun")
 		return ["%s %s drehen" % [FieldData.kind_name(k), ACT_SUN9], icons]
-	var src: Array = SOURCES9.get(need, [])
-	var sk := int(src[0]) if not src.is_empty() else -1
-	for s in src:
-		if count(int(s)) > 0:
-			sk = int(s)
-			break
+	var sk := src_kind9(need)
 	if sk < 0:
 		return ["Versorge %s" % FieldData.kind_name(k), icons]
 	icons.append(FieldData.kind_icon(sk))
+	if sk == FieldData.CAMP:
+		return ["%s ans Feuer drehen" % FieldData.kind_name(k), icons]      # 🔥 von der Feuerstelle: „ans Feuer“
 	return ["%s neben %s drehen" % [FieldData.kind_name(k), FieldData.kind_name(sk)], icons]
 
 
+## Die Quell-Art eines Bedürfnisses in diesem Level: eine, die auf dem Brett liegt, sonst eine, die das Level kennt
+## (Startmischung, Reihen, Gedeihen, Regen), sonst die erste der Tabelle. -1: keine Quelle.
+func src_kind9(need: String) -> int:
+	if need == "wet":
+		return FieldData.WATER
+	var src: Array = SOURCES9.get(need, [])
+	if src.is_empty():
+		return -1
+	for s in src:
+		if count(int(s)) > 0:
+			return int(s)
+	var known := {}
+	var comp: Dictionary = day.get("comp", {})
+	for key in comp:
+		known[int(str(key))] = true
+	for k in rows9:
+		known[int(k)] = true
+		known[int(rows9[k])] = true
+	for k2 in thrive9:
+		known[int(k2)] = true
+		var up := int((thrive9[k2] as Dictionary)["up"])
+		if up >= 0:
+			known[up] = true
+	for it in rain9:
+		known[int((it as Array)[2])] = true
+	for s2 in src:
+		if known.has(int(s2)):
+			return int(s2)
+	return int(src[0])
+
+
 const ACT_DANGER9 = {"volcano": "Teil die Lava!", "bolt": "Wasser an den Wald!", "pack": "Trenn die Raubtiere!",
-	"hunger": "Rette die Hungrigen!", "smog": "Weg vom Smog!", "war": "Trenn die Kirchen!", "flood": "Verteil die Städte!"}
+	"hunger": "Rette die Hungrigen!", "smog": "Weg vom Smog!", "war": "Trenn die Kirchen!", "flood": "Verteil die Städte!",
+	"glacier": "Teil das Eis!", "impact": "Dreh, der Meteor kommt"}
 const ACT_DANGER_ICON9 = {"volcano": "lava", "bolt": "bolt", "pack": "pred", "hunger": "hunger", "smog": "smog",
-	"war": "swords", "flood": "water"}
+	"war": "swords", "flood": "water", "glacier": "ice", "impact": "meteor_fall"}
+## Jagd: die Zeile nennt die Jäger (GDPD_ERDGESCHICHTE.md 4.1).
+const ACT_HUNT9 = {FieldData.PRED: "Trenn die Raubtiere!", FieldData.REX: "Trenn die Raubsaurier!",
+	FieldData.EARLY: "Trenn die Jäger!"}
 
 
 func _next_action9() -> Dictionary:
@@ -7107,9 +7504,52 @@ func _next_action9() -> Dictionary:
 		return _act9("won", "Geschafft!", ["star"], -1)
 	var g := _act_goal9()
 	var hint := _act_hint9(g)
+	if impact_pending9():
+		var ai := _act_impact9()
+		ai["hint"] = hint
+		return ai
 	var a := _act_pick9(g)
 	a["hint"] = hint
 	return a
+
+
+## Level „Einschlag“ vor der ersten Drehung (4.3): jede Drehung bringt den Meteor; die Zeile nennt die beste: die, nach
+## der die meisten geraden Dreier aus Asche (heute Saurier oder Erde) liegen – sie wachsen gleich zu Wiesen (späte
+## Runde), Paare danach zählen wenig. Auf dem Brett gedreht und zurückgedreht (billig, wie _act_pick9).
+func _act_impact9() -> Dictionary:
+	var dt := _act_danger_text9("impact")
+	var out := _act9("danger", str(dt[0]), [str(dt[1])], -1)
+	out["danger"] = "impact"
+	if not _cache_ready:
+		_build_cache()
+	var kill: Dictionary = impact9["kill"]
+	var best_v := -INF
+	for m in MOVES:
+		_rot9(int(m[0]), int(m[1]), int(m[2]))
+		var v := 0.0
+		var i := 0
+		while i < _LINES.size():
+			if _LINES[i + 3] == 0:
+				var ash := 0
+				for j in 3:
+					var k: int = (_index[_LINES[i + j]] as FieldData).kind
+					if k == FieldData.EMPTY or kill.has(k):
+						ash += 1
+				v += 10.0 if ash == 3 else (0.5 if ash == 2 else 0.0)
+			i += 4
+		_rot9(int(m[0]), int(m[1]), -int(m[2]))
+		v -= 0.01 if absi(int(m[2])) == 2 else 0.0
+		if v > best_v:
+			best_v = v
+			out["move"] = {"axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])}
+	_nb_ok = false
+	_grp_ok = false
+	var ids: Array = []
+	for f in fields:
+		if (impact9["kill"] as Dictionary).has(f.kind):
+			ids.append(f.id)
+	out["fields"] = ids
+	return out
 
 
 func _act_pick9(g: Dictionary) -> Dictionary:
@@ -7185,7 +7625,8 @@ func _act_pick9(g: Dictionary) -> Dictionary:
 		if dangerous and not fixes.is_empty() and (not progress or best_v < 15.0 * float(fixes.size()) + 0.5):
 			# die Gefahr zuerst (sie kostet mehr, als die Drehung sonst bringt)
 			var tp := str(fixes[0])
-			out = _act9("danger", str(ACT_DANGER9.get(tp, "Achtung!")), [str(ACT_DANGER_ICON9.get(tp, "info"))], -1)
+			var dt := _act_danger_text9(tp, bool(best.get("herd", false)))
+			out = _act9("danger", str(dt[0]), [str(dt[1])], -1)
 			out["danger"] = tp
 			for t in threats:
 				if str((t as Dictionary)["type"]) == tp:
@@ -7470,7 +7911,7 @@ func _act_general9(g: Dictionary) -> Dictionary:
 		if not thrive9.has(f.kind) or satt9(f.id) or f.burning:
 			continue
 		var v2 := 9.0 if _act_satt_goal9(f.kind) else _act_val9(f.kind, _act_up9(f.kind))
-		if v2 > bv and _needs_ok9(f.kind, FieldData.sticker_type(f.p), _have_kinds9()):
+		if v2 > bv and _needs_ok9(f.kind, FieldData.sticker_type(f.p), _have_kinds9(), f.id):
 			bv = v2
 			bf = f.id
 	if bf >= 0:
@@ -7536,6 +7977,12 @@ func still_line9(why: String, k: int = -1) -> Array:
 		return ["Schon gewachsen", "Bring ein neues Feld rein"]
 	if why == "finished":
 		return ["Fertig", nxt]
+	if why == "dino":
+		return ["Saurier wachsen nicht mehr", nxt]
+	if why == "ice":
+		return ["Eis wächst nicht in Reihen", nxt]
+	if why == "camp":
+		return ["Feuer wächst nicht", nxt]
 	if (why == "stone" or why == "done") and k >= 0 and goal_kinds9.has(k):
 		return ["Zählt schon", nxt]
 	if why == "thrive" or why == "people" or (why == "water_life" and k >= 0 and thrive9.has(k)):
@@ -7569,8 +8016,16 @@ static func kind_caps9(k: int) -> String:
 		return "Pflanzen"
 	if k == FieldData.SEED or k == FieldData.FIELD:
 		return "Nahrung"
-	if k == FieldData.ANIMALS or k == FieldData.BIRDS or k == FieldData.PRED:
+	if k == FieldData.ANIMALS or k == FieldData.BIRDS or k == FieldData.PRED or k == FieldData.INSECTS \
+			or k == FieldData.AMPHIB or k == FieldData.REPTILE or k == FieldData.SAURO or k == FieldData.REX \
+			or k == FieldData.PTERO or k == FieldData.MAMMOTH or k == FieldData.APES:
 		return "Tiere"
+	if k == FieldData.ICE:
+		return "Eis"
+	if k == FieldData.EARLY:
+		return "Menschen"
+	if k == FieldData.CAMP:
+		return "Feuer"
 	if k == FieldData.CHURCH:
 		return "Glaube"
 	if k == FieldData.INDUSTRY:
@@ -7619,6 +8074,7 @@ func save9() -> Dictionary:
 		"rain": rain, "next_rain": next_rain, "meteors": meteors, "bolts": bolts, "bolt": bolt, "volc": volc,
 		"bolt_guard": bolt_guard9, "war_on": war_on, "front": _keys9(front), "flood_warn": _keys9(flood_warn),
 		"pack_warn": _keys9(pack_warn9), "smog_warn": sw, "standing": _keys9(standing), "broken": _keys9(broken),
+		"glac": glac9, "glac_rest": glac_rest9.duplicate(), "impact_done": impact_done9,
 		"spent": _keys9(spent), "made": made.duplicate(), "lost": lost9.duplicate(), "held": held9.duplicate(),
 		"peak": peak9, "gain_at": gain_at9, "miracle": _keys9(miracle_bought), "won": day_won, "won_at": day_won_at,
 		"won_told": _won_told, "need_told": _need_told, "era": _era_last, "st": st9.duplicate(), "stats": stats.duplicate(),
@@ -7682,6 +8138,12 @@ static func load9(d: Dictionary, cfg: Dictionary) -> GameState:
 	gs.front = _set9(d.get("front", []))
 	gs.flood_warn = _set9(d.get("flood_warn", []))
 	gs.pack_warn9 = _set9(d.get("pack_warn", []))
+	gs.glac9 = int(d.get("glac", -1))
+	var gr: Variant = d.get("glac_rest", [])
+	if gr is Array and (gr as Array).size() == gs.glac_rest9.size():
+		for i in gs.glac_rest9.size():
+			gs.glac_rest9[i] = int((gr as Array)[i])
+	gs.impact_done9 = bool(d.get("impact_done", false))
 	gs.smog_warn9 = {}
 	var sw: Variant = d.get("smog_warn", {})
 	if sw is Dictionary:

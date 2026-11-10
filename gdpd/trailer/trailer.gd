@@ -38,6 +38,7 @@ var _end: Control
 var _god: CharacterView
 var _dinos: Array = []
 var _apes: Array = []
+var _pteros: Array = []               # Flugsaurier kreisen über den Riesen
 var _whips: Array = []                # Schnitte mit Wisch-Schwenk (Zeitpunkte)
 var _grow := {}                       # erstes gewachsenes Feld der Einstellung: {"fid", "t"}
 var _push := 0.5                      # wie weit die Kamera danach auf das Feld zuschiebt (0 = gar nicht)
@@ -536,14 +537,20 @@ func _settle(max_s: float = 4.0) -> void:
 
 
 ## Ein Level mit einem Pool-Brett laden und das Zeitalter sofort setzen (Schnitt, keine Überblendung).
-func level(n: int, board: int = 0) -> void:
+## n: Level der alten Zählung („Die Schöpfung“, 1 … 30), über Campaign.old_to_new auf die Erdgeschichte umgerechnet
+## (die Schnitte zeigen dieselben Inhalte); new_numbering = true: n ist schon ein Level der Erdgeschichte.
+func level(n: int, board: int = 0, new_numbering: bool = false) -> void:
 	# Harter Schnitt: Läuft in der alten Welt noch eine Runde (Wachsen, Effekte), kommt eine frische Welt.
 	if Game.busy or world.animating or world._pivot != null:
 		_new_world()
 	_clear_props()
 	world._mood_hold = ""
 	_cue("cut")
-	Game.start_level(n, board)
+	var nn := n
+	if not new_numbering:
+		var m := Campaign.old_to_new(n)
+		nn = m if m > 0 else n
+	Game.start_level(nn, board)
 	Game.onboarding = false
 	world.set_era(Game.state.era9(), 0.0)
 	world._hinted = true
@@ -770,7 +777,7 @@ func _director() -> void:
 	await _meteor_beat()
 	# ---------------------------------------------------------------- Danach: Säugetiere (18,7 – 20,6 s)
 	await _at(18.7)
-	level(21, 5)
+	level(36, 5, true)                # Erdgeschichte: „Säugetiere“
 	grade(0.3, 1.0, 0.6, 0.6)
 	grade(1.02, 1.08, 1.1, 0.3, 0.7)
 	shot(30, 46, 34, 32, 0.6, 0.5, 1.9)
@@ -896,12 +903,12 @@ func _wave_god(g: Control) -> void:
 # Zeit der Riesen und Meteor (nur im Trailer: Saurier aus einfachen Formen, eigener Meteor)
 # =============================================================================
 
-const DINO_LEVEL := 14
+const DINO_LEVEL := 28            # Erdgeschichte: das erste Level der Saurierzeit (echte Saurier-Felder)
 const DINO_BOARD := 2
 
 func _riesen() -> void:
-	level(DINO_LEVEL, DINO_BOARD)
-	_blue_sky(0.0)                   # Urzeit: Urwald-Modelle, blauer Himmel, keine Sonnenscheibe
+	level(DINO_LEVEL, DINO_BOARD, true)  # Look der Saurierzeit (Palmfarne, Araukarien, Rauchfahne am Horizont)
+	_cue("sky")
 	grade(1.02, 1.1, 1.14, 0.32)
 	_push = 0.0
 	_spawn_dinos()
@@ -1151,9 +1158,33 @@ func _spawn_dinos() -> void:
 	world.cube_root.add_child(_dino_center)
 	_props.append(_dino_center)
 	_place_dino_center()
+	_pteros.clear()
+	for i in 2:
+		var pt := _ptero(i)
+		world.cube_root.add_child(pt)
+		_props.append(pt)
+		_pteros.append(pt)
+
+
+func _update_pteros() -> void:
+	if _dino_center == null or not is_instance_valid(_dino_center):
+		return
+	var up := Vector3.UP
+	for i in _pteros.size():
+		var pt: Variant = _pteros[i]
+		if not is_instance_valid(pt):
+			continue
+		var n := pt as Node3D
+		var ph := _t * 0.55 + float(i) * PI
+		var r := 0.42 + 0.08 * float(i)
+		var c: Vector3 = _dino_center.global_position + up * (0.42 + 0.06 * float(i))
+		n.global_position = c + Vector3(cos(ph) * r, 0.03 * sin(ph * 1.7), sin(ph) * r)
+		var tang := Vector3(-sin(ph), 0, cos(ph))
+		n.global_basis = Basis(Vector3.UP, atan2(-tang.z, tang.x)) * Basis(Vector3(1, 0, 0), -0.25)
 
 
 func _update_dinos(delta: float) -> void:
+	_update_pteros()
 	for d in _dinos:
 		var dd: Dictionary = d
 		var obj: Variant = dd["node"]
@@ -1167,16 +1198,7 @@ func _update_dinos(delta: float) -> void:
 		var bob := absf(sin(step)) * 0.012 * float(dd["size"])
 		node.position = (dd["base"] as Vector3) + fwd * (0.06 * ph) + Vector3(0, bob, 0)
 		node.rotation.z = 0.03 * sin(step)
-		var legs: Array = node.get_meta("legs")
-		for i in legs.size():
-			var hip := legs[i] as Node3D
-			var off := PI if i == 1 or i == 2 else 0.0
-			hip.rotation.z = 0.5 * sin(step * 0.5 + off)
-		var neck: Node3D = node.get_meta("neck")
-		neck.rotation.z = 0.1 * sin(ph * 1.6) + 0.05 * sin(step)
-		neck.rotation.y = 0.18 * sin(ph * 0.8)
-		var tail: Node3D = node.get_meta("tail")
-		tail.rotation.y = 0.25 * sin(ph * 2.1)
+		# echtes Modell (Models.creature_mesh "sauro"): Gehen, Hals und Schwanz macht der creature.gdshader
 	_place_dino_center()
 	# Stampfen: die Kamera bebt leicht mit jedem Schritt des großen Sauriers
 	if not _dinos.is_empty() and not bool(_dinos[0]["fallen"]) and _t >= _stomp_next and _t < 16.8:
@@ -1211,76 +1233,39 @@ func _dinos_fall() -> void:
 		tw.tween_interval(0.12 + 0.1 * float(_dinos.find(d)))
 		tw.tween_property(n, "rotation:x", 1.45, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		tw.parallel().tween_property(n, "position:y", n.position.y - 0.02, 0.45)
-		for mm in n.get_meta("mats"):
-			var mat := mm as StandardMaterial3D
-			var t2 := create_tween()
-			t2.tween_interval(0.2)
-			t2.tween_property(mat, "albedo_color", Color(0.22, 0.2, 0.19), 0.9)
+		var mat := n.get_meta("mat") as ShaderMaterial
+		mat.set_shader_parameter("walk", 0.0)
+		var t2 := create_tween()
+		t2.tween_interval(0.2)
+		t2.tween_method(func(k: float) -> void: mat.set_shader_parameter("tint", k), 0.0, 1.0, 0.9)
 
 
-func _dino_mat(c: Color, mats: Array) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = 0.8
-	mats.append(m)
-	return m
-
-
-## Ein Langhals-Saurier aus Kugeln und Zylindern (grün-braun, dunkler Rücken, heller Bauch, Beine zum Stampfen).
+## Ein Langhals aus dem Spiel (Models.creature_mesh("sauro"), GDPD_ERDGESCHICHTE_GRAFIK.md 10): das echte Modell ist
+## kleiner gebaut (0,26 statt ≈ 0,42 lang), darum innen ×1,6 (zusammen mit dem Maßstab beim Setzen ≈ ×3,0).
 func _sauropod(variant: int) -> Node3D:
 	var root := Node3D.new()
-	var mats: Array = []
-	var skins := [Color("#56622a"), Color("#6e5526"), Color("#4f6a2c")]
-	var skin: Color = skins[variant % skins.size()]
-	var m_skin := _dino_mat(skin, mats)
-	var m_back := _dino_mat(skin.darkened(0.5), mats)
-	var m_belly := _dino_mat(skin.lerp(Color("#d8c58a"), 0.55), mats)
-	var m_eye := _dino_mat(Color("#141414"), mats)
-	var body := Models.sphere(root, 0.075, skin, Vector3(0, 0.13, 0), m_skin)
-	body.scale = Vector3(1.6, 0.9, 0.95)
-	var ridge := Models.sphere(root, 0.07, skin, Vector3(-0.005, 0.158, 0), m_back)
-	ridge.scale = Vector3(1.5, 0.55, 0.62)
-	var belly := Models.sphere(root, 0.06, skin, Vector3(0, 0.108, 0), m_belly)
-	belly.scale = Vector3(1.45, 0.62, 0.82)
-	var legs: Array = []
-	for sx in [1.0, -1.0]:
-		for sz in [1.0, -1.0]:
-			var hip := Node3D.new()
-			hip.position = Vector3(0.058 * sx, 0.115, 0.042 * sz)
-			root.add_child(hip)
-			Models.cyl(hip, 0.02, 0.024, 0.115, skin, Vector3(0, -0.115, 0), 10, Vector3.ZERO, m_skin)
-			var foot := Models.sphere(hip, 0.026, skin, Vector3(0.004, -0.112, 0), m_back)
-			foot.scale = Vector3(1.2, 0.5, 1.1)
-			legs.append(hip)
-	root.set_meta("legs", legs)
-	var neck := Node3D.new()
-	neck.position = Vector3(0.09, 0.15, 0)
-	root.add_child(neck)
-	root.set_meta("neck", neck)
-	var pts := [Vector3(0.0, 0.0, 0), Vector3(0.03, 0.036, 0), Vector3(0.05, 0.078, 0), Vector3(0.064, 0.12, 0),
-		Vector3(0.074, 0.158, 0), Vector3(0.084, 0.19, 0)]
-	for i in pts.size():
-		var r := lerpf(0.036, 0.017, float(i) / float(pts.size() - 1))
-		Models.sphere(neck, r, skin, pts[i], m_skin)
-		var top := Models.sphere(neck, r * 0.8, skin, (pts[i] as Vector3) + Vector3(-0.006, r * 0.35, 0), m_back)
-		top.scale = Vector3(1.0, 0.7, 0.8)
-	var head := Models.sphere(neck, 0.024, skin, Vector3(0.102, 0.203, 0), m_skin)
-	head.scale = Vector3(1.6, 0.85, 0.9)
-	for s in [-1.0, 1.0]:
-		Models.sphere(neck, 0.006, skin, Vector3(0.11, 0.212, 0.016 * s), m_eye)
-	var tail := Node3D.new()
-	tail.position = Vector3(-0.1, 0.125, 0)
-	root.add_child(tail)
-	root.set_meta("tail", tail)
-	var tp := [Vector3(0, 0, 0), Vector3(-0.036, -0.014, 0), Vector3(-0.07, -0.032, 0), Vector3(-0.1, -0.05, 0),
-		Vector3(-0.128, -0.066, 0), Vector3(-0.152, -0.078, 0), Vector3(-0.172, -0.086, 0)]
-	for i in tp.size():
-		var r2 := lerpf(0.042, 0.008, float(i) / float(tp.size() - 1))
-		Models.sphere(tail, r2, skin, tp[i], m_skin)
-		if i < tp.size() - 2:
-			var tt := Models.sphere(tail, r2 * 0.75, skin, (tp[i] as Vector3) + Vector3(0, r2 * 0.4, 0), m_back)
-			tt.scale = Vector3(1.0, 0.6, 0.7)
-	root.set_meta("mats", mats)
+	var mi := MeshInstance3D.new()
+	mi.mesh = Models.creature_mesh("sauro", variant)
+	var m := Models.creature_material(float(variant) * 1.3)
+	m.set_shader_parameter("rate", 5.2)
+	m.set_shader_parameter("walk", 1.0)
+	m.set_shader_parameter("stride", 0.42)
+	m.set_shader_parameter("graze", 0.15 * float(variant % 2))
+	mi.material_override = m
+	mi.scale = Vector3.ONE * 1.6
+	root.add_child(mi)
+	root.set_meta("mat", m)
+	return root
+
+
+## Flugsaurier über den Riesen (echtes Modell "ptero", kreisen langsam).
+func _ptero(variant: int) -> Node3D:
+	var root := Node3D.new()
+	var mi := MeshInstance3D.new()
+	mi.mesh = Models.creature_mesh("ptero", variant)
+	mi.material_override = Models.creature_material(float(variant))
+	mi.scale = Vector3.ONE * 3.2
+	root.add_child(mi)
 	return root
 
 
@@ -1289,7 +1274,7 @@ func _sauropod(variant: int) -> Node3D:
 # =============================================================================
 
 func _affen() -> void:
-	level(22, 3)
+	level(43, 3, true)                # Erdgeschichte: „Affen“ (Savanne, Affen-Felder)
 	grade(1.02, 1.08, 1.12, 0.3)
 	_push = 0.0
 	_spawn_apes()
@@ -1323,7 +1308,7 @@ func _spawn_apes() -> void:
 		var sp: Array = specs[i]
 		var fd: FieldData = top[mini(int(sp[0]), top.size() - 1)]
 		var v: FieldView = world.views[fd.id]
-		var node := _ape()
+		var node := _ape(i)
 		node.position = Vector3(0, FieldView.TOP, 0) + (sp[1] as Vector3)
 		node.rotation.y = float(sp[2])
 		node.scale = Vector3.ONE * 2.2 * float(sp[3])
@@ -1338,56 +1323,31 @@ func _update_apes() -> void:
 			continue
 		var n := ad["node"] as Node3D
 		var ph := _t * 7.0 + float(ad["ph"])
-		var arms: Array = n.get_meta("arms")
+		var m := n.get_meta("mat") as ShaderMaterial
 		match str(ad["mode"]):
 			"chest":
-				for i in arms.size():
-					(arms[i] as Node3D).rotation.x = (1.0 if i == 0 else -1.0) * (0.9 + 0.35 * sin(ph * 1.6 + PI * i))
-					(arms[i] as Node3D).rotation.z = 1.2
+				m.set_shader_parameter("bend", 0.55)        # Arme schwingen vor der Brust
 				n.position = (ad["base"] as Vector3) + Vector3(0, 0.004 * absf(sin(ph * 1.6)), 0)
 			"hop":
+				m.set_shader_parameter("hop", 1.0)
 				n.position = (ad["base"] as Vector3) + Vector3(0, 0.03 * absf(sin(ph * 0.8)), 0)
-				for i in arms.size():
-					(arms[i] as Node3D).rotation.z = 2.4 + 0.3 * sin(ph * 0.8)
 			"wave":
-				(arms[0] as Node3D).rotation.z = 2.6
-				(arms[0] as Node3D).rotation.x = 0.5 * sin(ph * 1.2)
+				m.set_shader_parameter("bend", 0.3)
 				n.position = (ad["base"] as Vector3) + Vector3(0, 0.003 * absf(sin(ph)), 0)
 			_:
+				m.set_shader_parameter("graze", 0.5)        # sitzt, Kopf gesenkt (lausen)
 				n.rotation.z = 0.08 * sin(ph * 0.5)
 
 
-func _ape() -> Node3D:
+## Ein Affe aus dem Spiel (Models.creature_mesh("ape")): geht auf den Knöcheln, lange Arme; Arme und Kopf bewegt der
+## creature.gdshader (bend: Arme schwingen, graze: Kopf senkt sich).
+func _ape(variant: int = 0) -> Node3D:
 	var root := Node3D.new()
-	var fur := Color("#4a3122")
-	var face := Color("#dcb68e")
-	var m_fur := Models.mat(fur, 0.9)
-	var m_dark := Models.mat(fur.darkened(0.3), 0.9)
-	var m_face := Models.mat(face, 0.8)
-	var m_eye := Models.mat(Color("#121212"), 0.4)
-	var body := Models.sphere(root, 0.042, fur, Vector3(0, 0.07, 0), m_fur)
-	body.scale = Vector3(0.95, 1.2, 0.9)
-	var belly := Models.sphere(root, 0.03, face, Vector3(0.018, 0.062, 0), m_face)
-	belly.scale = Vector3(0.7, 1.1, 0.9)
-	Models.sphere(root, 0.032, fur, Vector3(0.01, 0.13, 0), m_fur)
-	var muzzle := Models.sphere(root, 0.025, face, Vector3(0.03, 0.127, 0), m_face)
-	muzzle.scale = Vector3(0.7, 0.95, 1.1)
-	for s in [-1.0, 1.0]:
-		Models.sphere(root, 0.006, fur, Vector3(0.044, 0.14, 0.011 * s), m_eye)
-		Models.sphere(root, 0.01, face, Vector3(0.004, 0.138, 0.031 * s), m_face)
-	var arms: Array = []
-	for s in [-1.0, 1.0]:
-		var sh := Node3D.new()
-		sh.position = Vector3(0.006, 0.1, 0.04 * s)
-		root.add_child(sh)
-		Models.cyl(sh, 0.011, 0.013, 0.085, fur, Vector3(0, -0.085, 0), 8, Vector3.ZERO, m_fur)
-		Models.sphere(sh, 0.013, fur, Vector3(0, -0.088, 0), m_dark)
-		sh.rotation.z = 0.25
-		arms.append(sh)
-		var hip := Node3D.new()
-		hip.position = Vector3(-0.004, 0.035, 0.022 * s)
-		root.add_child(hip)
-		Models.cyl(hip, 0.012, 0.012, 0.035, fur, Vector3(0, -0.035, 0), 8, Vector3.ZERO, m_fur)
-		Models.sphere(hip, 0.013, fur, Vector3(0.008, -0.034, 0), m_dark)
-	root.set_meta("arms", arms)
+	var mi := MeshInstance3D.new()
+	mi.mesh = Models.creature_mesh("ape", variant)
+	var m := Models.creature_material(float(variant) * 0.9)
+	mi.material_override = m
+	mi.scale = Vector3.ONE * 3.6
+	root.add_child(mi)
+	root.set_meta("mat", m)
 	return root

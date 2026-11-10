@@ -74,7 +74,7 @@ jobs:
             libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 libfontconfig1 >/dev/null
           cd $PROJECT
           mkdir -p ../shots
-          # Die Tour braucht mit Software-Grafik in der CI gut 30–35 Minuten (Ersteller, die 7 Akte, Laden, 100 Sekunden, lange Bonusrunde): genug Luft, damit sie nicht mittendrin abbricht
+          # Die Tour braucht mit Software-Grafik in der CI etwa 45–55 Minuten (Ersteller, die Zeitalter der Erdgeschichte, Laden, 100 Sekunden, Bonusrunde, Looks, alter Spielstand): genug Luft, damit sie nicht mittendrin abbricht
           timeout 3600 xvfb-run -a -s "-screen 0 1100x2400x24" \
             godot --rendering-driver opengl3 --resolution 1080x2340 --position 0,0 -- --shots=$GITHUB_WORKSPACE/shots > ../shots.log 2>&1 || echo "Tour beendet mit Code $?"
           tail -40 ../shots.log
@@ -94,6 +94,9 @@ jobs:
                    water_life_visible help_campaign level3_solvable \
                    action_line action_line_fits no_field_icons action_line_updates volcano_cone_sinks orbit_inverted rocks_act2 \
                    task_at_top rock_row_counts save_mid_level sheet_rule_camp \
+                   era_models era_blanket ice_seam era_transition meteor_era perf \
+                   era_overview_no_spoiler dino_era meteor_transition ice_age apes_climb early_humans_fire \
+                   era_levels_visit migration_from_schoepfung \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }
@@ -185,9 +188,9 @@ jobs:
 
             **gdpd** ist das Gottspiel auf dem Würfel – der Ableger von „God does play dice!“
             (das Original gibt es weiter unter `dice-testversion`).
-            **Die Schöpfung in 7 Tagen:** Jeder Tag hat eine Aufgabe (oben im Ziel-Chip), wenige Drehungen und bis zu
-            3 Sterne. Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. Erst Land, dann Pflanzen, Tiere, Menschen;
-            ab Tag 5 entscheidest du, was wächst. Nach Tag 7 ist deine Welt vollendet und das freie Spiel geht auf.
+            **Erdgeschichte:** Von der glühenden Erde über das Urmeer, Saurier, Eiszeit und Feuer bis zu Städten und
+            Gleichgewicht – in Zeitaltern, ein neues Level pro Tag. Oben steht immer, was als Nächstes zu tun ist.
+            Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. Weniger Schritte, mehr Sterne.
             Halte ein Symbol gedrückt, um es zu erklären.
 
             ${{ env.ANDROID_NOTE }}

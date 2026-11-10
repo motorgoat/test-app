@@ -357,7 +357,8 @@ func camp_states(gs: GameState) -> Dictionary:
 		if bool(st.get("pack", false)):
 			for g in gs.neighbors(f):
 				var gf: FieldData = g
-				if gf.kind == FieldView.K_PRED:
+				# Jäger aller Zeitalter (generische Jagd): Raubtiere, Raubsaurier, Frühmenschen ducken sich zur Herde
+				if [FieldView.K_PRED, FieldView.K_REX, FieldView.K_EARLY].has(gf.kind):
 					(out[gf.id] as Dictionary)["pack_pred"] = true
 	return out
 
@@ -739,6 +740,74 @@ const MOODS := {
 		"top": Color("#6a6458"), "mid": Color("#a89a80"), "low": Color("#c9b48e"), "cloud": Color("#b8ad98"), "clouds": 1.6, "sunglow": 0.35,
 		"fog": 0.006, "fog_c": Color("#a89a80"), "warm": Vector3(1.05, 1.0, 0.9), "cool": Vector3(0.97, 0.98, 1.0), "sat": 0.85, "con": 1.0,
 		"vig": 0.36, "life": 0.0, "lowglow": 0.0, "haze": 0.7, "stars": 0.0, "ash": 0.0},
+	# Erdgeschichte (GDPD_ERDGESCHICHTE_GRAFIK.md 3): ein Zeitalter erkennt man am Himmel, bevor man ein Tier sieht.
+	# Untergrenzen 3.2: Sonne ≥ 0,8, Füll-Licht ≥ 0,6, Umgebung ≥ 0,85, Sättigung ≥ 0,75. Zusätze: plume (Rauchfahne),
+	# dust_sun (Staub-Sonne), meteor (Meteor am Himmel, setzt World.set_meteor)
+	"kambrium": {"sun": Vector3(-38, -50, 0), "sun_c": Color("#fff0dc"), "sun_e": 1.22, "fill_c": Color("#a4c4ec"), "fill_e": 0.82,
+		"amb_c": Color("#a4b8cc"), "amb_e": 0.95, "exp": 1.0, "glow": 0.55,
+		"top": Color("#5a8cc4"), "mid": Color("#c2d8e8"), "low": Color("#e6eef0"), "cloud": Color("#f8fbff"), "clouds": 0.7, "sunglow": 0.35,
+		"fog": 0.0, "fog_c": Color("#c8d8e2"), "warm": Vector3(1.02, 1.0, 0.96), "cool": Vector3(0.92, 0.98, 1.08), "sat": 1.02, "con": 1.05,
+		"vig": 0.3, "life": 0.0, "lowglow": 0.0, "haze": 0.05, "stars": 0.0, "ash": 0.0},
+	"meer": {"sun": Vector3(-36, -48, 0), "sun_c": Color("#ffe8c4"), "sun_e": 1.24, "fill_c": Color("#a4c0e8"), "fill_e": 0.8,
+		"amb_c": Color("#a0b4cc"), "amb_e": 0.95, "exp": 1.0, "glow": 0.6,
+		"top": Color("#6490bc"), "mid": Color("#c6d6e2"), "low": Color("#ece6d4"), "cloud": Color("#fffaf2"), "clouds": 1.2, "sunglow": 0.35,
+		"fog": 0.0, "fog_c": Color("#c8d2d8"), "warm": Vector3(1.03, 1.0, 0.94), "cool": Vector3(0.92, 0.98, 1.07), "sat": 1.04, "con": 1.05,
+		"vig": 0.3, "life": 0.0, "lowglow": 0.0, "haze": 0.0, "stars": 0.0, "ash": 0.0},
+	"landgang": {"sun": Vector3(-34, -46, 0), "sun_c": Color("#ffe2b0"), "sun_e": 1.2, "fill_c": Color("#a8bcd0"), "fill_e": 0.82,
+		"amb_c": Color("#a4b0a8"), "amb_e": 0.95, "exp": 1.0, "glow": 0.6,
+		"top": Color("#7a92a6"), "mid": Color("#cad2c4"), "low": Color("#e8dcc0"), "cloud": Color("#f6f2e6"), "clouds": 1.25, "sunglow": 0.4,
+		"fog": 0.002, "fog_c": Color("#c8ccb8"), "warm": Vector3(1.05, 1.01, 0.92), "cool": Vector3(0.94, 0.98, 1.04), "sat": 1.03, "con": 1.04,
+		"vig": 0.32, "life": 0.0, "lowglow": 0.0, "haze": 0.15, "stars": 0.0, "ash": 0.0},
+	"karbon": {"sun": Vector3(-40, -44, 0), "sun_c": Color("#fff0b8"), "sun_e": 1.05, "fill_c": Color("#b4c4a4"), "fill_e": 0.85,
+		"amb_c": Color("#a8b498"), "amb_e": 1.0, "exp": 1.0, "glow": 0.65,
+		"top": Color("#6c7e6a"), "mid": Color("#b8be98"), "low": Color("#dcd2a0"), "cloud": Color("#e6e4c8"), "clouds": 1.5, "sunglow": 0.45,
+		"fog": 0.006, "fog_c": Color("#b4b890"), "warm": Vector3(1.06, 1.03, 0.88), "cool": Vector3(0.96, 1.0, 1.0), "sat": 1.0, "con": 1.03,
+		"vig": 0.36, "life": 0.0, "lowglow": 0.0, "haze": 0.35, "stars": 0.0, "ash": 0.0},
+	"saurier": {"sun": Vector3(-34, -50, 0), "sun_c": Color("#ffe0a8"), "sun_e": 1.25, "fill_c": Color("#a8c0d0"), "fill_e": 0.8,
+		"amb_c": Color("#a4b0a8"), "amb_e": 0.95, "exp": 1.0, "glow": 0.65,
+		"top": Color("#6d8aa0"), "mid": Color("#c6cdb6"), "low": Color("#e4cfa2"), "cloud": Color("#f6f0e0"), "clouds": 1.25, "sunglow": 0.45,
+		"fog": 0.004, "fog_c": Color("#c2c6aa"), "warm": Vector3(1.06, 1.01, 0.9), "cool": Vector3(0.94, 0.99, 1.04), "sat": 1.08, "con": 1.05,
+		"vig": 0.32, "life": 1.0, "lowglow": 0.06, "haze": 0.25, "stars": 0.0, "ash": 0.0, "plume": 1.0, "dust_sun": 0.0},
+	"asche": {"sun": Vector3(-24, -36, 0), "sun_c": Color("#e0a878"), "sun_e": 0.82, "fill_c": Color("#9a8078"), "fill_e": 0.72,
+		"amb_c": Color("#8a7e7a"), "amb_e": 1.0, "exp": 1.04, "glow": 0.8,
+		"top": Color("#141012"), "mid": Color("#3a2c28"), "low": Color("#7a3e22"), "cloud": Color("#3c3230"), "clouds": 1.7, "sunglow": 0.0,
+		"fog": 0.0, "fog_c": Color("#4a3a34"), "warm": Vector3(1.06, 0.98, 0.9), "cool": Vector3(0.96, 0.95, 1.0), "sat": 0.78, "con": 1.04,
+		"vig": 0.42, "life": 0.0, "lowglow": 0.4, "haze": 0.55, "stars": 0.0, "ash": 0.7, "plume": 0.0, "dust_sun": 0.8},
+	"erholung": {"sun": Vector3(-34, -46, 0), "sun_c": Color("#f4dcb8"), "sun_e": 1.05, "fill_c": Color("#a0acb8"), "fill_e": 0.8,
+		"amb_c": Color("#a0a4a4"), "amb_e": 0.95, "exp": 1.0, "glow": 0.6,
+		"top": Color("#66788c"), "mid": Color("#b8bcb6"), "low": Color("#d8cbb2"), "cloud": Color("#d8d6d0"), "clouds": 1.3, "sunglow": 0.35,
+		"fog": 0.002, "fog_c": Color("#b0b0a8"), "warm": Vector3(1.04, 1.0, 0.94), "cool": Vector3(0.95, 0.98, 1.03), "sat": 0.94, "con": 1.03,
+		"vig": 0.34, "life": 0.0, "lowglow": 0.0, "haze": 0.25, "stars": 0.0, "ash": 0.06, "plume": 0.0, "dust_sun": 0.15},
+	"saeuger": {"sun": Vector3(-32, -48, 0), "sun_c": Color("#ffdcaa"), "sun_e": 1.3, "fill_c": Color("#a8c0e4"), "fill_e": 0.8,
+		"amb_c": Color("#a8b4c4"), "amb_e": 0.95, "exp": 1.0, "glow": 0.65,
+		"top": Color("#6f92b8"), "mid": Color("#d0d8d8"), "low": Color("#f0dcb8"), "cloud": Color("#fff6e8"), "clouds": 0.95, "sunglow": 0.5,
+		"fog": 0.0, "fog_c": Color("#d4d4c8"), "warm": Vector3(1.06, 1.0, 0.9), "cool": Vector3(0.93, 0.98, 1.06), "sat": 1.07, "con": 1.05,
+		"vig": 0.3, "life": 1.0, "lowglow": 0.0, "haze": 0.0, "stars": 0.0, "ash": 0.0},
+	"eiszeit": {"sun": Vector3(-22, -42, 0), "sun_c": Color("#fff0dc"), "sun_e": 1.15, "fill_c": Color("#a8c4ec"), "fill_e": 0.85,
+		"amb_c": Color("#b4c4da"), "amb_e": 0.92, "exp": 0.96, "glow": 0.55,
+		"top": Color("#6f8cb0"), "mid": Color("#cfdbe6"), "low": Color("#eef0ee"), "cloud": Color("#f6f8fa"), "clouds": 1.3, "sunglow": 0.5,
+		"fog": 0.003, "fog_c": Color("#d8e0e8"), "warm": Vector3(1.02, 1.0, 0.98), "cool": Vector3(0.92, 0.97, 1.08), "sat": 0.94, "con": 1.06,
+		"vig": 0.3, "life": 0.0, "lowglow": 0.0, "haze": 0.15, "stars": 0.0, "ash": 0.0, "plume": 0.0, "dust_sun": 0.0},
+	"savanne": {"sun": Vector3(-30, -46, 0), "sun_c": Color("#ffd8a0"), "sun_e": 1.3, "fill_c": Color("#b0b8d0"), "fill_e": 0.78,
+		"amb_c": Color("#b4aa98"), "amb_e": 0.95, "exp": 1.0, "glow": 0.7,
+		"top": Color("#6f92c0"), "mid": Color("#d8d8c8"), "low": Color("#f0d8a8"), "cloud": Color("#fffaf0"), "clouds": 0.8, "sunglow": 0.6,
+		"fog": 0.0, "fog_c": Color("#e0d4b8"), "warm": Vector3(1.08, 1.0, 0.88), "cool": Vector3(0.94, 0.97, 1.05), "sat": 1.05, "con": 1.05,
+		"vig": 0.3, "life": 1.0, "lowglow": 0.0, "haze": 0.1, "stars": 0.0, "ash": 0.0, "plume": 0.0, "dust_sun": 0.0},
+	"feuer": {"sun": Vector3(-16, -40, 0), "sun_c": Color("#ffb070"), "sun_e": 1.12, "fill_c": Color("#8a92c8"), "fill_e": 0.7,
+		"amb_c": Color("#a092a8"), "amb_e": 0.9, "exp": 1.0, "glow": 0.9,
+		"top": Color("#2e3460"), "mid": Color("#b48c90"), "low": Color("#f0a468"), "cloud": Color("#f6c49c"), "clouds": 0.9, "sunglow": 0.8,
+		"fog": 0.0, "fog_c": Color("#b49488"), "warm": Vector3(1.08, 0.98, 0.88), "cool": Vector3(0.92, 0.94, 1.08), "sat": 1.05, "con": 1.05,
+		"vig": 0.4, "life": 0.0, "lowglow": 0.12, "haze": 0.0, "stars": 0.45, "ash": 0.0},
+	"jaeger": {"sun": Vector3(-26, -44, 0), "sun_c": Color("#ffe6c4"), "sun_e": 1.2, "fill_c": Color("#a8c0e0"), "fill_e": 0.82,
+		"amb_c": Color("#b0bccc"), "amb_e": 0.94, "exp": 0.98, "glow": 0.6,
+		"top": Color("#6a8cb4"), "mid": Color("#d4dce2"), "low": Color("#f0e6d4"), "cloud": Color("#f8f8f6"), "clouds": 0.9, "sunglow": 0.55,
+		"fog": 0.0, "fog_c": Color("#d8dce0"), "warm": Vector3(1.05, 1.0, 0.93), "cool": Vector3(0.93, 0.97, 1.07), "sat": 1.0, "con": 1.05,
+		"vig": 0.3, "life": 0.0, "lowglow": 0.0, "haze": 0.05, "stars": 0.0, "ash": 0.0},
+	"glaube": {"sun": Vector3(-20, -44, 0), "sun_c": Color("#ffc890"), "sun_e": 1.24, "fill_c": Color("#9a9ad8"), "fill_e": 0.78,
+		"amb_c": Color("#aca4c4"), "amb_e": 0.92, "exp": 0.98, "glow": 0.85,
+		"top": Color("#5e64a0"), "mid": Color("#d4bcc8"), "low": Color("#f4c890"), "cloud": Color("#ffe2cc"), "clouds": 0.9, "sunglow": 0.75,
+		"fog": 0.0, "fog_c": Color("#d4c0bc"), "warm": Vector3(1.08, 0.99, 0.9), "cool": Vector3(0.93, 0.94, 1.1), "sat": 1.04, "con": 1.04,
+		"vig": 0.32, "life": 1.0, "lowglow": 0.05, "haze": 0.0, "stars": 0.1, "ash": 0.0},
 	"nacht": {"sun": Vector3(-34, -52, 0), "sun_c": Color("#9fb4e8"), "sun_e": 0.55, "fill_c": Color("#5a6a9a"), "fill_e": 0.62,
 		"amb_c": Color("#56658a"), "amb_e": 0.85, "exp": 1.0, "glow": 1.0,
 		"top": Color("#070b1a"), "mid": Color("#16203a"), "low": Color("#2a3352"), "cloud": Color("#3a4560"), "clouds": 0.6, "sunglow": 0.15,
@@ -746,6 +815,8 @@ const MOODS := {
 		"vig": 0.4, "life": 0.0, "lowglow": 0.0, "haze": 0.0, "stars": 1.0, "ash": 0.0},
 }
 
+## Himmels-Zusätze, die nicht jede Stimmung nennt (Vorgabe 0)
+const MOOD_OPT := {"lowglow": 0.0, "haze": 0.0, "stars": 0.0, "ash": 0.0, "plume": 0.0, "dust_sun": 0.0}
 var mood := ""                   # aktuelle Stimmung (Name)
 var _mood_now: Dictionary = {}   # gerade angewandte Werte (Ausgang der nächsten Überblendung)
 var _mood_from: Dictionary = {}
@@ -761,7 +832,10 @@ func set_mood(name: String, dur: float = 2.0) -> void:
 	if name == mood and dur > 0.0:
 		return
 	mood = name
-	_mood_to = _custom_moods[name] if _custom_moods.has(name) else MOODS[name]
+	_mood_to = (_custom_moods[name] if _custom_moods.has(name) else MOODS[name] as Dictionary).duplicate()
+	for ok in MOOD_OPT:
+		if not _mood_to.has(ok):
+			_mood_to[ok] = MOOD_OPT[ok]       # Himmels-Zusätze blenden weich aus (statt zu springen)
 	if _mood_tw != null and _mood_tw.is_valid():
 		_mood_tw.kill()
 	if dur <= 0.0 or _mood_now.is_empty():
@@ -814,6 +888,8 @@ func _apply_mood(m: Dictionary) -> void:
 		_backdrop_mat.set_shader_parameter("haze", float(m.get("haze", 0.0)))
 		_backdrop_mat.set_shader_parameter("stars", float(m.get("stars", 0.0)))
 		_backdrop_mat.set_shader_parameter("ash", float(m.get("ash", 0.0)))
+		_backdrop_mat.set_shader_parameter("plume", float(m.get("plume", 0.0)))
+		_backdrop_mat.set_shader_parameter("dust_sun", float(m.get("dust_sun", 0.0)))
 	if _post_mat != null:
 		_post_mat.set_shader_parameter("warm", m["warm"])
 		_post_mat.set_shader_parameter("cool", m["cool"])
@@ -883,23 +959,38 @@ var _rain_clouds := 0
 var _smog_k := 0.0               # Akt 6: Grau des Himmels nach der Zahl der Industrie-Felder (0,15 je Feld)
 
 
-## Zeitalter setzen. era: Name aus Eras.ERAS, oder ein Dictionary wie das Event `era` {act, level, sky_blue, life}
-## bzw. Campaign.era(level) ({"name"} oder {"era"} oder {act, level}). blend_s: 2 s beim Level-Start, 0 beim Laden.
+## Zeitalter setzen. era: Name aus Eras.ERAS, oder ein Dictionary wie das Event `era` bzw. Campaign.era(level):
+## die Voreinstellung steht unter "preset", "look", "era", "name" oder "sky" (der erste Eintrag, den Eras kennt; sonst
+## alt {act, level}); dazu die Werte der Regeln sky_blue (Algen: Dunst → Blau), dust_clear (Wiesen nach dem Einschlag:
+## Asche → Erholung), smog (0 … 1). Kennt Eras den Namen nicht, gilt die heutige Welt („tag“).
+## blend_s: 2 s beim Level-Start, 0 beim Laden.
 func set_era(era: Variant, blend_s: float = 2.0) -> void:
 	var name := ""
-	var sky_blue := -1.0
+	var mix_v := -1.0
 	if era is String:
 		name = String(era)
 	elif era is Dictionary:
 		var d: Dictionary = era
-		if d.get("era") is String and Eras.has(String(d["era"])):
-			name = String(d["era"])
-		elif d.get("name") is String and Eras.has(String(d["name"])):
-			name = String(d["name"])
-		elif d.has("act") or d.has("level"):
-			name = Eras.of(int(d.get("act", 0)), int(d.get("level", 0)))
-		sky_blue = float(d.get("sky_blue", -1.0))
+		for key in ["preset", "look", "era", "name"]:
+			if d.get(key) is String and Eras.has(String(d[key])):
+				name = String(d[key])
+				break
+		if name == "" and d.get("act") is int and int(d["act"]) > 0:
+			# alt (Schöpfung, Akt + Level): ohne feste Signatur aufgerufen, damit ein neues Eras.of(era_id, level) passt
+			var es: Script = load("res://scripts/eras.gd")
+			var legacy: Variant = es.call("of", int(d.get("act", 0)), int(d.get("level", 0)))
+			name = String(legacy) if legacy is String else ""
+		if name == "" and d.get("sky") is String and Eras.has(String(d["sky"])):
+			name = String(d["sky"])
+		if name == "" and not d.is_empty():
+			# nur Werte der Regeln (sky_blue, dust_clear, smog) ohne Voreinstellung: das laufende Zeitalter bleibt
+			name = era_name if era_name != "" else Look.era_name
+		if name == "asche" and float(d.get("dust_clear", 0.0)) > 0.0:
+			name = "erholung"           # Asche mit Wiesen: die Erholung beginnt (Asche → Erholung nach dust_clear)
+		var mk := "dust_clear" if name == "erholung" else "sky_blue"
+		mix_v = float(d.get(mk, -1.0))
 		_smog_k = clampf(float(d.get("smog", 0.0)), 0.0, 1.0)
+		_era_night = clampf(float(d.get("night", -1.0)), -1.0, 1.0)
 	if name == "":
 		if era_name == "" and Look.era_name == "":
 			return
@@ -913,16 +1004,21 @@ func set_era(era: Variant, blend_s: float = 2.0) -> void:
 	var from := Eras.mix_from(name)
 	if from != "":
 		if name != era_name:
-			_sky_blue = 0.25          # Level 9 beginnt bei 0,25 (Spec 10)
-		set_era_mix(from, name, maxf(sky_blue, 0.0) if sky_blue >= 0.0 else _sky_blue, blend_s)
+			_sky_blue = 0.25 if name == "blau" else 0.0     # Level 9 beginnt bei 0,25 (Spec 10); Erholung ganz in Asche
+		set_era_mix(from, name, maxf(mix_v, 0.0) if mix_v >= 0.0 else _sky_blue, blend_s)
 		return
 	era_name = name
 	Look.set_era(name)
 	_era_mood = String(Eras.get_era(name).get("mood", "tag"))
+	if not MOODS.has(_era_mood):
+		_era_mood = "tag"
 	if _smog_k > 0.01:
 		_custom_moods["era_smog"] = _mood_lerp(MOODS[_era_mood], MOODS["smog"], _smog_k)
 		_era_mood = "era_smog"
 	_apply_era(blend_s)
+
+
+var _era_night := -1.0           # Nacht-Anteil aus dem Level (−1: aus dem Zeitalter, Eras „night“)
 
 
 static func _mood_lerp(ma: Dictionary, mb: Dictionary, t: float) -> Dictionary:
@@ -952,8 +1048,8 @@ func set_era_mix(a: String, b: String, t: float, blend_s: float = 0.8) -> void:
 	_sky_blue = t
 	era_name = b
 	Look.set_era_mix(a, b, t)
-	var ma: Dictionary = MOODS[String(Eras.get_era(a).get("mood", "tag"))]
-	var mb: Dictionary = MOODS[String(Eras.get_era(b).get("mood", "tag"))]
+	var ma: Dictionary = MOODS.get(String(Eras.get_era(a).get("mood", "tag")), MOODS["tag"])
+	var mb: Dictionary = MOODS.get(String(Eras.get_era(b).get("mood", "tag")), MOODS["tag"])
 	var mix := _mood_lerp(ma, mb, t)
 	if b == "blau":
 		# Der Himmel wird sichtbar blau: der obere Himmel folgt schneller (ease-out) und satter als das Licht
@@ -964,7 +1060,7 @@ func set_era_mix(a: String, b: String, t: float, blend_s: float = 0.8) -> void:
 	_era_mood = "era_mix"
 	_apply_era(blend_s)
 	if pulse:
-		flash_screen(0.08)        # kurzer heller Puls: Sauerstoff, der Himmel wird ein Stück blauer
+		flash_screen(0.08)        # kurzer heller Puls: Sauerstoff, der Himmel wird ein Stück blauer (Erholung: heller)
 
 
 func sky_blue() -> float:
@@ -987,27 +1083,46 @@ func set_rest(rounds: int, target: int) -> void:
 
 ## Level-Start (Game.day_started): Schöpfung → Zeitalter des Levels (info.era = GameState.era9()), sonst heutige Welt.
 func _on_day_era(info: Dictionary) -> void:
+	_impact_level = false
 	var e: Variant = info.get("era")
+	var warn := bool(info.get("impact_warn", false))
+	if e is Dictionary:
+		var ed: Dictionary = e
+		# Campaign.era: "impact" (dieses Level hat den Einschlag) solange "impact_done" fehlt
+		warn = warn or bool(ed.get("impact_warn", false)) or bool(ed.get("meteor", false)) \
+			or (bool(ed.get("impact", false)) and not bool(ed.get("impact_done", false)))
+		_impact_level = bool(ed.get("impact_done", false))
+	set_meteor(warn)
 	if bool(info.get("camp", false)) and e is Dictionary and not (e as Dictionary).is_empty():
 		set_era(e, 0.0 if era_name == "" else 2.0)
 	else:
 		set_era("", 0.0)
 
 
-## Nach jeder Runde (Schöpfung): der Himmel wird mit den Algen blauer (Akt 3), Smog nach der Industrie (Level 28+).
+## Nach jeder Runde: der Himmel wird mit den Algen blauer (sky_blue), nach dem Einschlag mit den Wiesen klarer
+## (dust_clear), in der Industrie grauer (Smog: 0,15 je Industrie-Feld). Liest nur GameState.era9() und die Felder.
 func _sync_era() -> void:
 	var gs := Game.state
 	if gs == null or gs.get("camp") != true or not gs.has_method("era9"):
 		return
 	var e: Dictionary = gs.call("era9")
 	var act := int(e.get("act", 0))
-	if act == 2 and gs.get("rain") is int:
+	if (act == 2 or era_name == "dunst") and gs.get("rain") is int:
 		set_rain_clouds(int(gs.get("rain")))
-	if act == 3:
-		var sb := float(e.get("sky_blue", 0.0))
-		if sb > _sky_blue + 0.01:
+	if era_name == "asche" and float(e.get("dust_clear", 0.0)) > 0.01:
+		set_era(e, 0.8)               # die ersten Wiesen: Asche → Erholung beginnt
+		return
+	var target := Eras.mix_from(era_name)
+	if target != "":
+		var mk := "dust_clear" if era_name == "erholung" else "sky_blue"
+		if e.has(mk) and float(e[mk]) > _sky_blue + 0.01:
 			set_era(e, 0.8)
-	elif act == 6 and int(e.get("level", 0)) >= 28:
+		return
+	var industry := (act == 6 and int(e.get("level", 0)) >= 28)
+	for key in ["id", "era_id", "era", "name"]:
+		if str(e.get(key, "")) == "industrie":
+			industry = true
+	if industry:
 		var ind := 0
 		for f in gs.fields:
 			if (f as FieldData).kind == FieldView.K_INDUSTRY:
@@ -1026,8 +1141,9 @@ func set_rain_clouds(n: int) -> void:
 
 
 func _apply_era(blend_s: float) -> void:
-	for fid in views:
-		(views[fid] as FieldView).era_changed()
+	if not _era_wave:
+		for fid in views:
+			(views[fid] as FieldView).era_changed()
 	FieldView.seams_dirty = true
 	_update_ambient()
 	mood = ""
@@ -1062,8 +1178,70 @@ func _update_ambient() -> void:
 		_fireflies.emitting = ff > 0
 		_fireflies.position = Vector3(0, 0.0 if night_era else -1.75, 0)
 		_fireflies.emission_box_extents = Vector3(1.6, 1.6, 1.6) if night_era else Vector3(1.6, 0.12, 1.6)
-	Look.set_night(1.0 if era_name == "nacht" else 0.0)
+	var night := 0.0
+	if era_name == "nacht":
+		night = 1.0
+	elif era_name != "":
+		night = float(Eras.get_era(era_name).get("night", 0.0))
+	if _era_night >= 0.0 and era_name != "":
+		night = _era_night
+	Look.set_night(night)
 	_set_sun_node(Look.sunface)
+	_update_fall(q)
+
+
+var _fall: CPUParticles3D
+var _fall_kind := ""
+
+
+## Fallende Teilchen des Zeitalters (GRAFIK 2): Schnee (Eiszeit, 160; Jäger: leicht) oder Asche (Aschewinter, 180).
+## Ein Draw-Call; mittel: halb, niedrig: 40.
+func _update_fall(q: int) -> void:
+	var kind := str(Look.era_ambient("fall", "")) if era_name != "" else ""
+	var n := {"snow": 160, "snow_light": 60, "ash": 180}.get(kind, 0) as int
+	n = n if q >= 2 else (n / 2 if q == 1 else mini(n, 40))
+	if n <= 0:
+		if _fall != null:
+			_fall.emitting = false
+			_fall.visible = false
+		return
+	if _fall == null or _fall_kind != kind:
+		if _fall != null:
+			_fall.queue_free()
+		_fall_kind = kind
+		var ash := kind == "ash"
+		_fall = CPUParticles3D.new()
+		_fall.lifetime = 9.0
+		_fall.preprocess = 9.0
+		_fall.mesh = Look.quad(1.0)
+		_fall.material_override = Look.mote(Color(0.42, 0.4, 0.4, 0.85) if ash else Color(0.97, 0.98, 1.0, 0.9), true)
+		if ash:
+			# Asche additiv wäre hell: gemischt, grau
+			var am := (_fall.material_override as StandardMaterial3D).duplicate() as StandardMaterial3D
+			am.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+			_fall.material_override = am
+		_fall.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		_fall.emission_box_extents = Vector3(2.2, 0.3, 2.2)
+		_fall.position = Vector3(0, 2.6, 0)
+		_fall.direction = Vector3(0.3, -1, 0.1)
+		_fall.spread = 20.0
+		_fall.gravity = Vector3(0.02, -0.06 if ash else -0.12, 0.0)
+		_fall.initial_velocity_min = 0.15
+		_fall.initial_velocity_max = 0.3
+		_fall.scale_amount_min = 0.01 if ash else 0.012
+		_fall.scale_amount_max = 0.02 if ash else 0.022
+		var fade := Gradient.new()
+		fade.set_color(0, Color(1, 1, 1, 0))
+		fade.set_color(1, Color(1, 1, 1, 0))
+		fade.add_point(0.15, Color(1, 1, 1, 1))
+		fade.add_point(0.85, Color(1, 1, 1, 1))
+		_fall.color_ramp = fade
+		_fall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_fall)
+	if _fall.amount != n:
+		_fall.amount = n
+	_fall.visible = true
+	_fall.emitting = true
 
 
 func _motes(c: Color, s0: float, s1: float, grav: Vector3, life: float, vel: Vector3) -> CPUParticles3D:
@@ -1399,6 +1577,7 @@ var _perf_done := false
 
 func _process(delta: float) -> void:
 	_update_life(delta)
+	_update_meteor(delta)
 	_update_post()
 	_measure_quality(delta)
 	rig.drift_enabled = not _tour and not Game.tutorial() and not input_locked and not animating and _mode == "" and not Game.busy
@@ -2619,7 +2798,13 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 			"satt_lost":
 				fv8.pulse_light(Color("#c9a6a0"), 0.6)
 			"thrive":
-				fv8.burst(Color("#ffd75e"))
+				if fv8.get_kind() == FieldView.K_ICE:
+					_melt_fx(fv8)                   # Eis taut: Risse, blaue Funken, das Feld wird nass
+				else:
+					fv8.burst(Color("#ffd75e"))
+				fx8 = true
+			"freeze":
+				await _freeze_fx(fv8, int(e["field"]), int(e.get("crater", -1)))
 				fx8 = true
 			"satt_new":
 				fv8.pulse_light(Color("#ffe3a0"), 0.7)
@@ -2656,7 +2841,8 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 	for e in events:
 		match str(e["type"]):
 			"era":
-				set_era(e, 0.8)
+				if not (_impact_level and _era_preset(e) == "saurier"):
+					set_era(e, 0.8)
 			"mercy":
 				mercy_fx()
 			"hold":
@@ -2672,6 +2858,21 @@ func _on_round_resolved(result: Dictionary, before: Dictionary) -> void:
 				_cone_away(int(e.get("crater", -1)))
 			"meteor":
 				_staub = 2
+			# Erdgeschichte (GDPD_ERDGESCHICHTE.md 8, GRAFIK 8)
+			"impact_warn":
+				set_meteor(true)
+			"impact":
+				var hit: Array = e.get("fields", []) if e.get("fields") is Array else []
+				await meteor_strike(hit)
+				fx8 = true
+			"glacier_warn":
+				# bedrohte Nachbarn („threat“), sonst die Eis-Gruppe selbst
+				var gt: Variant = e.get("threat", e.get("fields", []))
+				_glacier_warn_fx(int(e.get("crater", -1)), gt if gt is Array else [])
+			"glacier_calm":
+				var gv: FieldView = views.get(int(e.get("crater", -1)))
+				if gv != null:
+					gv.pulse_light(Color("#e8f4ff"), 0.8, 0.5)
 	if fx8:
 		await get_tree().create_timer(0.5).timeout
 	# Hat das alles (Abkühlen, Ausbruch, Landgang, Wünsche) eine neue Reihe ergeben, wächst sie jetzt (erst danach zu sehen)
@@ -2819,7 +3020,8 @@ func _show_ids(ids: Dictionary, skip: Dictionary) -> void:
 
 
 ## Krieg: Schwerter über den Kirchen, rotes Blinken, Beben; die Kirchen stürzen zu Häusern ein.
-const _FOCUS8 := ["flood_warn", "volcano_warn", "bolt_warn", "pack_warn", "hunger_warn", "goal_loss", "erupt", "pack_hunt",
+const _FOCUS8 := ["flood_warn", "volcano_warn", "bolt_warn", "pack_warn", "glacier_warn", "freeze", "hunger_warn", "goal_loss",
+	"erupt", "pack_hunt",
 	"starve", "spawn", "thrive", "satt_new"]
 
 
@@ -3121,7 +3323,11 @@ func _sparks(a: Vector3, b: Vector3, color: Color, count: int) -> void:
 func _dust(v: FieldView) -> void:
 	var k := v.get_kind()
 	var col := Color("#8d7a5e")
-	if FieldView.NATURE_KINDS.has(k):
+	if k == FieldView.K_ICE or (Look.blanket.a > 0.3 and Look.blanket_veil < 0.5):
+		col = Color("#e8eef4")               # Schnee-Staub
+	elif Look.blanket_veil > 0.5 and Look.blanket.a > 0.2:
+		col = Color("#6e6a66")               # Asche
+	elif FieldView.NATURE_KINDS.has(k):
 		col = Color("#6d8a3a") if k != FieldView.K_MEADOW else Color("#d8d2b8")
 	elif k == FieldView.K_EMPTY or k == FieldView.K_FIELD:
 		col = Color("#6e5238")
@@ -3442,7 +3648,8 @@ func _spawn_fx(from_v: FieldView, target: int) -> void:
 	if tv == null:
 		return
 	var newt := MeshInstance3D.new()
-	newt.mesh = Models.creature_mesh("newt", 0)
+	var amph := Game.state != null and target < Game.state.fields.size() and (Game.state.fields[target] as FieldData).kind == FieldView.K_AMPHIB
+	newt.mesh = Models.creature_mesh("amph" if amph else "newt", 0)
 	newt.material_override = Models.creature_material(0.3)
 	(newt.material_override as ShaderMaterial).set_shader_parameter("walk", 1.0)
 	add_child(newt)
@@ -3463,22 +3670,346 @@ func _spawn_fx(from_v: FieldView, target: int) -> void:
 	t2.tween_callback(newt.queue_free)
 
 
-## Akt-Übergang (2.4): 3–4 s ohne Text – die Kamera zieht etwas zurück, das Zeitalter blendet über, ein Lichtstrahl
-## fällt auf den Würfel, die neue Welt legt sich mit der Welle („Neuer Morgen“). Danach erst die Ziel-Karte:
-##   await world.act_transition(info.era)
-func act_transition(era: Variant, dur: float = 3.2) -> void:
+# =============================================================================
+# Erdgeschichte: Meteor und Einschlag, Gletscher, Übergang der Zeitalter (GDPD_ERDGESCHICHTE_GRAFIK.md 8, 9)
+# =============================================================================
+
+var _meteor_on := false
+var _meteor_t := 0.0
+var _meteor_k := 0.0
+var _meteor_shown := false
+var _impact_level := false        # in diesem Level ist der Meteor schon eingeschlagen (kein Saurier-Himmel mehr)
+
+
+## Vorzeichen des Einschlags: ein glühender Meteor zieht langsam schräg über den Himmel (alle 12 s von vorn), im
+## Hochformat im sichtbaren Streifen (uv.x 0,4 … 0,6). Bleibt, bis der Einschlag kommt oder set_meteor(false).
+func set_meteor(on: bool) -> void:
+	_meteor_on = on
+	if on and _meteor_k <= 0.0:
+		_meteor_t = 0.0
+
+
+func meteor_visible() -> bool:
+	return _meteor_on
+
+
+func _update_meteor(delta: float) -> void:
+	_meteor_k = move_toward(_meteor_k, 1.0 if _meteor_on else 0.0, delta * 1.5)
+	if _backdrop_mat == null:
+		return
+	if _meteor_k <= 0.0:
+		if _meteor_shown:
+			_meteor_shown = false
+			_backdrop_mat.set_shader_parameter("meteor", 0.0)
+		return
+	_meteor_shown = true
+	_meteor_t += delta
+	var k := fmod(_meteor_t, 12.0) / 12.0
+	var p := Vector2(0.43, 0.06).lerp(Vector2(0.57, 0.3), k)
+	var fade := smoothstep(0.0, 0.12, k) * (1.0 - smoothstep(0.85, 1.0, k))
+	_backdrop_mat.set_shader_parameter("meteor_uv", p)
+	_backdrop_mat.set_shader_parameter("meteor_dir", Vector2(0.14, 0.24))
+	_backdrop_mat.set_shader_parameter("meteor", _meteor_k * (0.35 + 0.65 * fade))
+
+
+## Name der Voreinstellung in einem Era-Dictionary (wie set_era sie sucht), sonst "".
+func _era_preset(e: Variant) -> String:
+	if e is String:
+		return String(e)
+	if e is Dictionary:
+		for key in ["preset", "look", "era", "name", "sky"]:
+			var d: Dictionary = e
+			if d.get(key) is String and Eras.has(String(d[key])):
+				return String(d[key])
+	return ""
+
+
+## Der Einschlag (GRAFIK 8.1, Spec 4.3): Kamera zur Seite mit den meisten Sauriern, ein glühender Brocken fällt mit
+## Schweif, weißer Bildblitz, die Kamera bebt, eine Druckwelle läuft als heller Ring über die Seite, ein Krater mit
+## Glut, Glutbrocken fliegen. Die Saurier kippen um und sinken ein (grau), dann blendet der Himmel in 1,5 s zum
+## Aschewinter. fields: die Felder, die zu Asche (Erde) werden. Dauer ≈ 2,6 s.
+func meteor_strike(fields: Array) -> void:
+	set_meteor(false)
+	_impact_level = true
+	var center := -1
+	if not fields.is_empty():
+		var by_face := {}
+		for f in fields:
+			var v0: FieldView = views.get(int(f))
+			if v0 == null:
+				continue
+			var key := v0.world_normal().snapped(Vector3.ONE * 0.5)
+			by_face[key] = (by_face.get(key, []) as Array) + [int(f)]
+		var best: Array = []
+		for key in by_face:
+			if (by_face[key] as Array).size() > best.size():
+				best = by_face[key]
+		# Mitte der Seite (oder das Feld der Gruppe, das ihr am nächsten liegt)
+		var bd := INF
+		for f in best:
+			var vv: FieldView = views.get(int(f))
+			var d := (vv.global_position - vv.world_normal() * vv.world_normal().dot(vv.global_position)).length()
+			if d < bd:
+				bd = d
+				center = int(f)
+	var cv: FieldView = views.get(center)
+	if cv == null:
+		# keine Felder (oder nicht sichtbar): Einschlag auf der Seite zur Kamera
+		var cam_dir := rig.cam.global_position.normalized()
+		var bdot := -2.0
+		for fid in views:
+			var v1: FieldView = views[fid]
+			var dd := v1.world_normal().dot(cam_dir) - 0.01 * v1.position.length()
+			if dd > bdot:
+				bdot = dd
+				cv = v1
+				center = int(fid)
+	if cv == null:
+		set_era("asche", 1.5)
+		return
+	focus_field(center)
+	await get_tree().create_timer(0.45).timeout
+	await _impact_fall(cv)
+	flash_screen(0.8)
+	_ash_plume(cv)
+	rig.shake(1.6)
+	_buzz(60)
+	_shock_ring(cv)
+	_sparks(cv.global_position + cv.world_normal() * 0.25, Vector3.ZERO, Color("#ffb347"), 12)
+	# die Saurier kippen um und sinken ein
+	for f in fields:
+		var tv: FieldView = views.get(int(f))
+		if tv != null:
+			tv.topple(0.6)
+	hold_mood("glut", 0.3)
+	await get_tree().create_timer(0.65).timeout
+	_mood_hold = ""
+	set_era("asche", 1.5)
+	var gs := Game.state
+	for f in fields:
+		var tv2: FieldView = views.get(int(f))
+		if tv2 != null and gs != null and int(f) < gs.fields.size():
+			tv2.refresh(gs.fields[int(f)])
+	if cv.get_kind() == FieldView.K_EMPTY:
+		cv.set_crater(true)
+	_sparks(cv.global_position + cv.world_normal() * 0.2, cv.global_position + cv.world_normal() * 1.4, Color("#ff9a3d"), 8)
+	await get_tree().create_timer(0.9).timeout
+
+
+## Der Brocken fällt (0,75 s): glühender Kern, Lichthof, Schweif als Kegel nach hinten, Funkenspur. Kommt schräg
+## von oben aus der Richtung des Himmels hinter dem Würfel (wie der Meteor am Himmel zog).
+func _impact_fall(v: FieldView) -> void:
+	var n := v.world_normal()
+	var target := v.global_position + n * (FieldView.TOP + 0.03)
+	var side := rig.global_transform.basis.x
+	var start := target + n * 4.2 - side * 1.6 + rig.global_transform.basis.y * 1.2
+	var rock := Node3D.new()
+	cube_root.add_child(rock)
+	rock.global_position = start
+	var core := MeshInstance3D.new()
+	core.mesh = Models.sphere_mesh(0.07)
+	var cm := StandardMaterial3D.new()
+	cm.albedo_color = Color("#ffd6a0")
+	cm.emission_enabled = true
+	cm.emission = Color("#ffb060")
+	cm.emission_energy_multiplier = 4.0
+	core.material_override = cm
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rock.add_child(core)
+	var glow := MeshInstance3D.new()
+	glow.mesh = Look.quad(0.9)
+	glow.material_override = Look.mote(Color(1.0, 0.45, 0.1, 0.95))
+	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rock.add_child(glow)
+	var streak := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.01
+	cyl.bottom_radius = 0.09
+	cyl.height = 1.8
+	cyl.radial_segments = 10
+	cyl.rings = 1
+	streak.mesh = cyl
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var gt := GradientTexture2D.new()
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.6, 1.0])
+	g.colors = PackedColorArray([Color(0.9, 0.25, 0.05, 0.0), Color(1.0, 0.45, 0.1, 0.7), Color(1.0, 0.85, 0.45, 1.0)])
+	gt.gradient = g
+	gt.fill_from = Vector2(0, 0)
+	gt.fill_to = Vector2(0, 1)
+	gt.width = 4
+	gt.height = 64
+	sm.albedo_texture = gt
+	streak.material_override = sm
+	streak.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rock.add_child(streak)
+	var dir := (target - start).normalized()
+	var ax_y := -dir
+	var ax_x := ax_y.cross(Vector3.UP if absf(ax_y.y) < 0.95 else Vector3.RIGHT).normalized()
+	streak.global_transform = Transform3D(Basis(ax_x, ax_y, ax_x.cross(ax_y)), start + ax_y * 0.9)
+	# Funkenspur: ein CPUParticles3D in Welt-Koordinaten (ein Draw-Call statt einzelner Funken)
+	var trail := CPUParticles3D.new()
+	trail.amount = 70
+	trail.lifetime = 0.5
+	trail.local_coords = false
+	trail.mesh = Look.quad(0.16)
+	trail.material_override = Look.mote(Color(1.0, 0.62, 0.25, 0.9), true)
+	trail.gravity = Vector3.ZERO
+	trail.initial_velocity_max = 0.12
+	var tsc := Curve.new()
+	tsc.add_point(Vector2(0, 1))
+	tsc.add_point(Vector2(1, 0))
+	trail.scale_amount_curve = tsc
+	var tg := Gradient.new()
+	tg.set_color(0, Color(1.0, 0.85, 0.55, 1.0))
+	tg.set_color(1, Color(0.6, 0.22, 0.1, 0.0))
+	trail.color_ramp = tg
+	trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rock.add_child(trail)
+	trail.emitting = true
+	var tw := create_tween()
+	tw.tween_property(rock, "global_position", target, 0.75).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await tw.finished
+	rock.queue_free()
+	# kurzer Lichtblitz (klein: in GL Compatibility zeichnet jede Lampe alles in ihrer Reichweite noch einmal)
+	var flash := OmniLight3D.new()
+	flash.light_color = Color("#ffb347")
+	flash.omni_range = 2.2
+	flash.light_energy = 10.0
+	cube_root.add_child(flash)
+	flash.global_position = target + n * 0.5
+	var ft := create_tween()
+	ft.tween_property(flash, "light_energy", 0.0, 0.8)
+	ft.tween_callback(flash.queue_free)
+	v.burst(Color("#ff8a3d"))
+
+
+## Asche-Wolke über dem Einschlag: dunkle Rauchballen steigen 2,5 s lang auf und verblassen (ein Draw-Call).
+func _ash_plume(v: FieldView) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.amount = 26
+	p.lifetime = 2.6
+	p.explosiveness = 0.7
+	p.mesh = Look.quad(1.0)
+	p.material_override = Look.smoke(Color(0.32, 0.3, 0.29, 0.85))
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.12
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 35.0
+	p.initial_velocity_min = 0.35
+	p.initial_velocity_max = 0.8
+	p.damping_min = 0.3
+	p.damping_max = 0.6
+	p.scale_amount_min = 0.25
+	p.scale_amount_max = 0.5
+	var sc := Curve.new()
+	sc.add_point(Vector2(0, 0.4))
+	sc.add_point(Vector2(1, 1.4))
+	p.scale_amount_curve = sc
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 1))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	p.color_ramp = fade
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	v.add_child(p)
+	p.position = Vector3(0, FieldView.TOP + 0.05, 0)
+	p.emitting = true
+	get_tree().create_timer(3.0).timeout.connect(p.queue_free)
+
+
+## Druckwelle: heller Ring, der sich über die Seite ausbreitet und verblasst.
+func _shock_ring(v: FieldView) -> void:
+	var ring := MeshInstance3D.new()
+	ring.mesh = Look.quad(1.0)
+	var m := Look.ring(Color(1.0, 0.85, 0.6, 1.0))
+	ring.material_override = m
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cube_root.add_child(ring)
+	var n := v.world_normal()
+	ring.global_position = v.global_position + n * (FieldView.TOP + 0.03)
+	ring.global_basis = Basis.looking_at(-n, Vector3.UP if absf(n.y) < 0.9 else Vector3.FORWARD)
+	ring.scale = Vector3.ONE * 0.2
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector3.ONE * 3.6, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(k: float) -> void: m.set_shader_parameter("color", Color(1.0, 0.85, 0.6, k)), 1.0, 0.0, 0.75)
+	tw.chain().tween_callback(ring.queue_free)
+
+
+## Gletscher wächst (Warnung): Frost kriecht vom Krater zu den bedrohten Nachbarn (helle, kalte Funken), die Felder
+## leuchten kühl auf. Den blauen Rand setzt der Feld-Zustand (field_state9) wie bei den anderen Gefahren.
+func _glacier_warn_fx(crater: int, fields: Array) -> void:
+	var cv: FieldView = views.get(crater)
+	if cv == null:
+		return
+	cv.pulse_light(Color("#cfeaff"), 0.9, 0.8)
+	var from := cv.global_position + cv.world_normal() * 0.15
+	for f in fields:
+		var tv: FieldView = views.get(int(f))
+		if tv == null:
+			continue
+		_sparks(from, tv.global_position + tv.world_normal() * 0.12, Color("#e8f6ff"), 4)
+		tv.pulse_light(Color("#bfe0ff"), 0.9, 0.6)
+
+
+## Ein Feld friert zu: kalter Lichtpuls, Frost-Funken vom Krater, dann wächst die Eisdecke darauf (refresh).
+func _freeze_fx(v: FieldView, fid: int, crater: int) -> void:
+	var cv: FieldView = views.get(crater)
+	if cv != null:
+		_sparks(cv.global_position + cv.world_normal() * 0.15, v.global_position + v.world_normal() * 0.1, Color("#eaf6ff"), 5)
+	v.pulse_light(Color("#d8f0ff"), 0.9, 1.0)
+	v.quake(0.3)
+	await get_tree().create_timer(0.35).timeout
+	if Game.state != null and fid < Game.state.fields.size():
+		v.refresh(Game.state.fields[fid])
+	v.burst(Color("#eef8ff"))
+
+
+## Eis taut (Eis → Wasser): kurzer blauer Puls, Tropfen-Funken, das Feld glänzt nass.
+func _melt_fx(v: FieldView) -> void:
+	v.pulse_light(Color("#bfe3ff"), 0.8, 0.7)
+	_sparks(v.global_position + v.world_normal() * 0.12, v.global_position + v.world_normal() * 0.6, Color("#cfeaff"), 5)
+	v.set_wet(1.0, 3.0)
+
+
+## Übergang in ein neues Zeitalter (GRAFIK 9, ersetzt act_transition): 3–4 s ohne Text. Die Kamera zieht etwas
+## zurück, der Himmel blendet über (2 s), die Gestalten der Arten wechseln mit einer Welle über den Würfel (Feld für
+## Feld, 0,05 s Versatz; jedes Feld wächst neu), danach die Ziel-Karte:  await world.era_transition(info.era)
+func era_transition(era: Variant, dur: float = 3.4) -> void:
 	var z0 := rig.zoom_factor
 	var tw := create_tween()
 	tw.tween_method(_zoom_to, z0, z0 * 0.86, dur * 0.35).set_trans(Tween.TRANS_SINE)
+	_era_wave = true
 	set_era(era, dur * 0.6)
+	_era_wave = false
+	# Welle: nach Seite und Lage sortiert (oben zuerst), je Feld 0,05 s später
+	var order: Array = views.keys()
+	order.sort_custom(func(a, b) -> bool: return (views[a] as FieldView).global_position.y > (views[b] as FieldView).global_position.y)
+	for i in order.size():
+		var v: FieldView = views[order[i]]
+		get_tree().create_timer(0.25 + 0.05 * float(i % 27) + 0.02 * float(i / 27)).timeout.connect(v.era_changed)
 	await get_tree().create_timer(dur * 0.3).timeout
-	_dawn_fx()                 # eigener sanfter Morgen (nicht das Gnade-Licht „Hilfe von oben“)
+	_dawn_fx()
 	if night_pending():
 		overnight_wave()
 	await get_tree().create_timer(dur * 0.45).timeout
 	var tw2 := create_tween()
 	tw2.tween_method(_zoom_to, rig.zoom_factor, z0, dur * 0.25).set_trans(Tween.TRANS_SINE)
 	await tw2.finished
+
+
+var _era_wave := false            # set_era aus era_transition: Felder wechseln ihre Gestalt erst mit der Welle
+
+
+## Akt-Übergang (2.4): 3–4 s ohne Text – die Kamera zieht etwas zurück, das Zeitalter blendet über, ein Lichtstrahl
+## fällt auf den Würfel, die neue Welt legt sich mit der Welle („Neuer Morgen“). Danach erst die Ziel-Karte:
+##   await world.act_transition(info.era)
+func act_transition(era: Variant, dur: float = 3.2) -> void:
+	await era_transition(era, dur)
 
 
 func _zoom_to(z: float) -> void:

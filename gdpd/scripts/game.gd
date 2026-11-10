@@ -922,7 +922,7 @@ func free_play_unlocked() -> bool:
 
 ## Warum das freie Spiel noch zu ist (kurz, ohne zu verraten, was kommt).
 func free_locked_text() -> String:
-	return "Nach der Schöpfung." if Balance.CAMPAIGN_ON else "Erst die 7 Tage schaffen."
+	return "Nach der Erdgeschichte." if Balance.CAMPAIGN_ON else "Erst die 7 Tage schaffen."
 
 
 ## Tipp gratis? (An den Tagen ja – Produktentscheidung, Balance.DAY_HINT_FREE.)
@@ -1463,6 +1463,10 @@ func note_reminder_asked() -> void:
 
 ## {tag} der Erinnerung: der Tag, der als Nächstes wartet („Tag 3: Tiere“), nach Tag 7 „die Welt des Tages“.
 func reminder_tag() -> String:
+	if Balance.CAMPAIGN_ON:
+		# Erdgeschichte: nie den Titel oder das Zeitalter des nächsten Levels verraten – nur seine Nummer
+		var ln := next_new_level()
+		return "Level %d" % ln if ln <= Campaign.COUNT else str(Days.TEXT["wdt_tag"])
 	var nn := next_new_day()
 	if nn <= Days.count():
 		return str(Days.TEXT["day_tag"]) % [nn, str(Days.config(nn).get("title", ""))]
@@ -1589,24 +1593,26 @@ func reset_daily() -> void:
 
 
 # =============================================================================
-# Die Schöpfung (docs/GDPD_SCHOEPFUNG.md v2): 30 Level, ein neues je Spieltag, die Welt läuft im Akt weiter,
+# Die Erdgeschichte (docs/GDPD_ERDGESCHICHTE.md): Zeitalter mit vielen Leveln (Campaign.COUNT aus den Daten), ein
+# neues je Spieltag, die Welt läuft im Zeitalter weiter,
 # Punkte statt Münzen (GDPD_PUNKTE_LADEN.md). Die Regeln stehen in GameState (setup_level), die Daten in Campaign,
 # das Freischalten in Daily (level_unlocked). Balance.CAMPAIGN_ON schaltet den Start auf die Kampagne um (die
 # Oberfläche der 7 Tage läuft bis dahin weiter).
 # =============================================================================
 
 const CAMP_SECTION := "kampagne"
-var level_no := 0                # laufendes Level (1 … 30), 0 = keins
+var level_no := 0                # laufendes Level (1 … Campaign.COUNT), 0 = keins
 var level_board: Dictionary = {} # das Start-Brett dieses Versuchs ({"kinds", "seed", "index", "how", "board"})
 var hint_free_left := 0          # Gratis-Tipps in diesem Level (1 je Level)
 var undo_free_left := 0          # Gratis-Zurück in diesem Level (1 je Level)
 var owned: Array = []            # [laden] besitz: gekaufte und geschenkte Dinge
 var stock: Dictionary = {}       # [laden] vorrat: gekaufte Verbrauchsgüter (regen, blitzschutz, meteor, tipp, zurueck)
 var seen_shop: Array = []        # [laden] gesehen: Dinge ohne „Neu“-Punkt
-## Kampagnen-Zustand (gespeichert in [kampagne]): "stars", "steps", "won_key" (je 30), "last_new_key", "world"
-## (Brett-Text nach Plätzen), "world_level", "start" (Start-Brett des laufenden, noch nicht geschafften Levels),
-## "start_level", "start_seed", "fast_to" (Schnellstart bis), "fast_day", "veteran", "next_board" (je 30),
-## "thanks" (Punkte aus alten Sternen, Hinweis noch nicht gezeigt).
+## Kampagnen-Zustand (gespeichert in [kampagne], version 2): "stars", "steps", "won_key" (je Level), "pos" (die
+## Kette des täglichen Freischaltens, Daily), "last_new_key", "world" (Brett-Text nach Plätzen), "world_level", "start"
+## (Start-Brett des laufenden, noch nicht geschafften Levels), "start_level", "start_seed", "fast_to" (Schnellstart
+## bis), "fast_day", "veteran", "next_board" (je Level), "thanks" (Punkte aus alten Sternen, Hinweis noch nicht
+## gezeigt), "migrated" (aus der alten Kampagne übernommen, Hinweis noch nicht gezeigt).
 var camp: Dictionary = {}
 
 
@@ -1620,9 +1626,9 @@ static func fresh_camp() -> Dictionary:
 		sp.append(0)
 		wk.append(-1)
 		nb.append(0)
-	return {"stars": st, "steps": sp, "won_key": wk, "last_new_key": -1, "world": "", "world_level": 0,
+	return {"stars": st, "steps": sp, "won_key": wk, "pos": 0, "last_new_key": -1, "world": "", "world_level": 0,
 		"start": "", "start_level": 0, "start_seed": 1, "fast_to": 0, "fast_day": [-1, 0], "veteran": false,
-		"next_board": nb, "thanks": 0}
+		"next_board": nb, "thanks": 0, "migrated": false}
 
 
 ## Punkte laden; einmal (konto.version < 2) die Münzen umstellen: max(20 × Münzen, 60) + 20 je alter Stern (8.2).
@@ -1682,8 +1688,13 @@ func take_points_migrated() -> int:
 ## geschafft hat, behält die Welt des Tages jeden Tag.
 func _load_camp(cfg: ConfigFile) -> void:
 	camp = fresh_camp()
+	if cfg != null and cfg.has_section(CAMP_SECTION) and int(cfg.get_value(CAMP_SECTION, "version", 1)) < CAMP_VERSION:
+		_migrate_camp(cfg)
+		return
 	if cfg != null and cfg.has_section(CAMP_SECTION):
 		var s := CAMP_SECTION
+		camp["pos"] = int(cfg.get_value(s, "kette", 0))
+		camp["migrated"] = bool(cfg.get_value(s, "umgestellt", false))
 		for key in ["stars", "steps", "won_key", "next_board"]:
 			var src: Array = cfg.get_value(s, {"stars": "sterne", "steps": "schritte", "won_key": "gewonnen_am",
 				"next_board": "brett"}[key], [])
@@ -1718,11 +1729,102 @@ func _load_camp(cfg: ConfigFile) -> void:
 		camp["thanks"] = Balance.POINTS_PER_OLD_STAR * old
 
 
+## Spielstand der Kampagne: 1 = „Die Schöpfung“ (30 Level), 2 = „Erdgeschichte“ (GDPD_ERDGESCHICHTE.md 9).
+const CAMP_VERSION := 2
+
+
+## Umstellung „Die Schöpfung“ → „Erdgeschichte“ (9): jedes alte Level n wird zu Campaign.old_to_new(n) (Sterne,
+## Schritte, Siegtag, Brett, bestes bezahltes Ergebnis); die Kette steht auf P = Campaign.pos_of_old(k) (k = höchstes
+## geschafftes altes Level); neue Level davor sind sofort offen zum Nachholen, geschaffte dahinter bleiben versteckt,
+## bis das tägliche Freischalten sie erreicht; das nächste neue Level kommt am nächsten Spieltag. Punkte bleiben, wie
+## sie sind (nichts wird neu bezahlt). Die Welt von gestern bleibt nur, wenn sie ins nächste Level passt; ein laufender
+## Versuch beginnt neu (die Level-Daten sind andere).
+func _migrate_camp(cfg: ConfigFile) -> void:
+	var s := CAMP_SECTION
+	var n_new := Campaign.COUNT
+	var keys := {"stars": "sterne", "steps": "schritte", "won_key": "gewonnen_am", "next_board": "brett"}
+	var top := 0
+	for key in keys:
+		var src: Array = cfg.get_value(s, keys[key], [])
+		var a: Array = camp[key]
+		for j in src.size():
+			var m := Campaign.old_to_new(j + 1)
+			if m >= 1 and m <= n_new:
+				a[m - 1] = int(src[j])
+			if key == "stars" and int(src[j]) > 0:
+				top = maxi(top, j + 1)
+	var lb_old: Array = cfg.get_value(Points.SECTION, "level_best", []) if cfg.has_section(Points.SECTION) else []
+	var ex_old: Array = cfg.get_value(Points.SECTION, "extras", []) if cfg.has_section(Points.SECTION) else []
+	if not pdata.is_empty():
+		var lb: Array = pdata["level_best"]
+		var ex: Array = pdata["extras"]
+		for i in lb.size():
+			lb[i] = 0
+			ex[i] = 0
+		for j in lb_old.size():
+			var m2 := Campaign.old_to_new(j + 1)
+			if m2 >= 1 and m2 <= lb.size():
+				lb[m2 - 1] = int(lb_old[j])
+				ex[m2 - 1] = int(ex_old[j]) if j < ex_old.size() else 0
+	var today := Daily.observe(daily, now_local()) if not daily.is_empty() else 0
+	var last := int(cfg.get_value(s, "letzter_neuer", -1))
+	camp["pos"] = Campaign.pos_of_old(top) if top > 0 else 0
+	camp["last_new_key"] = maxi(last, today) if top > 0 else last
+	var ft := int(cfg.get_value(s, "schnell_bis", 0))
+	camp["fast_to"] = Campaign.old_to_new(ft) if ft > 0 else 0
+	var fd: Variant = cfg.get_value(s, "schnell_tag", [-1, 0])
+	camp["fast_day"] = [int((fd as Array)[0]), int((fd as Array)[1])] if fd is Array and (fd as Array).size() >= 2 else [-1, 0]
+	camp["veteran"] = bool(cfg.get_value(s, "veteran", false))
+	camp["thanks"] = int(cfg.get_value(s, "danke", 0))
+	camp["migrated"] = top > 0
+	# Die Welt von gestern: nur, wenn ihr Level direkt vor dem nächsten neuen im selben Zeitalter liegt
+	var nn := Daily.next_new_level(camp)
+	var wl := Campaign.old_to_new(int(cfg.get_value(s, "welt_level", 0)))
+	var w := str(cfg.get_value(s, "welt", ""))
+	if wl >= 1 and wl == nn - 1 and w.length() == 54 and nn <= n_new and Campaign.era_index(wl) == Campaign.era_index(nn):
+		camp["world"] = w
+		camp["world_level"] = wl
+	# Das Start-Brett eines laufenden Levels: nur, wenn es genau die Mischung des neuen Levels hat (gleiche Regeln)
+	var sl := Campaign.old_to_new(int(cfg.get_value(s, "start_level", 0)))
+	var sb := str(cfg.get_value(s, "start", ""))
+	if sl >= 1 and sb.length() == 54 and int((camp["stars"] as Array)[sl - 1]) == 0 and _comp_fits(sl, Campaign.decode(sb)):
+		camp["start"] = sb
+		camp["start_level"] = sl
+		camp["start_seed"] = int(cfg.get_value(s, "start_seed", 1))
+	_clear_run()
+
+
+## Hat ein Brett genau die Start-Mischung von Level n?
+static func _comp_fits(n: int, kinds: Array) -> bool:
+	var comp: Dictionary = Campaign.config(n).get("comp", {})
+	var cnt := {}
+	for k in kinds:
+		cnt[int(k)] = int(cnt.get(int(k), 0)) + 1
+	var total := 0
+	for key in comp:
+		total += int(comp[key])
+		if int(cnt.get(int(str(key)), 0)) != int(comp[key]):
+			return false
+	return int(cnt.get(FieldData.WATER, 0)) == 54 - total
+
+
+## „Die Welt ist größer geworden.“ einmal abholen (nach der Umstellung auf die Erdgeschichte).
+func take_migrated() -> bool:
+	_ensure_camp()
+	if not bool(camp.get("migrated", false)):
+		return false
+	camp["migrated"] = false
+	_save_profile()
+	return true
+
+
 func _save_camp(cfg: ConfigFile) -> void:
 	if camp.is_empty():
 		camp = fresh_camp()
 	var s := CAMP_SECTION
-	cfg.set_value(s, "version", 1)
+	cfg.set_value(s, "version", CAMP_VERSION)
+	cfg.set_value(s, "kette", int(camp.get("pos", 0)))
+	cfg.set_value(s, "umgestellt", bool(camp.get("migrated", false)))
 	cfg.set_value(s, "level", level_free())
 	cfg.set_value(s, "sterne", camp["stars"])
 	cfg.set_value(s, "schritte", camp["steps"])
@@ -1799,16 +1901,19 @@ func current_level() -> int:
 		return Campaign.COUNT
 	if level_unlocked(nn):
 		return nn
-	return maxi(1, nn - 1)
+	return maxi(1, int(camp.get("pos", 0)))
 
 
-## Für die Übersicht: je Akt die Kachel (Name nur, wenn erreicht) und je Level {"level", "open", "stars", "title",
-## "icon", "current"} – gesperrte Level zeigen nur „?“ (nie spoilern).
+## Für die Übersicht: je Zeitalter die Kachel (Name, Zeile und Symbol nur, wenn erreicht) und je Level {"level",
+## "open", "stars", "title", "icon", "current", "catchup"} – gesperrte Level zeigen nur „?“ (nie spoilern).
+## "acts": alle Zeitalter der Reihe nach (Index = Nummer − 1); "eras": nur die erreichten und danach eine „?“-Kachel.
 func campaign_overview() -> Dictionary:
 	_ensure_camp()
 	var acts: Array = []
+	var eras: Array = []
 	var cur := current_level()
-	for a in range(1, 8):
+	var locked_added := false
+	for a in range(1, Campaign.era_count() + 1):
 		var lv: Array = []
 		var reached := false
 		for n in Campaign.act_levels(a):
@@ -1817,12 +1922,22 @@ func campaign_overview() -> Dictionary:
 			var t := Campaign.tile(n, open)
 			t["stars"] = level_stars(n)
 			t["current"] = n == cur
+			t["catchup"] = open and Daily.catchup(camp, n)
 			lv.append(t)
-		var at := Campaign.act_tile(a, reached)
-		at["levels"] = lv
+		var at := Campaign.era_tile(a, reached)
+		at["levels"] = lv if reached else []
+		at["catchup"] = 0
+		for t2 in lv:
+			if bool((t2 as Dictionary)["catchup"]):
+				at["catchup"] = int(at["catchup"]) + 1
 		acts.append(at)
+		if reached:
+			eras.append(at)
+		elif not locked_added:
+			locked_added = true
+			eras.append(Campaign.era_tile(a, false))
 	var k := today_key()
-	return {"acts": acts, "current": cur, "next_new": next_new_level(), "new_open": new_level_open(),
+	return {"acts": acts, "eras": eras, "current": cur, "next_new": next_new_level(), "new_open": new_level_open(),
 		"fast_left": Daily.new_levels_left(camp, k) if Daily.fast_track_on(camp) else 0,
 		"fast_line": str(Campaign.TEXT["fast_track"]) % Daily.new_levels_left(camp, k) if Daily.fast_track_on(camp) and new_level_open() else "",
 		"wdt": Daily.wdt_available_camp(camp, k), "points": points, "stars": _camp_stars_total()}
@@ -2038,7 +2153,11 @@ func level_info() -> Dictionary:
 		"how": str(level_board.get("how", "")),
 		"tutorial": {"axis": 0, "layer": 1, "turns": 1} if n == 1 and not wdt and int(level_board.get("index", -1)) == 0 and not run_resumed else {},
 		"first_visit": not wdt and level_stars(n) == 0 and not run_resumed, "status": state.day_status(),
-		"overnight": overnight.duplicate(true), "era": state.era9(), "v8": false, "resumed": run_resumed}
+		"overnight": overnight.duplicate(true), "era": state.era9(), "v8": false, "resumed": run_resumed,
+		"era_id": Campaign.era_of(n), "era_title": str(cfg.get("act_name", "")), "era_first": Campaign.first_of_era(n) and not wdt,
+		"era_line": str(Campaign.era_info(int(cfg.get("act", 0))).get("line", "")) if not wdt else "",
+		"catchup": not wdt and Daily.catchup(camp, n), "goal_lines": Campaign.chip_texts(cfg),
+		"impact_warn": state.impact_pending9()}
 
 
 ## Ende eines Level-Versuchs (nur gewonnen – ein Level kann man nicht verlieren): Sterne, Schritte, Freischalten,
@@ -2088,7 +2207,7 @@ func _finish_level() -> void:
 	if _world_carries():
 		camp["world"] = state.slot_board9()     # die Welt für morgen: nur aus dem neuesten Level (keine Wiederholung)
 		camp["world_level"] = n
-	var complete := n >= Campaign.COUNT and first_win
+	var complete := first_win and Daily.all_won(camp)
 	var streak := _streak_win(today)
 	_end_attempt()
 	_save_profile()
@@ -2106,12 +2225,12 @@ func _finish_level() -> void:
 	_after_win(streak)
 
 
-## Trägt diese Welt ins nächste Level (5)? Nur das höchste geschaffte Level der Kampagne – nie eine Wiederholung
-## eines früheren Levels und nie die Welt des Tages (deren level_no ist nur die Vorlage).
+## Trägt diese Welt ins nächste Level (5)? Nur das Level an der Spitze der Kette – nie eine Wiederholung eines
+## früheren Levels, nie ein nachgeholtes und nie die Welt des Tages (deren level_no ist nur die Vorlage).
 func _world_carries() -> bool:
 	if level_no <= 0 or wdt_key >= 0 or camp.is_empty():
 		return false
-	return level_stars(level_no) > 0 and level_no == Daily.next_new_level(camp) - 1
+	return level_stars(level_no) > 0 and level_no == int(camp.get("pos", 0))
 
 
 ## Zeilen der Sieg-Karte (GDPD_PUNKTE_LADEN.md 2.4): [[Schlüssel, Punkte]].
@@ -2176,6 +2295,14 @@ func camp_today_info() -> Dictionary:
 			out.merge({"state": "wdt", "day": 0, "title": str(Days.TEXT["wdt"]), "caps": str(cfg.get("caps", "")),
 				"goal": Campaign.goal_line(cfg), "line": Campaign.goal_line(cfg), "icon": "trophy"})
 		return out
+	var cu := first_catchup()
+	if cu > 0:
+		# Nach einem alten Spielstand: ein offenes Level von früher (Nachholen, nie ein Spoiler – es liegt dahinter)
+		var cc := Campaign.config(cu)
+		out.merge({"state": "catchup", "day": cu, "title": str(cc.get("title", "")),
+			"caps": str(Campaign.TEXT["catchup_caps"]) % cu, "goal": Campaign.goal_line(cc), "line": str(cc.get("story", "")),
+			"icon": str(Campaign.ICON.get(int(cc.get("act", 1)), "star")), "catchup": true})
+		return out
 	if nn <= Campaign.COUNT:
 		var last := maxi(1, nn - 1)
 		out.merge({"state": "done_next", "day": nn, "title": str(Days.TEXT["today_done"]), "caps": str(Days.TEXT["today"]),
@@ -2186,6 +2313,15 @@ func camp_today_info() -> Dictionary:
 		"caps": str(Days.TEXT["today"]), "goal": "", "line": str(Days.TEXT["wdt_first_tomorrow"]),
 		"more_stars": level_stars(Campaign.COUNT) < 3, "replay_day": Campaign.COUNT, "icon": "check"})
 	return out
+
+
+## Das erste Level zum Nachholen (offen, noch nicht geschafft, hinter der Kette; 0 = keins).
+func first_catchup() -> int:
+	_ensure_camp()
+	for n in range(1, Campaign.COUNT + 1):
+		if Daily.catchup(camp, n):
+			return n
+	return 0
 
 
 ## Text für ein gesperrtes Level (nie mit Titel): das nächste neue „Morgen wartet etwas Neues“, sonst „Erst Level n“.
@@ -2201,8 +2337,8 @@ func level_locked_text(n: int) -> String:
 ## Wunder und Hilfe: id → [Reiter, Titel, Symbol, Preis, Vorrat, ab Level (0 = immer), Satt-Satz nach dem Kauf]
 const SHOP_ITEMS = {
 	"regen": ["wunder", "Regen", "rain", 25, 3, 5, "Regen bereit."],
-	"blitzschutz": ["wunder", "Blitzschutz", "sparkle_shield", 40, 2, 12, "Gut für schlechte Tage."],
-	"meteor": ["wunder", "Meteor", "meteor", 60, 1, 23, "Meteor bereit."],
+	"blitzschutz": ["wunder", "Blitzschutz", "sparkle_shield", 40, 2, 21, "Gut für schlechte Tage."],
+	"meteor": ["wunder", "Meteor", "meteor", 60, 1, 38, "Meteor bereit."],
 	"tipp": ["hilfe", "Tipp", "bulb", 10, 5, 0, "Gut für schlechte Tage."],
 	"zurueck": ["hilfe", "Zurück", "undo", 10, 5, 0, "Gut für schlechte Tage."],
 	"schutz": ["hilfe", "Serienschutz", "shield", 100, 2, 0, "Deine Serie ist sicher."],

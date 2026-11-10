@@ -42,7 +42,11 @@ Ablauf v2 (Sekunden)
        Miez, „Jetzt vorregistrieren“, Plaketten Google Play / App Store (nur Text, keine fremden Logos)
 
 Hinweise
-  - Saurier, Affen und der Meteor-Schweif sind einfache Formen nur im Trailer (das Spiel hat dafür keine Modelle).
+  - Langhälse, Flugsaurier und Affen sind die echten Modelle des Spiels (Models.creature_mesh "sauro", "ptero", "ape",
+    GDPD_ERDGESCHICHTE_GRAFIK.md 10); nur der Meteor-Schweif ist eine eigene Form des Trailers.
+  - Die Schnitte nennen Level der alten Zählung (1 … 30); trailer.gd rechnet sie mit Campaign.old_to_new auf die
+    Erdgeschichte um. „Zeit der Riesen“, „Säugetiere“ und „Affen“ nehmen die neuen Level 28, 36, 43 (echte Saurier,
+    Säugetiere, Affen). Die Bretter sind dadurch andere als im fertigen Video v2: vor dem nächsten Rendern ansehen.
   - Text liegt in den sicheren Zonen (Titel y 250–480, Bildunterschrift um y 1320, alles in 1080er-Koordinaten).
   - Beim Wechsel auf eine frische World mitten in einer Runde meldet Godot harmlose „!is_inside_tree“-Fehler.
 
