@@ -165,3 +165,7 @@
   Frühmenschen, Feuer, Jäger und Sammler, Ackerbau … Mehr Level pro Schöpfungstag (vor allem Tag 5 und 6).
 - Einbau nach dem laufenden Umbau (oben anzeigen, was zu tun ist; Felsen-Reihen; Speichern).
 - Erster kurzer Trailer (Hochformat, ~30–40 s) aus dem echten Spiel.
+- Entscheidung (Philipp, 10. November): NICHT an die Bibel halten, keine 7 Schöpfungstage. Die Kampagne folgt
+  nur der Erdgeschichte in Zeitaltern (z. B. Urerde, Urozean, erstes Leben, Kambrium, Fische, Landgang,
+  Saurierzeit, Meteor, Säugetiere, Eiszeit, Affen, Frühmenschen, Ackerbau, Städte, Industrie, Gleichgewicht)
+  mit vielen Leveln; ein Level pro Tag, offen erweiterbar.
