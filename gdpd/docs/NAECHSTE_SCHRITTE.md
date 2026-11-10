@@ -157,3 +157,11 @@
 - Oberfläche: Gefahren-Pille wird nicht von „Wald!“ überdeckt; ↑ nur, wenn die Art im Level wirklich wächst; „+“ am
   Wunder nur, wenn der Laden es hier verkauft; Bedürfnis-Plaketten nur auf zugewandten Feldern, höchstens 2;
   Kamera zeigt Landgang und Ausbruch; Hilfe zeigt in der Schöpfung die Verben der Kampagne. (erledigt)
+
+## Erdgeschichte ausführlicher (Wunsch von Philipp, 10. November)
+- Sehr ausführlich: vor Affen und Menschen kommen Urzeit-Tiere und Dinosaurier usw. Vorschlag für mehr Level:
+  Kambrium (erste Tiere im Meer), Fische, Pflanzen an Land, Insekten, Amphibien, Reptilien, Dinosaurier
+  (Pflanzenfresser, Raubsaurier, Flugsaurier), Meteor und Aussterben, Säugetiere, Eiszeit, Affen/Primaten,
+  Frühmenschen, Feuer, Jäger und Sammler, Ackerbau … Mehr Level pro Schöpfungstag (vor allem Tag 5 und 6).
+- Einbau nach dem laufenden Umbau (oben anzeigen, was zu tun ist; Felsen-Reihen; Speichern).
+- Erster kurzer Trailer (Hochformat, ~30–40 s) aus dem echten Spiel.
