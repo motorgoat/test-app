@@ -817,6 +817,13 @@ func day_tutorial() -> bool:
 		and state.used_twists() < 3
 
 
+## Spielt die Hand gleich den ersten Zug vor („Zeig's mir“)? Level/Tag 1 auf dem Lehr-Brett, noch keine Drehung, und
+## die Vorführung lief noch nie (oder Brett 0 wurde ausdrücklich gewählt). Ein Versuch, der nur bis zur Start-Karte
+## kam (App zu, Karte zu vor „Los“), lässt sie offen: er wird nicht gespeichert.
+func demo_pending() -> bool:
+	return day_tutorial() and state.twists == 0 and (not coach_seen.has("day1_demo") or _board_explicit)
+
+
 ## Die vorgezeigte Drehung des Tutorials ({"axis", "layer", "turns"}) oder {}.
 ## Lässt sie (nach einem anderen ersten Zug) nichts mehr wachsen, zeigen Hand und Leuchten eine Drehung, die es tut –
 ## nie einen Zug, der nichts bringt. Gibt es keine, {} (dann hilft der Tipp).
@@ -1050,7 +1057,11 @@ func _load_campaign(cfg: ConfigFile) -> void:
 
 
 ## Fortschritt der 7 Tage löschen (Einstellungen/Tests). Rekorde des freien Spiels bleiben.
+## Build 12: Ein gespeicherter laufender Versuch gehört zum alten Fortschritt und geht mit (sonst setzte das nächste
+## start_level(1) ihn fort: keine Start-Karte, keine Begrüßung, keine Vorführung).
 func reset_campaign() -> void:
+	_clear_run()
+	run_resumed = false
 	_load_campaign(null)
 	_save_profile()
 

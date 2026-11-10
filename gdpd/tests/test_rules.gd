@@ -140,6 +140,7 @@ func _init() -> void:
 	test_save9()
 	test_next_action9()
 	test_review12()
+	test_card_close9()
 	await process_frame          # das Autoload Game ist jetzt im Baum
 	test_self_move_guard()
 	await test_bonus_game()
@@ -5331,6 +5332,56 @@ func test_save9() -> void:
 	check(not g2g.resume_run() and not FileAccess.file_exists(g2g.run_path()), "save9: ein Lauf mit anderer Version wird verworfen")
 	g2g.free()
 	DirAccess.remove_absolute(gpath)
+
+
+## Build 12: Der erste Start (Ersteller → Start-Karte von Level 1) speichert keinen Lauf. Wird die Karte vor „Los“
+## geschlossen (App zu, Pause, Fokus weg) oder die App neu gestartet, beginnt Level 1 wieder neu: Karte mit Begrüßung,
+## Vorführung „Zeig's mir“ noch offen. Ein Fortschritt-Reset nimmt einen alten Lauf mit (sonst ginge Level 1 dort weiter).
+func test_card_close9() -> void:
+	var on0 := Balance.CAMPAIGN_ON
+	Balance.CAMPAIGN_ON = true
+	var path := "user://test_card_close9.cfg"
+	var t := lt(2026, 11, 9, 17, 40)
+	var g := _daily_game(path, t, true)
+	g._clear_run()
+	g.coach_seen = {}
+	var started := []
+	g.level_started.connect(func(info): started.append(info))
+	var ok_start: bool = g.start_level(1)
+	var info0: Dictionary = g.level_info()
+	check(ok_start and g.level_no == 1 and int(g.day_board.get("index", -1)) == 0 and g.demo_pending() and not g.run_resumed
+		and bool(info0.get("first_visit", false)) and not (info0.get("tutorial", {}) as Dictionary).is_empty()
+		and not bool((started[-1] as Dictionary).get("resumed", true)),
+		"card_close9: Level 1 zum ersten Mal → Lehr-Brett, Begrüßung, Vorführung offen, nicht fortgesetzt")
+	# Die Karte geht zu, bevor „Los“ gedrückt wurde: die App wird geschlossen, pausiert, verliert den Fokus
+	g.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	g.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	g.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	check(g.saved_run().is_empty() and not FileAccess.file_exists(g.run_path()) and not g.coach_seen.has("day1_demo"),
+		"card_close9: Karte vor „Los“ zu (App zu/Pause) → kein gespeicherter Lauf, Vorführung bleibt offen")
+	# Aus der Übersicht wieder Level 1: neu, nicht fortgesetzt, Vorführung immer noch dran
+	check(g.start_level(1) and not g.run_resumed and g.demo_pending() and (g.state as GameState).twists == 0
+		and bool(g.level_info().get("first_visit", false)),
+		"card_close9: Level 1 wieder antippen → wieder die Start-Karte mit „Zeig's mir“")
+	g.free()
+	# Neue App: nichts fortzusetzen, Level 1 beginnt mit Karte und Vorführung
+	var g2 := _daily_game(path, t + 600, false)
+	g2.coach_seen = {}
+	var resumed2: bool = g2.resume_run()
+	check(not resumed2 and g2.start_level(1) and g2.demo_pending() and not g2.run_resumed,
+		"card_close9: App neu nach geschlossener Karte → Level 1 neu, Vorführung offen")
+	# Ein alter Lauf (eine Drehung in Level 1) überlebt keinen Fortschritt-Reset
+	var r: Dictionary = (g2.state as GameState).play({"type": "twist", "axis": 0, "layer": 1, "turns": 1})
+	g2.finish_round(r)
+	var had_run: bool = not g2.saved_run().is_empty()
+	g2.reset_campaign()
+	var gone: bool = g2.saved_run().is_empty() and not FileAccess.file_exists(g2.run_path())
+	check(had_run and gone and g2.start_level(1) and not g2.run_resumed and (g2.state as GameState).twists == 0 and g2.demo_pending(),
+		"card_close9: Fortschritt-Reset löscht den laufenden Versuch → Level 1 mit Karte und Vorführung (Lauf=%s weg=%s)" % [str(had_run), str(gone)])
+	g2._clear_run()
+	g2.free()
+	DirAccess.remove_absolute(path)
+	Balance.CAMPAIGN_ON = on0
 
 
 ## Build 12 (Review): Die Feld-Karte zeigt in der Schöpfung, was eine Reihe wirklich ergibt (rows9: Fels → Erde,

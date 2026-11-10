@@ -2064,7 +2064,7 @@ func _go_resumed() -> void:
 
 
 func demo_due() -> bool:
-	return Game.day_tutorial() and Game.state.twists == 0 and (not Game.coach_seen.has("day1_demo") or Game._board_explicit)
+	return Game.demo_pending()
 
 
 func _on_go() -> void:
