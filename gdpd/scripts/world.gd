@@ -158,6 +158,10 @@ func _setup_environment() -> void:
 # =============================================================================
 
 func rebuild() -> void:
+	# Läuft noch eine Vorführung oder Drehung (Level 1: die Hand dreht), erst die Scheibe zurück: sonst hängen Würfel
+	# am alten Drehpunkt, der gleich frei wird (Absturz beim Wechsel aus Level 1 in ein anderes Level)
+	if _mode != "" or _pivot != null or (_demo_tw != null and _demo_tw.is_valid()):
+		_abort_demo()
 	_hint_views.clear()
 	_still_views.clear()
 	_still_gen += 1
@@ -1094,7 +1098,10 @@ func _on_day_era(info: Dictionary) -> void:
 		_impact_level = bool(ed.get("impact_done", false))
 	set_meteor(warn)
 	if bool(info.get("camp", false)) and e is Dictionary and not (e as Dictionary).is_empty():
-		set_era(e, 0.0 if era_name == "" else 2.0)
+		# Gleiches Zeitalter (Start aus der Übersicht, die die Welt verdeckt hat): sofort, sonst zeigt die Start-Karte
+		# kurz die Stimmung nach dem Sieg („weiter“, beige) statt der Glut. Ein neues Zeitalter blendet (Übergang).
+		var same := era_name != "" and str((e as Dictionary).get("look", "")) == era_name
+		set_era(e, 0.0 if era_name == "" or same else 2.0)
 	else:
 		set_era("", 0.0)
 

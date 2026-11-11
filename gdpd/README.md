@@ -41,7 +41,7 @@ Daten dazu. Regeln, Tabellen und Prüfungen: [`docs/GDPD_BALANCE_2.md`](docs/GDP
 
 60 Level in 20 Zeitaltern der Erdgeschichte (Urerde, Urozean, Erstes Leben, Kambrium, Zeit der Fische, Grün an Land,
 Urwald, Landgang, Saurierzeit, Der Einschlag, Säugetiere, Eiszeit, Affen, Feuer, Jäger und Sammler, Ackerbau, Glaube,
-Städte, Industrie, Gleichgewicht), ein neues Level je Spieltag, offen erweiterbar (Zeitalter und Level sind Daten).
+Große Städte, Industrie, Gleichgewicht), ein neues Level je Spieltag, offen erweiterbar (Zeitalter und Level sind Daten).
 Ohne Bibel-Rahmen (Entscheidung vom 10. November 2026). Spec: [`docs/GDPD_ERDGESCHICHTE.md`](docs/GDPD_ERDGESCHICHTE.md),
 Grafik: [`docs/GDPD_ERDGESCHICHTE_GRAFIK.md`](docs/GDPD_ERDGESCHICHTE_GRAFIK.md), Punkte und Laden:
 `docs/GDPD_PUNKTE_LADEN.md`. Die 30 Level der früheren Kampagne „Die Schöpfung“ leben darin weiter (ein alter
@@ -76,7 +76,8 @@ Spielstand wird umgestellt: Sterne wandern mit, übersprungene neue Level sind z
   Welten („Bald mehr“). Kauf immer mit Bestätigung (✦ vorher → nachher); ein gekauftes Wunder zählt 2 Schritte.
   Im Level: Tipp gratis in Level 1–5, einmal je Level und als Rettung, sonst aus dem Vorrat; Zurück einmal frei.
 - **Menü**: Weiter · Erdgeschichte · Freies Spiel · Laden · Dein Gott; alles andere unter „Einstellungen“ (Ton,
-  Art zu reden, Erinnerung, Wahl-Karte, Hilfe, Tutorial, Test-Knöpfe).
+  Erinnerung, Wahl-Karte, Hilfe, Tutorial, Test-Knöpfe). Die Art zu reden stellt man nur im Gott ein
+  (Menü → Dein Gott → Name & Art).
 - **Freies Spiel** (nach der Erdgeschichte): Einfach, Mittel, Schwer und die **100-Sekunden-Challenge** (ersetzt
   „40 Drehungen“): Uhr ab der ersten Drehung, Feuer −5 s (keine Herzen), die große Wahl-Karte hält die Uhr an, kein
   Tipp/Zurück, Rekord je Modus; „Neues Spiel“ auf der Ergebnis-Karte startet wieder die Challenge.
@@ -100,9 +101,22 @@ Spielstand wird umgestellt: Sterne wandern mit, übersprungene neue Level sind z
 - **Build 12 – immer wissen, was zu tun ist:** Oben steht unter dem Ziel („Erde 6/11“) die nächste Handlung aus dem
   echten Brett („Dreh 3 Felsen in eine Reihe → Erde“, „Teil die Lava!“), nach jeder Aktion neu, nie unmöglich; keine
   Symbole mehr auf den Feldern. Die Feld-Karte zeigt die Regel der Schöpfung (3 × Fels → Erde, nicht „Fels → Fels“).
-  Senkrechtes Schwenken umgekehrt. Kein Weiterbauen (Knopf, Code und Signal weg). **Speichern mitten im Level**
+  Beim Neigen des Handys ist oben/unten umgekehrt; Ziehen mit dem Finger ist normal. Kein Weiterbauen (Knopf, Code und Signal weg). **Speichern mitten im Level**
   (`user://rekord_lauf.cfg`): App zu → genau dort weiter, auch die Welt des Tages aus der Übersicht; ein gekauftes
   Wunder (Regen, Meteor) wird erst mit dem Ende seiner Runde abgebucht, zusammen mit dem Lauf.
+- **Build 13 – Review der Erdgeschichte:** Die Zeile oben nennt immer eine konkrete Drehung oder ein Werkzeug (auch in
+  Level 55 „Frieden“ mit zwei satt-Zielen; im seltenen Rest „Dreh: Dorf wird Stadt“ mit leuchtender Scheibe; Test
+  `next_action_concrete`, Tour `next_action_line`). Bringt die Fortschritts-Drehung zugleich Rettung, sagt die zweite
+  Zeile „Rettet auch den Wald“ statt eines Rezepts; das Rezept steht nie doppelt. „Pflanzen“ statt „Futter“ als
+  Bedürfnis. Level 60 heißt „Blühende Welt“ („Halte 3 Runden das Gleichgewicht“, kein Mond, keine „Ruhe“). Neue
+  Geschichten ohne Wiederholung, Level 51 „Neu: Ernte“, Level 38 „Neu: Dein Meteor“. Größere Saurier, Affen,
+  Frühmenschen und Feuerstellen (Tour `creature_size`), heller Rauch des fernen Vulkans links vom Würfel, Fels im
+  Kambrium grau, Himmel bis zu den Algen im Dunst. Start-Karte schon im Zeitalter-Look (`era_look_on_card`), Zeile
+  oben mittig, Pille rückt unter die Blase, „−1“ fliegt unter der Zeile durch, nach dem Einschlag sofort die neue
+  Zeile. Heute-Karte: „Nochmal · mehr Sterne“ wieder sichtbar (und nur für ein offenes Level); nach der Umstellung
+  ohne Nachholen öffnet das nächste Level am selben Tag. Leistung ist jetzt ein echtes CI-Tor (`perf` mit Budget).
+  Behoben: Absturz beim Wechsel in ein anderes Level, während die Hand in Level 1 noch vorführt; die Kopfzeile wächst
+  bei breitem Ziel-Chip nach beiden Seiten (bleibt mittig).
 
 ## Täglich spielen und dein eigener Charakter
 

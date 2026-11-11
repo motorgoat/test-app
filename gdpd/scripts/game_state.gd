@@ -7729,9 +7729,65 @@ func _act_pick9(g: Dictionary) -> Dictionary:
 		return ag
 	if stuck9() != "" and not gift_plan9().is_empty():
 		return _act_help9()
+	# 7. Irgendeine Drehung, nach der ein Teilziel steigt (selten: z. B. ein versorgtes Dorf bekommt, was die Stadt
+	# braucht, und wächst) – die Zeile nennt sie, statt „Dreh weiter“ (Review Level 54/58)
+	var ay := _act_any9()
+	if not ay.is_empty():
+		return ay
 	if rain_every > 0:
 		return _act9("goal", "Dreh weiter, Regen kommt", ["rain"], -1)
 	return _act9("goal", "Dreh eine Scheibe", ["twist"], -1)
+
+
+## Die erste Drehung, nach deren Runde die Summe der Teilziele steigt (echte Regeln auf einer Kopie). Nur im
+## seltenen Fall, dass nichts anderes passt: ein versorgtes Feld (Dorf) darf erst nach der Drehung zur Ziel-Art
+## (Stadt) wachsen. Vorauswahl nur mit gedrehten Plätzen, Runden nur für die passenden Züge. {} = keine.
+func _act_any9() -> Dictionary:
+	# Vorauswahl ohne Runde: Felder, die zur Ziel-Art wachsen könnten, deren Bedürfnisse dort aber (noch) fehlen
+	var gks := {}
+	for sd in goal9:
+		var subs: Array = (sd as Dictionary)["subs"] if str((sd as Dictionary)["type"]) == "hold" else [sd]
+		for x in subs:
+			gks[int((x as Dictionary).get("kind", -1))] = true
+	var wait: Array = []
+	for f in fields:
+		var up := _act_up9(f.kind)
+		if up >= 0 and gks.has(up) and not f.burning and not up_ok9(f.id, up):
+			wait.append([f.id, up])
+	if wait.is_empty():
+		return {}
+	var s0 := _subs_sum9()
+	var tries := 0
+	for m in MOVES:
+		if tries >= 4:
+			break                      # höchstens 4 echte Runden (Kosten je Zug am Handy)
+		_rot9(int(m[0]), int(m[1]), int(m[2]))
+		var opens := false
+		for wv in wait:
+			if up_ok9(int(wv[0]), int(wv[1])):
+				opens = true
+				break
+		_rot9(int(m[0]), int(m[1]), -int(m[2]))
+		if not opens:
+			continue
+		tries += 1
+		var c := clone()
+		var r: Dictionary = c.play({"type": "twist", "axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])})
+		if c._subs_sum9() <= s0 and not c.day_won:
+			continue
+		var a := _act9("grow", "Dreh die leuchtende Scheibe", ["twist"], -1)
+		for e in r.get("events", []):
+			var ed: Dictionary = e
+			if str(ed.get("type", "")) == "thrive" and gks.has(int(ed.get("kind", -1))):
+				var fk := int(ed.get("from", -1))
+				var tk := int(ed.get("kind", -1))
+				a = _act9("grow", "Dreh: %s wird %s" % [FieldData.kind_name(fk), FieldData.kind_name(tk)],
+					[FieldData.kind_icon(fk), "->", FieldData.kind_icon(tk)], -1)
+				a["fields"] = [int(ed.get("field", -1))]
+				break
+		a["move"] = {"axis": int(m[0]), "layer": int(m[1]), "turns": int(m[2])}
+		return a
+	return {}
 
 
 func _act_help9() -> Dictionary:

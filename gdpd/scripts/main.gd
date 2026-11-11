@@ -114,6 +114,16 @@ func _shots(dir: String) -> void:
 			ui.day_ui._on_creator_finished(Character.default_look())
 			await _wait(1.0)
 		await _erde_tour(dir)
+	if only == "nal":               # nur next_action_line (Fehlersuche)
+		Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
+		Game.reset_campaign()
+		Game.debug_open_all = true
+		await get_tree().process_frame
+		if ui.day_ui.creator_open():
+			ui.day_ui.creator.look = Character.default_look()
+			ui.day_ui._on_creator_finished(Character.default_look())
+			await _wait(1.0)
+		await _next_action_line_check(dir)
 	if only == "" or only == "migrate":   # ein alter Spielstand („Die Schöpfung“, 30 Level) wird zur Erdgeschichte
 		await _migration_check(dir)
 	# Letzte Zeile: Die Action prüft, dass die Tour ganz durchlief (sonst sind Bilder und Prüfungen unvollständig)
@@ -339,6 +349,11 @@ func _camp_tour(dir: String) -> void:
 	await _shot(dir, "00k_level2_welt_von_gestern")
 	_check(card2 and Game.level_no == 2 and str(Game.level_board.get("how", "")) == "carry" and same >= 27, "carry_world",
 		"wie=%s gleich=%d/54" % [str(Game.level_board.get("how", "")), same])
+	# Die Start-Karte zeigt schon das Zeitalter des Levels (Glut), nicht kurz die beige Stimmung nach dem Sieg
+	var look2 := str(Campaign.era(2).get("look", ""))
+	var tw_run := world._mood_tw != null and world._mood_tw.is_valid() and world._mood_tw.is_running()
+	_check(card2 and world.era_name == look2 and Look.era_name == look2 and world.mood == world._day_mood() and not tw_run,
+		"era_look_on_card", "zeitalter=%s look=%s stimmung=%s blende=%s" % [world.era_name, Look.era_name, world.mood, str(tw_run)])
 	await _tap(dui.gc_go)
 	await _wait(2.0)
 	ui._coach_dismiss()
@@ -1006,6 +1021,7 @@ func _acts_tour(dir: String) -> void:
 	await _start_lvl(60, 0)
 	await _shot(dir, "08a_level60_gleichgewicht")
 	_check(dui.chip_caps.text == "Gleichgewicht" and dui.chip_num.text == "0/3", "hold_rest", "chip=%s %s" % [dui.chip_caps.text, dui.chip_num.text])
+	_perf_check("vollendet_L60", PERF_L60_DRAWS, PERF_L60_PRIMS)
 	# Wasser dreht mit der Scheibe (Rückmeldung 8. November)
 	await _water_turn_check(dir)
 	Game.round_resolved.disconnect(_on_tour_round)
@@ -4084,6 +4100,58 @@ func _erde_agents() -> Dictionary:
 	return seen
 
 
+## Leistung (CI-Tor): Zeichen-Aufrufe und Dreiecke je Bild unter einem Budget. Die Bretter der Looks sind voll bemalt
+## (Messung Build 13: höchstens 758 Aufrufe, 243 k Dreiecke bei 1080 × 2340); Level 60 im echten Spiel (vollendet,
+## mit Start-Karte und Kopfzeile: 425 Aufrufe, 171 k Dreiecke).
+const PERF_LOOK_DRAWS := 900
+const PERF_LOOK_PRIMS := 290000
+const PERF_L60_DRAWS := 500
+const PERF_L60_PRIMS := 200000
+## Mindesthöhe der Gestalten auf dem Bildschirm (Pixel bei 540 px Breite, Review: Saurier „beige Stöckchen“,
+## Frühmenschen 5–8 px Punkte)
+const CREATURE_MIN_PX := {"sauro": 14.0, "trex": 14.0, "ape": 14.0, "hunter": 14.0, "mammoth": 14.0}
+
+
+func _perf_check(tag: String, max_draws: int, max_prims: int) -> void:
+	var d := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+	var p := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+	var fps := Engine.get_frames_per_second()
+	_check(d > 0 and d <= max_draws and p <= max_prims, "perf", "era=%s draw=%d/%d prims=%d/%d bild=%.1f ms" % [tag, d, max_draws,
+		p, max_prims, 1000.0 / maxf(fps, 0.1)])
+
+
+## Höchste Bildschirm-Höhe je Gestalt (Agenten auf zugewandten Feldern), umgerechnet auf ein 540 px breites Bild.
+func _creature_px() -> Dictionary:
+	var cam: Camera3D = world.rig.cam
+	var vis := get_viewport().get_visible_rect().size
+	var px_w := float(get_viewport().get_texture().get_size().x) if get_viewport().get_texture() != null else vis.x
+	# In welchem Raum liefert unproject_position? Die Würfel-Mitte liegt etwa mittig: das entscheidet.
+	var c0 := cam.unproject_position(Vector3.ZERO)
+	var space_w := vis.x if absf(c0.x - vis.x * 0.5) <= absf(c0.x - px_w * 0.5) else px_w
+	var out := {}
+	for fid in world.views:
+		var v: FieldView = world.views[fid]
+		if not v.is_visible_in_tree():
+			continue
+		for av in v._agents:
+			var mi: MeshInstance3D = (av as Dictionary)["n"]
+			if mi == null or not mi.is_visible_in_tree() or mi.mesh == null:
+				continue
+			var ab: AABB = mi.global_transform * mi.mesh.get_aabb()
+			if cam.is_position_behind(ab.get_center()):
+				continue
+			var y0 := INF
+			var y1 := -INF
+			for i in 8:
+				var sp := cam.unproject_position(ab.get_endpoint(i))
+				y0 = minf(y0, sp.y)
+				y1 = maxf(y1, sp.y)
+			var h := (y1 - y0) * 540.0 / maxf(space_w, 1.0)
+			var k := String((av as Dictionary)["k"])
+			out[k] = maxf(float(out.get(k, 0.0)), h)
+	return out
+
+
 func _erde_look_tour(dir: String) -> void:
 	ui.debug_close_all()
 	Game.new_game(5151, 1, 1)
@@ -4106,9 +4174,18 @@ func _erde_look_tour(dir: String) -> void:
 		world._clear_hint()
 		await _shot(dir, "e_" + en)
 		var seen := _erde_agents()
+		_perf_check(en, PERF_LOOK_DRAWS, PERF_LOOK_PRIMS)
+		# Gestalten groß genug (GRAFIK 0.1: lieber einer, dafür größer): Höhe auf dem Bildschirm (540 px breit)
+		var px := _creature_px()
+		var small: Array = []
+		for k in CREATURE_MIN_PX:
+			if px.has(k) and float(px[k]) < float(CREATURE_MIN_PX[k]):
+				small.append("%s=%.0f" % [k, float(px[k])])
+		var shown: Array = []
+		for k in px:
+			shown.append("%s=%.0f" % [k, float(px[k])])
+		_check(small.is_empty(), "creature_size", "era=%s zu_klein=%s hoehe_px=%s" % [en, str(small), str(shown)])
 		if not want.has(en):
-			_check(true, "perf", "era=%s draw=%d prims=%d" % [en, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
-				int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))])
 			continue
 		var miss: Array = []
 		var bad: Array = []
@@ -4119,8 +4196,6 @@ func _erde_look_tour(dir: String) -> void:
 			if seen.has(k):
 				bad.append(k)
 		_check(miss.is_empty() and bad.is_empty(), "era_models", "era=%s fehlt=%s falsch=%s" % [en, str(miss), str(bad)])
-		_check(true, "perf", "era=%s draw=%d prims=%d" % [en, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
-			int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))])
 	# Decke: alle Boden-Materialien tragen denselben Schnee (auch ein neu gebautes), Laub auch (CHECK era_blanket)
 	world.set_era("eiszeit", 0.0)
 	await _wait(0.3)
@@ -4184,10 +4259,63 @@ func _note_level(info: Dictionary) -> void:
 		_eras_seen[Campaign.era_index(int(info.get("level", 0)))] = true
 
 
-## Die Zeile oben (Build 12): nicht leer, kurz.
+## Die allgemeinen Ersatz-Zeilen von GameState._next_action9 (nennen keine konkrete Handlung).
+const GENERIC_ACTION := ["Dreh weiter, Regen kommt", "Dreh eine Scheibe"]
+
+
+## Die Zeile oben (Build 12): nicht leer, kurz, und eine konkrete Handlung (nie die allgemeine Ersatz-Zeile).
 func _line_ok() -> bool:
 	var t := ui.day_ui.act_label.text
-	return ui.day_ui.act_line.visible and t != "" and _b12_words(t) <= 8
+	return ui.day_ui.act_line.visible and t != "" and _b12_words(t) <= 8 and not GENERIC_ACTION.has(t) \
+		and not GENERIC_ACTION.has(str(ui.day_ui.action_shown.get("text", "")))
+
+
+## next_action_line (Spec GDPD_ERDGESCHICHTE.md 14): Am Start dieser Level nennt die Zeile oben eine konkrete Drehung
+## oder ein Werkzeug (nie „Dreh weiter …“), steht mittig mit Rand und ist dieselbe wie die der Regeln.
+func _next_action_line_check(dir: String) -> void:
+	var dui := ui.day_ui
+	var td := Game.tutorial_done
+	Game.tutorial_done = true            # Level 1 ohne Vorführung: hier zählt nur die Zeile
+	var vs := get_viewport().get_visible_rect().size
+	var bad: Array = []
+	var notes: Array = []
+	var lv: Array = [1, 12, 25, 32, 34, 40, 46, 55, 60]
+	if OS.get_environment("GDPD_NAL") != "":
+		lv = []
+		for x in OS.get_environment("GDPD_NAL").split(","):
+			lv.append(int(x))
+	for n in lv:
+		Game.coach_seen["era_%s" % Campaign.era_of(n)] = true     # kein Übergang: nur die Zeile
+		print("Tour: next_action_line Level %d" % n)
+		await _start_lvl(n, 1 if n == 1 else 0)          # Level 1: nicht das Lehr-Brett (dort führt die Hand vor)
+		await _wait(0.8)
+		var na := Game.next_action()
+		var concrete := not (na.get("move", {}) as Dictionary).is_empty() or str(na.get("tool", "")) != "" \
+			or ["help", "won"].has(str(na.get("type", "")))
+		var r := dui.act_line.get_global_rect()
+		var centred := absf(r.get_center().x - vs.x * 0.5) <= 6.0 and r.position.x >= 16.0 and r.end.x <= vs.x - 16.0
+		# auch der Ziel-Chip (bis zu zwei Teilziele + Schritte) muss ganz im Bild sein
+		var cr := dui.chip.get_global_rect()
+		var chip_in := cr.position.x >= 0.0 and cr.end.x <= vs.x - 4.0
+		var ok := _line_ok() and concrete and centred and chip_in and str(dui.action_shown.get("text", "")) in [str(na.get("text", "")), str(na.get("line", ""))]
+		notes.append("%d:%s" % [n, dui.act_label.text])
+		if not chip_in:
+			bad.append([n, "chip", str(cr)])
+		if not ok:
+			var vis: Array = []
+			for ch in ui.row3.get_children():
+				if (ch as Control).visible:
+					vis.append("%s:%s" % [ch.get_class(), str((ch as Control).get_global_rect())])
+			var mins: Array = []
+			for ch2 in ui.top.get_children():
+				if (ch2 as Control).visible:
+					mins.append(str((ch2 as Control).get_combined_minimum_size().x))
+			bad.append([n, dui.act_label.text, str(concrete), str(r), str(ui.top.get_global_rect()), str(ui.top.get_combined_minimum_size()),
+				str(mins), str([ui.top.offset_left, ui.top.offset_right])])
+		if n == 55:
+			await _shot(dir, "27b_level55_frieden")
+	Game.tutorial_done = td
+	_check(bad.is_empty(), "next_action_line", "zeilen=%s falsch=%s" % [str(notes), str(bad)])
 
 
 ## Ein Level, das ein neues Zeitalter beginnt: Übergang (Name kurz über dem Würfel), dann die Ziel-Karte und „Los!“.
@@ -4331,6 +4459,7 @@ func _erde_tour(dir: String) -> void:
 		var ok_n := bool(e[0]) and _line_ok()
 		rest_ok = rest_ok and ok_n
 		rest_notes.append("%d:%s" % [n, str(ok_n)])
+	await _next_action_line_check(dir)
 	var missing: Array = []
 	for a in range(1, Campaign.era_count() + 1):
 		if not _eras_seen.has(a):

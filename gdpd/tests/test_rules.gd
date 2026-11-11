@@ -149,6 +149,7 @@ func _init() -> void:
 	test_save9()
 	test_next_action9()
 	test_next_action_all()
+	test_next_action_concrete()
 	test_review12()
 	test_card_close9()
 	await process_frame          # das Autoload Game ist jetzt im Baum
@@ -5430,6 +5431,48 @@ func test_next_action_all() -> void:
 	check(bad.is_empty(), "next_action_all: %d Stände auf allen Leveln, immer ≤ 6 Wörter und möglich (%s)" % [n_act, str(bad.slice(0, 3))])
 
 
+## Review (Level 55 „Frieden“): Oben steht nie die allgemeine Ersatz-Zeile („Dreh weiter, Regen kommt“ / „Dreh eine
+## Scheibe“), solange eine einzige Drehung ein Teilziel steigen lässt. Jedes zweite Pool-Brett, jeder Schritt der Lösung.
+func test_next_action_concrete() -> void:
+	var bad: Array = []
+	var states := 0
+	var generic := 0
+	for n in range(1, Campaign.COUNT + 1):
+		for i in range(1, Campaign.pool_size(n), 2):
+			var b := Campaign.board(n, i)
+			var gs := Campaign.new_state(n, b)
+			for st in (b["solution"] as Array):
+				if gs.day_won:
+					break
+				states += 1
+				var t := str(gs.next_action().get("text", ""))
+				if t == "Dreh weiter, Regen kommt" or t == "Dreh eine Scheibe":
+					generic += 1
+					var s0 := _subs_sum(gs)
+					for m in GameState.MOVES:
+						var c := gs.clone()
+						tw(c, m)
+						if _subs_sum(c) > s0 or c.day_won:
+							bad.append([n, i, states, m])
+							break
+				var ab: Array = Days.solution_step(st)
+				gs.play(ab[0], ab[1])
+	check(bad.is_empty(), "next_action_concrete: %d Stände, %d allgemein, nie, wenn eine Drehung hilft (%s)" % [states, generic,
+		str(bad.slice(0, 3))])
+	# Level 55 (zwei satt-Ziele Stadt + Dorf, beide Ziel-Arten): am Start eine konkrete Drehung
+	var g55 := Campaign.new_state(55, Campaign.board(55, 0))
+	var a55 := g55.next_action()
+	check(not (a55.get("move", {}) as Dictionary).is_empty() and str(a55["text"]) != "Dreh weiter, Regen kommt",
+		"next_action_concrete: Level 55 nennt eine Drehung (%s)" % str(a55["text"]))
+
+
+func _subs_sum(gs: GameState) -> int:
+	var s := 0
+	for v in gs.sub_values9():
+		s += int(v)
+	return s
+
+
 ## 13 Keine Genesis-Wörter in den Spieler-Texten; Texte kurz; Zeitalter ohne Spoiler.
 func test_texts10() -> void:
 	var bad: Array = []
@@ -5627,6 +5670,53 @@ func test_migrate_erde() -> void:
 	check(int(g3.camp["pos"]) == 60 and all_open and Daily.wdt_available_camp(g3.camp, g3.today_key()) and not Daily.all_won(g3.camp),
 		"migrate_erde: alte Kampagne fertig → alle 60 offen (30 zum Nachholen), Welt des Tages bleibt")
 	g3.free()
+	# alt 1–6 geschafft (nichts nachzuholen): am Tag der Umstellung öffnet Level 7 wie im alten Build (keine leere Karte)
+	var c4 := ConfigFile.new()
+	var st4: Array = []
+	var wk4: Array = []
+	for j in 30:
+		st4.append(2 if j < 6 else 0)
+		wk4.append(20000 + j if j < 6 else -1)
+	c4.set_value("kampagne", "version", 1)
+	c4.set_value("kampagne", "sterne", st4)
+	c4.set_value("kampagne", "gewonnen_am", wk4)
+	c4.set_value("kampagne", "letzter_neuer", Daily.day_key(t) - 1)
+	c4.save(path)
+	var g4 := _daily_game(path, t, false)
+	var ti4: Dictionary = g4.camp_today_info()
+	check(int(g4.camp["pos"]) == 6 and g4.level_unlocked(7) and str(ti4["state"]) == "new" and int(ti4["day"]) == 7,
+		"migrate_erde: alt 1–6 → Level 7 heute offen (%s %s)" % [str(ti4["state"]), str(ti4.get("day", ""))])
+	g4.free()
+	# alt 1–20 geschafft (alt 18 → 30, geschafft aber versteckt): nach dem Sieg „Nochmal“ spielt das gerade geschaffte
+	# Level (nie ein gesperrtes), und „mehr Sterne“ kommt durch (merge überschreibt)
+	var c5 := ConfigFile.new()
+	var st5: Array = []
+	var wk5: Array = []
+	for j in 30:
+		st5.append(2 if j < 20 else 0)
+		wk5.append(20000 + j if j < 20 else -1)
+	c5.set_value("kampagne", "version", 1)
+	c5.set_value("kampagne", "sterne", st5)
+	c5.set_value("kampagne", "gewonnen_am", wk5)
+	c5.set_value("kampagne", "letzter_neuer", Daily.day_key(t) - 1)
+	c5.save(path)
+	var g5 := _daily_game(path, t, false)
+	var cu5: int = g5.first_catchup()
+	var guard := 0
+	while cu5 > 0 and guard < 20:
+		(g5.camp["stars"] as Array)[cu5 - 1] = 2
+		cu5 = g5.first_catchup()
+		guard += 1
+	g5.clock_override = t + Daily.DAY
+	var nl: int = g5.current_level()
+	(g5.camp["stars"] as Array)[nl - 1] = 2
+	Daily.register_level_win(g5.camp, nl, g5.today_key())
+	var ti5: Dictionary = g5.camp_today_info()
+	var rd := int(ti5.get("replay_day", -1))
+	check(str(ti5["state"]) == "done_next" and rd >= 1 and g5.level_unlocked(rd) and bool(ti5.get("more_stars", false)),
+		"migrate_erde: nach dem Sieg „Nochmal · mehr Sterne“ für ein offenes Level (%s %d offen=%s mehr=%s)" % [str(ti5["state"]), rd,
+		str(g5.level_unlocked(maxi(rd, 1))), str(ti5.get("more_stars", ""))])
+	g5.free()
 	DirAccess.remove_absolute(path)
 
 
@@ -6241,6 +6331,8 @@ func _action_ok(gs: GameState, a: Dictionary) -> String:
 			c0.apply_rotation(int(mv["axis"]), int(mv["layer"]), int(mv["turns"]))      # die Drehung selbst (vor Jagd/Hunger der Runde)
 			return "" if c.biggest9(gk) > gs.biggest9(gk) or c0.biggest9(gk) > gs.biggest9(gk) \
 				or c.sub_progress9(gs.goal9[0]) > gs.sub_progress9(gs.goal9[0]) else "Gruppe nicht größer"
+		if tp == "grow":
+			return "" if _subs_sum(c) > _subs_sum(gs) or c.day_won else "kein Fortschritt"
 		if tp == "danger":
 			var hit := {"volcano": "erupt", "bolt": "bolt", "pack": "pack_hunt", "hunger": "starve", "smog": "polluted",
 				"war": "war_hit", "flood": "flood", "glacier": "freeze", "impact": "-"}
@@ -6304,6 +6396,7 @@ func _camp_tests() -> void:
 	test_save9()
 	test_next_action9()
 	test_next_action_all()
+	test_next_action_concrete()
 	await process_frame
 
 

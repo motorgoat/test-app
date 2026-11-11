@@ -184,4 +184,13 @@
 - Spec dazu: `docs/GDPD_ERDGESCHICHTE.md` (20 Zeitalter, 60 Level, 13 neue Arten, Jagd/Gletscher/Einschlag als
   Folgen, Übernahme alter Spielstände; mit Bots geprüft). Umgesetzt (Regeln, Grafik, Oberfläche): Übersicht nach
   Zeitaltern (nur erreichte mit Namen, danach ein „?“), Zeitalter-Übergang mit kurzem Namen, keine Genesis-Wörter mehr,
-  alte Spielstände wandern mit („Nachholen“). Offen: am echten Handy prüfen.
+  alte Spielstände wandern mit („Nachholen“). (erledigt) Offen: am echten Handy prüfen.
+- Review der Erdgeschichte (11. November, erledigt): oben immer eine konkrete Handlung (auch Level 55), Gefahr und
+  Fortschritt in einer Zeile („Rettet auch den Wald“), kein doppeltes Rezept, „Pflanzen“ statt „Futter“, Level 60
+  „Blühende Welt“ statt „Ruhe“ (kein Mond, kein siebter Tag), keine doppelten Geschichten, Reihenfolge des Neuen
+  (Meteor, Säugetiere, Große Städte), größere Saurier/Affen/Frühmenschen/Feuerstellen, heller ferner Vulkan-Rauch,
+  Fels im Kambrium grau, Himmel bis zu den Algen im Dunst, Start-Karte im richtigen Zeitalter-Look, Zeile mittig,
+  Pillen nicht über der Blase, „Nochmal · mehr Sterne“ wieder da, Umstellung ohne Nachholen öffnet das nächste Level,
+  keine Zeitalter-Namen in der Release-Notiz (kein Spoiler), Leistung als echtes CI-Tor.
+- Korrekturen von Philipp (10./11. November, erledigt): Nur das Neigen des Handys ist oben/unten umgekehrt, Ziehen mit
+  dem Finger normal. „Art zu reden“ nur noch im Gott (Menü → Dein Gott → Name & Art), nicht in den Einstellungen.

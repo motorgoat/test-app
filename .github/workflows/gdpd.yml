@@ -96,7 +96,7 @@ jobs:
                    task_at_top rock_row_counts save_mid_level sheet_rule_camp \
                    era_models era_blanket ice_seam era_transition meteor_era perf \
                    era_overview_no_spoiler dino_era meteor_transition ice_age apes_climb early_humans_fire \
-                   era_levels_visit migration_from_schoepfung \
+                   era_levels_visit migration_from_schoepfung era_look_on_card next_action_line creature_size \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }
@@ -188,8 +188,7 @@ jobs:
 
             **gdpd** ist das Gottspiel auf dem Würfel – der Ableger von „God does play dice!“
             (das Original gibt es weiter unter `dice-testversion`).
-            **Erdgeschichte:** Von der glühenden Erde über das Urmeer, Saurier, Eiszeit und Feuer bis zu Städten und
-            Gleichgewicht – in Zeitaltern, ein neues Level pro Tag. Oben steht immer, was als Nächstes zu tun ist.
+            **Erdgeschichte:** viele Zeitalter, ein neues Level pro Tag. Oben steht immer, was als Nächstes zu tun ist.
             Dreh drei gleiche Felder in eine neue Reihe – sie wachsen. Weniger Schritte, mehr Sterne.
             Halte ein Symbol gedrückt, um es zu erklären.
 

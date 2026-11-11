@@ -558,8 +558,35 @@ func _build_action_line() -> void:
 	av.add_child(act_hint)
 	act_line.visible = false
 	act_line.gui_input.connect(_on_act_input)
-	ui.row3.add_child(act_line)
-	ui.row3.move_child(act_line, 0)
+	# Die Zeile steht mittig auf dem Bildschirm, nicht mittig in der Kopfzeile: Die wird mit einem breiten Ziel-Chip
+	# neben dem Menü-Knopf nach rechts breiter. Ein Platzhalter in der Kopfzeile hält ihren Platz frei; die Zeile selbst
+	# ist top_level und wird über ihm mittig gesetzt (_place_act_line).
+	_act_slot = Control.new()
+	_act_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_act_slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ui.row3.add_child(_act_slot)
+	ui.row3.move_child(_act_slot, 0)
+	_act_slot.add_child(act_line)
+	act_line.top_level = true
+	act_line.resized.connect(_place_act_line)
+	act_line.visibility_changed.connect(_place_act_line)
+	_act_slot.item_rect_changed.connect(_place_act_line)
+
+
+var _act_slot: Control
+
+
+## Platzhalter so hoch wie die Zeile (sichtbar) oder 0; die Zeile mittig auf dem Bildschirm über dem Platzhalter.
+func _place_act_line() -> void:
+	if _act_slot == null or act_line == null:
+		return
+	if act_line.size != act_line.get_combined_minimum_size():
+		act_line.reset_size()          # außerhalb eines Containers schrumpft sie sonst nicht mit dem Text
+	var h := act_line.size.y if act_line.visible else 0.0
+	if absf(_act_slot.custom_minimum_size.y - h) > 0.5:
+		_act_slot.custom_minimum_size = Vector2(0, h)
+	var vs := ui._vs()
+	act_line.global_position = Vector2(roundf((vs.x - act_line.size.x) * 0.5), _act_slot.global_position.y)
 
 
 ## Sagt die Zeile „Hol dir Hilfe“ (Sicherheitsnetz), ist sie selbst der Knopf: Antippen nimmt das Geschenk
@@ -2493,6 +2520,8 @@ func _refresh_hud9(gs: GameState, st: Dictionary) -> void:
 	ui._set_tile(chip_tile, gi, ui._tint_for_icon(gi))
 	chip2.visible = subs.size() > 1
 	if subs.size() > 1:
+		# zwei Teilziele: die kleinen Bedürfnis-Symbole weg (die Zeile darunter nennt sie), sonst ragt der Chip aus dem Bild
+		chip_needs.visible = false
 		var s1: Dictionary = subs[1]
 		chip2_icon.texture = Style.icon(str(s1.get("icon", "animals")))
 		chip2_num.text = "%d/%d" % [mini(int(s1["value"]), int(s1["target"])), int(s1["target"])]
@@ -2538,13 +2567,27 @@ func _on_loss_shown(fid: int, kind: int, _cause: String, _progress: Variant) -> 
 	pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var l := ui._label(str(Campaign.TEXT["loss"]) % FieldData.kind_name(maxi(0, kind)), 20, Color.WHITE, Style.W_BLACK)
 	pl.add_child(l)
-	fx_layer.add_child(pl)
+	_loss_layer_get().add_child(pl)
 	pl.reset_size()
 	pl.position = from - pl.size * 0.5
 	var to := chip.get_global_rect().get_center()
 	var tw := ui._fly(pl, from, to, 0.7, 90.0, 0.6)
 	tw.tween_callback(_loss_land.bind(pl))
 	loss_started += 1
+
+
+var _loss_layer: Control
+
+
+## Ebene unter der Kopfzeile: die „−1“-Plakette fliegt unter der Zeile oben durch, nicht quer über ihren Text.
+func _loss_layer_get() -> Control:
+	if _loss_layer == null:
+		_loss_layer = Control.new()
+		_loss_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_loss_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui.root.add_child(_loss_layer)
+		ui.root.move_child(_loss_layer, ui.top.get_index())
+	return _loss_layer
 
 
 func _loss_land(pl: Control) -> void:
@@ -2749,7 +2792,9 @@ func _show_action(na: Dictionary) -> void:
 	act_label.custom_minimum_size.x = minf(ceilf(_text_w(text)) + 2.0, _act_room() - icons_w)
 	act_hint.text = hint_t
 	act_hint.visible = hint_t != ""
-	act_hint.custom_minimum_size.x = minf(ceilf(_text_w(hint_t, act_hint)) + 2.0, _act_room() + 8.0)
+	act_hint.custom_minimum_size.x = minf(ceilf(_text_w(hint_t, act_hint)) + 2.0, _act_room())
+	ui._fit_top()                     # die Kopfzeile wieder auf Bildschirmbreite (sie schrumpft nicht von selbst)
+	_place_act_line.call_deferred()
 	var bg := Style.GLASS
 	var fg := Style.INK
 	if tone == "danger":
@@ -2784,8 +2829,11 @@ func _show_action(na: Dictionary) -> void:
 ## Platz für Symbole und Text in der Zeile: Breite der Kopfzeile minus Rand und Abstände (sonst ragt die Zeile
 ## rechts hinaus und steht nicht mehr mittig).
 func _act_room() -> float:
-	var w := ui.top.size.x if ui.top != null and ui.top.size.x > 100.0 else float(Style.CONTENT_W)
-	return minf(w, float(Style.CONTENT_W)) - 32.0 - 8.0 - 4.0
+	# aus der Bildschirmbreite, nicht aus der Kopfzeile: die wächst mit einer zu breiten Zeile mit und schrumpft nie
+	# von selbst (dann stand die Zeile rechts versetzt, kaum Rand rechts)
+	var vs := ui._vs()
+	var w := minf(vs.x - 2.0 * float(Style.MARGIN + 14), float(Style.CONTENT_W))
+	return w - 32.0 - 8.0 - 8.0
 
 
 func _text_w(t: String, l: Label = null) -> float:
@@ -2977,6 +3025,11 @@ func _pill9(result: Dictionary) -> void:
 			_steam_said = true
 		"hold":
 			caps = str(Campaign.TEXT["rest"] if bool(best.get("ok", true)) else Campaign.TEXT["unrest"])
+		"impact":
+			# Der Einschlag ist geschehen: die Zeile sagt sofort, was jetzt zu tun ist (nicht noch „der Meteor kommt“)
+			if act_line.visible:
+				_act_key = ""
+				_show_action(next_action(Game.state))
 		"war_start", "war_hit", "flood_warn", "flood":
 			caps = str(Days.TEXT.get(tt, caps))
 	if caps == "":
@@ -3139,10 +3192,29 @@ func _show_lane(text: String, caps: String, icon_name: String, tint: Color, hold
 	var vs := ui._vs()
 	lane.position = Vector2(roundf((vs.x - lane.size.x) * 0.5), roundf(ui._lane_base()))
 	_lane_until = ui._time + hold if hold < INF else INF
+	_banner_below_lane(lane.position.y + lane.size.y)
 	if lane.visible and lane.modulate.a > 0.99:
 		ui._pop(lane, 1.03)
 	else:
 		ui._appear(lane, Vector2(0, -10), Style.DUR_IN, 0.98)
+
+
+## Kommt die Blase, während eine Ereignis-Pille steht („Einschlag!“): die Pille rückt darunter (mindestens 12 px Luft),
+## statt die Blase zu berühren.
+func _banner_below_lane(lane_end: float) -> void:
+	var b := ui.banner
+	if b == null or not b.visible:
+		return
+	var rest: Vector2 = b.get_meta("rest", b.position)
+	var y := roundf(lane_end + 12.0)
+	if rest.y >= y:
+		return
+	var np := Vector2(rest.x, y)
+	b.set_meta("rest", np)
+	var tw := ui._fx(b, "bp")         # eigener Kanal: Ein- und Ausblenden (Kanal "v") laufen weiter
+	if b.modulate.a < 0.99:
+		tw.tween_interval(0.3)
+	tw.tween_property(b, "position", np, 0.2).set_trans(Style.T_OUT).set_ease(Tween.EASE_OUT)
 
 
 func _hide_lane(instant: bool = false) -> void:
@@ -3182,6 +3254,8 @@ func _process(delta: float) -> void:
 	_act_tick += delta
 	if _act_tick >= 0.25 and act_line != null:
 		_act_tick = 0.0
+		if act_line.visible:
+			_place_act_line()          # die Kopfzeile kann sich bewegt haben (Ränder, Höhe)
 		if Game.state != null and Game.in_day() and Game.state.camp and not overview.visible and not Game.busy \
 				and act_line.visible and _board_key(Game.state) != _act_key:
 			_refresh_action(Game.state, Game.state.day_status())

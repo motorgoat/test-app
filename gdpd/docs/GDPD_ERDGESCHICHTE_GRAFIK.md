@@ -55,6 +55,15 @@ nichts geändert. Quellen in `docs/grafik/erdgeschichte/prototyp/`:
 - **Araukarie:** Gezackte Kegel (wie Fichten) wurden von oben zu dunklen Sternen. Richtig sind zwei flache, helle
   Kronen-Etagen (von oben eine Scheibe, von der Seite ein „T“).
 - **Vulkan-Dunst:** eine dünne Rauchfahne am Horizont (`plume`) und leichter Dunst (`haze` 0,25), sonst blauer Himmel.
+- **Review Build 13 (11. November):** Am Handy lasen sich Langhälse auf Seitenflächen als „beige Stöckchen“, Frühmenschen
+  als 5–8 px Punkte. Jetzt nach 0.1 („lieber nur einen, dafür größer“): **ein** ausgewachsener Langhals ×1,65 (das Junge
+  ×0,6 nur bei Variante 3), Raubsaurier ×1,75, Raptoren ×1,9, Affen ×1,85, Frühmenschen und Leute am Feuer ×1,6,
+  Amphibien und Insekten doppelt so groß; Feuerstelle: Flamme 0,5, Lichtkreis 0,5 und heller. Tour `creature_size`:
+  Saurier, T-Rex, Affen, Frühmenschen und Mammut sind auf einem 540 px breiten Bild mindestens 14 px hoch.
+  Die **Rauchfahne** war ein dunkler Strich am rechten Rand ohne Vulkan: jetzt hell und durchscheinend
+  (Farben `#807a75`/`#b3aba1`, Deckkraft 0,45), links vom Würfel (`plume_x` 0,44), mit kleinem, blassem Kegel und orangem Glühen am Fuß.
+  **Kambrium-Fels** warm mittelgrau (`CAMBRIAN_ROCK`, nicht blau-violett wie Tiefwasser). **Erstes Leben:** Der Himmel
+  bleibt in Level 8–10 im Dunst (Boden 0); erst die Algen machen ihn blau, ab Level 11 ein Viertel blau als Boden.
 
 ### 0.2 Eiszeit (Risiko: Schnee und Eis im nahtlosen Boden-Shader)
 
@@ -593,7 +602,8 @@ Agenten nur auf zugewandten Seiten (heutige LOD `_detail`).
 6. **Zusammenwachsen** der neuen Gruppen (7).
 7. **Übergang** und Übersicht ohne Spoiler (`CHECK no_spoiler_era`: gesperrte Kacheln ohne Zeitalter-Namen und -Bild).
 8. **Trailer** auf echte Modelle umstellen und neu rendern.
-9. **Leistung:** `CHECK perf era=<name> draw=<n> prims=<n>` je Zeitalter in der Tour; Messung am Handy.
+9. **Leistung:** `CHECK perf era=<name> draw=<n>/<budget> prims=<n>/<budget> bild=<ms>` je Zeitalter in der Tour, ein
+   echtes CI-Tor (Looks ≤ 900 Draw-Calls, ≤ 290 k Primitive; Level 60 ≤ 500, ≤ 200 k; gemessen 425 / 171 k); Messung am Handy offen.
 
 Jeder Schritt einzeln: `test_rules` „ 0 Fehler“, `test_models` „OK test_models“, Smoke, Tour, Bilder ansehen. Neue
 `CHECK`-Namen kommen in die Liste in `.github/workflows/gdpd.yml`, sobald es sie im Code gibt.
@@ -608,8 +618,8 @@ Jeder Schritt einzeln: `test_rules` „ 0 Fehler“, `test_models` „OK test_mo
   Tundra niedrige, gelbliche Grasbüschel (`cover` mit `dry`) über dem Schnee als zweites Merkmal.
 - **Aschewinter am Handy:** gewollt düster; am Gerät prüfen, ob Gefahren-Ränder und „−1“ gut sichtbar bleiben
   (Rückfall: Asche-Schleier 0,3, Umgebung 1,05).
-- **Saurier-Größe:** ein Drittel der Kachel ist die Obergrenze. Wirken sie am Handy noch zu klein, lieber nur **ein**
-  großes Tier je Feld (×1,5) als größere Tiere, die über die Fuge ragen.
+- **Saurier-Größe:** ein Drittel der Kachel ist die Obergrenze. Am Handy zu klein (Review Build 13): jetzt nur **ein**
+  großes Tier je Feld (×1,65), geprüft mit `creature_size` (erledigt).
 - **Viele Zeitalter, viele Modelle:** Jedes Zeitalter braucht mindestens eine neue Gestalt, sonst wirkt „sehr
   ausführlich“ leer. Die Liste in 5/6 deckt die vorgeschlagenen Zeitalter ab; spätere Zeitalter (offen erweiterbar)
   brauchen je 1–2 neue Modelle.

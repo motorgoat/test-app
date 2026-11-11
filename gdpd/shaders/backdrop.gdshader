@@ -21,7 +21,7 @@ uniform float ash = 0.0;
 uniform float plume = 0.0;
 uniform float dust_sun = 0.0;
 uniform vec3 dust_sun_c : source_color = vec3(1.0, 0.55, 0.3);
-uniform float plume_x = 0.548;          // im Hochformat sieht die Kamera nur uv.x ≈ 0,39 … 0,61 der Himmelsebene
+uniform float plume_x = 0.44;           // im Hochformat sieht die Kamera nur uv.x ≈ 0,39 … 0,61 der Himmelsebene: links vom Würfel
 uniform vec2 dust_uv = vec2(0.46, 0.28);
 // Meteor am Himmel (Einschlag, Vorzeichen): glühender Kopf mit Schweif, zieht langsam schräg nach unten
 uniform float meteor = 0.0;
@@ -72,8 +72,13 @@ void fragment() {
 		float pw = 0.004 + 0.03 * smoothstep(0.08, 0.6, y);
 		float pn = texture(n_fbm, vec2(px * 9.0, y * 2.0 - TIME * 0.01)).r;
 		float pm = (1.0 - smoothstep(pw * 0.5, pw, abs(px) + (pn - 0.5) * 0.015)) * smoothstep(0.3, 0.42, y) * (1.0 - smoothstep(0.62, 0.85, y));
-		c = mix(c, mix(vec3(0.3, 0.28, 0.27), vec3(0.52, 0.5, 0.47), pn), pm * plume * 0.72);
-		c += glow_c * (1.0 - smoothstep(0.0, 0.005, abs(uv.x - plume_x))) * smoothstep(0.29, 0.31, y) * (1.0 - smoothstep(0.31, 0.34, y)) * plume * 0.12;
+		// heller, durchscheinender Rauch (fern), kein dunkler Strich
+		c = mix(c, mix(vec3(0.5, 0.48, 0.46), vec3(0.7, 0.67, 0.63), pn), pm * plume * 0.45);
+		// kleiner dunkler Kegel am Horizont, oben glüht der Krater orange
+		float cx = abs(uv.x - plume_x);
+		float cone = (1.0 - smoothstep((0.315 - y) * 0.07, (0.315 - y) * 0.07 + 0.0015, cx)) * smoothstep(0.255, 0.27, y) * step(y, 0.315);
+		c = mix(c, c * 0.62, cone * plume * 0.6);
+		c += glow_c * (1.0 - smoothstep(0.0, 0.02, cx)) * smoothstep(0.29, 0.31, y) * (1.0 - smoothstep(0.31, 0.35, y)) * plume * 0.35;
 	}
 	if (dust_sun > 0.0) {
 		// matte Scheibe hinter Staub: klein, weicher Rand, vom ziehenden Staub halb verschluckt (keine Strahlen)

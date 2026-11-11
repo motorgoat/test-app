@@ -80,14 +80,14 @@ are one „?“ tile. The first level of an era shows the era card (title + line
 | 8 | `landgang` | „Landgang“ · „Tiere gehen an Land.“ | 25–27 | as 7 | swampy shore | Amphibien (frogs/salamanders) at the shore, Reptilien sun on rocks, eggs | croaking | `karbon` |
 | 9 | `saurier` | „Saurierzeit“ · „Die Zeit der Riesen.“ | 28–33 | warm hazy, a far volcano plume | warm blue | cycads/ferns, dinosaur herds (group = one herd), Raubsaurier prowl, Flugsaurier circle above forests | dust, calls | `saurier` (new, `plume`) |
 | 10 | `meteor` | „Der Einschlag“ · „Ein Stein vom Himmel.“ | 34–35 | level 34 starts `saurier` with a **glowing meteor in the sky** (warned), the impact turns it to **`asche`**: dark ash sky, red dim sun, ash falling; level 35 clears from `asche` to `tag` by `dust_clear = clamp(Wiesen / 10, 0, 1)` | grey | crater rim, ash fields (Erde), small mammals peek out | ash flakes | `saurier` → impact → `asche` (new); 35: `asche` → `erholung` mixed by `dust_clear` |
-| 11 | `saeuger` | „Säugetiere“ · „Die Säugetiere kommen.“ | 36–39 | normal, cumulus | clear | meadows, mammal herds (`wild`), wolves | birds (from 36) | `saeuger` (new) |
+| 11 | `saeuger` | „Säugetiere“ · „Die Säugetiere übernehmen.“ | 36–39 | normal, cumulus | clear | meadows, mammal herds (`wild`), wolves | birds (from 36) | `saeuger` (new) |
 | 12 | `eiszeit` | „Eiszeit“ · „Die Welt friert.“ | 40–42 | pale cold sky, low sun; snow flurries | cold blue, ice floes; Eis fields are white-blue sheets that merge into one glacier | snow on the ground of every land kind, Mammuts with fur | breath steam, snow | `eiszeit` (new: `blanket` snow, `ice`) |
 | 13 | `affen` | „Affen“ · „Leben in den Bäumen.“ | 43–45 | warm, golden | clear | savanna grass (Wiese golden), forests with climbing Affen, Frühmenschen stand | heat shimmer | `savanne` (new) |
 | 14 | `feuer` | „Feuer“ · „Der erste Funke.“ | 46–47 | `savanne` evening; level 47 cold (`eiszeit` light) | as before | Feuerstellen glow and smoke; warm light circle around them | sparks | `feuer` (46, new), `jaeger` (47: ice-age steppe) |
 | 15 | `jaeger` | „Jäger und Sammler“ · „Jagen und sammeln.“ | 48–49 | `savanne` | clear | camps, hunters, first huts | smoke | `jaeger` (48), `menschen` (49) |
 | 16 | `ackerbau` | „Ackerbau“ · „Die Menschen säen.“ | 50–53 | seasons as the old act 4 (sun face on) | clear | Saat rows, golden Äcker, Hütten → Dörfer | – | `fruehling` (50), `sommer` (51), `herbst` (52–53): the sun face is needed for Saat |
 | 17 | `glaube` | „Glaube“ · „Die Menschen glauben.“ | 54–55 | evening | clear | churches, villages, towns | bells (sound later) | `glaube` (new) |
-| 18 | `staedte` | „Städte“ · „Die Städte wachsen.“ | 56 | normal | flood rising on warned faces | towns | – | `abend` |
+| 18 | `staedte` | „Große Städte“ · „Zu viele Menschen.“ | 56 | normal | flood rising on warned faces | towns | – | `abend` |
 | 19 | `industrie` | „Industrie“ · „Rauch und Maschinen.“ | 57–58 | smog greys the sky (0.15 per Industrie) | as before | factories | smoke | `abend` + smog |
 | 20 | `gleichgewicht` | „Gleichgewicht“ · „Alles in Balance.“ | 59–60 | golden evening; on `hold` progress the light warms | calm, mirror | everything alive, no warnings | birds, slow wind | `vollendet` |
 
@@ -266,11 +266,11 @@ Goal counting (unchanged, `GDPD_SCHOEPFUNG.md` 3.7): `make` = made − lost (a d
 | 5 | Urozean | Atmosphäre (old 5) | „Dampf wird Himmel.“ | „Lass 14 Erde entstehen“ | make Erde 14 | „Neu: Regen“ · „Dampf macht Wolken“ | 5 / 17 | 9 | 75 / 77 |
 | 6 | Urozean | Urmeer (old 6) | „Das Meer wird reich.“ | „Mach 10 Ursuppe“ | make Ursuppe 10 | „Neu: Ursuppe“ · „Wasser braucht Glut und Fels“ | 4 / 11 | 8 | 73 / 70 |
 | 7 | Urozean | Heiße Quellen | „Es brodelt im Meer.“ | „Mach 14 Ursuppe“ | make Ursuppe 14 | „Neu: Heiße Quellen“ · „Viel Glut, viel Ursuppe“ | 4 / 9 | 8 | 75 / 72 |
-| 8 | Erstes Leben | Erstes Leben (old 7) | „Der erste Funke.“ | „Erschaffe 5 Einzeller“ | make Einzeller 5 | „Neu: Leben“ · „Ursuppe braucht viel Wärme“ | 5 / 10 | 9 | 75 / 69 |
-| 9 | Erstes Leben | Leben teilt sich (old 8) | „Leben teilt sich.“ | „Erschaffe 11 Einzeller“ | make Einzeller 11 | „Neu: Teilen“ · „Leben weckt Leben“ | 5 / 11 | 9 | 79 / 77 |
+| 8 | Erstes Leben | Erstes Leben (old 7) | „Leben beginnt.“ | „Erschaffe 5 Einzeller“ | make Einzeller 5 | „Neu: Leben“ · „Ursuppe braucht viel Wärme“ | 5 / 10 | 9 | 75 / 69 |
+| 9 | Erstes Leben | Leben teilt sich (old 8) | „Aus eins wird zwei.“ | „Erschaffe 11 Einzeller“ | make Einzeller 11 | „Neu: Teilen“ · „Leben weckt Leben“ | 5 / 11 | 9 | 79 / 77 |
 | 10 | Erstes Leben | Algen (old 9) | „Grün im Meer.“ | „Lass 5 Algen wachsen“ | make Algen 5 | „Neu: Algen“ · „3 Einzeller werden Algen“ | 4 / 9 | 8 | 71 / 64 |
 | 11 | Erstes Leben | Sauerstoff | „Der Himmel wird blau.“ | „Mach einen Algenteppich aus 5“ | group Algen 5 | „Neu: Sauerstoff“ · „Algen machen den Himmel blau“ | 5 / 14 | 9 | 73 / 60 |
-| 12 | Kambrium | Quallen | „Das Meer wimmelt.“ | „Lass 6 Quallen entstehen“ | make Quallen 6 | „Neu: Quallen“ · „3 Algen werden Qualle“ | 4 / 10 | 8 | 70 / 66 |
+| 12 | Kambrium | Quallen | „Die ersten Tiere.“ | „Lass 6 Quallen entstehen“ | make Quallen 6 | „Neu: Quallen“ · „3 Algen werden Qualle“ | 4 / 10 | 8 | 70 / 66 |
 | 13 | Kambrium | Trilobiten | „Panzer aus Stein.“ | „Lass 7 Trilobiten entstehen“ | make Trilobiten 7 | „Neu: Trilobiten“ · „Quallen brauchen zwei Felsen“ | 4 / 9 | 8 | 74 / 68 |
 | 14 | Kambrium | Vielfalt | „Leben in allen Formen.“ | „Lass 6 Quallen entstehen“ + „Lass 5 Trilobiten entstehen“ | make Quallen 6 + make Trilobiten 5 | „Neu: Vielfalt“ · „Zwei Ziele zugleich“ | 5 / 14 | 9 | 72 / 67 |
 | 15 | Zeit der Fische | Fische (old 16) | „Die ersten Fische.“ | „Erschaffe 6 Fische“ | make Fische 6 | „Neu: Fische“ · „3 Quallen werden Fisch“ | 5 / 11 | 9 | 69 / 62 |
@@ -288,20 +288,20 @@ Goal counting (unchanged, `GDPD_SCHOEPFUNG.md` 3.7): `make` = made − lost (a d
 | 27 | Landgang | Reptilien | „Eier an Land.“ | „Lass 4 Reptilien schlüpfen“ | make Reptilien 4 | „Neu: Reptilien“ · „3 Amphibien werden Reptil“ | 4 / 16 | 8 | 76 / 69 |
 | 28 | Saurierzeit | Saurier (old 20) | „Riesen ziehen durchs Land.“ | „Gib 6 Sauriern Futter“ | satt Saurier 6 | „Neu: Saurier“ · „Saurier brauchen Pflanzen“ | 3 / 8 | 7 | 74 / 68 |
 | 29 | Saurierzeit | Raubsaurier (old 21) | „Jäger und Gejagte.“ | „Mach 3 Raubsaurier satt“ | satt Raubsaurier 3 | „Neu: Raubsaurier“ · „Raubsaurier brauchen Saurier“ | 4 / 16 | 8 | 75 / 64 |
-| 30 | Saurierzeit | Flugsaurier (old 18) | „Leben in der Luft.“ | „Lass 6 Flugsaurier fliegen“ | make Flugsaurier 6 | „Neu: Flugsaurier“ · „Flugsaurier brauchen Fische“ | 5 / 11 | 9 | 72 / 65 |
-| 31 | Saurierzeit | Nahrungskette (old 22) | „Jeder frisst jeden.“ | „Mach alle satt“ | satt Raubsaurier 3 + satt Saurier 5 | „Neu: Nahrungskette“ · „Jeder braucht sein Futter“ | 4 / 14 | 8 | 77 / 71 |
+| 30 | Saurierzeit | Flugsaurier (old 18) | „Riesen am Himmel.“ | „Lass 6 Flugsaurier fliegen“ | make Flugsaurier 6 | „Neu: Flugsaurier“ · „Flugsaurier brauchen Fische“ | 5 / 11 | 9 | 72 / 65 |
+| 31 | Saurierzeit | Nahrungskette (old 22) | „Fressen und gefressen werden.“ | „Mach alle satt“ | satt Raubsaurier 3 + satt Saurier 5 | „Neu: Nahrungskette“ · „Jeder braucht sein Futter“ | 4 / 14 | 8 | 77 / 71 |
 | 32 | Saurierzeit | Jagd | „Die Raubsaurier jagen.“ | „Rette 8 Saurier“ | satt Saurier 8 | „Neu: Jagd“ · „3 Raubsaurier jagen Saurier“ | 3 / 10 | 7 | 76 / 71 |
 | 33 | Saurierzeit | Herde | „Zusammen sind sie stark.“ | „Bilde eine Herde aus 7“ | group Saurier 7 | „Neu: Herde“ · „Eine Herde schützt“ | 3 / 13 | 7 | 75 / 65 |
 | 34 | Der Einschlag | Einschlag | „Ein Stein fällt vom Himmel.“ | „Lass 12 Wiesen wachsen“ | make Wiese 12 | „Neu: Einschlag“ · „Die Saurier sterben aus“ | 4 / 8 | 8 | 79 / 77 |
 | 35 | Der Einschlag | Überleben | „Die Kleinen überleben.“ | „Gib 6 Tieren Futter“ | satt Tiere 6 | „Neu: Säugetiere“ · „Tiere brauchen Pflanzen“ | 3 / 8 | 7 | 74 / 69 |
-| 36 | Säugetiere | Vögel | „Leben in der Luft.“ | „Lass 6 Vögel nisten“ | make Vögel 6 | „Neu: Vögel“ · „Vögel brauchen Fische“ | 5 / 11 | 9 | 73 / 65 |
+| 36 | Säugetiere | Vögel | „Federn statt Schuppen.“ | „Lass 6 Vögel nisten“ | make Vögel 6 | „Neu: Vögel“ · „Vögel brauchen Fische“ | 5 / 11 | 9 | 73 / 65 |
 | 37 | Säugetiere | Raubtiere | „Wölfe auf der Jagd.“ | „Mach 3 Raubtiere satt“ | satt Raubtiere 3 | „Neu: Raubtiere“ · „Raubtiere brauchen Tiere“ | 4 / 16 | 8 | 75 / 63 |
-| 38 | Säugetiere | Rudel (old 23) | „Das Rudel ist hungrig.“ | „Rette 6 Tiere“ | satt Tiere 6 | „Neu: Meteor“ · „Ein Meteor trennt das Rudel“ | 2 / 7 | 6 | 74 / 70 |
+| 38 | Säugetiere | Rudel (old 23) | „Das Rudel ist hungrig.“ | „Rette 6 Tiere“ | satt Tiere 6 | „Neu: Dein Meteor“ · „Er fällt, wo du tippst“ | 2 / 7 | 6 | 74 / 70 |
 | 39 | Säugetiere | Herden | „Herden ziehen weit.“ | „Bilde eine Herde aus 7“ | group Tiere 7 | „Neu: Herden“ · „Eine Herde schützt“ | 3 / 13 | 7 | 73 / 65 |
 | 40 | Eiszeit | Eiszeit | „Es wird kalt.“ | „Gib 9 Tieren Futter“ | satt Tiere 9 | „Neu: Eiszeit“ · „Zu viel Eis friert“ | 4 / 14 | 8 | 77 / 71 |
 | 41 | Eiszeit | Mammut | „Riesen im Schnee.“ | „Mach 4 Mammuts satt“ | satt Mammut 4 | „Neu: Mammut“ · „Mammut braucht Gras und Eis“ | 5 / 11 | 9 | 76 / 64 |
 | 42 | Eiszeit | Tauwetter | „Das Eis weicht.“ | „Mach alle satt“ | satt Mammut 2 + satt Tiere 5 | „Neu: Tauwetter“ · „Eis taut in der Sonne“ | 3 / 13 | 7 | 75 / 70 |
-| 43 | Affen | Affen | „Leben in den Bäumen.“ | „Lass 9 Affen klettern“ | make Affen 9 | „Neu: Affen“ · „Tiere zwischen zwei Wäldern“ | 5 / 11 | 9 | 74 / 65 |
+| 43 | Affen | Affen | „Hoch in die Bäume.“ | „Lass 9 Affen klettern“ | make Affen 9 | „Neu: Affen“ · „Tiere zwischen zwei Wäldern“ | 5 / 11 | 9 | 74 / 65 |
 | 44 | Affen | Horde | „Affen halten zusammen.“ | „Bilde eine Horde aus 7“ | group Affen 7 | „Neu: Horde“ · „Affen bleiben zusammen“ | 4 / 12 | 8 | 75 / 66 |
 | 45 | Affen | Aufrecht | „Sie stehen auf.“ | „Lass 5 Frühmenschen gehen“ | make Frühmenschen 5 | „Neu: Frühmenschen“ · „3 Affen werden Frühmensch“ | 5 / 12 | 9 | 75 / 70 |
 | 46 | Feuer | Feuer | „Ein Funke im Dunkeln.“ | „Mach 7 Feuerstellen“ | make Feuerstelle 7 | „Neu: Feuer“ · „Stein und Holz machen Feuer“ | 5 / 10 | 9 | 73 / 63 |
@@ -309,16 +309,16 @@ Goal counting (unchanged, `GDPD_SCHOEPFUNG.md` 3.7): `make` = made − lost (a d
 | 48 | Jäger und Sammler | Jäger | „Die Jagd beginnt.“ | „Mach 4 Jäger satt“ | satt Frühmenschen 4 | „Neu: Jäger“ · „Zu viele Jäger verjagen Tiere“ | 3 / 7 | 7 | 71 / 62 |
 | 49 | Jäger und Sammler | Sesshaft (old 24) | „Sie bleiben hier.“ | „Versorge 3 Hütten“ | satt Hütte 3 | „Neu: Hütten“ · „3 Frühmenschen bauen eine Hütte“ | 4 / 14 | 8 | 77 / 64 |
 | 50 | Ackerbau | Saat (old 14) | „Korn reift im Sommer.“ | „Lass 5 Felder reifen“ | make Acker 5 | „Neu: Saat“ · „Saat braucht Sonne und Wasser“ | 6 / 11 | 10 | 76 / 67 |
-| 51 | Ackerbau | Ernte (old 15) | „Zeit der Ernte.“ | „Bring 6 Äcker zusammen“ | group Acker 6 | „Neu: Zusammenwachsen“ · „Gleiche wachsen zusammen“ | 6 / 14 | 10 | 73 / 64 |
-| 52 | Ackerbau | Ackerbau (old 25) | „Die Menschen säen.“ | „Versorge 5 Hütten“ | satt Hütte 5 | „Neu: Ackerbau“ · „Regen neben Hütten: Saat“ | 5 / 13 | 9 | 76 / 63 |
+| 51 | Ackerbau | Ernte (old 15) | „Zeit der Ernte.“ | „Bring 6 Äcker zusammen“ | group Acker 6 | „Neu: Ernte“ · „Großes Feld, große Ernte“ | 6 / 14 | 10 | 73 / 64 |
+| 52 | Ackerbau | Ackerbau (old 25) | „Felder statt Jagd.“ | „Versorge 5 Hütten“ | satt Hütte 5 | „Neu: Ackerbau“ · „Regen neben Hütten: Saat“ | 5 / 13 | 9 | 76 / 63 |
 | 53 | Ackerbau | Dörfer (old 26) | „Aus Hütten werden Dörfer.“ | „Mach 4 Dörfer satt“ | satt Dorf 4 | „Neu: Dörfer“ · „Dorf braucht Nahrung und Arbeit“ | 4 / 11 | 8 | 70 / 59 |
-| 54 | Glaube | Glaube (old 27) | „Die Menschen glauben.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ | 3 / 7 | 7 | 73 / 67 |
+| 54 | Glaube | Glaube (old 27) | „Die ersten Kirchen.“ | „Mach 2 Städte satt“ | satt Stadt 2 | „Neu: Glaube“ · „Kirche an Kirche: Krieg!“ | 3 / 7 | 7 | 73 / 67 |
 | 55 | Glaube | Frieden | „Frieden zwischen den Dörfern.“ | „Mach 2 Städte satt“ + „Mach 2 Dörfer satt“ | satt Stadt 2 + satt Dorf 2 | „Neu: Frieden“ · „Halte die Kirchen getrennt“ | 3 / 8 | 7 | 72 / 66 |
-| 56 | Städte | Städte | „Die Städte wachsen.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Flut“ · „Zu viel Stadt: Flut!“ | 5 / 15 | 9 | 76 / 63 |
+| 56 | Große Städte | Städte | „Immer mehr Menschen.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Flut“ · „Zu viel Stadt: Flut!“ | 5 / 15 | 9 | 76 / 63 |
 | 57 | Industrie | Fabriken (old 28) | „Rauch über den Städten.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Fabriken“ · „Fabrik macht Smog“ | 4 / 16 | 8 | 70 / 59 |
 | 58 | Industrie | Rauch | „Mehr Fabriken, mehr Rauch.“ | „Mach 3 Städte satt“ | satt Stadt 3 | „Neu: Zwei Fabriken“ · „Schütz die Natur“ | 5 / 15 | 9 | 76 / 60 |
 | 59 | Gleichgewicht | Gleichgewicht (old 29) | „Alles im Gleichgewicht.“ | „Mach alle satt“ | satt Stadt 2 + satt Tiere 4 | „Neu: Gleichgewicht“ · „Menschen und Tiere satt“ | 5 / 19 | 9 | 72 / 56 |
-| 60 | Gleichgewicht | Ruhe (old 30) | „Deine Welt lebt.“ | „Halte 3 Runden Ruhe“ | hold [satt Stadt 2 + satt Tiere 3] 3 | „Neu: Ruhe“ · „Lass deine Welt ruhen“ | 6 / 16 | 10 | 73 / 60 |
+| 60 | Gleichgewicht | Blühende Welt (old 30) | „Deine Welt lebt.“ | „Halte 3 Runden das Gleichgewicht“ | hold [satt Stadt 2 + satt Tiere 3] 3 | „Neu: Balance“ · „Halte alles satt“ | 6 / 16 | 10 | 73 / 60 |
 
 ### 5.2 Level rules (start board, systems, the new thing)
 
@@ -396,7 +396,7 @@ Start board = counts on the 54 fields (rest Wasser), placed by sticker type (½ 
   39 (a pack of 3), 40 (an Eis group of 4), so the new warning shows after the first twist.
 - **Old levels kept 1:1** (rules, composition, target): 1–6, 8–10 (old 7–9), 18–19 (old 10–11), 21 (old 12),
   50–54 (old 14, 15, 25, 26, 27), 57 (old 28), 59–60 (old 29–30; only the texts lost the Genesis words: „Der siebte
-  Tag“ → „Ruhe“, „Und es war gut.“ → „Deine Welt lebt.“). Re-skinned with the kinds of their era (same numbers):
+  Tag“ → „Blühende Welt“ (first „Ruhe“, renamed: rest is the seventh-day frame), „Und es war gut.“ → „Deine Welt lebt.“). Re-skinned with the kinds of their era (same numbers):
   15–16 (old 16–17: fish from Quallen, as the water ladder is now Einzeller → Algen → Quallen → Fische), 22 (old 13:
   Farn instead of Wiese, Moos instead of Erde), 25 (old 19: Amphibien onto Moos; rows Quallen → Fisch, rain Qualle →
   Fisch, 12 Quallen and 4 fish instead of 10 Algen and 3 fish because the ladder is one step longer), 28, 29, 31
@@ -496,7 +496,7 @@ never the type `help` while `reach9().ok` and the level has an unused row or sup
 |---|---|---|---|
 | `glacier_warn` | crater, fields | frost creeps from the crater, threatened neighbours get a blue rim | „Gletscher wächst!“ · „Teil das Eis“ |
 | `freeze` | crater, field, from | the field ices over (white-blue sheet grows onto it) | „Eis!“ (`−1 Tier` cue if it was a made goal field) |
-| `glacier_calm` | crater | frost retreats | „Ruhe“ |
+| `glacier_calm` | crater | frost retreats | „Abgewendet“ |
 | `thrive` (Eis → Wasser) | field | ice cracks and melts | „Eis taut“ |
 | `pack_warn` / `pack_hunt` (generic) | fields / field, hunter kind | hunter crouches toward the prey / chase, the prey field turns to its `falls_to` | per hunter: „Rudel jagt!“ · „Trenn die Raubtiere“; „Raubsaurier jagen!“ · „Trenn die Raubsaurier“; „Die Tiere fliehen!“ · „Trenn die Jäger“ / „Gejagt!“ |
 | `impact_warn` | – (at level start, level 34) | glowing meteor crosses the sky (slowly, every few seconds) | „Meteor kommt!“ |
@@ -660,7 +660,7 @@ Cells ★★★/★★/★/open = % of all games (open = not done within the bot
 | 57 | Fabriken | 4 / 16 | 5 (4–6, 9) | 43/57/0/0 | 7 | 24/63/12/2 | 14 | 4/62/32/1 | 0.00 | starve 0.3, smogged 2.1 | starve 1.3, smogged 2.4 |
 | 58 | Rauch | 5 / 15 | 5 (4–6, 7) | 62/38/0/0 | 9 | 28/58/13/1 | 14 | 7/56/37/0 | 0.00 | starve 0.3, smogged 3.5, flooded 0.1 | starve 1.4, smogged 3.9 |
 | 59 | Gleichgewicht | 5 / 19 | 5 (4–7, 9) | 55/44/0/0 | 10 | 26/58/10/6 | 15 | 0/78/22/0 | 0.00 | starve 0.7, smogged 2.9 | starve 2.1, smogged 3.8 |
-| 60 | Ruhe | 6 / 16 | 6 (5–8, 10) | 55/44/1/0 | 9 | 30/54/12/2 | 9 | 4/88/7/0 | 0.00 | – | – |
+| 60 | Blühende Welt | 6 / 16 | 6 (5–8, 10) | 55/44/1/0 | 9 | 30/54/12/2 | 9 | 4/88/7/0 | 0.00 | – | – |
 
 ### 11.4 Carried worlds (100 chains per era: every level after the first of an era starts from the bot's own end world of yesterday)
 
@@ -725,7 +725,7 @@ Cells ★★★/★★/★/open = % of all games (open = not done within the bot
 | 57 | Fabriken | 100 % / 5 | 5 | 98 % / 7 / 88 | 7 | 0 / 0 |
 | 58 | Rauch | 100 % / 4 | 5 | 100 % / 6 / 90 | 9 | 0 / 0 |
 | 59 | Gleichgewicht | 100 % / 5 | 5 | 94 % / 9 / 86 | 10 | 0 / 0 |
-| 60 | Ruhe | 100 % / 7 | 6 | 97 % / 9 / 85 | 9 | 0 / 1 |
+| 60 | Blühende Welt | 100 % / 7 | 6 | 97 % / 9 / 85 | 9 | 0 / 1 |
 
 ### 11.5 No dead ends: uncapped casual play and the safety net
 
@@ -775,7 +775,7 @@ Casual bot without a step cap (300), 100 boards per level with a danger or hunge
 | 57 | Fabriken | 100 % | 14 | 22 | 33 |
 | 58 | Rauch | 100 % | 14 | 22 | 29 |
 | 59 | Gleichgewicht | 100 % | 14 | 21 | 187 |
-| 60 | Ruhe | 100 % | 9 | 15 | 21 |
+| 60 | Blühende Welt | 100 % | 9 | 15 | 21 |
 
 With the safety net (gift after 6 steps without progress, model of `Game.take_gift`; 100 fresh boards per level and 100 carried chains per era):
 
@@ -840,7 +840,7 @@ With the safety net (gift after 6 steps without progress, model of `Game.take_gi
 | 57 | Fabriken | 100 % / 0.74 | 98.5 % | 100 % / 99 % / 0.35 | 98 % / 88 % | 100 % / 99 % / 0.35 |
 | 58 | Rauch | 100 % / 0.71 | 99.0 % | 100 % / 97 % / 0.38 | 100 % / 90 % | 100 % / 93 % / 0.37 |
 | 59 | Gleichgewicht | 100 % / 0.67 | 94.0 % | 100 % / 99 % / 0.52 | 94 % / 86 % | 100 % / 99 % / 0.52 |
-| 60 | Ruhe | 100 % / 0.63 | 97.5 % | 100 % / 100 % / 0.61 | 97 % / 85 % | 100 % / 99 % / 0.63 |
+| 60 | Blühende Welt | 100 % / 0.63 | 97.5 % | 100 % / 100 % / 0.61 | 97 % / 85 % | 100 % / 99 % / 0.63 |
 
 ### 11.6 Farmers (oracle, 200 boards per level, horizon 30)
 
@@ -905,7 +905,7 @@ With the safety net (gift after 6 steps without progress, model of `Game.take_gi
 | 57 | Fabriken | 15 % | 7 | 5 | 4 | 2 of 200 | 9 / 70 | 89/108/3 |
 | 58 | Rauch | 16 % | 9 | 5 | 6 | 0 of 200 | 10 / 76 | 96/102/2 |
 | 59 | Gleichgewicht | 13 % | 12 | 5 | 4 | 1 of 200 | 8 / 72 | 11/189/0 |
-| 60 | Ruhe | 7 % | 5 | 6 | 7 | 4 of 200 | 6 / 73 | 187/6/7 |
+| 60 | Blühende Welt | 7 % | 5 | 6 | 7 | 4 of 200 | 6 / 73 | 187/6/7 |
 
 ### 11.7 Dangers avoidable (100 boards per level with a danger, good and greedy)
 
@@ -951,7 +951,7 @@ Fields a danger changed per game: on a goal-kind field (counts against the task:
 | 57 | Fabriken | 0.32 / 2.15 (hunger 0.32) | 1.09 / 2.64 (hunger 1.09) | 0.00 |
 | 58 | Rauch | 0.27 / 3.48 (hunger 0.27) | 1.28 / 3.90 (hunger 1.28) | 0.00 |
 | 59 | Gleichgewicht | 1.12 / 2.28 (hunger 0.55, smog 0.56, war 0.01) | 2.32 / 3.30 (hunger 1.64, smog 0.68) | 0.00 |
-| 60 | Ruhe | 0.00 / 0.00 (–) | 0.00 / 0.00 (–) | 0.00 |
+| 60 | Blühende Welt | 0.00 / 0.00 (–) | 0.00 / 0.00 (–) | 0.00 |
 
 ### 11.8 Pools (`kampagne_erde_b6.json`, 20 boards per level, 1 200 in total)
 
@@ -1018,7 +1018,7 @@ Filters (as `export9`): start rules, ≤ 3 growable and ≤ 6 visible kinds, the
 | 57 | Fabriken | 20 | 4.0 | 11/9/0 | 4 of 20 | 0 / 0 / 2 / 0 / 0 |
 | 58 | Rauch | 20 | 6.0 | 9/11/0 | 1 of 20 | 0 / 0 / 1 / 0 / 0 |
 | 59 | Gleichgewicht | 20 | 4.0 | 12/8/0 | 3 of 20 | 0 / 0 / 0 / 2 / 0 |
-| 60 | Ruhe | 20 | 6.0 | 11/9/0 | 0 of 20 | 0 / 0 / 1 / 3 / 0 |
+| 60 | Blühende Welt | 20 | 6.0 | 11/9/0 | 0 of 20 | 0 / 0 / 1 / 3 / 0 |
 
 ### 11.9 What the numbers mean for the game
 
@@ -1117,33 +1117,29 @@ across edges (seam rule), the Feuerstelle has its light.
 
 ---
 
-## 14. Tour checks (`main.gd`, add the names to `.github/workflows/gdpd.yml`)
+## 14. Tour checks (`main.gd`, the names are required in `.github/workflows/gdpd.yml`)
 
-The campaign tour runs on a clean profile (`--only=<section>` as before). New / changed checks:
+The campaign tour runs on a clean profile (`--only=<section>`: `camp`, `acts`, `erde`, `erde_look`, `b12`, `migrate`,
+…). Implemented checks of the Erdgeschichte (the rules behind the old draft names `herd_safe`, `camp_stops_ice`,
+`trilo_thrive`, `insects_buzz`, `landgang_moss`, `frog_hunger`, `mammoth_cold`, `dust_clears` are unit tests in
+`test_rules.gd`: `test_hunt10`, `test_glacier10`, `test_thrive10`, `test_impact10`):
 
 | name | what it checks (real input) |
 |---|---|
-| `era_tiles_no_spoiler` | overview at level 1: one era tile „Urerde“ + one „?“; no other era title, no level title of a locked level, no „Tag“, no „Schöpfung“ text anywhere |
-| `jelly_rows` | level 12 board 0: a twist that lines up 3 Algen → Qualle, chip `1/6`, the Qualle model pulses in clear water (shot) |
-| `trilo_thrive` | level 13: a Qualle twisted next to a Fels pair shows ⛰ 2/2 and the seal; 2 rounds later a Trilobit |
-| `insects_buzz` | level 24: Farn between two Wälder → Insekten after 2 rounds (shot) |
-| `landgang_moss` | level 25: a fish next to Moos for 2 rounds → Amphibie on the moss, the fish field Algen |
-| `frog_hunger` | level 26: an Amphibie without Insekten pulses „Hunger!“; twisting Insekten next to it seals 🐞 |
-| `dino_hunt` | level 32: a Raubsaurier pack of 3 warns „Raubsaurier jagen!“; the next action says „Trenn die Raubsaurier!“; its move cancels the warning |
-| `herd_safe` | level 33: a Saurier herd of 3 next to the pack is not warned (no red eyes on it) |
-| `impact_scripted` | level 34: the start shows „Meteor kommt!“ and the next action „Dreh, der Meteor kommt“; after twist 1 the camera shows the impact, all dinosaurs are ash, the sky is `asche`, the chip is still `0/12` (no loss); shot before/after |
-| `dust_clears` | level 35: `dust_clear` rises with the Wiesen (two shots, value printed) |
-| `glacier_warn` | level 40 board with a clump: after twist 1 „Gletscher wächst!“; splitting the ice shows „Ruhe“; ice turned to the top thaws after 2 rounds (shot) |
-| `mammoth_cold` | level 41: a Mammut next to Eis and Wiese gets ❄ and 🌾 sealed |
-| `apes_climb` | level 43: Tiere between two Wälder become Affen |
-| `fire_camp` | level 46: a Frühmensch next to Fels and Wald becomes a Feuerstelle (light on) |
-| `camp_stops_ice` | level 47: a Frühmensch next to a Feuerstelle never freezes although the warned glacier touches it |
-| `migration_erde` | a v1 save (old levels 1–19 won) loads: position 25, „Nachholen“ dots on 7, 11–14, 17, 20, 23, 24, stars kept |
-| `next_action_line` (changed) | levels 1, 12, 25, 32, 34, 40, 46, 60: the top line is non-empty, ≤ 6 words, and its move does what it says |
-| `level3_solvable`, `carry_world`, `no_step_limit`, `points_shop`, `stars_generous`, `hud_central`, `water_turns_with_slice`, `need_seal_stays` (now level 49), `hold_rest` (now level 60) | as before with the new level numbers (`OLD_TO_NEW`) |
-
-`no_spoiler_campaign` is replaced by `era_tiles_no_spoiler`; `sky_blue` moves to level 11, `sun_face` to level 22,
-`landgang` to `landgang_moss`, `hunger_warn` to level 35, `pack_warn` to level 38, `group_merge` to level 51.
+| `camp_overview`, `no_spoiler_campaign`, `era_overview_no_spoiler` | overview at level 1: one era tile „Urerde“ + one „?“; no other era title, no locked level title, no Genesis word (`Tag 1–7`, `Schöpfung`, `siebte`, `Akt`, `Ruhe`, `ruhen`) |
+| `era_look_on_card` | level 2 from the overview: the start card already shows the level's look (`glut`), no 2 s blend from the beige win mood |
+| `dino_era` | level 28 era card „Saurierzeit“, ≥ 3 Saurier on the cube; level 32: a Raubsaurier pack warns „Raubsaurier jagen!“, the line's move cancels it |
+| `meteor_transition` | level 34: „Meteor kommt!“, line „Dreh, der Meteor kommt“; after twist 1 every dinosaur is ash, the sky `asche`, no loss on the chip |
+| `ice_age` | level 40: „Gletscher wächst!“ and „Teil das Eis!“; the line's move calms it |
+| `apes_climb` | level 43: Tiere between two Wäldern become Affen |
+| `early_humans_fire` | level 46: a Frühmensch next to Fels and Wald becomes a Feuerstelle (light on) |
+| `next_action_line` | levels 1, 12, 25, 32, 34, 40, 46, 55, 60 at the start: the top line names a concrete move or tool (never the generic „Dreh weiter, Regen kommt“ / „Dreh eine Scheibe“), equals the rules' line, is centred with ≥ 16 px margin |
+| `era_levels_visit` | levels 12, 54, 56, 57 get their era card and a concrete line; every era was started once in the tour |
+| `era_models`, `era_blanket`, `ice_seam`, `era_transition`, `meteor_era` | look tour: the right creatures per era, snow blanket, ice seams, the transition wave, the impact |
+| `creature_size` | look tour: Saurier, T-Rex, Affen, Frühmenschen, Mammut are at least 14 px high on a 540 px wide screen |
+| `perf` | look tour per era ≤ 900 draw calls and ≤ 290 k primitives; level 60 (`vollendet`, measured 425 / 171 k in the tour) ≤ 500 draws, ≤ 200 k primitives; frame time printed |
+| `migration_from_schoepfung` | a v1 save loads: position, „Nachholen“, stars kept |
+| `level3_solvable`, `carry_world`, `stars_generous`, `hud_central`, `water_turns_with_slice`, `need_seal_stays` (level 49), `hold_rest` (level 60, „Gleichgewicht“), `pack_warn` (level 38) | as before with the new level numbers (`OLD_TO_NEW`) |
 
 ---
 
