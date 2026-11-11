@@ -5434,7 +5434,7 @@ func test_next_action_all() -> void:
 func test_texts10() -> void:
 	var bad: Array = []
 	var re := RegEx.new()
-	re.compile("Tag [1-7]\\b|Schöpfung|siebte|Und es war gut|Genesis")
+	re.compile("Tag [1-7]\\b|Schöpfung|siebte|Und es war gut|Genesis|\\bRuhe\\b|\\bruhen\\b")
 	var all: Array = Campaign.player_texts()
 	for k in Days.TEXT:
 		if ["today_new", "today_done", "today", "wdt", "wdt_tomorrow", "complete", "wdt_first_tomorrow"].has(str(k)):
@@ -5455,6 +5455,17 @@ func test_texts10() -> void:
 			spoil = true
 	check(not spoil and Campaign.era_count() == 20 and Campaign.COUNT == 60 and str(Campaign.era_info(9)["title"]) == "Saurierzeit"
 		and Campaign.era_of(34) == "meteor" and Campaign.era_index(60) == 20, "texts10: 20 Zeitalter, 60 Level; gesperrte Zeitalter nur „?“")
+	# Geschichten nie doppelt: keine gleicht ihrer Zeitalter-Zeile, einer anderen Geschichte oder dem eigenen Titel
+	var seen := {}
+	var dup: Array = []
+	for n in range(1, Campaign.COUNT + 1):
+		var c := Campaign.config(n)
+		var st := str(c.get("story", "")).trim_suffix(".")
+		var eline := str(Campaign.era_info(Campaign.era_index(n)).get("line", "")).trim_suffix(".")
+		if st == "" or st == eline or seen.has(st) or st == str(c.get("title", "")):
+			dup.append("%d:%s" % [n, st])
+		seen[st] = true
+	check(dup.is_empty(), "texts10: jede Geschichte einmalig, nie gleich Zeitalter-Zeile oder Titel (%s)" % str(dup.slice(0, 4)))
 
 
 ## 15 Ein neues Level je Spieltag bis 60; die Kette springt über schon geschaffte (nach der Umstellung) am selben Tag.
@@ -6160,7 +6171,7 @@ func test_next_action9() -> void:
 		gw.play(ab[0], ab[1])
 	check(str(gw.next_action()["type"]) == "won", "next_action: nach dem Sieg „Geschafft!“")
 	var g20 := Campaign.new_state(35, Campaign.board(35, 1))
-	check(str(g20.next_action()["hint"]).begins_with("Tiere brauchen Futter: ") and str(g20.next_action()["hint"]).ends_with("/6 versorgt"),
+	check(str(g20.next_action()["hint"]).begins_with("Tiere brauchen Pflanzen: ") and str(g20.next_action()["hint"]).ends_with("/6 versorgt"),
 		"next_action: Versorgungs-Satz für satt-Ziele (%s)" % str(g20.next_action()["hint"]))
 	check(GameState.kind_caps9(STONE) == "Gestein" and GameState.kind_caps9(FieldData.LAVA) == "Glut", "kind_caps9: Fels heißt nicht „Essen“")
 	# Vulkan droht und eine Drehung teilt die Lava: „Teil die Lava!“

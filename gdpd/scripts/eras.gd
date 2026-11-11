@@ -37,14 +37,15 @@ const DINO_FERN := {"a": "#3a5222", "b": "#4c6a2a", "acc": "#5a4a30", "amt": 0.2
 const DINO_FOREST := {"a": "#2c3c1a", "b": "#3c4822", "acc": "#5a4a30", "amt": 0.3, "mc": 0.8}
 const SWAMP_FOREST := {"a": "#2a3a1c", "b": "#36401e", "acc": "#4a5a2a", "amt": 0.35, "mc": 0.82, "moss": 0.4}  # Karbon: Sumpfwald
 const SHORE_MUD := {"a": "#5a5a3c", "b": "#6a6844", "acc": "#4a5a2c", "amt": 0.35, "mc": 0.45}     # Landgang: schlammiges, grünes Ufer
+const CAMBRIAN_ROCK := {"a": "#7e776b", "b": "#938b7d", "acc": "#aba395", "amt": 0.95, "mc": 0.8}    # Kambrium: Fels mittelgrau, warm
 const CAMBRIAN_SHORE := {"a": "#a49478", "b": "#b8aa8c", "acc": "#c8bca0", "amt": 0.3, "mc": 0.45}  # Kambrium: heller Sand
 
 const ERAS := {
 	# --- Erdgeschichte: neue Zeitalter (Reihenfolge wie die Kampagne) ---
 	"kambrium": {"mood": "kambrium", "water": {"deep": "#0f3a44", "shallow": "#3a8a86", "glint": 1.1},
-		"ground": {15: CAMBRIAN_SHORE, 0: URBODEN, 16: BASALT_GREY},
+		"ground": {15: CAMBRIAN_SHORE, 0: URBODEN, 16: CAMBRIAN_ROCK},
 		"ambient": {"embers": 0, "fireflies": 0, "pollen": false, "birds": false, "steam": false},
-		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": true, "cambrian": true}, "season": 1, "sunface": false},
+		"models": {"primeval": true, "wild": true, "ducks": false, "basalt": false, "cambrian": true}, "season": 1, "sunface": false},
 	"meer": {"mood": "meer", "water": {"deep": "#0e3446", "shallow": "#2f7a84", "glint": 1.1},
 		"ground": {15: CAMBRIAN_SHORE, 0: URBODEN},
 		"ambient": {"embers": 0, "fireflies": 0, "pollen": false, "birds": false, "steam": false},

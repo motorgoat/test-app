@@ -4994,6 +4994,10 @@ func _show_help() -> void:
 	else:
 		fire_t.text = "Flammen & Herzen"
 		fire_l.text = "3 Flammen: Feuer. Kostet ein Herz."
+	var rain_t0 := ((_help_rows["rain"] as Control).get_child(1) as Control).get_child(0) as Label
+	var rain_l0 := ((_help_rows["rain"] as Control).get_child(1) as Control).get_child(1) as Label
+	rain_t0.text = "Regen"
+	rain_l0.text = "Natur wächst. Feuer geht aus."
 	var camp := gs != null and gs.camp
 	for key in ["c_needs", "c_lasting", "c_merge", "c_steps", "c_volcano", "c_bolt", "c_hunger", "c_pack", "c_glacier", "c_impact"]:
 		(_help_rows[key] as Control).visible = false
@@ -5005,6 +5009,13 @@ func _show_help() -> void:
 		(_help_rows["war"] as Control).visible = bool(gs.sys9.get("war", false))
 		(_help_rows["smog"] as Control).visible = bool(gs.sys9.get("smog", false))
 		(_help_rows["rain"] as Control).visible = gs.tool_unlocked("rain")
+		# Regen nach Zeitalter: in der Urerde heißt er „Wunder“ (wie im Dock), Feuer erst, wenn es Feuer gibt
+		var act := int(gs.day.get("act", 2))
+		rain_t0.text = "Wunder" if act == 1 else "Regen"
+		if act == 1:
+			rain_l0.text = "Kühlt die Lava."
+		elif not (bool(gs.sys9.get("bolt", false)) or Game.level_no >= 21):
+			rain_l0.text = "Lässt die Welt wachsen."
 		var thr := not gs.thrive9.is_empty()
 		var hunger := false
 		for k in gs.thrive9:

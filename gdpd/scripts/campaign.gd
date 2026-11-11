@@ -47,9 +47,10 @@ const TEXT = {
 	"star_next2": "★★ bis %d",
 	"loss": "−1 %s",
 	"mercy": "Hilfe von oben",
-	"rest": "Ruhe hält",
+	"rest": "Gleichgewicht hält",
 	"unrest": "Unruhe!",
 	"topup": "Über Nacht: +%d %s",
+	"overnight_line": "Über Nacht gewachsen",
 	"fresh": "Heute eine frische Welt",
 	"calmer": "Die Lava hat sich verteilt",
 	"calmer_ice": "Das Eis hat sich verteilt",
@@ -70,13 +71,13 @@ const TEXT = {
 }
 ## Pillen der Ereignisse (Vertrag 8; höchstens eine je Runde, kurz). Die Jagd nennt ihre Jäger: pill().
 const PILL = {
-	"volcano_warn": ["Vulkan grollt!", "Teil die Lava"], "erupt": ["Ausbruch!", ""], "volcano_calm": ["Ruhe", ""],
+	"volcano_warn": ["Vulkan grollt!", "Teil die Lava"], "erupt": ["Ausbruch!", ""], "volcano_calm": ["Abgewendet", ""],
 	"bolt_warn": ["Blitz droht!", "Wasser an den Wald"], "bolt": ["Feuer!", ""], "bolt_cancel": ["Regen schützt", ""],
 	"hunger_warn": ["Hunger!", "Bring Futter"], "starve": ["Verhungert", ""], "pack_warn": ["Rudel jagt!", "Trenn die Raubtiere"],
 	"pack_hunt": ["Gejagt!", ""], "smog_warn": ["Smog droht!", ""], "polluted": ["Smog!", ""], "spawn": ["Landgang!", ""],
 	"steam": ["+1 Regen", ""], "meteor_ready": ["Meteor bereit", ""], "mercy": ["Hilfe von oben", ""],
 	"need_sealed": ["Versorgt bleibt versorgt.", ""],
-	"glacier_warn": ["Gletscher wächst!", "Teil das Eis"], "freeze": ["Eis!", ""], "glacier_calm": ["Ruhe", ""],
+	"glacier_warn": ["Gletscher wächst!", "Teil das Eis"], "freeze": ["Eis!", ""], "glacier_calm": ["Abgewendet", ""],
 	"impact_warn": ["Meteor kommt!", ""], "impact": ["Einschlag!", ""],
 }
 ## Jagd-Warnung je Jäger (pack_warn mit "hunter").

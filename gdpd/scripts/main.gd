@@ -521,7 +521,7 @@ func _era_overview_check(tag: String) -> void:
 func _genesis_labels(root: Node) -> Array:
 	var bad: Array = []
 	var re := RegEx.new()
-	re.compile("\\bTag [1-7]\\b|Schöpfung|siebte|Und es war gut|Akt [1-7]")
+	re.compile("\\bTag [1-7]\\b|Schöpfung|siebte|Und es war gut|Akt [1-7]|\\bRuhe\\b|\\bruhen\\b")
 	var stack: Array = [root]
 	while not stack.is_empty():
 		var nd: Node = stack.pop_back()
@@ -1002,10 +1002,10 @@ func _acts_tour(dir: String) -> void:
 	# Quelle wegdreht
 	await _start_lvl(49, 0)
 	await _need_seal_check(dir)
-	# Gleichgewicht · Level 60: Ruhe halten
+	# Gleichgewicht · Level 60: das Gleichgewicht halten
 	await _start_lvl(60, 0)
-	await _shot(dir, "08a_level60_ruhe")
-	_check(dui.chip_caps.text == "Ruhe" and dui.chip_num.text == "0/3", "hold_rest", "chip=%s %s" % [dui.chip_caps.text, dui.chip_num.text])
+	await _shot(dir, "08a_level60_gleichgewicht")
+	_check(dui.chip_caps.text == "Gleichgewicht" and dui.chip_num.text == "0/3", "hold_rest", "chip=%s %s" % [dui.chip_caps.text, dui.chip_num.text])
 	# Wasser dreht mit der Scheibe (Rückmeldung 8. November)
 	await _water_turn_check(dir)
 	Game.round_resolved.disconnect(_on_tour_round)

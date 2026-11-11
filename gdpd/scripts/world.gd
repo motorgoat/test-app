@@ -1004,7 +1004,7 @@ func set_era(era: Variant, blend_s: float = 2.0) -> void:
 	var from := Eras.mix_from(name)
 	if from != "":
 		if name != era_name:
-			_sky_blue = 0.25 if name == "blau" else 0.0     # Level 9 beginnt bei 0,25 (Spec 10); Erholung ganz in Asche
+			_sky_blue = 0.0     # Erstes Leben beginnt im Dunst (die Algen machen den Himmel blau); Erholung ganz in Asche
 		set_era_mix(from, name, maxf(mix_v, 0.0) if mix_v >= 0.0 else _sky_blue, blend_s)
 		return
 	era_name = name

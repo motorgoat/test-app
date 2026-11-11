@@ -4227,6 +4227,8 @@ func _filler9(stype: int, near: int, avoid: int, kind_to: int) -> int:
 			continue
 		if avoid >= 0 and _next_to9(f.id, avoid):
 			continue
+		if rows9.has(kind_to) and _row_closes9(f, kind_to):
+			continue                       # sonst wächst die Reihe gleich weiter (späte Runde) und der Nachschub ist weg
 		var v := float(cnt[f.kind])
 		if not keep.has(f.kind):
 			v += 100.0
@@ -4243,6 +4245,19 @@ func _filler9(stype: int, near: int, avoid: int, kind_to: int) -> int:
 			best_v = v
 			best = f.id
 	return best
+
+
+## Schlösse Feld f als Art k eine gerade Reihe, die noch wachsen kann? (Nur gedacht: die Art wird zurückgesetzt.)
+func _row_closes9(f: FieldData, k: int) -> bool:
+	var old := f.kind
+	f.kind = k
+	var hit := false
+	for ln in lines({f.id: true}):
+		if (ln[0] as FieldData).kind == k and not spent.has(line_key(ln)):
+			hit = true
+			break
+	f.kind = old
+	return hit
 
 
 ## Nachschub (Neuer Morgen, Geschenk): höchstens max_n Felder bekommen das, was dem Ziel fehlt, bis reach9 wieder
@@ -4775,7 +4790,7 @@ const NEED_ICON9 = {"heat": "heat", "mineral": "mineral", "spark": "spark", "alg
 	"shore": "shore", "plants": "plants", "prey": "prey", "food": "hunger", "work": "work", "faith": "faith",
 	"sun": "sun", "wet": "rain", "wood": "wood", "bugs": "bugs", "cold": "cold"}
 const NEED_NAME9 = {"heat": "Wärme", "mineral": "Fels", "spark": "Leben", "algae": "Algen", "fish": "Fische",
-	"shore": "Ufer", "plants": "Futter", "prey": "Beute", "food": "Nahrung", "work": "Arbeit", "faith": "Glaube",
+	"shore": "Ufer", "plants": "Pflanzen", "prey": "Beute", "food": "Nahrung", "work": "Arbeit", "faith": "Glaube",
 	"sun": "Sonne", "wet": "Wasser", "wood": "Holz", "bugs": "Insekten", "cold": "Kälte"}
 ## Gekaufte Wunder (GDPD_PUNKTE_LADEN.md 1, 4): zählen 2 Schritte, je Art höchstens eins je Level.
 const MIRACLE_STEPS := 2
@@ -6624,7 +6639,9 @@ func sub_status9() -> Array:
 func era9() -> Dictionary:
 	var e := Campaign.era(level_no)
 	if str(e.get("sky_mix", "")) == "algae":
-		e["sky_blue"] = clampf(maxf(0.25, float(count(FieldData.ALGAE)) / 8.0), 0.0, 1.0)
+		# Dunst, bis es Algen gibt (Level 8–10); ab dem Sauerstoff-Level ein Viertel blau als Boden
+		var floor_b := 0.25 if level_no >= 11 else 0.0
+		e["sky_blue"] = clampf(maxf(floor_b, float(count(FieldData.ALGAE)) / 8.0), 0.0, 1.0)
 	if bool(e.get("dust", false)):
 		e["dust_clear"] = clampf(float(count(FieldData.MEADOW)) / 10.0, 0.0, 1.0)
 		e["sky_blue"] = e["dust_clear"]       # World.set_era mischt mix_from → era mit sky_blue (Asche → Erholung)
@@ -7208,7 +7225,7 @@ var _act_last: Dictionary = {}
 ##   "fields": Feld-IDs, um die es geht (leuchten, wenn es keinen move gibt) · "tool": "rain" | "meteor" | "gift" | ""
 ##   "field": Ziel-Feld des Werkzeugs (-1) · "danger": "volcano" | "bolt" | "fire" | "pack" | "hunger" | "smog" |
 ##     "war" | "flood" | "" · "steps": 1 (diese Drehung wirkt sofort) oder 2 (Vorbereitung) · "hint": kurzer
-##     Versorgungs-Satz zum Ziel („Tiere brauchen Futter: 2/6 versorgt“) oder "".
+##     Versorgungs-Satz zum Ziel („Tiere brauchen Pflanzen: 2/6 versorgt“) oder "".
 func next_action() -> Dictionary:
 	if not camp:
 		return {}
@@ -7248,7 +7265,11 @@ func _act_dist9(k: int) -> int:
 
 
 ## Wert einer neuen Art (für die Wahl der Drehung): 10 für die Ziel-Art, weniger, je weiter weg; 0 = hilft nicht.
+## Wächst ein Feld in die Art des Teilziels, an dem gerade gearbeitet wird, zählt das voll – auch wenn es selbst eine
+## Ziel-Art ist (Level „Frieden“: Dorf → Stadt, obwohl beide Ziel-Arten mit Abstand 0 sind).
 func _act_val9(from: int, to: int) -> float:
+	if to == _act_gk9 and from != to:
+		return 10.0
 	var dt := _act_dist9(to)
 	if dt < 0:
 		return 0.0
@@ -7495,20 +7516,37 @@ const ACT_DANGER9 = {"volcano": "Teil die Lava!", "bolt": "Wasser an den Wald!",
 const ACT_DANGER_ICON9 = {"volcano": "lava", "bolt": "bolt", "pack": "pred", "hunger": "hunger", "smog": "smog",
 	"war": "swords", "flood": "water", "glacier": "ice", "impact": "meteor_fall"}
 ## Jagd: die Zeile nennt die Jäger (GDPD_ERDGESCHICHTE.md 4.1).
+## Zweite Zeile, wenn die Fortschritts-Drehung zugleich eine gewarnte Gefahr abwendet.
+const ACT_ALSO9 = {"volcano": "Stoppt auch den Ausbruch", "bolt": "Rettet auch den Wald", "pack": "Rettet auch die Tiere",
+	"glacier": "Stoppt auch das Eis", "hunger": "Rettet auch die Hungrigen", "flood": "Stoppt auch die Flut",
+	"war": "Stoppt auch den Krieg", "smog": "Rettet auch die Natur"}
 const ACT_HUNT9 = {FieldData.PRED: "Trenn die Raubtiere!", FieldData.REX: "Trenn die Raubsaurier!",
 	FieldData.EARLY: "Trenn die Jäger!"}
+
+
+var _act_gk9 := -1                # Art des Teilziels, an dem next_action gerade arbeitet (-1: keins)
 
 
 func _next_action9() -> Dictionary:
 	if day_won:
 		return _act9("won", "Geschafft!", ["star"], -1)
 	var g := _act_goal9()
+	_act_gk9 = int(g.get("kind", -1)) if not g.is_empty() else -1
 	var hint := _act_hint9(g)
 	if impact_pending9():
 		var ai := _act_impact9()
 		ai["hint"] = hint
 		return ai
 	var a := _act_pick9(g)
+	var dg := str(a.get("danger", ""))
+	if dg != "" and ["row", "thrive", "group"].has(str(a["type"])) and ACT_ALSO9.has(dg):
+		# die Drehung bringt Fortschritt UND wendet die Gefahr ab: die zweite Zeile sagt es (nicht das Rezept)
+		a["hint"] = str(ACT_ALSO9[dg])
+		(a["icons"] as Array).append(str(ACT_DANGER_ICON9.get(dg, "info")))
+		return a
+	# das Rezept nicht doppelt: zeigt die Zeile schon, was entsteht („→ Fels“), bleibt die zweite Zeile leer
+	if int(a.get("result", -1)) >= 0 and hint.ends_with("→ " + FieldData.kind_name(int(a["result"]))):
+		hint = ""
 	a["hint"] = hint
 	return a
 
@@ -7930,7 +7968,7 @@ func _have_kinds9() -> Dictionary:
 	return hk
 
 
-## Kurzer Versorgungs-Satz zum Ziel: satt-Ziele „Tiere brauchen Futter: 2/6 versorgt“, sonst die Regel der Art, die
+## Kurzer Versorgungs-Satz zum Ziel: satt-Ziele „Tiere brauchen Pflanzen: 2/6 versorgt“, sonst die Regel der Art, die
 ## durch Nachbarn wächst („Lava braucht 2 Wasser“), oder "".
 func _act_hint9(g: Dictionary) -> String:
 	if g.is_empty():
@@ -7946,20 +7984,34 @@ func _act_hint9(g: Dictionary) -> String:
 			ns.append(str(NEED_NAME9.get(str(n), n)))
 		return "%s brauchen %s: %d/%d versorgt" % [FieldData.kind_plural(k), " + ".join(PackedStringArray(ns)),
 			sub_progress9(g), int(g["target"])]
+	# zuerst das Rezept, das die Ziel-Art selbst macht (Reihe oder Gedeihen), dann die Kette davor
+	var gk := int(g.get("kind", -1))
+	for k0 in rows9:
+		if int(rows9[k0]) == gk and int(k0) != gk:
+			return "3 %s → %s" % [FieldData.kind_name(int(k0)), FieldData.kind_name(gk)]
+	for k1 in thrive9:
+		if _act_up9(int(k1)) == gk and int(k1) != gk:
+			return _act_recipe9(int(k1), gk)
 	for k2 in thrive9:
 		var up := _act_up9(int(k2))
 		if up < 0 or _act_val9(int(k2), up) <= 0.0:
 			continue
-		var parts: Array = []
-		for n in ((thrive9[k2] as Dictionary)["needs"] as Dictionary):
-			var amt := int(((thrive9[k2] as Dictionary)["needs"] as Dictionary)[n])
-			var nm := str(NEED_NAME9.get(str(n), n))
-			parts.append(nm if amt <= 1 else "%d %s" % [amt, nm])
-		return "%s + %s → %s" % [FieldData.kind_name(int(k2)), " + ".join(PackedStringArray(parts)), FieldData.kind_name(up)]
+		return _act_recipe9(int(k2), up)
 	for k3 in rows9:
 		if _act_val9(int(k3), int(rows9[k3])) > 0.0:
 			return "3 %s → %s" % [FieldData.kind_name(int(k3)), FieldData.kind_name(int(rows9[k3]))]
 	return ""
+
+
+## „Lava + 2 Wasser → Fels“: das Gedeihen-Rezept einer Art.
+func _act_recipe9(k: int, up: int) -> String:
+	var parts: Array = []
+	var nd: Dictionary = (thrive9[k] as Dictionary)["needs"]
+	for n in nd:
+		var amt := int(nd[n])
+		var nm := str(NEED_NAME9.get(str(n), n))
+		parts.append(nm if amt <= 1 else "%d %s" % [amt, nm])
+	return "%s + %s → %s" % [FieldData.kind_name(k), " + ".join(PackedStringArray(parts)), FieldData.kind_name(up)]
 
 
 ## Was über einem Feld als kurze Überschrift steht (Feld-Blatt): die Familie in Worten der Schöpfung.

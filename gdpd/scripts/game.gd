@@ -1769,7 +1769,14 @@ func _migrate_camp(cfg: ConfigFile) -> void:
 	var today := Daily.observe(daily, now_local()) if not daily.is_empty() else 0
 	var last := int(cfg.get_value(s, "letzter_neuer", -1))
 	camp["pos"] = Campaign.pos_of_old(top) if top > 0 else 0
-	camp["last_new_key"] = maxi(last, today) if top > 0 else last
+	# Am Tag der Umstellung öffnet kein neues Level nur dann, wenn es etwas nachzuholen gibt (sonst stünde dort eine
+	# leere „Geschafft!“-Karte, obwohl heute noch nicht gespielt wurde); sonst öffnet P + 1 wie im alten Build.
+	var has_catchup := false
+	for n in range(1, n_new + 1):
+		if Daily.catchup(camp, n):
+			has_catchup = true
+			break
+	camp["last_new_key"] = maxi(last, today) if top > 0 and has_catchup else last
 	var ft := int(cfg.get_value(s, "schnell_bis", 0))
 	camp["fast_to"] = Campaign.old_to_new(ft) if ft > 0 else 0
 	var fd: Variant = cfg.get_value(s, "schnell_tag", [-1, 0])
@@ -1991,8 +1998,11 @@ func start_level(n: int, board_index: int = -1) -> bool:
 				if shown.has(i):
 					continue
 				ch.append({"field": i, "from": int(prev[i]) if i < prev.size() else 0, "kind": int(kinds[i]) if i < kinds.size() else 0})
+		var oline := str(b.get("line", ""))
+		if oline == "":
+			oline = str(Campaign.TEXT["overnight_line"])        # nie eine leere Pille („Neuer Morgen“ allein)
 		overnight = {"type": "overnight", "level": n, "day": n, "changes": ch,
-			"caps": str(Campaign.TEXT["overnight"]), "line": str(b.get("line", ""))}
+			"caps": str(Campaign.TEXT["overnight"]), "line": oline}
 	_start_level_state(n, b)
 	if not overnight.is_empty():
 		overnight_growth.emit(overnight.duplicate(true))
@@ -2281,7 +2291,7 @@ func camp_today_info() -> Dictionary:
 		var c := Campaign.config(nn)
 		out.merge({"state": "new", "day": nn, "title": str(c.get("title", "")),
 			"caps": "%s · Level %d" % [str(Days.TEXT["today_new"]), nn],     # „Tag“ hieße hier: Spieltag – darum Level
-			"goal": Campaign.goal_line(c), "line": str(c.get("story", "")), "icon": str(Campaign.ICON.get(int(c.get("act", 1)), "star"))})
+			"goal": Campaign.goal_line(c), "line": str(c.get("story", "")), "icon": str(Campaign.ICON.get(int(c.get("act", 1)), "star"))}, true)
 		if Daily.fast_track_on(camp):
 			out["fast_line"] = str(Campaign.TEXT["fast_track"]) % Daily.new_levels_left(camp, k)
 		return out
@@ -2290,10 +2300,10 @@ func camp_today_info() -> Dictionary:
 		if Daily.wdt_done(daily, k):
 			out.merge({"state": "wdt_done", "day": 0, "title": str(Days.TEXT["today_done"]), "caps": str(cfg.get("caps", "")),
 				"goal": Campaign.goal_line(cfg), "line": str(Days.TEXT["wdt_tomorrow"]), "more_stars": Daily.wdt_stars(daily, k) < 3,
-				"icon": "trophy"})
+				"icon": "trophy"}, true)
 		else:
 			out.merge({"state": "wdt", "day": 0, "title": str(Days.TEXT["wdt"]), "caps": str(cfg.get("caps", "")),
-				"goal": Campaign.goal_line(cfg), "line": Campaign.goal_line(cfg), "icon": "trophy"})
+				"goal": Campaign.goal_line(cfg), "line": Campaign.goal_line(cfg), "icon": "trophy"}, true)
 		return out
 	var cu := first_catchup()
 	if cu > 0:
@@ -2301,17 +2311,19 @@ func camp_today_info() -> Dictionary:
 		var cc := Campaign.config(cu)
 		out.merge({"state": "catchup", "day": cu, "title": str(cc.get("title", "")),
 			"caps": str(Campaign.TEXT["catchup_caps"]) % cu, "goal": Campaign.goal_line(cc), "line": str(cc.get("story", "")),
-			"icon": str(Campaign.ICON.get(int(cc.get("act", 1)), "star")), "catchup": true})
+			"icon": str(Campaign.ICON.get(int(cc.get("act", 1)), "star")), "catchup": true}, true)
 		return out
 	if nn <= Campaign.COUNT:
-		var last := maxi(1, nn - 1)
+		# das zuletzt geschaffte Level der Kette (nicht nn − 1: nach der Umstellung kann das ein übersprungenes, noch
+		# gesperrtes sein)
+		var last := maxi(1, int(camp["pos"]))
 		out.merge({"state": "done_next", "day": nn, "title": str(Days.TEXT["today_done"]), "caps": str(Days.TEXT["today"]),
 			"goal": "", "line": str(Campaign.TEXT["locked"]), "more_stars": level_stars(last) < 3, "replay_day": last,
-			"icon": "check"})
+			"icon": "check"}, true)
 		return out
 	out.merge({"state": "world_done_today", "day": Campaign.COUNT, "title": str(Days.TEXT["complete"]),
 		"caps": str(Days.TEXT["today"]), "goal": "", "line": str(Days.TEXT["wdt_first_tomorrow"]),
-		"more_stars": level_stars(Campaign.COUNT) < 3, "replay_day": Campaign.COUNT, "icon": "check"})
+		"more_stars": level_stars(Campaign.COUNT) < 3, "replay_day": Campaign.COUNT, "icon": "check"}, true)
 	return out
 
 

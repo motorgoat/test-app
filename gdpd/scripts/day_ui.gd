@@ -548,7 +548,7 @@ func _build_action_line() -> void:
 	act_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	act_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(act_label)
-	# zweite, kleine Zeile: der Stand der Verbindungen („Tiere brauchen Futter: 2/6 versorgt“)
+	# zweite, kleine Zeile: der Stand der Verbindungen („Tiere brauchen Pflanzen: 2/6 versorgt“)
 	act_hint = ui._label("", 15, Style.INK_2, Style.W_BOLD)
 	act_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	act_hint.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -2482,12 +2482,12 @@ func _refresh_hud9(gs: GameState, st: Dictionary) -> void:
 	var v0 := int(s0.get("value", st.get("progress", 0)))
 	chip_num.text = "%d/%d" % [mini(v0, t0), t0]
 	chip_num.remove_theme_color_override("font_color")
-	chip_caps.text = _goal_noun(gs) if not hold else "Ruhe"
+	chip_caps.text = _goal_noun(gs) if not hold else "Gleichgewicht"
 	chip_caps.add_theme_color_override("font_color", Style.LEAF_DEEP if bool(s0.get("met", false)) else Style.INK_3)
 	_fit_caps()
 	var gi := str(s0.get("icon", _goal_icon(_info)))
 	if hold:
-		gi = "moon"
+		gi = "balance"
 	if Style.icon(gi) == null:
 		gi = "star"
 	ui._set_tile(chip_tile, gi, ui._tint_for_icon(gi))
@@ -2591,7 +2591,7 @@ func _on_preview_chip(info: Dictionary) -> void:
 ## Die nächste Handlung: GameState.next_action() (Regeln, rechnet das Brett, GDPD_SCHOEPFUNG.md „Build 12“), sonst
 ## eine Ersatz-Zeile aus dem Ziel. Gelesen wird (alles freiwillig außer text):
 ##   text „Dreh 3 Felsen in eine Reihe“ · line dasselbe mit Ergebnis („… → Erde“) · icons [Symbolnamen, "->" = Pfeil] ·
-##   result_icon (Symbol des Ergebnisses) · hint (zweite, kleine Zeile: „Tiere brauchen Futter: 2/6 versorgt“) ·
+##   result_icon (Symbol des Ergebnisses) · hint (zweite, kleine Zeile: „Tiere brauchen Pflanzen: 2/6 versorgt“) ·
 ##   danger (nicht leer: rot) · type "help" (Sicherheitsnetz: grün) · tone (eigener Ton) ·
 ##   fields [Feld-Ids] / field / move {"axis", "layer", "turns"}: was nach einer Pause sanft leuchtet ·
 ##   tool "rain" | "meteor" | "miracle" | "hint": welcher Knopf dazu pulsiert.
@@ -2645,7 +2645,7 @@ func _fallback_action(gs: GameState) -> Dictionary:
 		"group":
 			return {"text": "%s zusammen drehen" % FieldData.kind_plural(k), "icons": [ki, ki]}
 		"hold":
-			return {"text": "Alles ruhig halten", "icons": ["moon"]}
+			return {"text": "Halte alles im Gleichgewicht", "icons": ["balance"]}
 	# make: welche Art wird in einer Reihe zu k?
 	var ks: Array = gs.rows9.keys() if gs.camp else []
 	ks.sort()
@@ -2910,7 +2910,7 @@ const PILL9_ICON = {"goal_loss": "down", "erupt": "volcano", "volcano_warn": "vo
 	"bolt": "fire", "bolt_warn": "lightning", "bolt_cancel": "rain", "pack_warn": "pred", "pack_hunt": "pred",
 	"hunger_warn": "hunger", "starve": "hunger", "smog_warn": "smog", "polluted": "smog", "spawn": "animals",
 	"steam": "rain", "meteor_ready": "meteor", "mercy": "spark", "need_sealed": "check", "thrive": "up",
-	"satt_new": "check", "hold": "moon", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood",
+	"satt_new": "check", "hold": "balance", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood",
 	"impact": "meteor_fall", "glacier_warn": "ice", "freeze": "ice", "glacier_calm": "check"}
 const PILL9_WAR = ["goal_loss", "erupt", "volcano_warn", "bolt", "bolt_warn", "pack_warn", "pack_hunt", "hunger_warn",
 	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood", "impact", "glacier_warn", "freeze"]

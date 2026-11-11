@@ -3106,9 +3106,9 @@ func _b_amphib(rng: RandomNumberGenerator) -> void:
 	_item("horsetail", _variant, Vector3(0.22, 0, -0.04), 0.0, 1.0, 0.03)
 	_item("fern", _variant, Vector3(-0.22, 0, 0.02), rng.randf() * TAU, 0.8, 0.04)
 	_cover(24, 0, _wither, 4, 0.4)
-	_agent("amph", _variant, _R(Vector3(-0.04, 0, 0.02)), -100.0, 1.3)
+	_agent("amph", _variant, _R(Vector3(-0.04, 0, 0.02)), -100.0, 2.6)
 	if not _wither:
-		_agent("amph", _variant + 1, _R(Vector3(0.08, 0, 0.1)), -100.0, 1.15)
+		_agent("amph", _variant + 1, _R(Vector3(0.09, 0, 0.11)), -100.0, 2.3)
 
 
 ## Reptilien: warmer Fels-Sand mit Brocken, ein Gelege, Echsen sonnen sich.
@@ -3129,10 +3129,10 @@ func _b_sauro(rng: RandomNumberGenerator) -> void:
 	_item("cycad", _variant, Vector3(0.22, 0, 0.2), rng.randf() * TAU, 1.2, 0.06)
 	_item("fern", _variant + 1, Vector3(-0.22, 0, -0.2), rng.randf() * TAU, 1.1, 0.05)
 	_cover(60, 0, _wither, 5, 0.8)
-	var sp := [Vector3(-0.04, 0, -0.03), Vector3(0.1, 0, 0.1)]
-	_agent("sauro", _variant, _R(sp[0]), -100.0, 1.3)
-	if not _wither:
-		_agent("sauro", _variant + 1, _R(sp[1]), -100.0, 1.3 if _variant == 3 else 0.65)
+	# lieber nur einer, dafür groß (GRAFIK 0.1): ein ausgewachsener Langhals; das Junge nur klein daneben
+	_agent("sauro", _variant, _R(Vector3(-0.02, 0, -0.01)), -100.0, 1.65)
+	if not _wither and _variant == 3:
+		_agent("sauro", _variant + 1, _R(Vector3(0.12, 0, 0.12)), -100.0, 0.6)
 
 
 ## Raubsaurier: dunkler Fels mit Farnen und Knochen; ein großer Räuber oder ein Rudel aus drei Raptoren.
@@ -3142,11 +3142,11 @@ func _b_rex(rng: RandomNumberGenerator) -> void:
 	_item("fern", _variant, Vector3(-0.2, 0, -0.18), rng.randf() * TAU, 1.0, 0.05)
 	_cover(40, 0, true, 10, 0.75)
 	if _variant % 2 == 0:
-		_agent("trex", _variant, _R(Vector3(0.0, 0, 0.02)), -100.0, 1.35)
+		_agent("trex", _variant, _R(Vector3(0.0, 0, 0.02)), -100.0, 1.75)
 	else:
 		var sp := [Vector3(-0.06, 0, 0.0), Vector3(0.06, 0, 0.06), Vector3(0.04, 0, -0.08)]
 		for k in 3:
-			_agent("raptor", _variant + k, _R(sp[k]), -100.0, 1.6)
+			_agent("raptor", _variant + k, _R(sp[k]), -100.0, 1.9)
 
 
 ## Eis (Gletscher): die Eisdecke malt der Boden-Shader (Schollen, Spalten, an Fugen ein Gletscher); dazu Eisblöcke.
@@ -3178,7 +3178,7 @@ func _b_apes(rng: RandomNumberGenerator) -> void:
 	_cover(80, 2, true, 3, 0.9)
 	var spa := [Vector3(-0.08, 0, 0.02), Vector3(0.04, 0, 0.1), Vector3(-0.12, 0, 0.14), Vector3(0.1, 0, 0.0)]
 	for k in (1 if _wither else 3):
-		_agent("ape", k + _variant, _R(spa[k]), -100.0, 1.5)
+		_agent("ape", k + _variant, _R(spa[k]), -100.0, 1.85)
 	if _wither:
 		return
 	# einer klettert: sitzt in der Krone (kein Agent, nur die Leerlauf-Bewegung des Shaders)
@@ -3207,7 +3207,7 @@ func _b_early(rng: RandomNumberGenerator) -> void:
 	_cover(70, 0, true, 6, 0.9)
 	_spots = [Vector3(-0.04, 0, 0.0), Vector3(0.12, 0, -0.06), Vector3(-0.1, 0, 0.1), Vector3(0.06, 0, 0.12)]
 	for k in (1 if _wither else 3):
-		_agent("hunter", _variant + k, _spots[k])
+		_agent("hunter", _variant + k, _spots[k], -100.0, 1.6)
 
 
 ## Feuerstelle / Lager: Lagerfeuer mit Flamme, Boden-Glut und Funken in der Mitte, Fellzelte, Menschen sitzen ums Feuer.
@@ -3215,7 +3215,7 @@ func _b_early(rng: RandomNumberGenerator) -> void:
 func _b_camp(rng: RandomNumberGenerator) -> void:
 	var c := Vector3(0.02, 0, 0.03)
 	_item("campfire", _variant, c, rng.randf() * TAU, 1.5, 0.07)
-	Models.flame(_content, _R(c) + Vector3(0, 0.01, 0), 0.34, 3, fmod(float(field_id) * 0.17, 1.0))
+	Models.flame(_content, _R(c) + Vector3(0, 0.01, 0), 0.5, 3, fmod(float(field_id) * 0.17, 1.0))
 	_item("fur_tent", _variant, Vector3(-0.15, 0, -0.14), rng.randf_range(-0.4, 0.4), 1.5, 0.08)
 	if _variant % 2 == 0:
 		_item("fur_tent", _variant + 1, Vector3(0.16, 0, -0.15), rng.randf_range(-0.4, 0.4), 1.35, 0.08)
@@ -3224,7 +3224,7 @@ func _b_camp(rng: RandomNumberGenerator) -> void:
 	_item("woodpile", 0, Vector3(0.2, 0, 0.17), 0.4, 1.0, 0.03)
 	_cover(40, 0, true, 8, 0.7)
 	_glow = MeshInstance3D.new()
-	_glow.mesh = Look.quad(0.3)
+	_glow.mesh = Look.quad(0.5)
 	_glow.material_override = _glow_mat()
 	_glow.rotation.x = -PI * 0.5
 	_glow.position = _R(c) + Vector3(0, 0.004, 0)
@@ -3258,7 +3258,7 @@ func _b_camp(rng: RandomNumberGenerator) -> void:
 	for k in (1 if _wither else 3):
 		var a := TAU * float(k) / 3.0 + 0.5
 		var p := pc + Vector3(cos(a) * 0.085, 0, sin(a) * 0.085)
-		_agent("hunter", _variant + k, p, atan2(-(pc.z - p.z), pc.x - p.x))
+		_agent("hunter", _variant + k, p, atan2(-(pc.z - p.z), pc.x - p.x), 1.6)
 		(_agents[_agents.size() - 1] as Dictionary)["sit"] = true
 	_spots = [pc + Vector3(0.08, 0, 0.06), pc + Vector3(-0.09, 0, 0.04)]
 
@@ -3270,7 +3270,7 @@ static var _glow_m: StandardMaterial3D
 ## Boden-Glut am Lagerfeuer: weicher, additiver Punkt, flach auf dem Boden (nicht zur Kamera gedreht).
 static func _glow_mat() -> StandardMaterial3D:
 	if _glow_m == null:
-		_glow_m = (Look.mote(Color(1.0, 0.5, 0.15, 0.55)) as StandardMaterial3D).duplicate() as StandardMaterial3D
+		_glow_m = (Look.mote(Color(1.0, 0.58, 0.2, 0.85)) as StandardMaterial3D).duplicate() as StandardMaterial3D
 		_glow_m.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
 		_glow_m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return _glow_m
@@ -3380,7 +3380,7 @@ func _update_swim() -> void:
 					var d := q1 - q0
 					var yaw := atan2(-d.z, d.x)
 					var buzz := 0.35 + 0.65 * absf(sin(t * 60.0 + fi))
-					xf = Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(2.4, 2.4, 2.4 * buzz)), p4)
+					xf = Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(4.8, 4.8, 4.8 * buzz)), p4)
 				"ptero":
 					# kreisen langsam hoch über dem Wald, gleiten, selten ein Flügelschlag
 					var ph5 := t * (0.32 + 0.04 * fi) + fi * TAU / float(mm.instance_count) + fid
