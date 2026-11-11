@@ -106,7 +106,8 @@ Spielstand wird umgestellt: Sterne wandern mit, übersprungene neue Level sind z
   Wunder (Regen, Meteor) wird erst mit dem Ende seiner Runde abgebucht, zusammen mit dem Lauf.
 - **Build 13 – Review der Erdgeschichte:** Die Zeile oben nennt immer eine konkrete Drehung oder ein Werkzeug (auch in
   Level 55 „Frieden“ mit zwei satt-Zielen; im seltenen Rest „Dreh: Dorf wird Stadt“ mit leuchtender Scheibe; Test
-  `next_action_concrete`, Tour `next_action_line`). Bringt die Fortschritts-Drehung zugleich Rettung, sagt die zweite
+  `next_action_concrete`, Tour `next_action_line`; dort muss auch der Ziel-Chip ganz im Bild sein – bei zwei
+  Teilzielen entfallen die kleinen Bedürfnis-Symbole, die Zeile darunter nennt sie). Bringt die Fortschritts-Drehung zugleich Rettung, sagt die zweite
   Zeile „Rettet auch den Wald“ statt eines Rezepts; das Rezept steht nie doppelt. „Pflanzen“ statt „Futter“ als
   Bedürfnis. Level 60 heißt „Blühende Welt“ („Halte 3 Runden das Gleichgewicht“, kein Mond, keine „Ruhe“). Neue
   Geschichten ohne Wiederholung, Level 51 „Neu: Ernte“, Level 38 „Neu: Dein Meteor“. Größere Saurier, Affen,
