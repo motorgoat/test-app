@@ -118,6 +118,27 @@ Spielstand wird umgestellt: Sterne wandern mit, übersprungene neue Level sind z
   ohne Nachholen öffnet das nächste Level am selben Tag. Leistung ist jetzt ein echtes CI-Tor (`perf` mit Budget).
   Behoben: Absturz beim Wechsel in ein anderes Level, während die Hand in Level 1 noch vorführt; die Kopfzeile wächst
   bei breitem Ziel-Chip nach beiden Seiten (bleibt mittig).
+- **Build 14 – die Logik (`docs/GDPD_LOGIK.md`):** Meldung zu Build 13: „vorausgespielt, dann ging keine Ursuppe mehr,
+  weil kein Wasser mehr da war. Das muss logisch aufgebaut sein.“ Ein Brett ohne Wasser ließ sich nicht nachstellen
+  (1176 geprüfte Starts), aber die Regeln hatten Lücken. Jetzt gilt:
+  **Ein Rezept bleibt** (Wasser + 2 Wärme + Fels → Ursuppe auch in Level 8 und 9). **Regen ist ein Kreislauf** (Level
+  6–14: Fels → Erde → Wasser → Ursuppe/Algen, „Regen füllt das Meer“; kein Regen ist verloren). **Regen erst, wenn es
+  ihn gibt** (Level 1–4 ohne Regen und ohne „Hilfe von oben“; die kommt nur, wenn Regen etwas bringt). **Die Gefahr
+  nimmt nie das Letzte**, was das Ziel braucht („Hält durch!“). **Die Prüfung „geht das Level noch?“ ist ehrlich**
+  (zählt nur Felder, deren Bedürfnisse erfüllbar sind; nie zu streng). **Die Hilfe sagt, was fehlt** („Zu wenig Lava.
+  Ich helfe.“, danach „Geschenk: +3 Lava“), nimmt kein Wasser, das das Level braucht, und fragt nach „Weiterspielen“
+  erst nach 12 Schritten wieder. **Oben steht immer eine Handlung** mit leuchtender Scheibe oder Werkzeug (nie mehr
+  „Dreh weiter, Regen kommt“ / „Dreh eine Scheibe“; „Regen in 3 Drehungen“, „Hilfe: hier tippen“, Level 60 „Halte das
+  Gleichgewicht“), nie im Kreis, Gefahr zuerst (dieselbe höchstens 2 Runden in Folge), voller Regen zuerst, und die
+  Zeile nennt den Nachbarn, den die Drehung wirklich bringt („Ursuppe neben Einzeller drehen“). **Die Nacht ist
+  ehrlich:** im Test 15 statt 26 geänderte Felder, der Banner nennt die größte Änderung („Über Nacht: Ursuppe →
+  Wasser“), ein Rückfall aufs Pool-Brett sagt „Heute eine frische Welt“. **Jeder Start geht durch ein Tor**
+  (`Campaign.gate`); ein laufender Versuch aus Build 12/13 beginnt neu, ein altes Start-Brett wird neu geprüft
+  (Regel-Version im Fingerabdruck, `GameState.RULES_VERSION`). **Der Tipp folgt der Zeile**, wenn die Suche nichts
+  findet (Level 17, Brett 1). Die neuen Regeln leben im Code (nur im Spiel), die Level-Daten und der Abgleich mit dem
+  Modell bleiben, wie sie sind. Tests: Abschnitt „Build 14“ in `tests/test_rules.gd` (schnell: `-- --b14`), darunter
+  die drei dauerhaften Prüfungen Start, Spiel und „Ursuppe ohne Wasser“; Tour `--only=b14` mit `soup_recipe_stays`,
+  `rain_fills_sea`, `no_rain_before_level5`, `net_keeps_water`, `action_line_always_move`, `night_line_names_change`.
 
 ## Täglich spielen und dein eigener Charakter
 

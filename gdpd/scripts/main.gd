@@ -100,6 +100,8 @@ func _shots(dir: String) -> void:
 		await _bonus_round_tour(dir)
 	if only == "" or only == "b12":   # Build 12: Was-jetzt-Zeile, keine Feld-Symbole, Vulkan-Kegel, Ansicht, Fels
 		await _b12_tour(dir)
+	if only == "" or only == "b14":   # Build 14: die Logik (Rezept, Regen-Kreislauf, Netz ohne Wasser, Zeile, Nacht)
+		await _b14_tour(dir)
 	if only == "" or only == "erde_look":   # Erdgeschichte: Zeitalter-Looks, Decke, Eis, Gestalten, Einschlag, Leistung
 		await _erde_look_tour(dir)
 	if only == "erde":              # nur die neuen Zeitalter (Saurier, Einschlag, Eiszeit, Affen, Feuer), alle Level offen
@@ -4552,3 +4554,249 @@ func _migration_check(dir: String) -> void:
 	ui.debug_close_all()
 	Game.save_path = old_path
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+## Build 14 (docs/GDPD_LOGIK.md, „Das muss logisch aufgebaut sein“): die Regeln der Logik mit echter Eingabe.
+##   no_rain_before_level5   Level 1 nach 12 Drehungen ohne Fortschritt: kein Regen-Knopf, keine Hilfe von oben
+##   soup_recipe_stays       Level 8: Wasser neben 2 Lava und Fels wird Ursuppe („Ursuppe entsteht“)
+##   action_line_always_move Level 9 nach zwei verschwendeten Regen: an 5 Ständen in Folge nennt die Zeile eine Scheibe
+##                           oder ein Werkzeug, nie „Dreh weiter, Regen kommt“
+##   rain_fills_sea          Level 9 ohne Wasser: „Gieß Erde mit Regen“, der Regen macht aus Erde Wasser
+##   net_keeps_water         Level 3 ohne Lava: die Karte nennt die Lava, das Geschenk nimmt kein Wasser, Pille „Geschenk: …“
+##   night_line_names_change Level 6 gewonnen, am nächsten Tag Level 7: „Über Nacht: Ursuppe → Wasser“
+func _b14_tour(dir: String) -> void:
+	var dui := ui.day_ui
+	if dui.creator_open():
+		dui.creator.look = Character.default_look()
+		dui._on_creator_finished(Character.default_look())
+		await _wait(1.5)
+		ui._close_modal(true)
+	Game.clock_override = Daily.local_unix(2026, 11, 9, 17, 40)
+	Game.reset_campaign()
+	Game.cards_seen = {}
+	Game.coach_seen = {}
+	Game.pdata = Points.fresh(Campaign.COUNT)
+	Game.points = Balance.POINTS_START
+	Game.debug_open_all = true
+	Game.rescue_on = false
+	var td := Game.tutorial_done
+	Game.tutorial_done = true
+	for n0 in [1, 3, 7, 8, 9]:
+		Game.coach_seen["era_%s" % Campaign.era_of(n0)] = true     # kein Übergang: hier zählen die Regeln
+	await get_tree().process_frame
+	# --- 1. Level 1: kein Regen, auch nicht als Hilfe von oben
+	print("Tour: b14 Level 1 ohne Regen")
+	await _start_lvl(1, 1)
+	await _wait(0.8)
+	var rounds := 0
+	for i in 12:
+		if Game.state.day_won:
+			break
+		var d := _twist_without_progress()
+		await _swipe_move(int(d[0]), int(d[1]), int(d[2]))
+		await _settle(8.0)
+		rounds += 1
+	await _wait(0.5)
+	await _shot(dir, "b14a_level1_kein_regen")
+	var gs1: GameState = Game.state
+	_check(rounds >= 12 and not ui.rain_btn.is_visible_in_tree() and gs1.rain == 0 and not gs1.tool_unlocked("rain")
+		and int(gs1.st9.get("mercy", 0)) == 0 and gs1.steps9() > int(gs1.stars9[1]), "no_rain_before_level5",
+		"runden=%d regen=%d knopf=%s gnade=%d schritte=%d" % [rounds, gs1.rain, str(ui.rain_btn.is_visible_in_tree()),
+		int(gs1.st9.get("mercy", 0)), gs1.steps9()])
+	# --- 2. Level 8: das Rezept für Ursuppe gilt weiter (Wasser + 2 Wärme + Fels)
+	print("Tour: b14 Level 8 Rezept")
+	await _start_lvl(8, 1)
+	await _wait(0.8)
+	var gs8: GameState = Game.state
+	var w := -1
+	var a := -1
+	var a2 := -1
+	var b := -1
+	for f in gs8.fields:
+		var others: Array = []
+		for g in gs8.nb9(f.id):
+			if (gs8.fields[g] as FieldData).p != f.p:
+				others.append(int(g))
+		if others.size() < 2:
+			continue
+		for g2 in gs8.nb9(int(others[0])):
+			if int(g2) != f.id and int(g2) != int(others[1]) and not gs8.nb9(f.id).has(g2):
+				w = f.id
+				a = int(others[0])
+				b = int(others[1])
+				a2 = int(g2)
+				break
+		if w >= 0:
+			break
+	for f2 in gs8.fields:
+		if f2.kind == FieldData.LAVA or f2.kind == FieldData.SOUP:
+			gs8._setk9(f2, FieldData.WATER)      # nur die zwei Lava-Felder am Wasser (kein Vulkan, kein anderes Rezept dazwischen)
+	dui._sealed_said = true                    # „Versorgt bleibt versorgt.“ kennt der Spieler aus Level 6: hier zählt die Ursuppe
+	gs8._setk9(gs8.fields[w], FieldData.WATER)
+	gs8._setk9(gs8.fields[a], FieldData.LAVA)
+	gs8._setk9(gs8.fields[a2], FieldData.LAVA)
+	gs8._setk9(gs8.fields[b], FieldData.STONE)
+	gs8.rain = 0
+	world.refresh_all()
+	await _wait(0.4)
+	var pills: Array = []
+	var became := false
+	for i2 in 4:
+		var mv8: Array = _b14_move_avoiding([w, a, a2, b])
+		await _swipe_move(int(mv8[0]), int(mv8[1]), int(mv8[2]))
+		await _settle(8.0)
+		pills.append(ui.banner_caps.text if ui.banner_caps.text != "" else ui.banner_text.text)
+		var k8: int = (Game.state.fields[w] as FieldData).kind
+		if k8 == FieldData.SOUP or k8 == FieldData.CELLS:
+			became = true
+			break
+	await _wait(0.3)
+	await _shot(dir, "b14b_level8_ursuppe_rezept")
+	_check(became and pills.has("Ursuppe entsteht"), "soup_recipe_stays", "feld=%s pillen=%s" % [
+		FieldData.kind_name((Game.state.fields[w] as FieldData).kind), str(pills)])
+	# --- 3. Level 9: zwei Regen verschwendet (auf Fels, wie Level 5 es lehrt) – die Zeile nennt trotzdem immer eine Handlung
+	print("Tour: b14 Level 9 Zeile")
+	await _start_lvl(9, 1)
+	await _wait(0.8)
+	var wasted := 0
+	var guard := 0
+	while wasted < 2 and guard < 10 and not Game.state.day_won:
+		guard += 1
+		var fels := -1
+		for f3 in Game.state.fields:
+			if f3.kind == FieldData.STONE and Game.state.rain_ok9(f3):
+				fels = f3.id
+				break
+		if Game.state.rain > 0 and fels >= 0:
+			Game.use_bonus("rain", fels, [], true)
+			wasted += 1
+		else:
+			var d3 := _twist_without_progress()
+			await _swipe_move(int(d3[0]), int(d3[1]), int(d3[2]))
+		await _settle(8.0)
+	await _wait(0.6)
+	var lines: Array = []
+	var bad: Array = []
+	for step in 5:
+		if Game.state.day_won:
+			break
+		var na := Game.next_action()
+		var mv: Dictionary = na.get("move", {})
+		var tool := str(na.get("tool", ""))
+		var txt := str(na.get("text", ""))
+		lines.append(txt)
+		if (mv.is_empty() and tool == "") or txt == "Dreh weiter, Regen kommt" or txt == "Dreh eine Scheibe" or not _line_ok():
+			bad.append([step, txt, str(dui.action_shown.get("text", ""))])
+		if step == 0:
+			await _shot(dir, "b14c_level9_zeile")
+		if tool == "rain" and int(na.get("field", -1)) >= 0:
+			Game.use_bonus("rain", int(na["field"]), [], true)
+		elif tool == "gift":
+			await _tap(dui.act_line)
+		elif not mv.is_empty():
+			await _swipe_move(int(mv["axis"]), int(mv["layer"]), int(mv["turns"]))
+		await _settle(8.0)
+		await _wait(0.6)
+	_check(wasted == 2 and bad.is_empty() and (lines.size() == 5 or Game.state.day_won), "action_line_always_move",
+		"zeilen=%s falsch=%s" % [str(lines), str(bad)])
+	# --- 4. Level 9 ohne Wasser: Regen füllt das Meer
+	print("Tour: b14 Level 9 ohne Wasser")
+	await _start_lvl(9, 2)
+	await _wait(0.8)
+	var gs9: GameState = Game.state
+	for f4 in gs9.fields:
+		if f4.kind == FieldData.WATER or f4.kind == FieldData.SOUP:
+			gs9._setk9(f4, FieldData.EMPTY)
+	gs9.rain = 3
+	world.refresh_all()
+	await _wait(0.3)
+	var d4 := _twist_without_progress()
+	await _swipe_move(int(d4[0]), int(d4[1]), int(d4[2]))
+	await _settle(8.0)
+	await _wait(0.8)
+	var na4 := Game.next_action()
+	var fid4 := int(na4.get("field", -1))
+	var line4 := str(dui.action_shown.get("text", ""))
+	var was_erde := fid4 >= 0 and (Game.state.fields[fid4] as FieldData).kind == FieldData.EMPTY
+	await _shot(dir, "b14d_level9_regen_fuellt_das_meer")
+	if fid4 >= 0:
+		Game.use_bonus("rain", fid4, [], true)
+		await _settle(8.0)
+	await _wait(0.6)
+	await _shot(dir, "b14e_level9_erde_wird_wasser")
+	_check(str(na4.get("tool", "")) == "rain" and was_erde and (line4 == "Gieß Erde mit Regen" or line4 == "Gieß Erde mit Regen → Wasser")
+		and str(na4.get("text", "")) == "Gieß Erde mit Regen" and int(na4.get("result", -1)) == FieldData.WATER
+		and (Game.state.fields[maxi(fid4, 0)] as FieldData).kind == FieldData.WATER and bool(Game.state.reach9()["ok"]), "rain_fills_sea",
+		"zeile=%s werkzeug=%s feld_danach=%s" % [line4, str(na4.get("tool", "")), FieldData.kind_name((Game.state.fields[maxi(fid4, 0)] as FieldData).kind)])
+	# --- 5. Level 3 ohne Lava: die Hilfe nennt, was fehlt, und nimmt kein Wasser
+	print("Tour: b14 Level 3 Hilfe")
+	Game.rescue_on = true
+	await _start_lvl(3, 1)
+	await _wait(0.8)
+	for f5 in Game.state.fields:
+		if f5.kind == FieldData.LAVA:
+			Game.state._setk9(f5, FieldData.STONE)
+	world.refresh_all()
+	await _wait(0.3)
+	var w0 := Game.state.count(FieldData.WATER)
+	var d5 := _twist_without_progress()
+	await _swipe_move(int(d5[0]), int(d5[1]), int(d5[2]))
+	await _settle(8.0)
+	var shown := await _until_shown(dui.dead_card, 6.0)
+	await _wait(0.6)
+	var card_text := dui.dead_text.text
+	await _shot(dir, "b14f_level3_zu_wenig_lava")
+	if shown:
+		await _tap(dui.dead_gift)
+	await _settle(8.0)
+	await _wait(0.8)
+	await _shot(dir, "b14g_level3_geschenk")
+	var w1 := Game.state.count(FieldData.WATER)
+	Game.rescue_on = false
+	_check(shown and card_text == "Zu wenig Lava. Ich helfe." and w1 == w0 and dui.pill9_text.begins_with("Geschenk: +")
+		and dui.pill9_text.ends_with("Lava") and Game.state.count(FieldData.LAVA) > 0 and bool(Game.state.reach9()["ok"]), "net_keeps_water",
+		"karte=%s wasser=%d->%d pille=%s lava=%d" % [card_text, w0, w1, dui.pill9_text, Game.state.count(FieldData.LAVA)])
+	# --- 6. Die Nacht sagt, was sich geändert hat: Level 6 gestern gewonnen, heute Level 7
+	print("Tour: b14 Nacht")
+	ui._close_modal(true)
+	var g6 := Campaign.new_state(6, Campaign.board(6, 1))
+	for st in (Campaign.board(6, 1)["solution"] as Array):
+		var ab: Array = Days.solution_step(st)
+		g6.play(ab[0], ab[1])
+	for i6 in 6:
+		(Game.camp["stars"] as Array)[i6] = 2
+	(Game.camp["stars"] as Array)[6] = 0
+	Game.camp["pos"] = 6
+	Game.camp["world"] = g6.slot_board9()
+	Game.camp["world_level"] = 6
+	Game.camp["start"] = ""
+	Game.camp["start_level"] = 0
+	Game.start_level(7)
+	var card7 := await _until_shown(dui.goal_card, 8.0)
+	await _wait(0.3)
+	var how7 := str(Game.level_board.get("how", ""))
+	var line7 := str(Game.overnight.get("line", ""))
+	if card7:
+		await _tap(dui.gc_go)
+	var seen7 := await _shot_on_banner(dir, "b14h_nacht_sagt_was_sich_aendert", "Über Nacht: Ursuppe → Wasser", 5.0)
+	await _wait(1.5)
+	ui._coach_dismiss()
+	_check(g6.day_won and card7 and how7 == "carry" and line7 == "Über Nacht: Ursuppe → Wasser" and seen7
+		and Game.state.count(FieldData.WATER) == 24, "night_line_names_change", "wie=%s zeile=%s banner=%s wasser=%d" % [how7, line7,
+		str(seen7), Game.state.count(FieldData.WATER)])
+	Game.tutorial_done = td
+	ui._close_modal(true)
+
+
+## Eine Vierteldrehung, die keines dieser Felder bewegt.
+func _b14_move_avoiding(ids: Array) -> Array:
+	for m in GameState.MOVES:
+		if absi(int(m[2])) != 1:
+			continue
+		var hit := false
+		for i in ids:
+			if (Game.state.fields[int(i)] as FieldData).p[int(m[0])] == int(m[1]):
+				hit = true
+		if not hit:
+			return m
+	return GameState.MOVES[0]

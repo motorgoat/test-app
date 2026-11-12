@@ -39,6 +39,12 @@ func _init() -> void:
 		print("%d Prüfungen, %d Fehler" % [checks, failures])
 		quit(1 if failures > 0 else 0)
 		return
+	if OS.get_cmdline_user_args().has("--b14"):         # schneller Lauf: nur Build 14 (GDPD_LOGIK.md)
+		_b14_tests()
+		print("")
+		print("%d Prüfungen, %d Fehler" % [checks, failures])
+		quit(1 if failures > 0 else 0)
+		return
 	if OS.get_cmdline_user_args().has("--camp"):        # schneller Lauf: nur die Schöpfung
 		await _camp_tests()
 		print("")
@@ -152,6 +158,7 @@ func _init() -> void:
 	test_next_action_concrete()
 	test_review12()
 	test_card_close9()
+	_b14_tests()
 	await process_frame          # das Autoload Game ist jetzt im Baum
 	test_self_move_guard()
 	await test_bonus_game()
@@ -4386,7 +4393,8 @@ func test_goal_progress9() -> void:
 
 func test_mercy9() -> void:
 	# Gnade: ab der ★-Zone alle 3 Schritte ohne Fortschritt +1 Regen (höchstens 3), nie davor
-	var gs := camp_state(10)
+	# Build 14: nur, wenn Regen etwas bringt (hier: Wasser am Ufer → Ursuppe)
+	var gs := camp_state(10, {0: E, 20: E, 40: E})
 	gs.rain = 0
 	var before_zone := false
 	var gave := 0
@@ -4831,14 +4839,14 @@ func test_solvable9() -> void:
 		k3[int(fid2)] = FieldData.LAVA
 	var gk := Campaign.new_state(3, {"kinds": k3, "seed": 5})
 	var te3 := Time.get_ticks_usec()
-	var e3 := Campaign.ensure(3, {"kinds": k3, "seed": 5, "how": "stored"}, 1)
+	var e3 := Campaign.ensure(3, {"kinds": k3, "seed": 5, "how": "carry"}, 1)
 	te3 = Time.get_ticks_usec() - te3
 	var ge := Campaign.new_state(3, e3)
 	var n_lava := 0
 	for fd in ge.fields:
 		if fd.kind == FieldData.LAVA:
 			n_lava += 1
-	check(gk.biggest9(FieldData.LAVA) == 20 and str(e3["how"]) == "stored" and ge.biggest9(FieldData.LAVA) <= GameState.CLUMP_CAP9
+	check(gk.biggest9(FieldData.LAVA) == 20 and str(e3["how"]) == "carry" and ge.biggest9(FieldData.LAVA) <= GameState.CLUMP_CAP9
 		and n_lava == 20 and bool(ge.reach9()["ok"]) and str(e3["line"]) != "",
 		"solvable9: Level 3 aus der eigenen Welt: Lava-Klumpen 20 → %d geteilt, 20 Lava bleiben („%s“)" % [ge.biggest9(FieldData.LAVA), str(e3["line"])])
 	# Zu wenig Lava (5 für 14 Felsen): Nachschub reicht nicht → Pool-Brett, erklärt; 10 Lava: Nachschub über Nacht
@@ -4951,6 +4959,26 @@ func test_rescue_game() -> void:
 	g._rescue_check()
 	g._rescue_check()
 	check(told.size() == 2 and str((told[1] as Dictionary).get("why", "")) == "stall", "Netz: festgefahren → der Charakter bietet Hilfe an (einmal)")
+	# Build 14: „Weiterspielen“ – das Angebot kommt erst nach 12 Schritten wieder (nicht alle 6)
+	var s_now: int = g.state.steps9()
+	g.rescue_later()
+	g.state.twists += 8
+	g.state.gain_at9 = g.state.steps9() - 3 * GameState.STALL9
+	g._rescue_check()
+	var early := told.size()
+	g.state.twists += 4
+	g._rescue_check()
+	check(g.rescue_offer.size() > 0 and early == 2 and told.size() == 3 and g.state.steps9() == s_now + GameScript.RESCUE_WAIT,
+		"Netz: nach „Weiterspielen“ fragt der Charakter erst nach %d Schritten wieder (%d → %d Angebote)" % [GameScript.RESCUE_WAIT, early, told.size()])
+	g.state.twists -= 12
+	g.rescue_offer = {}
+	# Build 14: auch wiedergewonnener Boden zählt als Fortschritt (Gruppe fällt und steigt wieder)
+	var gg := Campaign.new_state(11, Campaign.board(11, 1))
+	gg.twists = 20
+	gg.gain_at9 = 2
+	gg.sum_at9 = gg._subs_sum9() - 1
+	gg._check_goal9([], true)
+	check(gg.gain_at9 == gg.steps9(), "Netz: wiedergewonnener Boden zählt als Fortschritt (kein „Hängst du fest?“ beim Aufholen)")
 	# Neue Welt: dasselbe Level auf einem geprüften Pool-Brett
 	check(g.new_world() and g.level_no == 3 and str(g.level_board.get("how", "")) == "pool" and int(g.level_board.get("index", 0)) >= 1
 		and g.state.progress9() == 0 and g.rescue_offer.is_empty(), "Netz: „Neue Welt“ startet Level 3 auf Pool-Brett %d" % int(g.level_board.get("index", -1)))
@@ -4958,7 +4986,7 @@ func test_rescue_game() -> void:
 	g.rescue_on = false
 	g.state.gain_at9 = g.state.steps9() - 20
 	g._rescue_check()
-	check(told.size() == 2, "Netz aus: kein Angebot fürs Stocken")
+	check(told.size() == 3, "Netz aus: kein Angebot fürs Stocken")
 	g.rescue_on = true
 	# Welt des Tages: dasselbe Netz, „Neue Welt“ = ein anderes Brett derselben Vorlage
 	var gw := _daily_game("user://test_rescue_wdt.cfg", t, true)
@@ -5215,7 +5243,7 @@ func test_glacier10() -> void:
 			continue
 		kinds[int(free[fi])] = int(k)
 		fi += 1
-	var e3 := Campaign.ensure(41, {"kinds": kinds, "seed": 3, "how": "stored"}, 1)
+	var e3 := Campaign.ensure(41, {"kinds": kinds, "seed": 3, "how": "carry"}, 1)
 	var ge := Campaign.new_state(41, e3)
 	check(ge.biggest9(FieldData.ICE) <= Campaign.CLUMP_CAP_ICE or str(e3["how"]) == "fallback",
 		"ensure10: ein Eis-Klumpen aus der eigenen Welt wird geteilt (%d → %d, %s)" % [8, ge.biggest9(FieldData.ICE), str(e3.get("line", ""))])
@@ -6333,6 +6361,8 @@ func _action_ok(gs: GameState, a: Dictionary) -> String:
 				or c.sub_progress9(gs.goal9[0]) > gs.sub_progress9(gs.goal9[0]) else "Gruppe nicht größer"
 		if tp == "grow":
 			return "" if _subs_sum(c) > _subs_sum(gs) or c.day_won else "kein Fortschritt"
+		if tp == "danger" and not bool(a.get("averts", true)):
+			return ""                  # Build 14: keine Drehung wendet sie ab – die Zeile sagt es, die Scheibe verliert am wenigsten
 		if tp == "danger":
 			var hit := {"volcano": "erupt", "bolt": "bolt", "pack": "pack_hunt", "hunger": "starve", "smog": "polluted",
 				"war": "war_hit", "flood": "flood", "glacier": "freeze", "impact": "-"}
@@ -6397,6 +6427,7 @@ func _camp_tests() -> void:
 	test_next_action9()
 	test_next_action_all()
 	test_next_action_concrete()
+	_b14_tests()
 	await process_frame
 
 
@@ -6558,3 +6589,1411 @@ func test_hint9() -> void:
 	var fs := g.field_state8(g.fields[0])
 	check(keys_ok and fs.has("sealed") and fs.has("have") and fs.has("strength") and g.day_status().has("subs")
 		and g.day_status().has("next_star"), "preview9/field_state9/day_status: Vertrag der Oberfläche")
+
+
+# =============================================================================
+# Build 14 (docs/GDPD_LOGIK.md): „Das muss logisch aufgebaut sein.“ Die Meldung zu Build 13: vorausgespielt, dann ging
+# keine Ursuppe mehr, weil kein Wasser mehr da war. Diese Prüfungen halten fest, was seitdem immer gilt:
+#   1 jeder Start ist lösbar, auf jedem Weg  2 keine Gefahr macht ein Level unlösbar  3 macht es der Spieler selbst
+#   unlösbar, kommt die Hilfe sofort, sagt, was fehlt, und bringt Fortschritt  4 oben steht immer eine Handlung, die geht.
+# Feste Seeds; zusammen etwa eine Minute.
+# =============================================================================
+
+func _b14_tests() -> void:
+	var t0 := Time.get_ticks_msec()
+	test_logic14_layer()
+	test_soup_recipe14()
+	test_rain_cycle14()
+	test_mercy14()
+	test_reach14()
+	test_last_holds14()
+	test_net_water14()
+	test_line_follow14()
+	test_start_gate14()
+	test_night14()
+	test_hint14()
+	test_never_stuck14()
+	test_start_invariant14()
+	test_play_invariant14()
+	test_no_water_ursuppe14()
+	test_texts14()
+	print("  Build 14: alle Prüfungen zusammen %d ms" % (Time.get_ticks_msec() - t0))
+
+
+func _cnt14(gs: GameState, k: int) -> int:
+	var n := 0
+	for f in gs.fields:
+		if f.kind == k:
+			n += 1
+	return n
+
+
+func _water_of(n: int) -> int:
+	var comp: Dictionary = Campaign.config(n)["comp"]
+	var t := 0
+	for key in comp:
+		t += int(comp[key])
+	return 54 - t
+
+
+func _kinds_of(gs: GameState) -> Array:
+	var out: Array = []
+	for f in gs.fields:
+		out.append(f.kind)
+	return out
+
+
+## Die Zeile oben an diesem Stand prüfen (GDPD_LOGIK.md 4): 2–6 Wörter, eine Scheibe oder ein Werkzeug, möglich
+## (_action_ok), nie die alten Ersatz-Zeilen. Fehler landen in bad.
+func _line_ok14(gs: GameState, a: Dictionary, bad: Array, tag: String) -> void:
+	var txt := str(a.get("text", ""))
+	var mv: Dictionary = a.get("move", {})
+	var tool := str(a.get("tool", ""))
+	var wc := txt.split(" ", false).size()
+	var why := _action_ok(gs, a)
+	var wrong := ""
+	if wc < 2 or wc > 6:
+		wrong = "Wörter"
+	elif mv.is_empty() and tool == "":
+		wrong = "keine Handlung"
+	elif txt == "Dreh eine Scheibe" or txt == "Dreh weiter, Regen kommt" or txt.contains(" wächst") or txt == "Hol dir Hilfe":
+		wrong = "alte Zeile"
+	elif why != "" and why != "two_fail":
+		wrong = why
+	elif tool == "rain" and not gs.rain_ok9(gs.fields[int(a.get("field", 0))]):
+		wrong = "Regen geht nicht"
+	if wrong != "" and bad.size() < 8:
+		bad.append([tag, gs.level_no, gs.steps9(), txt, wrong])
+
+
+## Ein Spieler, der genau tut, was oben steht (Drehung oder Werkzeug). net: Er nimmt die Hilfe an, wenn die Zeile sie
+## nennt oder das Netz sie anbietet (wie Game._rescue_check). Ohne Netz: sagt die Zeile „Hilfe“, dreht er irgendeine
+## Scheibe (blind). Jede Zeile wird geprüft (_line_ok14). {"won", "steps", "gifts", "blind", "most" (so oft dieselbe
+## Stellung), "nogift" (Angebot ohne Geschenk), "flat" (Geschenk ohne Fortschritt)}.
+func _follow14(gs: GameState, cap: int, net: bool, bad: Array, tag: String = "") -> Dictionary:
+	var gifts := 0
+	var blind := 0
+	var acts := 0
+	var seen := {}
+	var most := 0
+	var told_at := -99
+	var dead_told := false
+	var nogift := 0
+	var flat := 0
+	while not gs.day_won and gs.steps9() < cap and acts < cap * 4:
+		acts += 1
+		var a := gs.next_action()
+		_line_ok14(gs, a, bad, tag)
+		var mv: Dictionary = a.get("move", {})
+		var tool := str(a.get("tool", ""))
+		if tool == "gift":
+			if net and not gs.gift_plan9().is_empty():
+				var s0 := gs._subs_sum9() + gs.progress9()
+				gs.play({"type": "gift"})
+				gifts += 1
+				if gs._subs_sum9() + gs.progress9() <= s0 and not gs.day_won:
+					flat += 1
+				told_at = gs.steps9()
+			else:
+				blind += 1
+				tw(gs, GameState.MOVES[(acts * 7 + gs.steps9()) % 27])
+		elif tool == "rain" or tool == "meteor":
+			gs.play({"type": tool, "field": int(a["field"])})
+		elif not mv.is_empty():
+			tw(gs, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+			var key := gs.slot_board9()
+			seen[key] = int(seen.get(key, 0)) + 1
+			most = maxi(most, int(seen[key]))
+		else:
+			blind += 1
+			tw(gs, GameState.MOVES[(acts * 7 + gs.steps9()) % 27])
+		if gs.day_won or not net:
+			continue
+		var why := gs.stuck9()
+		if why != "dead":
+			dead_told = false
+		if why == "":
+			continue
+		if (why == "dead" and not dead_told) or gs.steps9() - told_at >= GameState.STALL9:
+			dead_told = why == "dead"
+			told_at = gs.steps9()
+			if gs.gift_plan9().is_empty():
+				nogift += 1
+			else:
+				var s1 := gs._subs_sum9() + gs.progress9()
+				gs.play({"type": "gift"})
+				gifts += 1
+				if gs._subs_sum9() + gs.progress9() <= s1 and not gs.day_won:
+					flat += 1
+	return {"won": gs.day_won, "steps": gs.steps9(), "gifts": gifts, "blind": blind, "most": most, "nogift": nogift, "flat": flat}
+
+
+## Der Tipp-Bot: spielt nur den Tipp (best_action). net: mit dem Sicherheitsnetz wie im Spiel. [gewonnen, Schritte, Geschenke]
+func _hint14(gs: GameState, cap: int, net: bool) -> Array:
+	var gifts := 0
+	var told_at := -99
+	var dead_told := false
+	var acts := 0
+	while not gs.day_won and gs.steps9() < cap and acts < cap * 3:
+		acts += 1
+		var a := gs.best_action()
+		if a.is_empty():
+			break
+		gs.play(a)
+		if gs.day_won or not net:
+			continue
+		var why := gs.stuck9()
+		if why != "dead":
+			dead_told = false
+		if why == "":
+			continue
+		if (why == "dead" and not dead_told) or gs.steps9() - told_at >= GameState.STALL9:
+			dead_told = why == "dead"
+			told_at = gs.steps9()
+			if not gs.gift_plan9().is_empty():
+				gs.play({"type": "gift"})
+				gifts += 1
+	return [gs.day_won, gs.steps9(), gifts]
+
+
+## Ein sorgloser Spieler („vorausgespielt“): twists zufällige Drehungen; jeder Regen sofort auf ein Feld, auf das er
+## wirkt (burn: zuerst auf Wasser – so verbraucht er das Meer), Meteore irgendwohin. Hört auf, wenn das Level gewonnen ist.
+func _careless14(gs: GameState, rng: RandomNumberGenerator, twists: int, burn: bool, no_win: bool = false) -> void:
+	var t0 := gs.twists
+	var guard := 0
+	while not gs.day_won and gs.twists - t0 < twists and guard < twists * 6:
+		guard += 1
+		if no_win:
+			# sorglos, aber nie die Aktion, die das Level beendet (der Stand danach soll geprüft werden)
+			var mvn: Array = GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)]
+			var cn := gs.clone()
+			tw(cn, mvn)
+			if not cn.day_won:
+				tw(gs, mvn)
+				if gs.rain > 0:
+					var wn: Array = []
+					for f in gs.fields:
+						if gs.rain_ok9(f) and (not burn or f.kind == WATER):
+							wn.append(f.id)
+					if not wn.is_empty():
+						var cr := gs.clone()
+						var pick := int(wn[rng.randi_range(0, wn.size() - 1)])
+						cr.play({"type": "rain", "field": pick})
+						if not cr.day_won:
+							gs.play({"type": "rain", "field": pick})
+			continue
+		if gs.rain > 0:
+			var cand: Array = []
+			var wat: Array = []
+			for f in gs.fields:
+				if gs.rain_ok9(f):
+					cand.append(f.id)
+					if f.kind == WATER:
+						wat.append(f.id)
+			if burn and not wat.is_empty():
+				cand = wat
+			if not cand.is_empty():
+				gs.play({"type": "rain", "field": int(cand[rng.randi_range(0, cand.size() - 1)])})
+				continue
+		if gs.meteors > 0 and rng.randf() < 0.5:
+			var land: Array = []
+			for f in gs.fields:
+				if gs.meteor_ok9(f):
+					land.append(f.id)
+			if not land.is_empty():
+				gs.play({"type": "strike", "field": int(land[rng.randi_range(0, land.size() - 1)])})
+				continue
+		tw(gs, GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)])
+
+
+## A1: Die Regeln ab Build 14 leben im Code (nur im Spiel, nie im Modell-Modus) und haben einen Fingerabdruck.
+func test_logic14_layer() -> void:
+	GameState.engine9_mode = true
+	var m8 := Campaign.new_state(8, Campaign.board(8, 1))
+	var m1 := Campaign.new_state(1, Campaign.board(1, 1))
+	var m1_rain := m1.tool_in_level9("rain")
+	GameState.engine9_mode = false
+	var g8 := Campaign.new_state(8, Campaign.board(8, 1))
+	var g1 := Campaign.new_state(1, Campaign.board(1, 1))
+	var data_rain: Array = Campaign.config(8)["rain"]
+	check(not m8.thrive9.has(WATER) and m8.rain9.size() == data_rain.size() and not m8.cycle9 and m1_rain,
+		"logic14: im Modell-Modus gelten genau die Level-Daten (kein Wasser-Rezept in Level 8, Regen-Tabelle wie in den Daten)")
+	check(g8.thrive9.has(WATER) and int((g8.thrive9[WATER] as Dictionary)["up"]) == SOUP and g8.rain9.size() == data_rain.size() + 1
+		and g8.cycle9 and not g1.tool_in_level9("rain") and not g1.cycle9,
+		"logic14: im Spiel gelten die Regeln ab Build 14 (Rezept in Level 8, Kreislauf, kein Regen in Level 1)")
+	check(not (Campaign.config(8)["thrive"] as Dictionary).has(str(WATER)) and g8.day["rain"] == data_rain,
+		"logic14: die Level-Daten selbst bleiben unverändert (der Abgleich mit dem Modell spielt sie)")
+	var c8 := Campaign.config(8)
+	check(GameState.RULES_VERSION >= 14 and GameScript._cfg_hash(c8) == GameScript._cfg_hash(c8, GameState.RULES_VERSION)
+		and GameScript._cfg_hash(c8, 13) != GameScript._cfg_hash(c8, 14) and GameScript._cfg_hash(c8) != GameScript._cfg_hash(Campaign.config(9)),
+		"logic14: der Fingerabdruck eines Levels rechnet die Regel-Version ein (ein alter Versuch beginnt neu)")
+	# die Welt des Tages bekommt die Regeln über die Level-Nummer ihrer Vorlage
+	var cw := Campaign.config(9)
+	cw["title"] = "Welt des Tages"
+	var gw := GameState.new()
+	gw.setup_level(cw, Campaign.board(9, 2)["kinds"], 3)
+	check(gw.thrive9.has(WATER) and gw.cycle9, "logic14: auch die Welt des Tages (Vorlage Level 9) hat Rezept und Kreislauf")
+
+
+## A2: Ein Rezept bleibt – Wasser + 2 Wärme + Fels → Ursuppe gilt auch in Level 8 und 9. Der Fall des Spielers:
+## Regen vorher verbraucht, trotzdem geht Ursuppe.
+func test_soup_recipe14() -> void:
+	for n in [6, 7, 8, 9]:
+		# Wasser 20 berührt eine Lava-Gruppe aus 2 (Wärme 2) und einen Fels
+		var probe := camp_state(n)
+		var a := other_nb(probe, 20, 0)
+		var b := other_nb(probe, 20, 1)
+		var a2 := -1
+		for g in probe.nb9(a):
+			if int(g) != 20 and int(g) != b and not probe.nb9(20).has(int(g)):
+				a2 = int(g)
+				break
+		var gs := camp_state(n, {a: LAVA, a2: LAVA, b: STONE})
+		gs.rain = 0
+		var m := move_avoiding(gs, [20, a, a2, b])
+		var became := false
+		var pill := false
+		for i in 4:
+			var r := tw(gs, m)
+			for e in r["events"]:
+				if str(e["type"]) == "thrive" and int(e["field"]) == 20 and int(e["kind"]) == SOUP:
+					pill = Campaign.thrive_pill(int(e["from"]), int(e["kind"])) == "Ursuppe entsteht"
+			if (gs.fields[20] as FieldData).kind == SOUP or (gs.fields[20] as FieldData).kind == CELLS:
+				became = true
+				break
+		check(became and pill, "soup14: Level %d – Wasser neben 2 Wärme und Fels wird Ursuppe („Ursuppe entsteht“)" % n)
+	# Level 9, die ersten zwei Regen verschwendet (auf Fels, wie Level 5 es lehrt): die Zeile führt trotzdem zum Ziel
+	var bad: Array = []
+	var worst := 0
+	var lost: Array = []
+	for i in range(1, 11):
+		var gs9 := Campaign.new_state(9, Campaign.board(9, i))
+		var wasted := 0
+		var guard := 0
+		while wasted < 2 and guard < 12:
+			guard += 1
+			if gs9.rain > 0:
+				for f in gs9.fields:
+					if f.kind == STONE and gs9.rain_ok9(f):
+						gs9.play({"type": "rain", "field": f.id})
+						wasted += 1
+						break
+			else:
+				tw(gs9, GameState.MOVES[(i + guard) % 27])
+		var res := _follow14(gs9, 40, false, bad, "L9/%d" % i)
+		worst = maxi(worst, int(res["steps"]))
+		if not bool(res["won"]) or int(res["blind"]) > 0:
+			lost.append([i, res])
+	print("  soup14: Level 9 mit 2 verschwendeten Regen, 10 Bretter, der Zeile folgen: höchstens %d Schritte" % worst)
+	check(lost.is_empty() and bad.is_empty() and worst <= 11, "soup14: Level 9 mit 2 verschwendeten Regen – wer der Zeile folgt, gewinnt ohne Hilfe (höchstens %d Schritte; offen %s, Zeilen %s)" % [worst, str(lost.slice(0, 2)), str(bad.slice(0, 2))])
+	# alle Pool-Lösungen von Level 8 und 9 gewinnen im Spiel spätestens bei solved_in
+	var late: Array = []
+	for n2 in [8, 9]:
+		for i2 in Campaign.pool_size(n2):
+			var b2 := Campaign.board(n2, i2)
+			var g2 := Campaign.new_state(n2, b2)
+			for st in (b2["solution"] as Array):
+				var ab: Array = Days.solution_step(st)
+				g2.play(ab[0], ab[1])
+				if g2.day_won:
+					break
+			if not g2.day_won or g2.day_won_at > int(b2["solved_in"]):
+				late.append([n2, i2, g2.day_won, g2.day_won_at, int(b2["solved_in"])])
+	check(late.is_empty(), "soup14: alle 40 Pool-Lösungen von Level 8/9 gewinnen im Spiel spätestens bei solved_in (%s)" % str(late.slice(0, 3)))
+
+
+## A3: Regen ist ein Kreislauf (Level 6–14): Regen auf Erde macht Wasser. Ohne Wasser führt die Zeile zurück zum Meer.
+func test_rain_cycle14() -> void:
+	var ok := true
+	for n in range(6, 15):
+		var gs := camp_state(n, {0: E, 1: STONE})
+		gs.rain = 1
+		if gs.rain_to9(gs.fields[0]) != WATER:
+			ok = false
+	var g18 := camp_state(18, {0: E})
+	var g5 := camp_state(5, {0: E, 1: STONE})
+	check(ok and g18.rain_to9(g18.fields[0]) == MOSS and g5.rain_to9(g5.fields[0]) < 0 and not g5.cycle9,
+		"cycle14: Regen auf Erde macht in Level 6–14 Wasser; Level 18 Moos, Level 5 nichts")
+	# Der Tipp wertet den Kreislauf nicht (keine Reihe „3 Felsen → Erde“ fürs Ziel): Erde und Fels gehören nicht zur Kette
+	var g6 := Campaign.new_state(6, Campaign.board(6, 1))
+	check(not g6.chain9.has(E) and not g6.chain9.has(STONE) and g6.chain9.has(WATER), "cycle14: der Kreislauf ändert die Ziel-Kette nicht")
+	# Level 6–9 ganz ohne Wasser (alles Wasser ist Erde), 1 Regen: erreichbar, die Zeile gießt Erde, es geht ohne Geschenk
+	var bad: Array = []
+	var notes: Array = []
+	var fails: Array = []
+	for n2 in [6, 7, 8, 9]:
+		var b := Campaign.board(n2, 1)
+		var kinds: Array = (b["kinds"] as Array).duplicate()
+		for i in kinds.size():
+			if int(kinds[i]) == WATER:
+				kinds[i] = E
+		var gd := Campaign.new_state(n2, {"kinds": kinds, "seed": 3})
+		gd.rain = 1
+		var a := gd.next_action()
+		# Level 6/7: die erste Zeile gießt Erde; Level 8/9 haben noch Ursuppe und beginnen mit ihr
+		var first_ok: bool = bool(gd.reach9()["ok"]) and (n2 >= 8 or (str(a.get("tool", "")) == "rain" and int(a.get("result", -1)) == WATER
+			and (gd.fields[int(a.get("field", 0))] as FieldData).kind == E and str(a["text"]) == "Gieß Erde mit Regen"))
+		var res := _follow14(gd, 120, false, bad, "ohne Wasser L%d" % n2)
+		notes.append("L%d %d" % [n2, int(res["steps"])])
+		if not first_ok or not bool(res["won"]) or int(res["blind"]) > 0:
+			fails.append([n2, first_ok, str(a.get("text", "")), res])
+	check(fails.is_empty() and bad.is_empty(), "cycle14: Level 6–9 ohne ein einziges Wasser-Feld – „Gieß Erde mit Regen → Wasser“, gewonnen ohne Geschenk (Schritte %s; %s %s)" % [str(notes), str(fails.slice(0, 2)), str(bad.slice(0, 2))])
+	# Level 9 ohne Wasser und ohne Erde: die Zeile nennt den Fels (Fels → Erde → Wasser)
+	var b9 := Campaign.board(9, 1)
+	var k9: Array = (b9["kinds"] as Array).duplicate()
+	for i2 in k9.size():
+		if int(k9[i2]) == WATER or int(k9[i2]) == E or int(k9[i2]) == SOUP:
+			k9[i2] = STONE
+	var g9 := Campaign.new_state(9, {"kinds": k9, "seed": 3})
+	g9.rain = 1
+	var a9 := g9.next_action()
+	check(str(a9.get("tool", "")) == "rain" and (g9.fields[int(a9.get("field", 0))] as FieldData).kind == STONE and str(a9["text"]) == "Gieß Fels mit Regen",
+		"cycle14: Level 9 ohne Wasser und Erde – die Zeile gießt Fels (%s)" % str(a9.get("line", "")))
+	# Solange es Wasser am Ufer gibt, nennt die Zeile nie Regen auf Erde oder Fels
+	var gp := Campaign.new_state(9, Campaign.board(9, 2))
+	gp.rain = 3
+	var ap := gp.next_action()
+	check(str(ap.get("tool", "")) == "rain" and (gp.fields[int(ap.get("field", 0))] as FieldData).kind == WATER,
+		"cycle14: mit Wasser am Ufer gießt die Zeile Wasser, nie den Fels (%s)" % str(ap.get("line", "")))
+
+
+## A4: Regen erst, wenn es ihn gibt (nie in Level 1–4), Hilfe von oben nur, wenn Regen etwas bringt.
+func test_mercy14() -> void:
+	var rng := RandomNumberGenerator.new()
+	var bad: Array = []
+	for n in [1, 2, 3, 4]:
+		rng.seed = 140 + n
+		var gs := Campaign.new_state(n, Campaign.board(n, 1))
+		var mercy := 0
+		for i in 150:
+			if gs.day_won:
+				break
+			var mv: Array = GameState.MOVES[rng.randi_range(0, 26)]
+			var c := gs.clone()
+			tw(c, mv)
+			if c.day_won:
+				continue               # sorglos: nie der Zug, der gewinnt
+			var r := tw(gs, mv)
+			if _types(r).has("mercy"):
+				mercy += 1
+		if gs.rain != 0 or mercy > 0 or gs.tool_unlocked("rain") or gs.steps9() < 10:
+			bad.append([n, gs.rain, mercy, gs.steps9()])
+	check(bad.is_empty(), "mercy14: Level 1–4 nach 150 sorglosen Drehungen: kein Regen, keine Hilfe von oben, kein Regen-Knopf (%s)" % str(bad))
+	var g5 := Campaign.new_state(5, Campaign.board(5, 1))
+	var g41 := Campaign.new_state(41, Campaign.board(41, 1))
+	check(g5.tool_unlocked("rain") and Campaign.new_state(6, Campaign.board(6, 1)).tool_unlocked("rain"),
+		"mercy14: ab Level 5 gibt es den Regen (Dampf), ab Level 6 von Anfang an")
+	# Level 41 ganz aus Eis: Regen brächte nichts → keine Hilfe von oben
+	for f in g41.fields:
+		if f.kind != FieldData.MAMMOTH:
+			g41._setk9(f, FieldData.ICE)
+	g41.rain = 0
+	var gave := 0
+	for i2 in 24:
+		var r2 := tw(g41, [1, 1, 1])
+		if _types(r2).has("mercy"):
+			gave += 1
+	check(gave == 0 and g41.rain <= 3, "mercy14: Level 41 ganz aus Eis – keine Hilfe von oben, die nichts bringt (%d×)" % gave)
+
+
+## A5: Die Prüfung „geht das Level noch?“ ist ehrlich, aber nie zu streng.
+func test_reach14() -> void:
+	# 1. Kein Fehlalarm: jedes Pool-Brett und jeder Stand entlang der Pool-Lösungen, die im Spiel gewinnen
+	var t0 := Time.get_ticks_msec()
+	var states := 0
+	var alarms: Array = []
+	var worst := 0
+	for n in range(1, Campaign.COUNT + 1):
+		for i in range(n % 5, Campaign.pool_size(n), 5):
+			var b := Campaign.board(n, i)
+			var gs := Campaign.new_state(n, b)
+			var hist: Array = [gs.clone()]
+			for st in (b["solution"] as Array):
+				var ab: Array = Days.solution_step(st)
+				gs.play(ab[0], ab[1])
+				if gs.day_won:
+					break
+				hist.append(gs.clone())
+			if not gs.day_won:
+				continue
+			for h in hist:
+				states += 1
+				(h as GameState).satt_ids9()          # Nachbarn und Gruppen der Kopie sind dann gerechnet (zählen nicht zur Prüfung)
+				var tu := Time.get_ticks_usec()
+				var r := (h as GameState).reach9()
+				worst = maxi(worst, Time.get_ticks_usec() - tu)
+				if not bool(r["ok"]) and alarms.size() < 5:
+					alarms.append([n, i, (h as GameState).steps9(), r])
+	print("  reach14: %d Stände entlang der Pool-Lösungen, reach9 höchstens %.2f ms (%d ms)" % [states, worst / 1000.0, Time.get_ticks_msec() - t0])
+	check(alarms.is_empty() and states > 1200, "reach14: kein Fehlalarm auf %d Ständen entlang gewinnender Pool-Lösungen (%s)" % [states, str(alarms.slice(0, 2))])
+	check(worst < 6000, "reach14: reach9 höchstens %.2f ms am PC (allein gemessen etwa 1,5 ms)" % (worst / 1000.0))
+	# 2. Echte Sackgassen werden gesehen
+	var dead: Array = []
+	# Level 1: 6 Lava nur auf Ecken (keine Reihe möglich, kein Regen im Level)
+	var set1 := {}
+	var probe := camp_state(1)
+	var nc := 0
+	for f in probe.fields:
+		if FieldData.sticker_type(f.p) == 3 and nc < 6:
+			set1[f.id] = LAVA
+			nc += 1
+	var g1 := camp_state(1, set1)
+	var r1 := g1.reach9()
+	if bool(r1["ok"]) or str(r1["why"]) != "rows":
+		dead.append(["L1 Ecken", r1])
+	# Level 8 mit 1 Lava: Ursuppe braucht 2 Wärme
+	var g8 := Campaign.new_state(8, Campaign.board(8, 1))
+	var keep := true
+	for f in g8.fields:
+		if f.kind == LAVA:
+			if keep:
+				keep = false
+			else:
+				g8._setk9(f, STONE)
+	var r8 := g8.reach9()
+	if bool(r8["ok"]) or str(r8["why"]) != "needs" or int(r8["kind"]) != LAVA:
+		dead.append(["L8 eine Lava", r8])
+	# Level 13 mit 1 Fels: Quallen brauchen 2 Fels
+	var g13 := Campaign.new_state(13, Campaign.board(13, 1))
+	keep = true
+	for f in g13.fields:
+		if f.kind == STONE:
+			if keep:
+				keep = false
+			else:
+				g13._setk9(f, E)
+	if bool(g13.reach9()["ok"]):
+		dead.append(["L13 ein Fels", g13.reach9()])
+	# Level 26 ohne Insekten, 46 ohne Fels, 47 ohne Feuerstelle
+	for item in [[26, FieldData.INSECTS, WATER], [46, STONE, WATER], [47, FieldData.CAMP, WATER]]:
+		var gx := Campaign.new_state(int(item[0]), Campaign.board(int(item[0]), 1))
+		for f in gx.fields:
+			if f.kind == int(item[1]):
+				gx._setk9(f, int(item[2]))
+		var rx := gx.reach9()
+		if bool(rx["ok"]) or gx.stuck9() != "dead" or gx.gift_plan9().is_empty():
+			dead.append(["L%d ohne %s" % [int(item[0]), FieldData.kind_name(int(item[1]))], rx])
+	# Level 49 mit 2 Frühmenschen und keiner Hütte: nie 3 Hütten
+	var g49 := camp_state(49, {0: FieldData.EARLY, 9: FieldData.EARLY, 20: ANIMALS, 30: FOREST})
+	var r49 := g49.reach9()
+	if bool(r49["ok"]) or str(r49["why"]) != "few":
+		dead.append(["L49", r49])
+	# Level 41: 53 Eis und 1 Mammut
+	var set41 := {}
+	for i41 in 54:
+		set41[i41] = FieldData.ICE
+	set41[7] = FieldData.MAMMOTH
+	var g41 := camp_state(41, set41)
+	if bool(g41.reach9()["ok"]):
+		dead.append(["L41 Eis", g41.reach9()])
+	check(dead.is_empty(), "reach14: echte Sackgassen erkannt (L1 Ecken, L8 eine Lava, L13 ein Fels, L26/46/47 ohne Quelle, L49, L41) (%s)" % str(dead.slice(0, 3)))
+	# 3. Versiegelte Dörfer neben Kirchen (Level 58, Meldung der Prüfung): kein Fehlalarm
+	var p58 := camp_state(58)
+	var set58 := {}
+	var used := {}
+	var placed := 0
+	for f in p58.fields:
+		if placed >= 3:
+			break
+		if FieldData.sticker_type(f.p) != 2 or used.has(f.id):
+			continue
+		var nbf := -1
+		for g in p58.nb9(f.id):
+			if not used.has(int(g)) and (p58.fields[int(g)] as FieldData).p != f.p:
+				var free := true
+				for g2 in p58.nb9(int(g)):
+					if used.has(int(g2)):
+						free = false
+				if free:
+					nbf = int(g)
+					break
+		if nbf < 0:
+			continue
+		var clash := false
+		for g3 in p58.nb9(f.id):
+			if used.has(int(g3)):
+				clash = true
+		if clash:
+			continue
+		set58[f.id] = VILLAGE
+		set58[nbf] = CHURCH
+		used[f.id] = true
+		used[nbf] = true
+		for g4 in p58.nb9(f.id):
+			used[int(g4)] = true
+		for g5 in p58.nb9(nbf):
+			used[int(g5)] = true
+		placed += 1
+	var g58 := camp_state(58, set58)
+	for f in g58.fields:
+		if f.kind == VILLAGE:
+			f.best = {"food": 1, "work": 1}
+	check(placed == 3 and g58.church_touch9().is_empty() and bool(g58.reach9()["ok"]),
+		"reach14: Level 58 – 3 versorgte (versiegelte) Dörfer neben Kirchen, kein Futter auf dem Brett: kein Fehlalarm (%s)" % str(g58.reach9()))
+
+
+## A6: Die Gefahr nimmt nie das Letzte, was das Ziel braucht.
+func test_last_holds14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var rng := RandomNumberGenerator.new()
+	var broke: Array = []
+	var holds := 0
+	var rounds := 0
+	for n in [27, 41, 42, 47, 48, 55, 56, 57, 58, 59]:
+		for bi in [1]:
+			rng.seed = n * 100 + bi
+			var gs := Campaign.new_state(n, Campaign.board(n, bi))
+			for i in 60:
+				if gs.day_won:
+					break
+				var mv: Array = GameState.MOVES[rng.randi_range(0, 26)]
+				# Nur die Gefahr zählt: was die Drehung selbst anrichtet (Reihen, die Quellen verbrauchen), ist Sache des Netzes
+				var pre := gs.clone()
+				pre.apply_rotation(int(mv[0]), int(mv[1]), int(mv[2]))
+				pre._resolve_merges9([])
+				var before_ok := bool(pre.reach9()["ok"])
+				var r := tw(gs, mv)
+				rounds += 1
+				for e in r["events"]:
+					if str(e["type"]) == "hold_last":
+						holds += 1
+				if before_ok and not gs.day_won and not bool(gs.reach9()["ok"]):
+					var danger := false
+					for tp in _types(r):
+						if ["starve", "burn", "erupt", "pack_hunt", "freeze", "polluted", "flood", "war_hit"].has(tp):
+							danger = true
+					if danger and broke.size() < 5:
+						broke.append([n, bi, i, gs.reach9()])
+	print("  hold14: %d Runden in 10 späten Leveln, %d× „Hält durch!“ (%d ms)" % [rounds, holds, Time.get_ticks_msec() - t0])
+	check(broke.is_empty(), "hold14: keine Gefahr macht ein Level unerreichbar (%d Runden, %s)" % [rounds, str(broke.slice(0, 2))])
+	# Level 56: genau 3 Städte, Krieg läuft – die Front nimmt keine der drei
+	var p := camp_state(56)
+	var c1 := 4
+	var c2 := other_nb(p, c1, 0)
+	var towns: Array = []
+	for g in p.nb9(c1):
+		if int(g) != c2 and towns.size() < 2:
+			towns.append(int(g))
+	for g2 in p.nb9(c2):
+		if int(g2) != c1 and not towns.has(int(g2)) and towns.size() < 3:
+			towns.append(int(g2))
+	var set := {c1: CHURCH, c2: CHURCH}
+	for t in towns:
+		set[int(t)] = TOWN
+	# Futter und Arbeit auf jeder Sticker-Art (sonst wäre das Ziel schon vorher unerreichbar)
+	var extra := {1: 0, 2: 0, 3: 0}
+	for f in p.fields:
+		var tt := FieldData.sticker_type(f.p)
+		if set.has(f.id) or int(extra[tt]) >= 4:
+			continue
+		var near_war := false
+		for g3 in p.nb9(f.id):
+			if set.has(int(g3)) and int(set[int(g3)]) != FIELD and int(set[int(g3)]) != FOREST:
+				near_war = true
+		if near_war:
+			continue
+		set[f.id] = FIELD if int(extra[tt]) % 2 == 0 else FOREST
+		extra[tt] = int(extra[tt]) + 1
+	var gw := camp_state(56, set)
+	var keep: Array = [c1, c2]
+	keep.append_array(towns)
+	var m := move_avoiding(gw, keep)
+	var ev_hold := false
+	var hits := 0
+	for i2 in 8:
+		var r2 := tw(gw, m)
+		if _types(r2).has("hold_last"):
+			ev_hold = true
+		hits += _count_events(r2, "war_hit")
+	# Der Krieg darf Städte zu Dörfern und Hütten machen (die wachsen wieder), aber nie die letzten drei Menschen-Felder
+	# zur Wiese: aus einer Wiese wird in diesem Level nie wieder eine Stadt
+	var people := _cnt14(gw, TOWN) + _cnt14(gw, VILLAGE) + _cnt14(gw, HUT)
+	check(towns.size() == 3 and people == 3 and ev_hold and hits >= 3 and bool(gw.reach9()["ok"]),
+		"hold14: Level 56 mit genau 3 Städten im Krieg – die letzten drei Menschen-Felder halten durch (%d übrig, %d Treffer)" % [people, hits])
+	# Modell-Modus: kein Schutz (der Abgleich mit dem Modell bleibt)
+	GameState.engine9_mode = true
+	var gm := camp_state(56, set)
+	for i3 in 8:
+		tw(gm, m)
+	var people_m := _cnt14(gm, TOWN) + _cnt14(gm, VILLAGE) + _cnt14(gm, HUT)
+	GameState.engine9_mode = false
+	check(people_m < 3, "hold14: im Modell-Modus trifft der Krieg wie im Modell (%d Menschen-Felder übrig)" % people_m)
+	# Der Meteor des Spielers wird nie aufgehalten
+	var gmet := camp_state(56, set)
+	gmet.meteors = 1
+	gmet.play({"type": "strike", "field": int(towns[0])})
+	check((gmet.fields[int(towns[0])] as FieldData).kind == E, "hold14: der Meteor des Spielers trifft immer")
+
+
+## A7: Die Hilfe nimmt kein Wasser weg und sagt, was sie bringt.
+func test_net_water14() -> void:
+	for n in [2, 3]:
+		var gs := Campaign.new_state(n, Campaign.board(n, 1))
+		var left := 3
+		for f in gs.fields:
+			if f.kind == LAVA:
+				if left > 0:
+					left -= 1
+				else:
+					gs._setk9(f, STONE)
+		var w0 := _cnt14(gs, WATER)
+		var s0 := _cnt14(gs, STONE)
+		var line := gs.rescue_line9("dead")
+		var c := gs.clone()
+		var top := c.top_up9(6)
+		check(not top.is_empty() and _cnt14(c, WATER) == w0 and _cnt14(c, STONE) < s0 and line == "Zu wenig Lava. Ich helfe.",
+			"net14: Level %d mit 3 Lava – Nachschub aus Fels, das Wasser bleibt (%d → %d Wasser, „%s“)" % [n, w0, _cnt14(c, WATER), line])
+		var pills: Array = []
+		for i in 6:
+			if gs.day_won or gs.gift_plan9().is_empty():
+				break
+			var r := gs.play({"type": "gift"})
+			pills.append(GameState.gift_line9(r))
+		check(_cnt14(gs, WATER) == w0 and not pills.is_empty() and str(pills[0]).begins_with("Geschenk: +") and str(pills[0]).ends_with("Lava"),
+			"net14: Level %d – sechs Geschenke lassen das Wasser, wie es ist (%d → %d), Pille „%s“" % [n, w0, _cnt14(gs, WATER), str(pills[0]) if not pills.is_empty() else ""])
+	# Level 5, 20, 22: das Material der Kette wird knapp – der Nachschub nimmt kein Wasser, solange es anderes gibt
+	var took: Array = []
+	for item in [[5, STONE, 2], [20, MOSS, 1], [22, FERN, 1]]:
+		var n2 := int(item[0])
+		var g2 := Campaign.new_state(n2, Campaign.board(n2, 1))
+		var keepn := int(item[2])
+		for f in g2.fields:
+			if f.kind == int(item[1]):
+				if keepn > 0:
+					keepn -= 1
+				else:
+					g2._setk9(f, E if n2 != 5 else LAVA)
+		var w1 := _cnt14(g2, WATER)
+		g2.top_up9(6)
+		for i2 in 4:
+			if not g2.day_won and not g2.gift_plan9().is_empty():
+				g2.play({"type": "gift"})
+		if _cnt14(g2, WATER) < w1:
+			took.append([n2, w1, _cnt14(g2, WATER)])
+	check(took.is_empty(), "net14: Level 5, 20, 22 – Nachschub und Geschenk nehmen kein Wasser (%s)" % str(took))
+	# Die Sätze der Hilfe nennen, was fehlt
+	var g3 := Campaign.new_state(3, Campaign.board(3, 2))
+	for f in g3.fields:
+		if f.kind == LAVA:
+			g3._setk9(f, WATER)
+	check(g3.rescue_line9("dead").contains("Lava") and g3.rescue_line9("stall") == "Hängst du fest? Ich helfe dir.",
+		"net14: „%s“" % g3.rescue_line9("dead"))
+	var set15 := {}
+	var p15 := camp_state(15)
+	for f in p15.fields:
+		if FieldData.sticker_type(f.p) == 3 and set15.size() < 8:
+			set15[f.id] = FieldData.JELLY
+	var g15 := camp_state(15, set15)
+	g15.made[FISH] = 5
+	check(not bool(g15.reach9()["ok"]) and g15.rescue_line9("dead") == "Keine Reihe möglich. Ich helfe.", "net14: keine Reihe möglich → „%s“ (%s)" % [g15.rescue_line9("dead"), str(g15.reach9())])
+
+
+## A8: Oben steht immer eine Handlung, die geht, und sie führt nie im Kreis.
+func test_line_follow14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var bad: Array = []
+	var lost: Array = []
+	var loops: Array = []
+	var worst_t := 0
+	var steps_sum := 0
+	for n in range(1, 31):
+		var gs := Campaign.new_state(n, Campaign.board(n, 1))
+		var tu := Time.get_ticks_usec()
+		gs.next_action()
+		worst_t = maxi(worst_t, Time.get_ticks_usec() - tu)
+		var res := _follow14(gs, 4 * gs.par9, false, bad, "folgen")
+		steps_sum += int(res["steps"])
+		if not bool(res["won"]):
+			lost.append([n, res])
+		if int(res["most"]) >= 3:
+			loops.append([n, int(res["most"])])
+	# die Kreise aus der Prüfung: Level 16 Brett 10, Level 59 Brett 5 und 9, Level 51 Brett 1, Level 60 Brett 3
+	for item in [[16, 10], [59, 5], [59, 9], [51, 1], [60, 3]]:
+		var g2 := Campaign.new_state(int(item[0]), Campaign.board(int(item[0]), int(item[1])))
+		var r2 := _follow14(g2, 6 * g2.par9, true, bad, "Kreis")
+		if not bool(r2["won"]):
+			lost.append([item, r2])
+		if int(r2["most"]) >= 3:
+			loops.append([item, int(r2["most"])])
+	print("  folgen14: Level 1–30 nur mit der Zeile, zusammen %d Schritte; erste Zeile höchstens %.1f ms (%d ms)" % [steps_sum, worst_t / 1000.0, Time.get_ticks_msec() - t0])
+	check(lost.is_empty(), "folgen14: wer nur der Zeile folgt, gewinnt Level 1–30 (Brett 1) in 4 × Par ohne Hilfe; die Kreis-Bretter mit Netz (%s)" % str(lost.slice(0, 3)))
+	check(loops.is_empty(), "folgen14: keine Stellung dreimal (%s)" % str(loops.slice(0, 4)))
+	check(bad.is_empty(), "folgen14: jede Zeile hat eine Scheibe oder ein Werkzeug und geht (%s)" % str(bad.slice(0, 4)))
+	# Jeder Stand: sorgloser Spieler 20 Drehungen auf Brett 1 jedes Levels, an jedem Stand die Zeile prüfen
+	var t1 := Time.get_ticks_msec()
+	var rng := RandomNumberGenerator.new()
+	var bad2: Array = []
+	var states := 0
+	var worst2 := 0
+	for n2 in range(1, Campaign.COUNT + 1):
+		rng.seed = 5000 + n2
+		var g3 := Campaign.new_state(n2, Campaign.board(n2, 1))
+		for i in 5:
+			if g3.day_won:
+				break
+			var tu2 := Time.get_ticks_usec()
+			var a := g3.next_action()
+			worst2 = maxi(worst2, Time.get_ticks_usec() - tu2)
+			_line_ok14(g3, a, bad2, "sorglos")
+			states += 1
+			_careless14(g3, rng, 1, false)
+	print("  folgen14: %d sorglose Stände, die Zeile höchstens %.1f ms (%d ms)" % [states, worst2 / 1000.0, Time.get_ticks_msec() - t1])
+	check(bad2.is_empty() and states > 250, "folgen14: an %d sorglosen Ständen aller Level nennt die Zeile eine Handlung, die geht (%s)" % [states, str(bad2.slice(0, 4))])
+	check(maxi(worst_t, worst2) < 80000, "folgen14: die Zeile kostet höchstens %.1f ms am PC" % (maxi(worst_t, worst2) / 1000.0))
+	# Gefahr ohne Abhilfe: rot, mit Scheibe; dieselbe Gefahr höchstens 2 Runden in Folge
+	var g59 := Campaign.new_state(59, Campaign.board(59, 1))
+	var run := 0
+	var most_run := 0
+	var last := ""
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = 59
+	_careless14(g59, rng2, 5, false)
+	for i2 in 30:
+		if g59.day_won:
+			break
+		var a2 := g59.next_action()
+		var dg := str(a2.get("danger", "")) if str(a2["type"]) == "danger" else ""
+		if dg != "" and dg == last:
+			run += 1
+		else:
+			run = 1 if dg != "" else 0
+		last = dg
+		most_run = maxi(most_run, run)
+		var mv2: Dictionary = a2.get("move", {})
+		if str(a2.get("tool", "")) == "rain":
+			g59.play({"type": "rain", "field": int(a2["field"])})
+			last = ""
+		elif str(a2.get("tool", "")) == "gift":
+			g59.play({"type": "gift"})
+		elif not mv2.is_empty():
+			tw(g59, [int(mv2["axis"]), int(mv2["layer"]), int(mv2["turns"])])
+	check(most_run <= 3, "folgen14: Level 59 – dieselbe Gefahr steht nie endlos oben (höchstens %d in Folge)" % most_run)
+
+
+## A9: Ein Tor für jeden Start; alte Stände landen heil.
+func test_start_gate14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var bad: Array = []
+	var starts := 0
+	var levels: Array = range(2, 15)
+	levels.append_array([19, 24, 29, 34, 39, 44, 49, 54, 59])
+	for n in levels:
+		if Campaign.first_of_era(n):
+			continue
+		var worlds: Array = []
+		var all_w: Array = []
+		var all_f: Array = []
+		for i in 54:
+			all_w.append(WATER)
+			all_f.append(STONE)
+		var prev := Campaign.new_state(n - 1, Campaign.board(n - 1, 3))
+		for st in (Campaign.board(n - 1, 3)["solution"] as Array):
+			var ab: Array = Days.solution_step(st)
+			prev.play(ab[0], ab[1])
+		worlds.append(Campaign.decode(prev.slot_board9()))
+		if n <= 14:
+			worlds.append(all_w)
+			worlds.append(all_f)
+		for wi in worlds.size():
+			var b := Campaign.carry(worlds[wi], n, 7 + wi, 2)
+			b = Campaign.ensure(n, b, 2)
+			var gs := Campaign.new_state(n, b)
+			starts += 1
+			if not bool(gs.reach9()["ok"]) or not gs.lines().is_empty() or _cnt14(gs, WATER) != _water_of(n) or Campaign._all_met(gs) \
+					or not Campaign.gate(n, b["kinds"], int(b["seed"])):
+				bad.append([n, wi, str(b.get("how", "")), _cnt14(gs, WATER), _water_of(n), gs.reach9()])
+			if str(b.get("how", "")) == "fallback" and str(b.get("line", "")) != str(Campaign.TEXT["fresh"]):
+				bad.append([n, wi, "stiller Rückfall"])
+	check(bad.is_empty() and starts >= 30, "gate14: %d getragene Starts aus gelöster Welt, nur Wasser, nur Fels: erreichbar, keine Reihe, genau das Wasser der Mischung (%s)" % [starts, str(bad.slice(0, 3))])
+	# Müll als gespeichertes Start-Brett (54 Arten des Levels, kein Wasser), mit und ohne Fingerabdruck: alle 60 Level
+	var t := lt(2026, 11, 12, 10)
+	var g := _daily_game("user://test_gate14.cfg", t, true)
+	g.debug_open_all = true
+	var bad2: Array = []
+	for n2 in range(1, Campaign.COUNT + 1):
+		var comp: Dictionary = Campaign.config(n2)["comp"]
+		var land := -1
+		for key in comp:
+			if not FieldData.water_family(int(str(key))):
+				land = int(str(key))
+		var junk: Array = []
+		for i2 in 54:
+			junk.append(land if land >= 0 else STONE)
+		for with_print in [true, false]:
+			g.camp["start"] = Campaign.encode(junk)
+			g.camp["start_level"] = n2
+			g.camp["start_seed"] = 5
+			g.camp["start_cfg"] = GameScript._cfg_hash(Campaign.config(n2)) if with_print else ""
+			g.camp["world"] = ""
+			g.camp["world_level"] = 0
+			g._clear_run()
+			var ok: bool = g.start_level(n2)
+			var gs2: GameState = g.state
+			if not ok or not bool(gs2.reach9()["ok"]) or not gs2.lines().is_empty() or _cnt14(gs2, WATER) != _water_of(n2) \
+					or str(g.level_board.get("how", "")) == "stored":
+				bad2.append([n2, with_print, ok, str(g.level_board.get("how", "")), _cnt14(gs2, WATER)])
+	check(bad2.is_empty(), "gate14: ein Start-Brett ohne Wasser wird in keinem der 60 Level benutzt (mit und ohne Fingerabdruck): das Level beginnt mit seinem Wasser (%s)" % str(bad2.slice(0, 3)))
+	# Ein Pool-Brett, das als gespeichertes Start-Brett zurückkommt, bleibt gleich und ohne „Neuer Morgen“ (Level 5 Brett 2)
+	var nights: Array = []
+	g.overnight_growth.connect(func(info): nights.append(info))
+	g._clear_run()
+	g.camp["start"] = ""
+	g.camp["start_level"] = 0
+	check(g.start_level(5, 2), "gate14: Level 5 Brett 2 startet")
+	var first: Array = _kinds_of(g.state)
+	(g.camp["stars"] as Array)[0] = 2          # Level 1 ist geschafft: ein Blick dorthin ändert das Start-Brett von Level 5 nicht
+	check(g.start_level(1, 1) and g.start_level(5), "gate14: Level 5 wieder geöffnet")
+	check(_kinds_of(g.state) == first and str(g.level_board.get("how", "")) == "stored" and nights.is_empty(),
+		"gate14: das gespeicherte Start-Brett kommt genau so zurück, ohne Welle (%s, %d Wellen)" % [str(g.level_board.get("how", "")), nights.size()])
+	# Fortgesetzter Versuch in einer Sackgasse: die Hilfe kommt vor der ersten Drehung
+	g._clear_run()
+	check(g.start_level(3, 1), "gate14: Level 3 startet")
+	var res: Dictionary = g.state.play({"type": "twist", "axis": 0, "layer": 1, "turns": 1})
+	g.busy = true
+	g.finish_round(res)
+	for fd in g.state.fields:
+		if fd.kind == LAVA:
+			g.state._setk9(fd, WATER)
+	g.rescue_offer = {}
+	g.dead_told = false
+	g._save_run()
+	var told: Array = []
+	g.level_dead.connect(func(info2): told.append(info2))
+	var again: bool = g.resume_run()
+	var info3: Dictionary = told[0] if not told.is_empty() else {}
+	check(again and told.size() == 1 and str(info3.get("why", "")) == "dead" and bool(info3.get("gift", false)) and str(info3.get("line", "")).contains("Lava"),
+		"gate14: fortgesetzter Versuch ohne Lava – Hilfe sofort („%s“)" % str(info3.get("line", "")))
+	# Ein Versuch aus einem älteren Build (andere Regel-Version) beginnt neu
+	var cf := ConfigFile.new()
+	cf.load(g.run_path())
+	var d: Dictionary = cf.get_value("lauf", "daten", {})
+	d.erase("rv")
+	cf.set_value("lauf", "daten", d)
+	cf.save(g.run_path())
+	check(g.saved_run().is_empty() and not g.resume_run() and not FileAccess.file_exists(g.run_path()),
+		"gate14: ein Versuch ohne die Regel-Version von Build 14 gilt nicht mehr (beginnt neu)")
+	g.free()
+	# Stand aus Build 13 (Version 2, Start-Brett ohne Fingerabdruck und ohne Wasser, Versuch mit altem Fingerabdruck)
+	var path := "user://test_gate14_b13.cfg"
+	var c13 := ConfigFile.new()
+	var st: Array = []
+	var wk: Array = []
+	for j in Campaign.COUNT:
+		st.append(2 if j < 5 else 0)
+		wk.append(20000 + j if j < 5 else -1)
+	var dry: Array = []
+	for i3 in 54:
+		dry.append(STONE if i3 % 3 else LAVA)
+	c13.set_value("kampagne", "version", 2)
+	c13.set_value("kampagne", "kette", 5)
+	c13.set_value("kampagne", "sterne", st)
+	c13.set_value("kampagne", "gewonnen_am", wk)
+	c13.set_value("kampagne", "letzter_neuer", Daily.day_key(t) - 1)
+	c13.set_value("kampagne", "start", Campaign.encode(dry))
+	c13.set_value("kampagne", "start_level", 6)
+	c13.set_value("kampagne", "start_seed", 4)
+	c13.save(path)
+	var run := ConfigFile.new()
+	run.set_value("lauf", "daten", {"v": 1, "level": 6, "wdt": -1, "cfg": var_to_str(Campaign.config(6)).md5_text(), "state": Campaign.new_state(6, Campaign.board(6, 1)).save9()})
+	run.save(path.get_basename() + "_lauf.cfg")
+	var g13 := _daily_game(path, t, false)
+	var had_run: bool = not g13.saved_run().is_empty()
+	var ok13: bool = g13.start_level(6)
+	check(not had_run and ok13 and not g13.run_resumed and _cnt14(g13.state, WATER) == _water_of(6) and bool(g13.state.reach9()["ok"])
+		and str(g13.level_board.get("how", "")) != "stored",
+		"gate14: Stand aus Build 13 – Versuch beginnt neu, das Start-Brett ohne Wasser fällt weg, Level 6 beginnt mit %d Wasser" % _cnt14(g13.state, WATER))
+	g13.free()
+	DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute("user://test_gate14.cfg")
+	print("  gate14: %d ms" % (Time.get_ticks_msec() - t0))
+
+
+## A10: Die Nacht behält die Welt (weniger Umbau) und sagt, was sich geändert hat.
+func test_night14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var changed := 0
+	var carried := 0
+	var bad: Array = []
+	var worst := 0
+	for n in [2, 3, 6, 7, 9, 10, 13, 14, 16, 17, 19, 22, 24, 26, 27, 29, 31, 32, 33, 35, 37, 39, 41, 42, 44, 45, 47, 49, 51,
+			53, 55, 58, 60]:
+		var prev := Campaign.new_state(n - 1, Campaign.board(n - 1, 4))
+		for st in (Campaign.board(n - 1, 4)["solution"] as Array):
+			var ab: Array = Days.solution_step(st)
+			prev.play(ab[0], ab[1])
+		var world := Campaign.decode(prev.slot_board9())
+		var tu := Time.get_ticks_usec()
+		var c1 := Campaign.carry(world, n, 3)
+		worst = maxi(worst, Time.get_ticks_usec() - tu)
+		if str(c1["how"]) != "carry":
+			var e1 := Campaign.ensure(n, c1, 0)
+			if str(e1.get("line", "")) != str(Campaign.TEXT["fresh"]):
+				bad.append([n, "Rückfall ohne Satz"])
+			continue
+		carried += 1
+		changed += (c1["changed"] as Array).size()
+		var pair := Campaign.night_pair(world, c1["kinds"])
+		var real := 0
+		for i in 54:
+			if int(world[i]) == int(pair.get("from", -1)) and int((c1["kinds"] as Array)[i]) == int(pair.get("to", -1)):
+				real += 1
+		if pair.is_empty() or real != int(pair["n"]) or real == 0:
+			bad.append([n, pair])
+	var mean := float(changed) / maxf(1.0, float(carried))
+	print("  nacht14: %d getragene Welten, im Mittel %.1f geänderte Felder, carry höchstens %.0f ms (%d ms)" % [carried, mean, worst / 1000.0, Time.get_ticks_msec() - t0])
+	check(carried >= 15 and mean <= 18.0, "nacht14: die Nacht ändert im Mittel höchstens 18 Felder (%.1f; Build 13: 26)" % mean)
+	check(bad.is_empty() and worst < 1000000, "nacht14: das genannte Paar stimmt mit der Welt überein, ein Rückfall sagt „Heute eine frische Welt“ (%s)" % str(bad.slice(0, 3)))
+	# Im Spiel: Level 6 gewonnen, am nächsten Tag Level 7 – der Banner nennt die größte Änderung
+	var t := lt(2026, 11, 12, 10)
+	var g := _daily_game("user://test_night14.cfg", t, true)
+	for i2 in 5:
+		(g.camp["stars"] as Array)[i2] = 2
+		(g.camp["won_key"] as Array)[i2] = Daily.day_key(t) - 6 + i2
+	g.camp["pos"] = 5
+	g.camp["last_new_key"] = Daily.day_key(t) - 1
+	var nights: Array = []
+	g.overnight_growth.connect(func(info): nights.append(info))
+	check(g.start_level(6), "nacht14: Level 6 startet")
+	_replay_in_game(g)
+	check(g.state.day_won and int(g.camp["world_level"]) == 6, "nacht14: Level 6 gewonnen, die Welt ist gemerkt")
+	g.clock_override = t + Daily.DAY
+	nights.clear()
+	check(g.start_level(7), "nacht14: Level 7 am nächsten Tag")
+	var line := str((nights[0] as Dictionary).get("line", "")) if not nights.is_empty() else ""
+	check(str(g.level_board.get("how", "")) == "carry" and line == "Über Nacht: Ursuppe → Wasser" and line.split(" ", false).size() <= 6,
+		"nacht14: der Banner nennt die größte Änderung („%s“, %s)" % [line, str(g.level_board.get("how", ""))])
+	if not nights.is_empty():
+		var chs: Array = (nights[0] as Dictionary).get("changes", [])
+		var first_c: Dictionary = chs[0] if not chs.is_empty() else {}
+		check(int(first_c.get("from", -1)) == SOUP and int(first_c.get("kind", -1)) == WATER, "nacht14: die Welle zeigt zuerst Felder des genannten Paars")
+	g.free()
+	DirAccess.remove_absolute("user://test_night14.cfg")
+
+
+## A11: Der Tipp widerspricht der Zeile nicht (Level 17 Brett 1: der Tipp allein gewann nicht).
+func test_hint14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var lost: Array = []
+	var notes: Array = []
+	for item in [[17, 1]]:
+		var n := int(item[0])
+		var gs := Campaign.new_state(n, Campaign.board(n, int(item[1])))
+		var r := _hint14(gs, 4 * gs.par9, false)
+		notes.append("%d/%d: %d" % [n, int(item[1]), int(r[1])])
+		if not bool(r[0]):
+			lost.append([item, r])
+	print("  tipp14: Tipp allein %s (%d ms)" % [str(notes), Time.get_ticks_msec() - t0])
+	check(lost.is_empty(), "tipp14: der Tipp allein gewinnt Level 17 Brett 1 in 4 × Par (%s)" % str(lost))
+
+
+## A12: Nie festgefahren – aus drei entarteten Starts je Level gewinnt selbst der Zufallsspieler mit dem Netz.
+func test_never_stuck14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var rng := RandomNumberGenerator.new()
+	var fails: Array = []
+	var runs := 0
+	var gifts := 0
+	var flat := 0
+	for n in range(1, Campaign.COUNT + 1):
+		if n % 3 != 0 and (n < 6 or n > 14):
+			continue                   # alle Level der Ursuppe- und Regen-Zeit (6–14), sonst jedes dritte
+		var base: Array = Campaign.board(n, 1)["kinds"]
+		var probe := Campaign.new_state(n, Campaign.board(n, 1))
+		var chain := probe.chain9
+		var starts: Array = []
+		# 1 kein Wasser (Wasser wird die häufigste Land-Art des Bretts)
+		var cnt := {}
+		for k in base:
+			if not FieldData.water_family(int(k)):
+				cnt[int(k)] = int(cnt.get(int(k), 0)) + 1
+		var land := STONE
+		var most := 0
+		for k2 in cnt:
+			if int(cnt[k2]) > most or (int(cnt[k2]) == most and int(k2) < land):
+				most = int(cnt[k2])
+				land = int(k2)
+		var dry: Array = []
+		for k3 in base:
+			dry.append(land if int(k3) == WATER else int(k3))
+		starts.append(dry)
+		# 2 jede Art der Ziel-Kette fehlt (wird Wasser)
+		var bare: Array = []
+		for k4 in base:
+			bare.append(WATER if chain.has(int(k4)) else int(k4))
+		starts.append(bare)
+		# 3 Brett 1 nach 40 sorglosen Drehungen, jeder Regen auf Wasser
+		rng.seed = 1400 + n
+		var gc := Campaign.new_state(n, Campaign.board(n, 1))
+		_careless14(gc, rng, 40, true)
+		if not gc.day_won:
+			starts.append(Campaign.decode(gc.slot_board9()))
+		for si in starts.size():
+			# wie ein Start aus der eigenen Welt: Nachschub oder das Pool-Brett (Campaign.ensure)
+			var b := Campaign.ensure(n, {"kinds": starts[si], "seed": 3 + si, "how": "carry"}, 1)
+			var gs := Campaign.new_state(n, b)
+			if not bool(gs.reach9()["ok"]) or not gs.lines().is_empty():
+				fails.append(["start", n, si, gs.reach9()])
+				continue
+			rng.seed = n * 31 + si
+			runs += 1
+			var res := _net_play14(gs, rng, 150)
+			gifts += int(res[2])
+			flat += int(res[4])
+			if not bool(res[0]) or int(res[3]) > 0:
+				fails.append(["play", n, si, res, gs.progress9(), gs.target9()])
+	print("  nie14: %d entartete Starts, alle gewonnen (Zufallsspieler mit Netz), %d Geschenke (%d ms)" % [runs, gifts, Time.get_ticks_msec() - t0])
+	check(fails.is_empty() and runs >= 50, "nie14: aus jedem entarteten Start (kein Wasser, Ziel-Kette fehlt, verspielte Welt) gewinnbar, nie ein Angebot ohne Geschenk (%s)" % str(fails.slice(0, 3)))
+	check(flat == 0, "nie14: jedes Geschenk bringt Fortschritt (%d ohne)" % flat)
+
+
+## Wie _net_play, zählt aber auch Geschenke ohne Fortschritt. [gewonnen, Schritte, Geschenke, ohne Geschenk, flach]
+func _net_play14(gs: GameState, rng: RandomNumberGenerator, cap: int) -> Array:
+	var told_at := -99
+	var dead_told := false
+	var gifts := 0
+	var acts := 0
+	var nogift := 0
+	var flat := 0
+	while not gs.day_won and gs.twists < cap and acts < cap * 3:
+		acts += 1
+		var did := false
+		if gs.rain > 0 and rng.randf() < 0.3:
+			var cand: Array = []
+			for f in gs.fields:
+				if gs.rain_ok9(f):
+					cand.append(f.id)
+			if not cand.is_empty():
+				gs.play({"type": "rain", "field": int(cand[rng.randi_range(0, cand.size() - 1)])})
+				did = true
+		if not did:
+			tw(gs, GameState.MOVES[rng.randi_range(0, GameState.MOVES.size() - 1)])
+		if gs.day_won:
+			break
+		var why := gs.stuck9()
+		if why != "dead":
+			dead_told = false
+		if why == "":
+			continue
+		if (why == "dead" and not dead_told) or gs.steps9() - told_at >= GameState.STALL9:
+			dead_told = why == "dead"
+			told_at = gs.steps9()
+			if gs.gift_plan9().is_empty():
+				nogift += 1
+			else:
+				var s0 := gs._subs_sum9() + gs.progress9()
+				gs.play({"type": "gift"})
+				gifts += 1
+				if gs._subs_sum9() + gs.progress9() <= s0 and not gs.day_won:
+					flat += 1
+	return [gs.day_won, gs.steps9(), gifts, nogift, flat]
+
+
+## Dauerhafte Prüfung 1 – der Start: Aus den Welten, die ein sorgloser oder übereifriger Spieler hinterlässt, aus
+## Extrem-Welten (kein Wasser, nur Wasser, nur eine Art) und aus umgestellten Ständen von Build 12 ist jedes geprüfte
+## Level für den Tipp-Bot gewinnbar.
+func test_start_invariant14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var rng := RandomNumberGenerator.new()
+	var fails: Array = []
+	var starts := 0
+	var hint_won := 0
+	var hint_runs := 0
+	var gifts := 0
+	var bad: Array = []
+	for n in [2, 3, 6, 7, 9, 10, 11, 14, 27, 42, 48, 57]:
+		if Campaign.first_of_era(n):
+			continue
+		# gestern: Brett 2 von Level n − 1, erst 30 sorglose Drehungen (jeder Regen aufs Wasser), dann mit der Zeile fertig
+		rng.seed = 7000 + n
+		var prev := Campaign.new_state(n - 1, Campaign.board(n - 1, 2))
+		_careless14(prev, rng, 30, true)
+		var rp := _follow14(prev, 200, true, bad, "gestern")
+		if not bool(rp["won"]):
+			fails.append(["gestern", n - 1, rp])
+			continue
+		var worlds: Array = [Campaign.decode(prev.slot_board9())]
+		if n % 3 == 0:
+			var dry: Array = []
+			var one: Array = []
+			var wet: Array = []
+			for i in 54:
+				dry.append(STONE if i % 2 == 0 else E)
+				one.append(int((worlds[0] as Array)[0]))
+				wet.append(WATER)
+			worlds.append(dry)
+			worlds.append(one)
+			worlds.append(wet)
+		for wi in worlds.size():
+			var b := Campaign.carry(worlds[wi], n, 11 + wi, 1)
+			b = Campaign.ensure(n, b, 1)
+			var gs := Campaign.new_state(n, b)
+			starts += 1
+			if not bool(gs.reach9()["ok"]) or not gs.lines().is_empty() or _cnt14(gs, WATER) != _water_of(n):
+				fails.append(["start", n, wi, str(b.get("how", "")), _cnt14(gs, WATER), _water_of(n)])
+				continue
+			if wi == 0 and [7, 9, 14, 27, 42, 57].has(n):
+				hint_runs += 1
+				var rh := _hint14(gs, 6 * gs.par9, true)
+				gifts += int(rh[2])
+				if bool(rh[0]):
+					hint_won += 1
+				else:
+					fails.append(["tipp", n, wi, rh])
+			else:
+				var rf := _follow14(gs, 6 * gs.par9, true, bad, "start")
+				if not bool(rf["won"]):
+					fails.append(["zeile", n, wi, rf])
+	# Stände aus Build 12 (alte Kampagne mit 30 Leveln): altes Level k geschafft, dazu ein altes Start-Brett ohne
+	# Wasser und ein laufender Versuch – jedes Level, das danach offen ist, beginnt heil und ist gewinnbar
+	var t := lt(2026, 11, 12, 10)
+	var path := "user://test_start14_b12.cfg"
+	var b12 := 0
+	for old_top in [5, 6]:
+		var cfg := ConfigFile.new()
+		var st: Array = []
+		var wk: Array = []
+		for j in 30:
+			st.append(2 if j < old_top else 0)
+			wk.append(20000 + j if j < old_top else -1)
+		var dryb: Array = []
+		for i2 in 54:
+			dryb.append(STONE if i2 % 3 else LAVA)
+		cfg.set_value("kampagne", "version", 1)
+		cfg.set_value("kampagne", "sterne", st)
+		cfg.set_value("kampagne", "gewonnen_am", wk)
+		cfg.set_value("kampagne", "letzter_neuer", Daily.day_key(t) - 1)
+		cfg.set_value("kampagne", "welt", Campaign.encode(dryb))
+		cfg.set_value("kampagne", "welt_level", old_top)
+		cfg.set_value("kampagne", "start", Campaign.encode(dryb))
+		cfg.set_value("kampagne", "start_level", old_top + 1)
+		cfg.set_value("kampagne", "start_seed", 2)
+		cfg.save(path)
+		var run := ConfigFile.new()
+		run.set_value("lauf", "daten", {"v": 1, "level": old_top + 1, "wdt": -1, "cfg": "alt", "state": {}})
+		run.save(path.get_basename() + "_lauf.cfg")
+		var g := _daily_game(path, t, false)
+		if not g.saved_run().is_empty():
+			fails.append(["b12 Versuch bleibt", old_top])
+		for day in 2:
+			g.clock_override = t + day * Daily.DAY
+			for n2 in range(5, 12):
+				if not g.level_unlocked(n2) or g.level_stars(n2) > 0:
+					continue
+				if not g.start_level(n2):
+					fails.append(["b12 start", old_top, n2])
+					continue
+				b12 += 1
+				var gs2: GameState = g.state
+				if not bool(gs2.reach9()["ok"]) or not gs2.lines().is_empty() or _cnt14(gs2, WATER) != _water_of(n2) or g.run_resumed:
+					fails.append(["b12 brett", old_top, n2, str(g.level_board.get("how", "")), _cnt14(gs2, WATER)])
+					continue
+				var c2 := gs2.clone()
+				var r2 := _follow14(c2, 6 * c2.par9, true, bad, "b12")
+				if not bool(r2["won"]):
+					fails.append(["b12 spiel", old_top, n2, r2])
+		g.free()
+		DirAccess.remove_absolute(path)
+	print("  start14: %d Starts aus verspielten und extremen Welten, Tipp-Bot %d/%d (%d Geschenke), %d Starts aus Build-12-Ständen (%d ms)" % [starts, hint_won, hint_runs, gifts, b12, Time.get_ticks_msec() - t0])
+	check(fails.is_empty() and starts >= 20 and hint_runs >= 5 and b12 >= 4, "start14: jeder Start erreichbar, mit dem Wasser seiner Mischung, und gewinnbar (Tipp-Bot %d/%d, %s)" % [hint_won, hint_runs, str(fails.slice(0, 3))])
+	check(bad.is_empty(), "start14: die Zeile nennt dabei immer eine Handlung, die geht (%s)" % str(bad.slice(0, 3)))
+
+
+## Dauerhafte Prüfung 2 – das Spiel: Nach sorglosem Spiel und nachdem ein Rohstoff verbraucht ist, gewinnt der
+## Tipp-Bot noch, und die Zeile oben nennt an jedem Stand eine Handlung, die geht.
+func test_play_invariant14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var rng := RandomNumberGenerator.new()
+	var fails: Array = []
+	var bad: Array = []
+	var runs := 0
+	var gifts := 0
+	var plain := 0
+	var hints := 0
+	for item in [[2, 15, 0], [5, 15, 1], [6, 25, 1], [8, 25, 1], [9, 25, 1], [11, 40, 1], [12, 30, 1], [14, 30, 1], [20, 20, 1],
+			[27, 15, 0], [35, 15, 0], [41, 40, 1], [42, 25, 1], [48, 15, 0], [55, 15, 0], [56, 15, 0], [59, 10, 0]]:
+		var n := int(item[0])
+		rng.seed = 9000 + n
+		var gs := Campaign.new_state(n, Campaign.board(n, 1))
+		_careless14(gs, rng, int(item[1]), int(item[2]) == 1, true)
+		if gs.day_won:
+			continue
+		runs += 1
+		# die Zeile an diesem Stand und an jedem Stand danach (ein Spieler, der ihr folgt, mit Netz)
+		var line := gs.clone()
+		var rl := _follow14(line, gs.steps9() + 8 * gs.par9, true, bad, "nach %d sorglosen" % int(item[1]))
+		if not bool(rl["won"]) or int(rl["nogift"]) > 0 or int(rl["flat"]) > 0:
+			fails.append(["zeile", n, rl])
+		# der Tipp-Bot (mit dem Netz wie im Spiel) auf einer Auswahl (er rechnet je Zug lange)
+		if not [6, 9, 41].has(n):
+			continue
+		hints += 1
+		var rh := _hint14(gs, gs.steps9() + 8 * gs.par9, true)
+		gifts += int(rh[2])
+		if int(rh[2]) == 0:
+			plain += 1
+		if not bool(rh[0]):
+			fails.append(["tipp", n, rh, gs.progress9(), gs.target9()])
+	print("  spiel14: %d verspielte Stände (Zeile mit Netz), Tipp-Bot auf %d davon: alle gewonnen (%d ohne Geschenk, sonst %d Geschenke) (%d ms)" % [runs, hints, plain, gifts, Time.get_ticks_msec() - t0])
+	check(fails.is_empty() and runs >= 16 and hints >= 3, "spiel14: nach sorglosem Spiel gewinnen Tipp-Bot und Zeile noch (%s)" % str(fails.slice(0, 3)))
+	check(bad.is_empty(), "spiel14: an jedem Stand nennt die Zeile eine Handlung, die geht (%s)" % str(bad.slice(0, 3)))
+
+
+## Dauerhafte Prüfung 3 – der gemeldete Fall beim Namen: „Ich habe schon vorausgespielt und konnte dann keine Ursuppe
+## mehr erstellen, weil ich gar kein Wasser mehr hatte.“ Ein Level, das Ursuppe braucht (6–11), beginnt nie ohne Wasser
+## und geht weiter, wenn mitten im Level kein Wasser mehr da ist.
+func test_no_water_ursuppe14() -> void:
+	var t0 := Time.get_ticks_msec()
+	var t := lt(2026, 11, 12, 10)
+	var path := "user://test_ursuppe14.cfg"
+	var fails: Array = []
+	var bad: Array = []
+	var notes: Array = []
+	for n in [6, 7, 8, 9, 10, 11]:
+		# (a) gestern alles Wasser verbraucht: die Welt von Level n − 1 hat kein einziges Wasser-Feld
+		var g := _daily_game(path, t, true)
+		for i in n - 1:
+			(g.camp["stars"] as Array)[i] = 2
+			(g.camp["won_key"] as Array)[i] = Daily.day_key(t) - n + i
+		g.camp["pos"] = n - 1
+		g.camp["last_new_key"] = Daily.day_key(t) - 1
+		var yesterday: Array = (Campaign.board(n - 1, 1)["kinds"] as Array).duplicate()
+		for i2 in 54:
+			if FieldData.water_family(int(yesterday[i2])):
+				yesterday[i2] = E if i2 % 2 == 0 else STONE
+		g.camp["world"] = Campaign.encode(yesterday)
+		g.camp["world_level"] = n - 1
+		if not g.start_level(n):
+			fails.append(["start", n])
+			g.free()
+			continue
+		var gs: GameState = g.state
+		var water := _cnt14(gs, WATER)
+		if water != _water_of(n) or water < 20 or not bool(gs.reach9()["ok"]):
+			fails.append(["Welt ohne Wasser", n, water, str(g.level_board.get("how", ""))])
+		if n == 6 or n == 9:
+			var c := gs.clone()
+			var rh := _hint14(c, 6 * c.par9, true)
+			if not bool(rh[0]):
+				fails.append(["Tipp nach Start", n, rh])
+		# (b) mitten im Level ist das Wasser weg (wie auch immer): fortsetzen
+		var res: Dictionary = g.state.play({"type": "twist", "axis": 1, "layer": 1, "turns": 1})
+		g.busy = true
+		g.finish_round(res)
+		for fd in g.state.fields:
+			if fd.kind == WATER:
+				g.state._setk9(fd, E)
+		g.state.rain = 0
+		g.rescue_offer = {}
+		g.dead_told = false
+		g._save_run()
+		var told: Array = []
+		g.level_dead.connect(func(info): told.append(info))
+		var cont: bool = g.start_level(n)
+		var gs2: GameState = g.state
+		var a := gs2.next_action()
+		_line_ok14(gs2, a, bad, "ohne Wasser L%d" % n)
+		var reach_ok := bool(gs2.reach9()["ok"])
+		# entweder geht es in der Welt weiter (Regen füllt das Meer) oder die Hilfe kommt sofort und bringt Wasser
+		if not cont or not g.run_resumed or _cnt14(gs2, WATER) != 0 or (not reach_ok and told.is_empty()):
+			fails.append(["fortsetzen", n, cont, g.run_resumed, reach_ok, told.size()])
+		# wer der Zeile folgt, kommt ohne Geschenk ans Ziel (Level 6–9 über den Kreislauf, 10/11 über die Reihen)
+		var cl := gs2.clone()
+		var rl := _follow14(cl, 150, false, bad, "ohne Wasser L%d" % n)
+		notes.append("L%d Zeile %d" % [n, int(rl["steps"])])
+		if not bool(rl["won"]) or int(rl["blind"]) > 0:
+			fails.append(["Zeile ohne Wasser", n, rl, str(a.get("line", ""))])
+		# und der Tipp-Bot mit dem Netz gewinnt auch (Level 8 und 9: er rechnet je Zug lange)
+		if n == 9:
+			var ch := gs2.clone()
+			var rh2 := _hint14(ch, 150, true)
+			notes.append("Tipp %d (%d Geschenke)" % [int(rh2[1]), int(rh2[2])])
+			if not bool(rh2[0]):
+				fails.append(["Tipp ohne Wasser", n, rh2])
+		g.free()
+		DirAccess.remove_absolute(path)
+	print("  ursuppe14: %s (%d ms)" % [str(notes), Time.get_ticks_msec() - t0])
+	check(fails.is_empty(), "ursuppe14: Level 6–11 beginnen nie ohne Wasser (auch nach einer Welt ganz ohne Wasser) und gehen ohne Wasser mitten im Level weiter (%s)" % str(fails.slice(0, 3)))
+	check(bad.is_empty(), "ursuppe14: die Zeile nennt dabei immer eine Handlung, die geht (%s)" % str(bad.slice(0, 3)))
+	# Level 9 genau wie gemeldet: zwei Regen vorher verbraucht, dann Ursuppe nötig – die Zeile nennt das Rezept
+	var g9 := Campaign.new_state(9, Campaign.board(9, 1))
+	var poured := 0
+	var guard := 0
+	while poured < 2 and guard < 12:
+		guard += 1
+		if g9.rain > 0:
+			for f in g9.fields:
+				if f.kind == STONE and g9.rain_ok9(f):
+					g9.play({"type": "rain", "field": f.id})
+					poured += 1
+					break
+		else:
+			tw(g9, GameState.MOVES[guard % 27])
+	var seen_recipe := false
+	var waits := 0
+	for i3 in 30:
+		if g9.day_won:
+			break
+		var a9 := g9.next_action()
+		if str(a9["text"]).begins_with("Wasser neben"):
+			seen_recipe = true
+		if str(a9["text"]).begins_with("Regen in") or str(a9["text"]) == "Gleich kommt Regen":
+			waits += 1
+		var mv: Dictionary = a9.get("move", {})
+		if str(a9.get("tool", "")) == "rain":
+			g9.play({"type": "rain", "field": int(a9["field"])})
+		elif not mv.is_empty():
+			tw(g9, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+		else:
+			break
+	check(g9.day_won and waits <= 2, "ursuppe14: Level 9 mit verbrauchtem Regen – gewonnen in %d Schritten, „Regen in …“ nur %d× (Rezept-Zeile gesehen: %s)" % [g9.steps9(), waits, str(seen_recipe)])
+
+
+## B: Texte der Zeile (kurz, wahr, kein Spoiler).
+func test_texts14() -> void:
+	# Level 32: die Jagd nennt die Saurier, nicht „Tiere“
+	var g32 := camp_state(32)
+	g32.pack_warn9 = {3: true}
+	g32.fields[3].kind = FieldData.SAURO
+	check(g32._act_also9("pack") == "Rettet auch die Saurier" and g32._act_also9("bolt") == "Rettet auch den Wald", "texte14: „%s“" % g32._act_also9("pack"))
+	# zweite Zeile im Plural: „3 Wälder → Saurier“
+	var g28 := Campaign.new_state(29, Campaign.board(29, 1))
+	var hint := g28._act_hint9({"type": "make", "kind": FieldData.REX, "kinds": [FieldData.REX], "target": 3})
+	check(hint == "3 Saurier → Raubsaurier", "texte14: Rezept-Zeile im Plural (%s)" % hint)
+	var g12 := Campaign.new_state(12, Campaign.board(12, 1))
+	check(str(g12._act_hint9(g12._act_goal9())) == "3 Algen → Qualle", "texte14: „%s“" % str(g12._act_hint9(g12._act_goal9())))
+	# Level 60, Ruhe-Phase: „Halte das Gleichgewicht“, kein Rezept, eine Scheibe, nach der die Runde zählt
+	var g60 := Campaign.new_state(60, Campaign.board(60, 1))
+	var held := false
+	var bad: Array = []
+	for i in 60:
+		if g60.day_won:
+			break
+		var a := g60.next_action()
+		if str(a.get("hint", "")).contains("→ Erde"):
+			bad.append(a)
+		if str(a["type"]) == "hold":
+			# Ruhe-Phase: der Zeile folgen
+			held = true
+			var mv: Dictionary = a.get("move", {})
+			if str(a["text"]) != "Halte das Gleichgewicht" or not str(a["hint"]).begins_with("Noch ") or mv.is_empty():
+				bad.append(a)
+				break
+			tw(g60, [int(mv["axis"]), int(mv["layer"]), int(mv["turns"])])
+		else:
+			# bis dahin spielt der Tipp (mit dem Netz, wenn es hakt)
+			var ha := g60.best_action()
+			g60.play(ha)
+			if not g60.day_won and g60.stuck9() != "" and not g60.gift_plan9().is_empty():
+				g60.play({"type": "gift"})
+	check(held and bad.is_empty() and g60.day_won, "texte14: Level 60 – in der Ruhe-Phase „Halte das Gleichgewicht“ mit Scheibe, gewonnen (%s, %s)" % [str(held), str(bad.slice(0, 1))])
+	# Coach-Sätze, die dem Level widersprachen
+	check(str(Campaign.config(53)["coach"]) == "Wald gibt Arbeit." and str(Campaign.config(58)["coach"]) == "Fabriken ans Wasser."
+		and str(Campaign.config(42)["coach"]) == "Mammut braucht Eis.", "texte14: Coach-Sätze von Level 42, 53, 58 passen zum Level")
+	# Die neue Zeile für „Regen kommt“: nur ohne Regen, mit Scheibe
+	var words_ok := true
+	for s in ["Regen in 3 Drehungen", "Gleich kommt Regen", "Hilfe: hier tippen", "Dreh die leuchtende Scheibe", "Halte das Gleichgewicht",
+			"Zu wenig Lava. Ich helfe.", "Keine Reihe möglich. Ich helfe.", "Über Nacht: Ursuppe → Wasser", "Geschenk: +3 Lava", "Hält durch!",
+			"Regen füllt das Meer."]:
+		if str(s).split(" ", false).size() > 6:
+			words_ok = false
+	check(words_ok, "texte14: alle neuen Texte höchstens 6 Wörter")

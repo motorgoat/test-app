@@ -460,6 +460,12 @@ an Insekten next to a hungry Amphibie, an Eis next to a Mammut, a Feuerstelle ne
 Validated (section 11.4): 100 chains per era with the good bot and 100 with the greedy bot, every level started
 from the bot's own end world of yesterday.
 
+**Build 14** (section 17, `GDPD_LOGIK.md`) changes this section in the game: the repair first accepts only real
+improvements (`Campaign.STRICT_ITERS`), land retires to land before it becomes water, the banner names the biggest
+change (`Campaign.night_pair`), every start passes `Campaign.gate`, a stored start board is never re-shuffled,
+`reach9` is honest (needs and amounts, rain only where the level has rain), the gift does not pay with water the
+level needs, and dangers never take the last field the goal needs.
+
 ---
 
 ## 7. The next action for every level type (Build 12 contract, extended)
@@ -480,8 +486,13 @@ action and never names something impossible. Coverage per goal type and new syst
 | hunger warned (26, 27, 28 …) | „Rette die Hungrigen!“ | as built |
 | rain helps (rain tables incl. the new `[kind, kind, kind]` conditions) | „Gieß Algen mit Regen → Qualle“ | `_act_rain9` (uses `rain_to9`, which learns the kind condition) |
 | meteor tool (38) | „Meteor auf ein Raubtier“ | as built |
-| `hold` (60) | as built | as built |
-| nothing works | „Hol dir Hilfe“ (gift) | as built |
+| `hold` (60) | as built; Build 14: „Halte das Gleichgewicht“ with the slice after which the round counts, second line „Noch 2 Runden“ | `_act_hold9` |
+| nothing works | „Hilfe: hier tippen“ (gift; Build 13: „Hol dir Hilfe“) | as built; Build 14: checked first (right after fire) |
+
+Build 14 (section 17) adds the rule that **every** line carries a move or a tool: the old fallbacks („Dreh weiter,
+Regen kommt“, „Dreh eine Scheibe“, „Dreh weiter, … wächst“, a goal text without a slice) get the best safe quarter
+turn (`_act_safe_move9`), and a named twist never lowers a sub-goal, starts a new danger or returns to a recent
+board.
 
 Tests (`test_next_action_all`, section 13): for every pool board of all 60 levels, after each step of the stored
 solution, `next_action()` returns a non-empty `text` of ≤ 6 words; when it names a `move`, playing that move changes
@@ -1112,6 +1123,11 @@ params → thaw → impact → reach9/gift recipes → next_action branches.
 15. **unlock60**: one new level per Spieltag up to 60, already-won levels skipped the same day, clock rules unchanged;
     WdT only from won levels (no spoiler), template list of section 10.
 
+16. **Build 14** (section 17; quick run `-- --b14`): `logic14_layer`, `soup_recipe14`, `rain_cycle14`, `mercy14`,
+    `reach14`, `last_holds14`, `net_water14`, `line_follow14`, `start_gate14`, `night14`, `hint14`, `never_stuck14`,
+    `texts14`, and the three permanent regression tests `start_invariant14`, `play_invariant14`,
+    `no_water_ursuppe14`.
+
 `tests/test_models.gd`: the 13 new kinds build a model at every LOD within the vertex budget, ice sheets merge
 across edges (seam rule), the Feuerstelle has its light.
 
@@ -1140,6 +1156,12 @@ The campaign tour runs on a clean profile (`--only=<section>`: `camp`, `acts`, `
 | `perf` | look tour per era ≤ 900 draw calls and ≤ 290 k primitives; level 60 (`vollendet`, measured 425 / 171 k in the tour) ≤ 500 draws, ≤ 200 k primitives; frame time printed |
 | `migration_from_schoepfung` | a v1 save loads: position, „Nachholen“, stars kept |
 | `level3_solvable`, `carry_world`, `stars_generous`, `hud_central`, `water_turns_with_slice`, `need_seal_stays` (level 49), `hold_rest` (level 60, „Gleichgewicht“), `pack_warn` (level 38) | as before with the new level numbers (`OLD_TO_NEW`) |
+| `no_rain_before_level5` (Build 14, `--only=b14`) | level 1 after 12 twists without progress: no rain button, no rain, no mercy |
+| `soup_recipe_stays` | level 8: water next to 2 Lava and a Fels becomes Ursuppe, pill „Ursuppe entsteht“ |
+| `action_line_always_move` | level 9 after two rains wasted on Fels: at 5 states in a row the line has a slice or a tool, never the old wait line |
+| `rain_fills_sea` | level 9 without water: line „Gieß Erde mit Regen“, the rain turns Erde into Wasser |
+| `net_keeps_water` | level 3 without Lava: card „Zu wenig Lava. Ich helfe.“, the gift leaves the water count unchanged, pill „Geschenk: +n Lava“ |
+| `night_line_names_change` | level 6 won, next day level 7 on the carried world: banner „Über Nacht: Ursuppe → Wasser“ |
 
 ---
 
@@ -1181,3 +1203,31 @@ Scratchpad: `/tmp/claude-0/-home-user-test-app/3861a76b-89b3-5028-950e-8c56bdad2
   `kampagne_erde.json` (`export_gd10.py`: eras, configs with texts, WdT, `old_to_new`, `pos_of_old`, retire,
   sources, pools; every solution replayed), cross-check cases `cases10.json`, `cases10_pool.json`; logs `*.log`.
 - Copy `kampagne_erde.json` to `gdpd/data/kampagne_erde.json` when the port starts (section 15).
+
+---
+
+## 17. Build 14: the logic layer (`docs/GDPD_LOGIK.md`)
+
+Player report on Build 13: „Ich habe schon vorausgespielt und konnte dann keine Ursuppe mehr erstellen, weil ich gar
+kein Wasser mehr hatte. Das muss logisch aufgebaut sein.“ The rules below are **game rules in code**
+(`GameState._apply_logic9`, only when `GameState.engine9_mode` is false). The level data (`kampagne_erde.json`
+rules) and the Python model are unchanged, so `test_xcheck9` and `test_pool_replay9` (model mode) still replay the
+data. `GameState.RULES_VERSION` (14) is the fingerprint of these rules; `Game._cfg_hash` includes it, so a saved run
+and a stored start board from an older build are not used under the new rules.
+
+| rule | where | what |
+|---|---|---|
+| one recipe for Ursuppe | `_apply_logic9` | levels 8 and 9 keep the thrive rule of 6/7: Wasser with 2 heat and 1 mineral → Ursuppe (rain on shore water stays as a shortcut) |
+| rain is a cycle | `_apply_logic9`, `cycle9` | levels 6–14 get the rain row Erde → Wasser („Regen füllt das Meer“): Fels → Erde → Wasser → (shore) Ursuppe/Algen. The row is not part of `chain9` (the hint never values it); the line names it only when the goal needs water and no water is left that rain works on (`_rain_val9`), Fels only when there is no Erde |
+| rain only where it exists | `tool_in_level9`, `_sources9`, `_mercy_helps9` | levels 1–4 (rain table, but `rain_start` 0 and `rain_every` 0) have no rain button, no mercy rain, and their rain rows count for nothing; mercy rain only when a field exists where rain helps the goal (or a fire burns) |
+| honest reach | `reach9`, `_supply9`, `_becomes9`, `_feed_ok9` | a field counts only if it can become the goal kind in place: thrive only with every need feasible (a source that exists or can be made, on a sticker type that touches, in the needed amount; sealed needs count), rain only with a possible condition, spawn only with a spawner. Row-only fields count together at most (participants − 2) and only if a row kind can form a row by sticker types. `satt` goals lose the blanket „producible“ bypass. „not ok“ still means surely dead; „ok“ stays optimistic |
+| the last holds | `_holds9` at the 8 natural `_fall9` sites | hunger, fire, volcano, hunt, ice, smog, flood and war skip a field if losing it would turn `reach9` from ok to not ok (event `hold_last`, pill „Hält durch!“). Never for the player's meteor or the scripted impact of level 34 |
+| net without water | `_kept_kinds9`, `_filler9`, `_gift_make9`, `_gift_group9`, `rescue_line9`, `gift_line9` | Wasser is kept where the level needs it (a `wet` need, rain on Wasser or at the shore); top-up takes unneeded kinds first, then uncounted goal-kind fields when the kind to add is their source (level 2/3: Fels → Lava), then the most common needed kind; the gift prefers the direct precursor. Card: „Zu wenig %s. Ich helfe.“ / „Keine Reihe möglich. Ich helfe.“; pill after the gift: „Geschenk: +%d %s“ |
+| the line always acts | `_act_pick9`, `_act_safe_move9`, `_act_hold9`, `_act_two9` | section 7 note; dead end first; rain first when the stock is full or it gives the goal kind; an open danger without a single-twist fix shows the danger text with the least-damage slice (`averts: false`); the same danger at most 2 rounds in a row; „X neben Y drehen“ names the neighbour the move really brings |
+| one gate for every start | `Campaign.gate`, `Campaign.ensure`, `Game.start_level`, `Game._start_fits`, `Game.resume_run` | 54 kinds the level knows, `reach9` ok, no finished row, not already won. A stored start is used only under the same fingerprint (legacy saves: only with the exact mix), must be within `TOPUP_MAX` fields of the level's mix and pass the gate, and is never re-shuffled; a resumed run in a dead end gets the help before the first twist |
+| the night keeps the world | `Campaign.repair`, `retire`, `night_pair`, `Game.start_level` | strict repair first, land retires to land, banner „Über Nacht: %s → %s“ (the pair with the most fields, shown first in the wave), a pool fallback says „Heute eine frische Welt“ |
+| the hint follows the line | `DaySearch8` | rain candidates ordered by their value for the goal; stalled and without progress the hint returns the concrete action of the line |
+| the help does not nag | `_check_goal9` (`sum_at9`), `Game.rescue_later` | every rise of the sub-goal sum counts as progress; after „Weiterspielen“ the next offer comes after 12 steps |
+| texts | `ACT_ALSO9` → `_act_also9`, `_act_hint9`, data | „Rettet auch die Saurier“ (the prey of the level), second line plural „3 Wälder → Saurier“, coach lines of 42/53/58 |
+
+Invariants and their permanent tests are listed in `GDPD_LOGIK.md`.

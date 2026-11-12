@@ -97,6 +97,8 @@ jobs:
                    era_models era_blanket ice_seam era_transition meteor_era perf \
                    era_overview_no_spoiler dino_era meteor_transition ice_age apes_climb early_humans_fire \
                    era_levels_visit migration_from_schoepfung era_look_on_card next_action_line creature_size \
+                   soup_recipe_stays rain_fills_sea no_rain_before_level5 net_keeps_water action_line_always_move \
+                   night_line_names_change \
                    rain rain_refused rain_off merge merge_repeat choice choice_longpress choice_outside \
                    choice_timeout choice_mini field_sheet war smog coach_wish wish strike flood complete game_over; do
             grep -q "CHECK ok=true name=$c " ../shots.log || { echo "Prüfung $c fehlt"; exit 1; }

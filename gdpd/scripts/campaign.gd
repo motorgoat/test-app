@@ -55,9 +55,12 @@ const TEXT = {
 	"calmer": "Die Lava hat sich verteilt",
 	"calmer_ice": "Das Eis hat sich verteilt",
 	"rescue_dead": "Sackgasse! Ich helfe dir.",
-	"rescue_few": "Zu wenig Lava? Ich helfe dir.",
+	"rescue_few": "Zu wenig %s. Ich helfe.",
 	"rescue_stall": "Hängst du fest? Ich helfe dir.",
-	"rescue_rows": "Keine Reihe? Wasser kühlt Lava.",
+	"rescue_rows": "Keine Reihe möglich. Ich helfe.",
+	"gift_pill": "Geschenk: +%d %s",
+	"hold_last": "Hält durch!",
+	"night_pair": "Über Nacht: %s → %s",
 	"gift": "Geschenk",
 	"new_world": "Neue Welt",
 	"play_on": "Weiterspielen",
@@ -79,6 +82,7 @@ const PILL = {
 	"need_sealed": ["Versorgt bleibt versorgt.", ""],
 	"glacier_warn": ["Gletscher wächst!", "Teil das Eis"], "freeze": ["Eis!", ""], "glacier_calm": ["Abgewendet", ""],
 	"impact_warn": ["Meteor kommt!", ""], "impact": ["Einschlag!", ""],
+	"hold_last": ["Hält durch!", ""],
 }
 ## Jagd-Warnung je Jäger (pack_warn mit "hunter").
 const PILL_HUNT = {FieldData.PRED: ["Rudel jagt!", "Trenn die Raubtiere"],
@@ -366,7 +370,13 @@ static func violation(n: int, kinds: Array, want_clump: bool, cap_clump: bool = 
 	var v := 3 * gs.lines().size()
 	v += 2 * infeasible(gs, c)
 	v += 2 * gs.church_touch9().size()
-	var sa := gs.satt_ids9()
+	# satt am Start zählt nach den Level-Daten (wie im Modell): Regeln, die erst der Code dazugibt (Build 14: Wasser →
+	# Ursuppe in Level 8/9), machen ein geprüftes Pool-Brett nicht ungültig
+	var th: Dictionary = c.get("thrive", {})
+	var sa: Array = []
+	for i0 in gs.satt_ids9():
+		if th.has(str((gs.fields[int(i0)] as FieldData).kind)):
+			sa.append(int(i0))
 	v += maxi(0, sa.size() - int(c.get("satt_max", 0)))
 	var gm: Variant = c.get("group_max")
 	if gm is Array:
@@ -450,7 +460,20 @@ static func quick_win(n: int, kinds: Array, seed_value: int) -> bool:
 
 ## Tausch-Bergsteigen (wie levels9.repair): zwei Felder derselben Sticker-Art tauschen, bis die Startbedingungen
 ## gelten. Gibt [kinds, Rest-Verletzung] zurück.
+## Build 14 („die Nacht behält deine Welt“): zuerst nur echte Verbesserungen (höchstens STRICT_ITERS Versuche) – so
+## ändert die Reparatur nur, was sie muss. Reicht das nicht, der alte Durchgang (er nimmt auch gleich gute Täusche an
+## und mischt dadurch viel mehr um).
+const STRICT_ITERS := 1000
+
+
 static func repair(n: int, kinds: Array, rng: RandomNumberGenerator, iters: int = 3000, cap_clump: bool = false) -> Array:
+	var st := _repair_pass(n, kinds, rng, STRICT_ITERS, cap_clump, true)
+	if int(st[1]) == 0:
+		return st
+	return _repair_pass(n, kinds, rng, iters, cap_clump, false)
+
+
+static func _repair_pass(n: int, kinds: Array, rng: RandomNumberGenerator, iters: int, cap_clump: bool, strict: bool) -> Array:
 	var k := kinds.duplicate()
 	var cur := violation(n, k, false, cap_clump)
 	var by_type := {3: [], 2: [], 1: []}
@@ -472,7 +495,7 @@ static func repair(n: int, kinds: Array, rng: RandomNumberGenerator, iters: int 
 		k[a] = k[b]
 		k[b] = tmp
 		var v := violation(n, k, false, cap_clump)
-		if v <= cur or rng.randf() < 0.02:
+		if v < cur or (not strict and (v == cur or rng.randf() < 0.02)):
 			cur = v
 		else:
 			k[b] = k[a]
@@ -488,7 +511,14 @@ static func retire(k: int, allowed: Dictionary) -> int:
 	while not allowed.has(cur) and not seen.has(cur):
 		seen[cur] = true
 		cur = int(rt.get(str(cur), FieldData.WATER))
-	return cur if allowed.has(cur) else FieldData.WATER
+	if allowed.has(cur):
+		return cur
+	# Build 14: Land bleibt Land (eine Land-Art, die das Level hat), bevor es Wasser wird
+	if not FieldData.water_family(k):
+		for land in [FieldData.EMPTY, FieldData.STONE, FieldData.MEADOW, FieldData.MOSS, FieldData.FERN, FieldData.FOREST]:
+			if allowed.has(land):
+				return int(land)
+	return FieldData.WATER
 
 
 ## Die Welt von gestern als Start von Level n (5): prev = 54 Arten nach Plätzen (GameState.slot_board9 / [kampagne]
@@ -590,11 +620,21 @@ static func ensure(n: int, b: Dictionary, pool_index: int = 0) -> Dictionary:
 	if kinds.size() != 54 or not valid(n):
 		return out
 	var c := config(n)
+	if how == "stored":
+		return out                  # Build 14: ein gespeichertes Start-Brett ist schon durch (Game prüft es am Tor, gate)
+	if how == "pool" or how == "fallback":
+		# ein Pool-Brett hat eine geprüfte Lösung; das Tor prüft es trotzdem (sonst das nächste Pool-Brett)
+		if not gate(n, kinds, int(b.get("seed", 1))):
+			var gp := _gated_pool(n, pool_index + 1)
+			gp["line"] = str(TEXT["fresh"])
+			gp["fixes"] = []
+			return gp
+		if how == "fallback":
+			out["line"] = str(TEXT["fresh"])     # die Welt von gestern ging nicht mit: sag es (nie ein stiller Tausch)
+		return out
 	var gs := GameState.new()
 	gs.setup_level(c, kinds, int(b.get("seed", 1)))
-	var own := how != "pool" and how != "fallback"
-	if not own:
-		return out                  # ein Pool-Brett hat eine geprüfte Lösung (und das Sicherheitsnetz im Spiel hilft)
+	var own := true
 	var line := ""
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(b.get("seed", 1)) * 31 + n
@@ -615,8 +655,8 @@ static func ensure(n: int, b: Dictionary, pool_index: int = 0) -> Dictionary:
 		# Nie eine fertige Reihe am Start (sie würde nie zählen): Teilen und Nachschub dürfen keine schließen
 		gs._break_ready_lines()
 		gs._grp_ok = false
-	if not bool(gs.reach9()["ok"]) or not gs.lines().is_empty():
-		var fb := _fallback(n, pool_index)
+	if not bool(gs.reach9()["ok"]) or not gs.lines().is_empty() or _all_met(gs):
+		var fb := _gated_pool(n, pool_index)
 		fb["line"] = str(TEXT["fresh"])
 		fb["fixes"] = []
 		return fb
@@ -653,6 +693,132 @@ static func ensure(n: int, b: Dictionary, pool_index: int = 0) -> Dictionary:
 	out["line"] = line
 	out["board"] = encode(nk)
 	return out
+
+
+## Sind schon alle Teilziele erfüllt (ein Brett, das beim ersten Zug gewonnen wäre)?
+static func _all_met(gs: GameState) -> bool:
+	if gs.goal9.is_empty():
+		return false
+	for i in gs.goal9.size():
+		if not gs._sub_met9(i):
+			return false
+	return true
+
+
+## Arten, die Level n kennt (Start-Mischung, Wasser, Reihen, Gedeihen, Regen, Brand, Gefahren-Folgen).
+static func known_kinds(n: int) -> Dictionary:
+	var c := config(n)
+	var out := {FieldData.WATER: true}
+	for key in (c.get("comp", {}) as Dictionary):
+		out[int(str(key))] = true
+	var gs := GameState.new()
+	var kinds: Array = []
+	for i in 54:
+		kinds.append(FieldData.WATER)
+	gs.setup_level(c, kinds, 1)
+	for k in gs.rows9:
+		out[int(k)] = true
+		out[int(gs.rows9[k])] = true
+	for k2 in gs.consume9:
+		out[int(gs.consume9[k2])] = true
+	for k3 in gs.thrive9:
+		var r: Dictionary = gs.thrive9[k3]
+		out[int(k3)] = true
+		if int(r["up"]) >= 0:
+			out[int(r["up"])] = true
+		if int(r["down"]) >= 0:
+			out[int(r["down"])] = true
+		var sp: Array = r["spawn"]
+		if sp.size() >= 3:
+			out[int(sp[1])] = true
+			if int(sp[2]) >= 0:
+				out[int(sp[2])] = true
+	for it in gs.rain9:
+		out[int((it as Array)[0])] = true
+		out[int((it as Array)[2])] = true
+	for k4 in gs.burn9:
+		out[int(gs.burn9[k4])] = true
+	for h in gs.hunt9:
+		out[int((h as Dictionary)["to"])] = true
+	if not gs.impact9.is_empty():
+		for k5 in (gs.impact9["kill"] as Dictionary):
+			out[int((gs.impact9["kill"] as Dictionary)[k5])] = true
+	if bool(gs.sys9.get("volcano", false)):
+		out[FieldData.LAVA] = true
+	if not gs.glacier9.is_empty():
+		out[FieldData.ICE] = true
+	if bool(gs.sys9.get("war", false)) or bool(gs.sys9.get("smog", false)):
+		for k6 in [FieldData.EMPTY, FieldData.MEADOW, FieldData.HUT, FieldData.VILLAGE, FieldData.FOREST, FieldData.MOSS]:
+			out[int(k6)] = true
+	return out
+
+
+## Das Tor (Build 14, GDPD_LOGIK.md „Jeder Start wird geprüft“): Auf diesem Brett darf Level n beginnen – 54 Arten, die
+## das Level kennt, das Ziel ist erreichbar (GameState.reach9), keine fertige Reihe, nicht schon gewonnen. Gilt für
+## jeden Weg (Pool, Welt von gestern, gespeichertes Start-Brett, Welt des Tages).
+static func gate(n: int, kinds: Array, seed_value: int = 1, cfg: Dictionary = {}) -> bool:
+	if kinds.size() != 54 or not valid(n):
+		return false
+	var known := known_kinds(n)
+	for k in kinds:
+		if not known.has(int(k)):
+			return false
+	var gs := GameState.new()
+	gs.setup_level(cfg if not cfg.is_empty() else config(n), kinds, seed_value)
+	return bool(gs.reach9()["ok"]) and gs.lines().is_empty() and not _all_met(gs)
+
+
+## So viele Felder eines Bretts passen nicht zur Start-Mischung von Level n (0 = genau die Mischung).
+static func mix_off(n: int, kinds: Array) -> int:
+	var comp: Dictionary = config(n).get("comp", {})
+	var want := {}
+	var total := 0
+	for key in comp:
+		want[int(str(key))] = int(comp[key])
+		total += int(comp[key])
+	want[FieldData.WATER] = 54 - total
+	var cnt := {}
+	for k in kinds:
+		cnt[int(k)] = int(cnt.get(int(k), 0)) + 1
+	var off := 0
+	for k2 in cnt:
+		off += maxi(0, int(cnt[k2]) - int(want.get(k2, 0)))
+	return off
+
+
+## Das erste Pool-Brett ab pool_index, das durchs Tor geht (wie _fallback; praktisch immer das erste).
+static func _gated_pool(n: int, pool_index: int) -> Dictionary:
+	var size := maxi(1, pool_size(n))
+	for d in size:
+		var fb := _fallback(n, pool_index + d)
+		if n > 1 and size > 1 and int(fb.get("index", 0)) == 0:
+			continue                    # Brett 0 ist das Lehr-Brett
+		if gate(n, fb.get("kinds", []), int(fb.get("seed", 1))):
+			return fb
+	return _fallback(n, pool_index)
+
+
+## Die größte Änderung einer Nacht für den Banner: das Paar (von → zu) mit den meisten Feldern. prev und kinds = je 54
+## Arten. {"from", "to", "n", "fields"} oder {} (nichts geändert).
+static func night_pair(prev: Array, kinds: Array) -> Dictionary:
+	var cnt := {}
+	for i in mini(prev.size(), kinds.size()):
+		var a := int(prev[i])
+		var b := int(kinds[i])
+		if a == b:
+			continue
+		var key := a * 64 + b
+		if not cnt.has(key):
+			cnt[key] = []
+		(cnt[key] as Array).append(i)
+	var best := -1
+	for key2 in cnt:
+		if best < 0 or (cnt[key2] as Array).size() > (cnt[best] as Array).size() \
+				or ((cnt[key2] as Array).size() == (cnt[best] as Array).size() and int(key2) < best):
+			best = int(key2)
+	if best < 0:
+		return {}
+	return {"from": best / 64, "to": best % 64, "n": (cnt[best] as Array).size(), "fields": cnt[best]}
 
 
 ## Eis-Klumpen einer übernommenen Welt höchstens so groß (Gletscher-Level, GDPD_ERDGESCHICHTE.md 6).

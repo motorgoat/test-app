@@ -1627,7 +1627,8 @@ static func fresh_camp() -> Dictionary:
 		wk.append(-1)
 		nb.append(0)
 	return {"stars": st, "steps": sp, "won_key": wk, "pos": 0, "last_new_key": -1, "world": "", "world_level": 0,
-		"start": "", "start_level": 0, "start_seed": 1, "fast_to": 0, "fast_day": [-1, 0], "veteran": false,
+		"start": "", "start_level": 0, "start_seed": 1, "start_cfg": "", "start_how": "",
+		"fast_to": 0, "fast_day": [-1, 0], "veteran": false,
 		"next_board": nb, "thanks": 0, "migrated": false}
 
 
@@ -1707,6 +1708,9 @@ func _load_camp(cfg: ConfigFile) -> void:
 		camp["start"] = str(cfg.get_value(s, "start", ""))
 		camp["start_level"] = int(cfg.get_value(s, "start_level", 0))
 		camp["start_seed"] = int(cfg.get_value(s, "start_seed", 1))
+		# Build 14: Fingerabdruck der Regeln und Herkunft des Start-Bretts (fehlen in Ständen aus Build 12/13: "")
+		camp["start_cfg"] = str(cfg.get_value(s, "start_regeln", ""))
+		camp["start_how"] = str(cfg.get_value(s, "start_woher", ""))
 		camp["fast_to"] = int(cfg.get_value(s, "schnell_bis", 0))
 		var fd: Variant = cfg.get_value(s, "schnell_tag", [-1, 0])
 		camp["fast_day"] = [int((fd as Array)[0]), int((fd as Array)[1])] if fd is Array and (fd as Array).size() >= 2 else [-1, 0]
@@ -1842,6 +1846,8 @@ func _save_camp(cfg: ConfigFile) -> void:
 	cfg.set_value(s, "start", str(camp["start"]))
 	cfg.set_value(s, "start_level", int(camp["start_level"]))
 	cfg.set_value(s, "start_seed", int(camp["start_seed"]))
+	cfg.set_value(s, "start_regeln", str(camp.get("start_cfg", "")))
+	cfg.set_value(s, "start_woher", str(camp.get("start_how", "")))
 	cfg.set_value(s, "schnell_bis", int(camp["fast_to"]))
 	cfg.set_value(s, "schnell_tag", camp["fast_day"])
 	cfg.set_value(s, "veteran", bool(camp["veteran"]))
@@ -1970,6 +1976,15 @@ func start_level(n: int, board_index: int = -1) -> bool:
 		if not run.is_empty() and int(run["level"]) == n and not bool(run["wdt"]) and resume_run():
 			return true           # Build 12: ein laufender Versuch geht weiter (nie wieder von 0)
 	var b := _level_start_board(n, board_index)
+	# Build 14, das Tor: Ein gespeichertes Start-Brett gilt nur, wenn es (noch) durchs Tor geht – sonst entscheiden die
+	# Welt von gestern oder das Pool-Brett neu. Es wird nie neu gemischt (kein Teilen, kein Nachschub, kein Banner).
+	# Ein Start-Brett ist immer (fast) die Mischung des Levels: höchstens der Nachschub einer Nacht weicht ab.
+	if str(b.get("how", "")) == "stored" and (not Campaign.gate(n, b.get("kinds", []), int(b.get("seed", 1)))
+			or Campaign.mix_off(n, b.get("kinds", [])) > Campaign.TOPUP_MAX):
+		camp["start"] = ""
+		camp["start_level"] = 0
+		camp["start_cfg"] = ""
+		b = _level_start_board(n, board_index)
 	# Jedes Level bleibt lösbar: vor dem Start prüfen (ohne Suche), sonst Nachschub über Nacht oder das Pool-Brett
 	b = Campaign.ensure(n, b, int((camp["next_board"] as Array)[n - 1]))
 	_board_explicit = board_index >= 0
@@ -1990,8 +2005,17 @@ func start_level(n: int, board_index: int = -1) -> bool:
 				break
 			ch.append(fd.duplicate())
 			shown[int(fd["field"])] = true
+		# Build 14: der Banner nennt die größte Änderung der Nacht („Über Nacht: Ursuppe → Wasser“), die Welle zeigt
+		# zuerst Felder dieses Paars
+		var pair: Dictionary = Campaign.night_pair(prev, kinds) if how_b == "carry" else {}
+		var order: Array = []
+		if not pair.is_empty():
+			order.append_array(pair["fields"])
 		if how_b == "carry":
-			for i0 in b.get("changed", []):
+			for i1 in b.get("changed", []):
+				if not order.has(int(i1)):
+					order.append(int(i1))
+			for i0 in order:
 				var i := int(i0)
 				if ch.size() >= Days.OVERNIGHT_MAX:
 					break
@@ -1999,6 +2023,8 @@ func start_level(n: int, board_index: int = -1) -> bool:
 					continue
 				ch.append({"field": i, "from": int(prev[i]) if i < prev.size() else 0, "kind": int(kinds[i]) if i < kinds.size() else 0})
 		var oline := str(b.get("line", ""))
+		if oline == "" and not pair.is_empty():
+			oline = str(Campaign.TEXT["night_pair"]) % [FieldData.kind_name(int(pair["from"])), FieldData.kind_name(int(pair["to"]))]
 		if oline == "":
 			oline = str(Campaign.TEXT["overnight_line"])        # nie eine leere Pille („Neuer Morgen“ allein)
 		overnight = {"type": "overnight", "level": n, "day": n, "changes": ch,
@@ -2015,7 +2041,7 @@ func _level_start_board(n: int, board_index: int) -> Dictionary:
 		var pb := Campaign.board(n, board_index)
 		pb["how"] = "pool"
 		return pb
-	if not won and int(camp["start_level"]) == n and str(camp["start"]).length() == 54:
+	if not won and int(camp["start_level"]) == n and str(camp["start"]).length() == 54 and _start_fits(n):
 		var idx0 := -1
 		var pb0 := Campaign.board(n, 0)
 		if str(pb0.get("board", "")) == str(camp["start"]):
@@ -2034,6 +2060,15 @@ func _level_start_board(n: int, board_index: int) -> Dictionary:
 	var pb2 := Campaign.board(n, i)
 	pb2["how"] = "pool"
 	return pb2
+
+
+## Gilt das gespeicherte Start-Brett noch? Mit Fingerabdruck (ab Build 14): nur unter denselben Regeln. Ohne (Stand
+## aus Build 12/13): nur mit genau der Mischung des Levels. (Durchs Tor muss es danach trotzdem: start_level.)
+func _start_fits(n: int) -> bool:
+	var h := str(camp.get("start_cfg", ""))
+	if h != "":
+		return h == _cfg_hash(Campaign.config(n))
+	return _comp_fits(n, Campaign.decode(str(camp["start"])))
 
 
 func _start_level_state(n: int, b: Dictionary) -> void:
@@ -2061,6 +2096,9 @@ func _start_level_state(n: int, b: Dictionary) -> void:
 		camp["start"] = Campaign.encode(b.get("kinds", []))
 		camp["start_level"] = n
 		camp["start_seed"] = int(b.get("seed", 1))
+		camp["start_cfg"] = _cfg_hash(Campaign.config(n))
+		if str(b.get("how", "")) != "stored":
+			camp["start_how"] = str(b.get("how", ""))
 	pending_choice = {}
 	busy = false
 	over = false
@@ -2110,6 +2148,16 @@ func start_level_wdt(board_index: int = -1) -> bool:
 		if sz > 1 and pick == 0:
 			pick = 1                  # nie Brett 0 (wie Campaign.wdt_board_index)
 		b = Campaign.board(t, pick)
+	# Build 14, das Tor: auch die Welt des Tages beginnt nur auf einem Brett, das geht (sonst das nächste der Vorlage)
+	var tw := int(cfg["level"])
+	var szw := maxi(1, Campaign.pool_size(tw))
+	for dw in szw:
+		if Campaign.gate(tw, b.get("kinds", []), int(b.get("seed", 1)), cfg):
+			break
+		var nxt := posmod(int(b.get("index", 0)) + 1, szw)
+		if szw > 1 and nxt == 0:
+			nxt = 1
+		b = Campaign.board(tw, nxt)
 	sek100 = false
 	attempt_key = k
 	attempt_start = game_now()
@@ -2211,6 +2259,7 @@ func _finish_level() -> void:
 		Daily.register_level_win(camp, n, today)
 		camp["start"] = ""
 		camp["start_level"] = 0
+		camp["start_cfg"] = ""
 	var before_best := int((pdata["level_best"] as Array)[i])
 	var paid := Points.pay_level(pdata, n, pts, today)
 	_add_points(paid, "level")
@@ -2563,6 +2612,17 @@ func _rescue_check() -> void:
 	level_dead.emit(rescue_offer.duplicate())
 
 
+## „Weiterspielen“ auf der Hilfe-Karte (Build 14): Das Angebot kommt frühestens nach RESCUE_WAIT Schritten wieder
+## (sonst alle STALL9 Schritte: der Charakter drängt sich nicht auf).
+const RESCUE_WAIT := 12
+
+
+func rescue_later() -> void:
+	rescue_offer = {}
+	if state != null and state.camp:
+		rescue_told_at = state.steps9() + RESCUE_WAIT - GameState.STALL9
+
+
 ## Das Geschenk des Charakters annehmen (Sicherheitsnetz): +1 Fortschritt und, wenn nötig, Nachschub. Kein Schritt,
 ## kostet nichts. Die World spielt es wie einen Regen ab (round_resolved, danach finish_round). {} = nichts zu schenken.
 func take_gift() -> Dictionary:
@@ -2615,8 +2675,10 @@ func run_path() -> String:
 
 
 ## Fingerabdruck der Level-Regeln: Ändert ein Update das Level, beginnt ein gespeicherter Versuch neu.
-static func _cfg_hash(cfg: Dictionary) -> String:
-	return var_to_str(cfg).md5_text()
+## Build 14: auch die Regeln im Code zählen mit (GameState.RULES_VERSION) – ein Versuch aus einem älteren Build
+## beginnt neu, ein Start-Brett aus einem älteren Build wird neu geprüft.
+static func _cfg_hash(cfg: Dictionary, rules: int = GameState.RULES_VERSION) -> String:
+	return (var_to_str(cfg) + "|regeln=%d" % rules).md5_text()
 
 
 ## Den laufenden Versuch speichern (nach jeder Runde, nach Zurück, beim Pausieren). Gewonnen oder kein Level: löschen.
@@ -2625,7 +2687,7 @@ func _save_run() -> void:
 			or (state.actions9() == 0 and state.steps9() == 0):
 		_clear_run()              # nichts getan: das Level beginnt wie gewohnt (mit Start-Karte)
 		return
-	var d := {"v": RUN_VERSION, "level": level_no, "wdt": wdt_key, "cfg": _cfg_hash(state.day),
+	var d := {"v": RUN_VERSION, "rv": GameState.RULES_VERSION, "level": level_no, "wdt": wdt_key, "cfg": _cfg_hash(state.day),
 		"state": state.save9(), "undo": undo_state.save9() if undo_state != null and undo_state.camp else {},
 		"board": level_board.duplicate(true), "hint_free": hint_free_left, "undo_free": undo_free_left,
 		"rescue_at": rescue_told_at, "dead_told": dead_told, "offer": rescue_offer.duplicate(true),
@@ -2673,6 +2735,8 @@ func _load_run() -> Dictionary:
 	var d: Dictionary = v
 	if int(d.get("v", 0)) != RUN_VERSION or not (d.get("state") is Dictionary):
 		return {}
+	if int(d.get("rv", 0)) != GameState.RULES_VERSION:
+		return {}                    # Build 14: ein Versuch unter anderen Regeln (älterer Build) beginnt neu
 	var n := int(d.get("level", 0))
 	if n < 1 or n > Campaign.COUNT:
 		return {}
@@ -2747,6 +2811,11 @@ func resume_run() -> bool:
 	level_started.emit(info)
 	if not rescue_offer.is_empty():
 		level_dead.emit(rescue_offer.duplicate())
+	else:
+		# Build 14: ein fortgesetzter Versuch in einer Sackgasse bekommt die Hilfe vor der ersten Drehung
+		if state.stuck9() == "dead":
+			dead_told = false
+		_rescue_check()
 	return true
 
 

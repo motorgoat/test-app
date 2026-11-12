@@ -1385,7 +1385,7 @@ func _on_dead_again() -> void:
 
 
 func _on_dead_stay() -> void:
-	Game.rescue_offer = {}
+	Game.rescue_later()
 	ui._close_modal(true)
 
 
@@ -2953,23 +2953,33 @@ func _pill8(result: Dictionary) -> void:
 const PILL9_RANK = {"goal_loss": 10, "erupt": 9, "volcano_warn": 9, "bolt": 8, "bolt_warn": 8, "pack_warn": 8, "pack_hunt": 7,
 	"hunger_warn": 7, "starve": 7, "smog_warn": 6, "polluted": 6, "war_start": 9, "flood_warn": 8, "flood": 7, "war_hit": 6,
 	"need_sealed": 5, "spawn": 5, "mercy": 5, "meteor_ready": 4, "volcano_calm": 4, "bolt_cancel": 4,
-	"thrive": 3, "steam": 3, "satt_new": 2, "hold": 2, "impact": 11, "glacier_warn": 9, "freeze": 8, "glacier_calm": 4}
+	"thrive": 3, "steam": 3, "satt_new": 2, "hold": 2, "impact": 11, "glacier_warn": 9, "freeze": 8, "glacier_calm": 4,
+	"hold_last": 6}
 const PILL9_ICON = {"goal_loss": "down", "erupt": "volcano", "volcano_warn": "volcano", "volcano_calm": "check",
 	"bolt": "fire", "bolt_warn": "lightning", "bolt_cancel": "rain", "pack_warn": "pred", "pack_hunt": "pred",
 	"hunger_warn": "hunger", "starve": "hunger", "smog_warn": "smog", "polluted": "smog", "spawn": "animals",
 	"steam": "rain", "meteor_ready": "meteor", "mercy": "spark", "need_sealed": "check", "thrive": "up",
 	"satt_new": "check", "hold": "balance", "war_start": "swords", "war_hit": "swords", "flood_warn": "flood", "flood": "flood",
-	"impact": "meteor_fall", "glacier_warn": "ice", "freeze": "ice", "glacier_calm": "check"}
+	"impact": "meteor_fall", "glacier_warn": "ice", "freeze": "ice", "glacier_calm": "check", "hold_last": "check"}
 const PILL9_WAR = ["goal_loss", "erupt", "volcano_warn", "bolt", "bolt_warn", "pack_warn", "pack_hunt", "hunger_warn",
 	"starve", "smog_warn", "polluted", "war_start", "war_hit", "flood_warn", "flood", "impact", "glacier_warn", "freeze"]
 var _sealed_said := false
 var _rain_coach_due := ""            # Level 5: der Regen-Tipp wartet auf den ersten Dampf
 var _steam_said := false
 var pill9_last := ""                 # Tour: Typ der letzten Pille
+var pill9_text := ""                 # Tour: Text der letzten Geschenk-Pille
 
 
 func _pill9(result: Dictionary) -> void:
 	if not Game.in_day() or not Game.state.camp:
+		return
+	if bool(result.get("gift", false)):
+		# Build 14: das Geschenk sagt, was es gebracht hat („Geschenk: +3 Lava“)
+		var gl := GameState.gift_line9(result)
+		if gl != "":
+			pill9_last = "gift"
+			pill9_text = gl
+			ui._show_banner("still", "", gl, "gift")
 		return
 	var best: Dictionary = {}
 	var rank := -1

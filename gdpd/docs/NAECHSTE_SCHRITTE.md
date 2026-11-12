@@ -194,3 +194,26 @@
   keine Zeitalter-Namen in der Release-Notiz (kein Spoiler), Leistung als echtes CI-Tor.
 - Korrekturen von Philipp (10./11. November, erledigt): Nur das Neigen des Handys ist oben/unten umgekehrt, Ziehen mit
   dem Finger normal. „Art zu reden“ nur noch im Gott (Menü → Dein Gott → Name & Art), nicht in den Einstellungen.
+
+## Feedback Build 13 (Philipp, 12. November) – Build 14 (erledigt)
+„Das funktioniert nicht richtig. Ich habe zb schon vorausgespielt und konnte dann keine Ursuppe mehr erstellen, wenns
+so weit war, weil ich gar kein Wasser mehr hatte. Das muss logisch aufgebaut sein.“
+- Geprüft: jeder Weg, auf dem ein Level beginnt (auch der Stand aus Build 12), und alles, was im Level ein Material
+  verbraucht. Ein Brett ohne Wasser ließ sich nicht nachstellen; gefunden wurden Lücken in den Regeln. Plan und
+  Regeln: `docs/GDPD_LOGIK.md`.
+- Ein Rezept bleibt: Wasser + 2 Wärme + Fels → Ursuppe gilt auch in Level 8 und 9 (vorher dort nur Regen). (erledigt)
+- Regen ist ein Kreislauf (Level 6–14): Regen auf Erde macht Wasser, „Regen füllt das Meer“. Ein verschwendeter Regen
+  ist nie verloren. (erledigt)
+- Kein Regen vor Level 5, auch nicht als „Hilfe von oben“. (erledigt)
+- Die Gefahr nimmt nie das Letzte, was das Ziel braucht („Hält durch!“). (erledigt)
+- Die Hilfe nimmt kein Wasser weg, sagt, was fehlt („Zu wenig Lava. Ich helfe.“) und was sie bringt („Geschenk: +3
+  Lava“); nach „Weiterspielen“ fragt sie erst nach 12 Schritten wieder. (erledigt)
+- Oben steht immer eine Handlung mit leuchtender Scheibe oder Werkzeug, nie im Kreis; die Sackgasse heißt „Hilfe: hier
+  tippen“. (erledigt)
+- Die Nacht ändert weniger (im Test 15 statt 26 Felder) und sagt, was sich geändert hat („Über Nacht: Ursuppe →
+  Wasser“). (erledigt)
+- Jeder Start wird geprüft, egal woher das Brett kommt; ein laufender Versuch aus einem älteren Build beginnt neu.
+  (erledigt)
+- Drei dauerhafte Prüfungen laufen bei jedem Build mit: Start, Spiel, „Ursuppe ohne Wasser“. (erledigt)
+- Offen (bewusst später, siehe GDPD_LOGIK.md): was du gestern gemacht hast, bleibt über Nacht liegen; Tauwetter in
+  Level 41; Siedler für die Menschen-Level; ein laufender Versuch je Level; am echten Handy prüfen.

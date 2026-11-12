@@ -5014,6 +5014,8 @@ func _show_help() -> void:
 		rain_t0.text = "Wunder" if act == 1 else "Regen"
 		if act == 1:
 			rain_l0.text = "Kühlt die Lava."
+		elif gs.cycle9:
+			rain_l0.text = "Regen füllt das Meer."        # Build 14: Level 6–14, Regen auf Erde macht Wasser
 		elif not (bool(gs.sys9.get("bolt", false)) or Game.level_no >= 21):
 			rain_l0.text = "Lässt die Welt wachsen."
 		var thr := not gs.thrive9.is_empty()
